@@ -21,7 +21,6 @@ void ScreenMainLoaded(lv_event_t *e)
 
     lv_label_set_text(ui_Image_Main_WiFi, LV_SYMBOL_WIFI);
     lv_label_set_text(ui_Image_Main_SDCard, LV_SYMBOL_SD_CARD);
-    lv_label_set_text(ui_Image_Main_Battery, LV_SYMBOL_BATTERY_FULL);
 
     lv_label_set_text(ui_Label_Main_Button_Menu, "\uF0C9");
     lv_label_set_text(ui_Label_Main_Button_Info, "\uF129");

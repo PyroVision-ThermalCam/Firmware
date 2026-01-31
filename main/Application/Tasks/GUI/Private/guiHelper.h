@@ -29,7 +29,7 @@
 #include <esp_lcd_panel_vendor.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_ili9341.h>
-#include <esp_lcd_touch_xpt2046.h>
+#include <esp_lcd_touch_gt911.h>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -51,6 +51,7 @@
 #define LEPTON_TEMP_READY                   BIT12
 #define LEPTON_PIXEL_TEMPERATURE_READY      BIT13
 #define LEPTON_CAMERA_READY                 BIT4
+#define LEPTON_CAMERA_ERROR                 BIT14
 #define LEPTON_SPOTMETER_READY              BIT5
 #define LEPTON_SCENE_STATISTICS_READY       BIT6
 
@@ -65,6 +66,7 @@ typedef struct {
     TaskHandle_t GUI_Handle;
     void *DisplayBuffer1;
     void *DisplayBuffer2;
+    i2c_master_bus_handle_t Touch_Bus_Handle;
     esp_timer_handle_t LVGL_TickTimer;
     esp_lcd_panel_handle_t PanelHandle;
     esp_lcd_touch_handle_t TouchHandle;

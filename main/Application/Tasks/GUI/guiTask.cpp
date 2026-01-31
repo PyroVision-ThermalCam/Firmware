@@ -246,6 +246,8 @@ static void on_Lepton_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, 
             break;
         }
         case LEPTON_EVENT_CAMERA_ERROR: {
+            xEventGroupSetBits(_GUITask_State.EventGroup, LEPTON_CAMERA_ERROR);
+
             break;
         }
         case LEPTON_EVENT_RESPONSE_FPA_AUX_TEMP: {
@@ -453,34 +455,27 @@ static void UI_Canvas_AddTempGradient(void)
     }
 }
 
-/** @brief LVGL touch read callback for XPT2046 touch controller.
+/** @brief          LVGL touch read callback.
+ *  @param p_Indev  Input device handle
+ *  @param p_Data   Input device data
  */
-static void XPT2046_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Data)
+static void Touch_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Data)
 {
     uint8_t Count = 0;
     esp_lcd_touch_point_data_t Data[1];
     esp_lcd_touch_handle_t Touch;
-    esp_err_t Error;
 
     Touch = (esp_lcd_touch_handle_t)lv_indev_get_user_data(p_Indev);
     esp_lcd_touch_read_data(Touch);
 
-    Error = esp_lcd_touch_get_data(Touch, Data, &Count, sizeof(Data) / sizeof(Data[0]));
+    if ((esp_lcd_touch_get_data(Touch, Data, &Count, sizeof(Data) / sizeof(Data[0])) == ESP_OK) && (Count > 0)) {
+        p_Data->point.x = CONFIG_GUI_WIDTH - Data[0].x;
+        p_Data->point.y = Data[0].y;
 
-    if ((Error == ESP_OK) && (Count > 0)) {
-        uint16_t raw_x = Data[0].x;
-        uint16_t raw_y = Data[0].y;
-
-        /* Clamp raw values to calibrated range */
-        int16_t clamped_x = (raw_x < TOUCH_RAW_X_MIN) ? TOUCH_RAW_X_MIN : (raw_x > TOUCH_RAW_X_MAX) ? TOUCH_RAW_X_MAX : raw_x;
-        int16_t clamped_y = (raw_y < TOUCH_RAW_Y_MIN) ? TOUCH_RAW_Y_MIN : (raw_y > TOUCH_RAW_Y_MAX) ? TOUCH_RAW_Y_MAX : raw_y;
-
-        /* Swap axes and scale: Display X from Raw Y, Display Y from Raw X */
-        p_Data->point.x = (clamped_y - TOUCH_RAW_Y_MIN) * (CONFIG_GUI_WIDTH - 1) / (TOUCH_RAW_Y_MAX - TOUCH_RAW_Y_MIN);
-        p_Data->point.y = (clamped_x - TOUCH_RAW_X_MIN) * (CONFIG_GUI_HEIGHT - 1) / (TOUCH_RAW_X_MAX - TOUCH_RAW_X_MIN);
         p_Data->state = LV_INDEV_STATE_PRESSED;
 
-        ESP_LOGD(TAG, "Touch RAW: (%d, %d) -> MAPPED: (%d, %d)", raw_x, raw_y, p_Data->point.x, p_Data->point.y);
+        ESP_LOGD(TAG, "Raw: (%d, %d)", Data[0].x, Data[0].y);
+        ESP_LOGD(TAG, "Mapped: (%d, %d)", p_Data->point.x, p_Data->point.y);
 
 #ifdef CONFIG_GUI_TOUCH_DEBUG
         /* Update touch debug visualization */
@@ -492,7 +487,7 @@ static void XPT2046_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Da
         if (_GUITask_State.TouchDebugLabel != NULL) {
             char buf[64];
 
-            snprintf(buf, sizeof(buf), "Raw: %u,%u\nMap: %li,%li", raw_x, raw_y, p_Data->point.x, p_Data->point.y);
+            snprintf(buf, sizeof(buf), "Raw: %u,%u\nMap: %li,%li", Data[0].x, Data[0].y, p_Data->point.x, p_Data->point.y);
             lv_label_set_text(_GUITask_State.TouchDebugLabel, buf);
             lv_obj_clear_flag(_GUITask_State.TouchDebugLabel, LV_OBJ_FLAG_HIDDEN);
         }
@@ -513,6 +508,9 @@ static void XPT2046_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Da
     }
 }
 
+/** @brief              GUI Task main function.
+ *  @param p_Parameters Task parameters
+ */
 void Task_GUI(void *p_Parameters)
 {
     App_Context_t *App_Context;
@@ -536,7 +534,12 @@ void Task_GUI(void *p_Parameters)
         if (EventBits & LEPTON_CAMERA_READY) {
 
             lv_bar_set_value(ui_SplashScreen_LoadingBar, 100, LV_ANIM_OFF);
+
             xEventGroupClearBits(_GUITask_State.EventGroup, LEPTON_CAMERA_READY);
+        } else if (EventBits & LEPTON_CAMERA_ERROR) {
+            lv_label_set_text(ui_SplashScreen_StatusText, "Camera Error");
+
+            xEventGroupClearBits(_GUITask_State.EventGroup, LEPTON_CAMERA_ERROR);
         }
 
         // TODO: Add timeout
@@ -711,27 +714,28 @@ void Task_GUI(void *p_Parameters)
 
             break;
         } else if (EventBits & BATTERY_VOLTAGE_READY) {
-            char buf[8];
+            char Buffer[16];
+
+            snprintf(Buffer, sizeof(Buffer), "%d%%", _GUITask_State.BatteryInfo.Percentage);
 
             if (_GUITask_State.BatteryInfo.Percentage == 100) {
-                lv_obj_set_style_bg_color(ui_Image_Main_Battery, lv_color_hex(0x00FF00), 0);
-                lv_label_set_text(ui_Image_Main_Battery, LV_SYMBOL_BATTERY_FULL);
+                snprintf(Buffer, sizeof(Buffer), LV_SYMBOL_BATTERY_FULL " %d%%", _GUITask_State.BatteryInfo.Percentage);
+                lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining, lv_color_hex(0x00FF00), 0);
             } else if (_GUITask_State.BatteryInfo.Percentage >= 75) {
-                lv_obj_set_style_bg_color(ui_Image_Main_Battery, lv_color_hex(0x00FF00), 0);
-                lv_label_set_text(ui_Image_Main_Battery, LV_SYMBOL_BATTERY_3);
+                snprintf(Buffer, sizeof(Buffer), LV_SYMBOL_BATTERY_3 " %d%%", _GUITask_State.BatteryInfo.Percentage);
+                lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining, lv_color_hex(0x00FF00), 0);
             } else if (_GUITask_State.BatteryInfo.Percentage >= 50) {
-                lv_obj_set_style_bg_color(ui_Image_Main_Battery, lv_color_hex(0xFFFF00), 0);
-                lv_label_set_text(ui_Image_Main_Battery, LV_SYMBOL_BATTERY_2);
+                snprintf(Buffer, sizeof(Buffer), LV_SYMBOL_BATTERY_2 " %d%%", _GUITask_State.BatteryInfo.Percentage);
+                lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining, lv_color_hex(0xFFFF00), 0);
             } else if (_GUITask_State.BatteryInfo.Percentage >= 25) {
-                lv_obj_set_style_bg_color(ui_Image_Main_Battery, lv_color_hex(0xFFFF00), 0);
-                lv_label_set_text(ui_Image_Main_Battery, LV_SYMBOL_BATTERY_1);
+                snprintf(Buffer, sizeof(Buffer), LV_SYMBOL_BATTERY_1 " %d%%", _GUITask_State.BatteryInfo.Percentage);
+                lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining, lv_color_hex(0xFFFF00), 0);
             } else {
-                lv_obj_set_style_bg_color(ui_Image_Main_Battery, lv_color_hex(0xFF0000), 0);
-                lv_label_set_text(ui_Image_Main_Battery, LV_SYMBOL_BATTERY_EMPTY);
+                snprintf(Buffer, sizeof(Buffer), LV_SYMBOL_BATTERY_EMPTY " %d%%", _GUITask_State.BatteryInfo.Percentage);
+                lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining, lv_color_hex(0xFF0000), 0);
             }
 
-            snprintf(buf, sizeof(buf), "%d%%", _GUITask_State.BatteryInfo.Percentage);
-            lv_label_set_text(ui_Label_Main_Battery_Remaining, buf);
+            lv_label_set_text(ui_Label_Main_Battery_Remaining, Buffer);
 
             xEventGroupClearBits(_GUITask_State.EventGroup, BATTERY_VOLTAGE_READY);
         } else if ( EventBits & BATTERY_CHARGING_STATUS_READY) {
@@ -855,7 +859,7 @@ esp_err_t GUI_Task_Init(void)
         return ESP_OK;
     }
 
-    ESP_ERROR_CHECK(GUI_Helper_Init(&_GUITask_State, XPT2046_LVGL_ReadCallback));
+    ESP_ERROR_CHECK(GUI_Helper_Init(&_GUITask_State, Touch_LVGL_ReadCallback));
 
     /* Initialize the UI elements and trigger a redraw to make all elements accessibile */
     ui_init();

@@ -50,7 +50,7 @@ i2c_master_bus_handle_t DevicesManager_GetI2CBusHandle(void);
  *  @param p_Percentage Pointer to store percentage (0-100)
  *  @return             ESP_OK on success
  */
-esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, int *p_Percentage);
+esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, uint8_t *p_Percentage);
 
 /** @brief          Get the RTC device handle (for Time Manager).
  *  @param p_Handle Pointer to store the RTC handle

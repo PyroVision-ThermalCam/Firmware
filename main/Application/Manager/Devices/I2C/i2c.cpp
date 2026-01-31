@@ -48,10 +48,12 @@ static const char *TAG                      = "I2C";
 int32_t I2CM_Init(i2c_master_bus_config_t *p_Config, i2c_master_bus_handle_t *p_Bus_Handle)
 {
     _I2C_Mutex = xSemaphoreCreateMutex();
+
     if (_I2C_Mutex == NULL) {
         ESP_LOGE(TAG, "Failed to create I2C mutex!");
         return ESP_ERR_NO_MEM;
     }
+
     return i2c_new_master_bus(p_Config, p_Bus_Handle);
 }
 
@@ -62,6 +64,7 @@ int32_t I2CM_Init(i2c_master_bus_config_t *p_Config, i2c_master_bus_handle_t *p_
 int32_t I2CM_Deinit(i2c_master_bus_handle_t Bus_Handle)
 {
     vSemaphoreDelete(_I2C_Mutex);
+
     return i2c_del_master_bus(Bus_Handle);
 }
 
@@ -74,17 +77,21 @@ int32_t I2CM_Deinit(i2c_master_bus_handle_t Bus_Handle)
 int32_t I2CM_Write(i2c_master_dev_handle_t *p_Dev_Handle, const uint8_t *p_Data, uint32_t Length)
 {
     esp_err_t Error;
+
     if ((p_Dev_Handle == NULL) || (*p_Dev_Handle == NULL) || (p_Data == NULL)) {
         ESP_LOGE(TAG, "I2C Write: Invalid handle or data pointer");
         return ESP_ERR_INVALID_ARG;
     } else if (Length == 0) {
         return ESP_OK;
     }
+
     ESP_LOGD(TAG, "Write %u bytes:", static_cast<unsigned int>(Length));
     for (uint8_t i = 0; i < Length; i++) {
         ESP_LOGD(TAG, "     Byte %u: 0x%02X", static_cast<unsigned int>(i), *(p_Data + i));
     }
+
     Error = ESP_FAIL;
+
     if (xSemaphoreTake(_I2C_Mutex, portMAX_DELAY) == pdTRUE) {
         Error = i2c_master_transmit(*p_Dev_Handle, p_Data, Length, I2C_WAIT);
         xSemaphoreGive(_I2C_Mutex);
@@ -92,6 +99,7 @@ int32_t I2CM_Write(i2c_master_dev_handle_t *p_Dev_Handle, const uint8_t *p_Data,
             ESP_LOGW(TAG, "I2C transmit failed: %d", Error);
         }
     }
+
     return Error;
 }
 
@@ -104,17 +112,22 @@ int32_t I2CM_Write(i2c_master_dev_handle_t *p_Dev_Handle, const uint8_t *p_Data,
 int32_t I2CM_Read(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t *p_Data, uint32_t Length)
 {
     esp_err_t Error;
+
     if ((p_Dev_Handle == NULL) || (*p_Dev_Handle == NULL) || (p_Data == NULL)) {
         ESP_LOGE(TAG, "I2C Read: Invalid handle or data pointer");
         return ESP_ERR_INVALID_ARG;
     } else if (Length == 0) {
         return ESP_OK;
     }
+
     ESP_LOGD(TAG, "Read %u bytes:", static_cast<unsigned int>(Length));
+
     for (uint8_t i = 0; i < Length; i++) {
         ESP_LOGD(TAG, "     Byte %u: 0x%02X", static_cast<unsigned int>(i), *(p_Data + i));
     }
+
     Error = ESP_FAIL;
+
     if (xSemaphoreTake(_I2C_Mutex, portMAX_DELAY) == pdTRUE) {
         Error = i2c_master_receive(*p_Dev_Handle, p_Data, Length, I2C_WAIT);
         xSemaphoreGive(_I2C_Mutex);
@@ -122,6 +135,7 @@ int32_t I2CM_Read(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t *p_Data, uint32
             ESP_LOGW(TAG, "I2C receive failed: %d", Error);
         }
     }
+
     return Error;
 }
 
@@ -129,12 +143,15 @@ int32_t I2CM_ModifyRegister(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Regis
 {
     int32_t Error;
     uint8_t Data[2] = {Register, 0xFF};
+
     Error = I2CM_Write(p_Dev_Handle, &Data[0], 1) || I2CM_Read(p_Dev_Handle, &Data[1], 1);
     if (Error) {
         return Error;
     }
+
     Data[1] &= ~Mask;
     Data[1] |= Value;
     ESP_LOGD(TAG, "Modify Register 0x%02X with mask 0x%02X: 0x%02X", Register, Mask, Data[1]);
+
     return I2CM_Write(p_Dev_Handle, Data, sizeof(Data));
 }

@@ -44,16 +44,19 @@
 
 #define SETTINGS_SYSTEM_DEFAULT_DEVICENAME      "PyroVision-Device"
 #define SETTINGS_SYSTEM_DEFAULT_TIMEZONE        "CET-1CEST,M3.5.0,M10.5.0/3"
+#define SETTINGS_SYSTEM_DEFAULT_NTP_SERVER      "pool.ntp.org"
 
 #define SETTINGS_PROVISIONING_DEFAULT_TIMEOUT   300
 #define SETTINGS_PROVISIONING_DEFAULT_NAME      "PyroVision-Provision"
 
-#define SETTINGS_WIFI_DEFAULT_MAX_RETRIES      5
-#define SETTINGS_WIFI_DEFAULT_RETRY_INTERVAL   2000
-#define SETTINGS_WIFI_DEFAULT_AUTOCONNECT     true
+#define SETTINGS_WIFI_DEFAULT_SSID              ""
+#define SETTINGS_WIFI_DEFAULT_PASSWORD          ""
+#define SETTINGS_WIFI_DEFAULT_MAX_RETRIES       5
+#define SETTINGS_WIFI_DEFAULT_RETRY_INTERVAL    2000
+#define SETTINGS_WIFI_DEFAULT_AUTOCONNECT       true
 
-#define SETTINGS_DISPLAY_DEFAULT_BRIGHTNESS    80
-#define SETTINGS_DISPLAY_DEFAULT_TIMEOUT       0
+#define SETTINGS_DISPLAY_DEFAULT_BRIGHTNESS     80
+#define SETTINGS_DISPLAY_DEFAULT_TIMEOUT        0
 
 /** @brief Settings Manager state.
  */
@@ -101,10 +104,10 @@ void SettingsManager_InitDefaultProvisioning(App_Settings_t *p_Settings);
  */
 void SettingsManager_InitDefaultWiFi(App_Settings_t *p_Settings);
 
-/** @brief          Initialize System settings with factory defaults.
- *  @param p_State  Pointer to Settings Manager state structure
+/** @brief              Initialize System settings with factory defaults.
+ *  @param p_Settings   Pointer to settings structure
  */
-void SettingsManager_InitDefaultSystem(SettingsManager_State_t *p_State);
+void SettingsManager_InitDefaultSystem(App_Settings_t *p_Settings);
 
 /** @brief              Initialize Lepton settings with factory defaults.
  *  @param p_Settings   Pointer to settings structure

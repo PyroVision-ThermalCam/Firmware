@@ -34,9 +34,10 @@
 #include <cstring>
 
 #include "http_server.h"
-#include "../networkTypes.h"
 #include "ImageEncoder/imageEncoder.h"
+#include "../networkTypes.h"
 #include "../Provisioning/provisionHandlers.h"
+#include "../SNTP/sntp.h"
 
 #define HTTP_SERVER_API_BASE_PATH           "/api/v1"
 #define HTTP_SERVER_API_KEY_HEADER          "X-API-Key"
@@ -198,8 +199,7 @@ static esp_err_t HTTP_Handler_Time(httpd_req_t *p_Request)
 
     /* Set timezone if provided */
     if (cJSON_IsString(timezone) && (timezone->valuestring != NULL)) {
-        esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_SET_TZ, (void *)timezone->valuestring, strlen(timezone->valuestring) + 1,
-                       portMAX_DELAY);
+        SNTP_SetTimezone(timezone->valuestring);
     }
 
     ESP_LOGD(TAG, "Time set to epoch: %f", epoch->valuedouble);

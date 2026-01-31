@@ -5,6 +5,63 @@ menu "PyroVision"
             default "PyroVision"
     endmenu
 
+    menu "Settings"
+        config SETTINGS_NAMESPACE
+            string "Settings namespace for the NVS"
+            default "PyroVision"
+    endmenu
+
+    menu "Battery"
+        choice
+            prompt "ADC Unit"
+            default BATTERY_ADC_1
+            help
+                Select the used ADC unit.
+
+            config BATTERY_ADC_1
+                bool "ADC 1"
+            config BATTERY_ADC_2
+                bool "ADC 2"
+        endchoice
+
+        config BATTERY_ADC_CHANNEL
+            int "ADC channel used for battery measurement"
+            range 0 9
+            default 0
+
+        choice
+            prompt "ADC Attenuation"
+            default BATTERY_ADC_ATT_0
+            help
+                Select the used ADC attenuation.
+
+            config BATTERY_ADC_ATT_0
+                bool "0 dB ADC attenuation"
+            config BATTERY_ADC_ATT_2_5
+                bool "2.5 dB ADC attenuation"
+            config BATTERY_ADC_ATT_6
+                bool "6 dB ADC attenuation"
+            config BATTERY_ADC_ATT_12
+                bool "12 dB ADC attenuation"
+        endchoice
+
+        config BATTERY_ADC_MIN_MV
+            int "Minimal battery voltage in Millivolt"
+            default 3000
+
+        config BATTERY_ADC_MAX_MV
+            int "Maximal battery voltage in Millivolt"
+            default 4200
+
+        config BATTERY_ADC_R1
+            int "Value of the R1 resistor of the voltage divider"
+            default 10000
+
+        config BATTERY_ADC_R2
+            int "Value of the R2 resistor of the voltage divider"
+            default 3300
+    endmenu
+
     menu "Network"
         menu "Task"
             config NETWORK_TASK_STACKSIZE
@@ -80,20 +137,30 @@ menu "PyroVision"
 
             menu "Touch"
                 choice
-                    prompt "Touch SPI Bus"
-                    default TOUCH_SPI3_HOST
+                    prompt "Touch I2C Bus"
+                    default TOUCH_I2C0_HOST
                     help
                         Select the SPI Bus the Touch Controller is attached to.
 
-                    config TOUCH_SPI2_HOST
-                        bool "SPI2_HOST"
-                    config TOUCH_SPI3_HOST
-                        bool "SPI3_HOST"
+                    config TOUCH_I2C0_HOST
+                        bool "I2C0_HOST"
+                    config TOUCH_I2C1_HOST
+                        bool "I2C1_HOST"
                 endchoice
 
                 config TOUCH_CLOCK
-                    int "Touch SPI clock"
-                    default 2000000
+                    int "Touch bus clock"
+                    default 400000
+
+                config TOUCH_SDA
+                    int "Touch interrupt GPIO number"
+                    range -1 48
+                    default 39
+
+                config TOUCH_SCL
+                    int "Touch interrupt GPIO number"
+                    range -1 48
+                    default 40
 
                 config TOUCH_IRQ
                     int "Touch interrupt GPIO number"
@@ -104,11 +171,6 @@ menu "PyroVision"
                     int "Touch reset GPIO number"
                     range -1 48
                     default -1
-
-                config TOUCH_CS
-                    int "Touch chip select GPIO number"
-                    range 0 48
-                    default 41
             endmenu
 
             menu "SD-Card"
@@ -155,11 +217,11 @@ menu "PyroVision"
                 endchoice
 
                 config LCD_CLOCK
-                    int "LCD SPI clock"
+                    int "SPI clock"
                     default 80000000
 
                 config LCD_CS
-                    int "LCD Chip Select GPIO"
+                    int "Chip Select GPIO"
                     range 0 48
                     default 18
 
@@ -169,7 +231,7 @@ menu "PyroVision"
                     default 3
 
                 config LCD_RST
-                    int "RST GPIO"
+                    int "Reset GPIO"
                     range -1 48
                     default 8
 

@@ -30,21 +30,42 @@
 #include <freertos/semphr.h>
 
 #include "adc.h"
-#include "../PortExpander/portexpander.h"
 
 #include <sdkconfig.h>
 
+#ifdef CONFIG_BATTERY_ADC_1
+    #define ADC_UNIT    ADC_UNIT_1
+#elif CONFIG_BATTERY_ADC_2
+    #define ADC_UNIT    ADC_UNIT_2
+#else
+    #error "No ADC channel configured for battery measurement"
+#endif
+
+#ifdef CONFIG_BATTERY_ADC_ATT_0
+    #define ADC_ATTEN   ADC_ATTEN_DB_0
+#elif CONFIG_BATTERY_ADC_ATT_2_5
+    #define ADC_ATTEN   ADC_ATTEN_DB_2_5
+#elif CONFIG_BATTERY_ADC_ATT_6
+    #define ADC_ATTEN   ADC_ATTEN_DB_6
+#elif CONFIG_BATTERY_ADC_ATT_12
+    #define ADC_ATTEN   ADC_ATTEN_DB_12
+#else
+    #error "No ADC attenuation configured for battery measurement"
+#endif
+
 static bool _ADC_Calib_Done = false;
 
+static adc_channel_t _ADC_Channel = static_cast<adc_channel_t>(CONFIG_BATTERY_ADC_CHANNEL);
 static adc_cali_handle_t _ADC_Calib_Handle;
 static adc_oneshot_unit_handle_t _ADC_Handle;
 static adc_oneshot_unit_init_cfg_t _ADC_Init_Config = {
-    .unit_id = ADC_UNIT_1,
+    .unit_id = ADC_UNIT,
     .clk_src = ADC_RTC_CLK_SRC_RC_FAST,
     .ulp_mode = ADC_ULP_MODE_DISABLE,
 };
-static adc_oneshot_chan_cfg_t config = {
-    .atten = ADC_ATTEN_DB_0,
+
+static adc_oneshot_chan_cfg_t ADC_Config = {
+    .atten = static_cast<adc_atten_t>(ADC_ATTEN),
     .bitwidth = ADC_BITWIDTH_DEFAULT,
 };
 
@@ -55,7 +76,7 @@ esp_err_t ADC_Init(void)
     esp_err_t Error;
 
     ESP_ERROR_CHECK(adc_oneshot_new_unit(&_ADC_Init_Config, &_ADC_Handle));
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(_ADC_Handle, ADC_CHANNEL_0, &config));
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(_ADC_Handle, _ADC_Channel, &ADC_Config));
 
     Error = ESP_OK;
     _ADC_Calib_Done = false;
@@ -64,8 +85,8 @@ esp_err_t ADC_Init(void)
         ESP_LOGD(TAG, "calibration scheme version is %s", "Curve Fitting");
         adc_cali_curve_fitting_config_t CaliConfig = {
             .unit_id = _ADC_Init_Config.unit_id,
-            .chan = ADC_CHANNEL_0,
-            .atten = config.atten,
+            .chan = _ADC_Channel,
+            .atten = ADC_Config.atten,
             .bitwidth = ADC_BITWIDTH_DEFAULT,
         };
 
@@ -80,7 +101,7 @@ esp_err_t ADC_Init(void)
     } else if ((Error == ESP_ERR_NOT_SUPPORTED) || (_ADC_Calib_Done == false)) {
         ESP_LOGW(TAG, "eFuse not burnt, skip software calibration");
     } else {
-        ESP_LOGE(TAG, "Invalid arg or no memory");
+        ESP_LOGE(TAG, "Invalid arg or no memory!");
         return ESP_FAIL;
     }
 
@@ -100,24 +121,36 @@ esp_err_t ADC_Deinit(void)
     return ESP_OK;
 }
 
-esp_err_t ADC_ReadBattery(int *p_Voltage)
+esp_err_t ADC_ReadBattery(int *p_Voltage, uint8_t *p_Percentage)
 {
     int Raw;
 
-    if (p_Voltage == NULL) {
+    if ((p_Voltage == NULL) || (p_Percentage == NULL)) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    ESP_ERROR_CHECK(adc_oneshot_read(_ADC_Handle, ADC_CHANNEL_0, &Raw));
+    ESP_ERROR_CHECK(ADC_Init());
+
+    ESP_ERROR_CHECK(adc_oneshot_read(_ADC_Handle, _ADC_Channel, &Raw));
 
     if (_ADC_Calib_Done) {
         ESP_ERROR_CHECK(adc_cali_raw_to_voltage(_ADC_Calib_Handle, Raw, p_Voltage));
+        *p_Voltage = (*p_Voltage) * (CONFIG_BATTERY_ADC_R1 + CONFIG_BATTERY_ADC_R2) / CONFIG_BATTERY_ADC_R2;
     } else {
         *p_Voltage = Raw;
     }
 
-    ESP_LOGD(TAG, "ADC%d Channel%d raw data: %d", ADC_UNIT_1, ADC_CHANNEL_0, Raw);
-    ESP_LOGD(TAG, "ADC%d Channel%d cali voltage: %d mV", ADC_UNIT_1, ADC_CHANNEL_0, *p_Voltage);
+    /* Calculate battery percentage (LiPo: 3.0V = 0%, 4.2V = 100%) */
+    if (*p_Voltage <= CONFIG_BATTERY_ADC_MIN_MV) {
+        *p_Percentage = 0;
+    } else if (*p_Voltage >= CONFIG_BATTERY_ADC_MAX_MV) {
+        *p_Percentage = 100;
+    } else {
+        *p_Percentage = (uint8_t)((*p_Voltage - CONFIG_BATTERY_ADC_MIN_MV) * 100 / (CONFIG_BATTERY_ADC_MAX_MV - CONFIG_BATTERY_ADC_MIN_MV));
+    }
 
-    return ESP_OK;
+    ESP_LOGD(TAG, "ADC%d Channel%d raw data: %d", ADC_UNIT_1, _ADC_Channel, Raw);
+    ESP_LOGD(TAG, "ADC%d Channel%d battery: %d mV (%d%%)", ADC_UNIT_1, _ADC_Channel, *p_Voltage, *p_Percentage);
+
+    return ADC_Deinit();
 }

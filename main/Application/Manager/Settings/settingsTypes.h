@@ -143,6 +143,7 @@ typedef struct {
 typedef struct {
     bool SDCard_AutoMount;                      /**< Automatically mount SD card. */
     char Timezone[32];                          /**< Timezone string (e.g., "CET-1CEST,M3.5.0,M10.5.0/3"). */
+    char NTPServer[32];                         /**< NTP server address. */
     char DeviceName[32];                        /**< Device name. */
     uint8_t Reserved[100];                      /**< Reserved for future use. */
 } __attribute__((packed)) App_Settings_System_t;

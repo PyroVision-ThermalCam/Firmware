@@ -37,10 +37,6 @@
 #include "settingsManager.h"
 #include "Private/settingsLoader.h"
 
-/** @brief Settings storage namespace in NVS.
- */
-#define SETTINGS_NVS_NAMESPACE      "pyrovision"
-
 static const char *TAG = "settings_manager";
 
 ESP_EVENT_DEFINE_BASE(SETTINGS_EVENTS);
@@ -104,7 +100,7 @@ esp_err_t SettingsManager_Init(void)
         return ESP_ERR_NO_MEM;
     }
 
-    Error = nvs_open_from_partition("settings", SETTINGS_NVS_NAMESPACE, NVS_READWRITE, &_State.NVS_Handle);
+    Error = nvs_open_from_partition("settings", CONFIG_SETTINGS_NAMESPACE, NVS_READWRITE, &_State.NVS_Handle);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to open NVS handle: %d!", Error);
 
@@ -200,8 +196,13 @@ esp_err_t SettingsManager_Load(App_Settings_t *p_Settings)
     }
 
     if (RequiredSize != sizeof(App_Settings_t)) {
-        ESP_LOGW(TAG, "Settings size mismatch (expected %u, got %u), using defaults",
+        ESP_LOGW(TAG, "Settings size mismatch (expected %u, got %u), erasing and using defaults",
                  sizeof(App_Settings_t), RequiredSize);
+
+        /* Erase the old settings */
+        nvs_erase_key(_State.NVS_Handle, "settings");
+        nvs_commit(_State.NVS_Handle);
+
         xSemaphoreGive(_State.Mutex);
 
         return ESP_ERR_INVALID_SIZE;

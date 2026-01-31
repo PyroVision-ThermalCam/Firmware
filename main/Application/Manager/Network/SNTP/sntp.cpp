@@ -3,7 +3,7 @@
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: SNTP management implementation.
+ *  File info: SNTP client implementation.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,7 +26,8 @@
 #include <esp_event.h>
 
 #include "sntp.h"
-#include "../networkManager.h"
+
+ESP_EVENT_DEFINE_BASE(SNTP_EVENTS);
 
 static const char *TAG = "sntp";
 
@@ -37,15 +38,20 @@ static void on_SNTP_Time_Sync(struct timeval *p_tv)
 {
     ESP_LOGD(TAG, "Time synchronized via SNTP");
 
-    esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_SNTP_SYNCED, p_tv, sizeof(struct timeval), portMAX_DELAY);
+    esp_event_post(SNTP_EVENTS, SNTP_EVENT_SNTP_SYNCED, p_tv, sizeof(struct timeval), portMAX_DELAY);
 }
 
-esp_err_t SNTP_Init(void)
+esp_err_t SNTP_Init(const char* p_Timezone, const char* p_Server, uint32_t SyncInterval)
 {
     esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
-    esp_sntp_setservername(0, "pool.ntp.org");
+    esp_sntp_setservername(0, p_Server);
     esp_sntp_set_time_sync_notification_cb(on_SNTP_Time_Sync);
     esp_sntp_init();
+
+    SNTP_SetTimezone(p_Timezone);
+
+    /* Setup automatic sync timer if interval is specified */
+    esp_sntp_set_sync_interval(3600);
 
     return ESP_OK;
 }
@@ -53,6 +59,7 @@ esp_err_t SNTP_Init(void)
 esp_err_t SNTP_Deinit(void)
 {
     esp_sntp_stop();
+
     return ESP_OK;
 }
 
@@ -84,4 +91,12 @@ esp_err_t SNTP_GetTime(uint8_t Retries)
     localtime_r(&Now, &TimeInfo);
 
     return ESP_OK;
+}
+
+void SNTP_SetTimezone(const char* p_Timezone)
+{
+    setenv("TZ", p_Timezone, 1);
+    tzset();
+
+    esp_event_post(SNTP_EVENTS, SNTP_EVENT_TZ_CHANGED, p_Timezone, strlen(p_Timezone) + 1, portMAX_DELAY);
 }

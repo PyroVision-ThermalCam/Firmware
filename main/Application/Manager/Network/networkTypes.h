@@ -90,10 +90,6 @@ typedef enum {
     NETWORK_EVENT_OTA_PROGRESS,
     NETWORK_EVENT_OTA_COMPLETED,
     NETWORK_EVENT_OTA_FAILED,
-    NETWORK_EVENT_SNTP_SYNCED,                  /**< SNTP time synchronization completed
-                                                     Data is of type struct timeval */
-    NETWORK_EVENT_SET_TZ,                       /**< Set the timezone
-                                                     Data is a const char* string */
     NETWORK_EVENT_OPEN_WIFI_REQUEST,            /**< Request to open a WiFi connection */
     NETWORK_EVENT_SERVER_STARTED,               /**< HTTP/WebSocket server started */
     NETWORK_EVENT_SERVER_STOPPED,               /**< HTTP/WebSocket server stopped */

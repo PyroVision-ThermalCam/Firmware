@@ -1,17 +1,12 @@
 {
   "root": {
     "guid": "GUID93537733-852890S2924354",
-    "deepid": 0,
     "children": [
       {
         "guid": "GUID66987770-852891S3274354",
-        "deepid": 660259650,
         "children": [
           {
             "guid": "GUID20182961-853099S6974354",
-            "deepid": -1317681897,
-            "dont_export": false,
-            "locked": false,
             "properties": [
               {
                 "nid": 10,
@@ -69,9 +64,20 @@
                 "InheritedType": 3
               },
               {
+                "nid": 75,
+                "strtype": "OBJECT/Extend_click_area",
+                "InheritedType": 6
+              },
+              {
                 "nid": 90,
                 "strtype": "OBJECT/Flags",
                 "InheritedType": 1
+              },
+              {
+                "nid": 100,
+                "strtype": "IMAGE/Hidden",
+                "strval": "False",
+                "InheritedType": 2
               },
               {
                 "nid": 110,
@@ -191,14 +197,10 @@
                 "InheritedType": 11
               }
             ],
-            "saved_objtypeKey": "IMAGE",
-            "tree_closed": true
+            "saved_objtypeKey": "IMAGE"
           },
           {
             "guid": "GUID96239662-853101S6354354",
-            "deepid": 1934206739,
-            "dont_export": false,
-            "locked": false,
             "properties": [
               {
                 "nid": 10,
@@ -256,9 +258,20 @@
                 "InheritedType": 3
               },
               {
+                "nid": 75,
+                "strtype": "OBJECT/Extend_click_area",
+                "InheritedType": 6
+              },
+              {
                 "nid": 90,
                 "strtype": "OBJECT/Flags",
                 "InheritedType": 1
+              },
+              {
+                "nid": 100,
+                "strtype": "IMAGE/Hidden",
+                "strval": "False",
+                "InheritedType": 2
               },
               {
                 "nid": 110,
@@ -382,9 +395,6 @@
           },
           {
             "guid": "GUID34075349-853103S185294354",
-            "deepid": -2129229824,
-            "dont_export": false,
-            "locked": false,
             "properties": [
               {
                 "nid": 10,
@@ -442,9 +452,20 @@
                 "InheritedType": 3
               },
               {
+                "nid": 75,
+                "strtype": "OBJECT/Extend_click_area",
+                "InheritedType": 6
+              },
+              {
                 "nid": 90,
                 "strtype": "OBJECT/Flags",
                 "InheritedType": 1
+              },
+              {
+                "nid": 100,
+                "strtype": "LABEL/Hidden",
+                "strval": "False",
+                "InheritedType": 2
               },
               {
                 "nid": 110,
@@ -568,9 +589,6 @@
           },
           {
             "guid": "GUID88043540-853107S6554354",
-            "deepid": 585145805,
-            "dont_export": false,
-            "locked": false,
             "properties": [
               {
                 "nid": 10,
@@ -631,6 +649,12 @@
                 "nid": 90,
                 "strtype": "OBJECT/Flags",
                 "InheritedType": 1
+              },
+              {
+                "nid": 100,
+                "strtype": "BAR/Hidden",
+                "strval": "False",
+                "InheritedType": 2
               },
               {
                 "nid": 110,
@@ -786,14 +810,10 @@
                 "InheritedType": 11
               }
             ],
-            "saved_objtypeKey": "BAR",
-            "tree_closed": true
+            "saved_objtypeKey": "BAR"
           },
           {
             "guid": "GUID59878104-853109S3084354",
-            "deepid": 666115346,
-            "dont_export": false,
-            "locked": false,
             "properties": [
               {
                 "nid": 10,
@@ -851,9 +871,20 @@
                 "InheritedType": 3
               },
               {
+                "nid": 75,
+                "strtype": "OBJECT/Extend_click_area",
+                "InheritedType": 6
+              },
+              {
                 "nid": 90,
                 "strtype": "OBJECT/Flags",
                 "InheritedType": 1
+              },
+              {
+                "nid": 100,
+                "strtype": "LABEL/Hidden",
+                "strval": "False",
+                "InheritedType": 2
               },
               {
                 "nid": 110,
@@ -977,9 +1008,6 @@
           },
           {
             "guid": "GUID86331474-853111S462274354",
-            "deepid": 321879940,
-            "dont_export": false,
-            "locked": false,
             "properties": [
               {
                 "nid": 10,
@@ -1037,9 +1065,20 @@
                 "InheritedType": 3
               },
               {
+                "nid": 75,
+                "strtype": "OBJECT/Extend_click_area",
+                "InheritedType": 6
+              },
+              {
                 "nid": 90,
                 "strtype": "OBJECT/Flags",
                 "InheritedType": 1
+              },
+              {
+                "nid": 100,
+                "strtype": "LABEL/Hidden",
+                "strval": "False",
+                "InheritedType": 2
               },
               {
                 "nid": 110,
@@ -1171,7 +1210,6 @@
         "isPage": true,
         "editor_posx": 400,
         "editor_posy": -400,
-        "dont_export": false,
         "locked": true,
         "properties": [
           {
@@ -1207,6 +1245,12 @@
             "nid": 90,
             "strtype": "OBJECT/Flags",
             "InheritedType": 1
+          },
+          {
+            "nid": 100,
+            "strtype": "SCREEN/Hidden",
+            "strval": "False",
+            "InheritedType": 2
           },
           {
             "nid": 110,
@@ -1315,17 +1359,12 @@
       },
       {
         "guid": "GUID63572141-853113S4094354",
-        "deepid": -737127933,
         "children": [
           {
             "guid": "GUID10271921-68975S5384354",
-            "deepid": 1511971373,
             "children": [
               {
                 "guid": "GUID70542204-68979S8364354",
-                "deepid": 1497257154,
-                "dont_export": false,
-                "locked": false,
                 "properties": [
                   {
                     "nid": 10,
@@ -1381,6 +1420,11 @@
                     "strtype": "OBJECT/Align",
                     "strval": "TOP_LEFT",
                     "InheritedType": 3
+                  },
+                  {
+                    "nid": 75,
+                    "strtype": "OBJECT/Extend_click_area",
+                    "InheritedType": 6
                   },
                   {
                     "nid": 90,
@@ -1509,9 +1553,6 @@
               },
               {
                 "guid": "GUID85409111-68983S431164354",
-                "deepid": -1585715219,
-                "dont_export": false,
-                "locked": false,
                 "properties": [
                   {
                     "nid": 10,
@@ -1567,6 +1608,11 @@
                     "strtype": "OBJECT/Align",
                     "strval": "TOP_LEFT",
                     "InheritedType": 3
+                  },
+                  {
+                    "nid": 75,
+                    "strtype": "OBJECT/Extend_click_area",
+                    "InheritedType": 6
                   },
                   {
                     "nid": 90,
@@ -1691,14 +1737,10 @@
                     "InheritedType": 11
                   }
                 ],
-                "saved_objtypeKey": "LABEL",
-                "tree_closed": true
+                "saved_objtypeKey": "LABEL"
               },
               {
                 "guid": "GUID59467401-68985S7174354",
-                "deepid": 1628791549,
-                "dont_export": false,
-                "locked": false,
                 "properties": [
                   {
                     "nid": 10,
@@ -1754,6 +1796,11 @@
                     "strtype": "OBJECT/Align",
                     "strval": "TOP_LEFT",
                     "InheritedType": 3
+                  },
+                  {
+                    "nid": 75,
+                    "strtype": "OBJECT/Extend_click_area",
+                    "InheritedType": 6
                   },
                   {
                     "nid": 90,
@@ -1881,197 +1928,7 @@
                 "saved_objtypeKey": "LABEL"
               },
               {
-                "guid": "GUID78701249-68993S566594354",
-                "deepid": -314691173,
-                "dont_export": false,
-                "locked": false,
-                "properties": [
-                  {
-                    "nid": 10,
-                    "strtype": "OBJECT/Name",
-                    "strval": "Image Main Battery",
-                    "InheritedType": 10
-                  },
-                  {
-                    "nid": 20,
-                    "strtype": "OBJECT/Layout",
-                    "InheritedType": 1
-                  },
-                  {
-                    "Flow": 0,
-                    "Wrap": false,
-                    "Reversed": false,
-                    "MainAlignment": 0,
-                    "CrossAlignment": 0,
-                    "TrackAlignment": 0,
-                    "LayoutType": 0,
-                    "nid": 30,
-                    "strtype": "OBJECT/Layout_type",
-                    "strval": "No_layout",
-                    "InheritedType": 13
-                  },
-                  {
-                    "nid": 40,
-                    "strtype": "OBJECT/Transform",
-                    "InheritedType": 1
-                  },
-                  {
-                    "nid": 50,
-                    "flags": 17,
-                    "strtype": "OBJECT/Position",
-                    "intarray": [
-                      260,
-                      0
-                    ],
-                    "InheritedType": 7
-                  },
-                  {
-                    "nid": 60,
-                    "flags": 51,
-                    "strtype": "OBJECT/Size",
-                    "intarray": [
-                      1,
-                      1
-                    ],
-                    "InheritedType": 7
-                  },
-                  {
-                    "nid": 70,
-                    "strtype": "OBJECT/Align",
-                    "strval": "TOP_LEFT",
-                    "InheritedType": 3
-                  },
-                  {
-                    "nid": 90,
-                    "strtype": "OBJECT/Flags",
-                    "InheritedType": 1
-                  },
-                  {
-                    "nid": 110,
-                    "strtype": "OBJECT/Clickable",
-                    "strval": "False",
-                    "InheritedType": 2
-                  },
-                  {
-                    "nid": 130,
-                    "strtype": "OBJECT/Press_lock",
-                    "strval": "False",
-                    "InheritedType": 2
-                  },
-                  {
-                    "nid": 140,
-                    "strtype": "OBJECT/Click_focusable",
-                    "strval": "False",
-                    "InheritedType": 2
-                  },
-                  {
-                    "nid": 210,
-                    "strtype": "OBJECT/Gesture_bubble",
-                    "strval": "False",
-                    "InheritedType": 2
-                  },
-                  {
-                    "nid": 220,
-                    "strtype": "OBJECT/Snappable",
-                    "strval": "False",
-                    "InheritedType": 2
-                  },
-                  {
-                    "nid": 225,
-                    "flags": 1048576,
-                    "strtype": "OBJECT/Scrolling",
-                    "InheritedType": 1
-                  },
-                  {
-                    "nid": 300,
-                    "strtype": "OBJECT/Scrollbar_mode",
-                    "strval": "AUTO",
-                    "InheritedType": 3
-                  },
-                  {
-                    "nid": 310,
-                    "strtype": "OBJECT/Scroll_direction",
-                    "strval": "ALL",
-                    "InheritedType": 3
-                  },
-                  {
-                    "nid": 314,
-                    "strtype": "OBJECT/Scroll_snap_x",
-                    "strval": "NONE",
-                    "InheritedType": 3
-                  },
-                  {
-                    "nid": 315,
-                    "strtype": "OBJECT/Scroll_snap_y",
-                    "strval": "NONE",
-                    "InheritedType": 3
-                  },
-                  {
-                    "nid": 320,
-                    "flags": 1048576,
-                    "strtype": "OBJECT/States",
-                    "InheritedType": 1
-                  },
-                  {
-                    "nid": 1010,
-                    "strtype": "LABEL/Label",
-                    "InheritedType": 1
-                  },
-                  {
-                    "nid": 1020,
-                    "strtype": "LABEL/Long_mode",
-                    "strval": "WRAP",
-                    "InheritedType": 3
-                  },
-                  {
-                    "nid": 1030,
-                    "strtype": "LABEL/Text",
-                    "strval": "B",
-                    "InheritedType": 10
-                  },
-                  {
-                    "part": "lv.PART.MAIN",
-                    "childs": [
-                      {
-                        "nid": 10000,
-                        "strtype": "_style/StyleState",
-                        "strval": "DEFAULT",
-                        "childs": [
-                          {
-                            "nid": 10410,
-                            "strtype": "_style/Text_Color",
-                            "intarray": [
-                              255,
-                              255,
-                              255,
-                              255
-                            ],
-                            "InheritedType": 7
-                          },
-                          {
-                            "nid": 10450,
-                            "strtype": "_style/Text_Font",
-                            "strval": "montserrat_12",
-                            "InheritedType": 3
-                          }
-                        ],
-                        "InheritedType": 1
-                      }
-                    ],
-                    "nid": 1040,
-                    "strtype": "LABEL/Style_main",
-                    "strval": "lv.PART.MAIN, Text, Rectangle, Pad, Transform",
-                    "InheritedType": 11
-                  }
-                ],
-                "saved_objtypeKey": "LABEL",
-                "tree_closed": true
-              },
-              {
                 "guid": "GUID38841759-68991S6814354",
-                "deepid": 478918629,
-                "dont_export": false,
-                "locked": false,
                 "properties": [
                   {
                     "nid": 10,
@@ -2107,7 +1964,7 @@
                     "flags": 17,
                     "strtype": "OBJECT/Position",
                     "intarray": [
-                      290,
+                      280,
                       0
                     ],
                     "InheritedType": 7
@@ -2127,6 +1984,11 @@
                     "strtype": "OBJECT/Align",
                     "strval": "TOP_LEFT",
                     "InheritedType": 3
+                  },
+                  {
+                    "nid": 75,
+                    "strtype": "OBJECT/Extend_click_area",
+                    "InheritedType": 6
                   },
                   {
                     "nid": 90,
@@ -2228,12 +2090,9 @@
                     "InheritedType": 11
                   }
                 ],
-                "saved_objtypeKey": "LABEL",
-                "tree_closed": true
+                "saved_objtypeKey": "LABEL"
               }
             ],
-            "dont_export": false,
-            "locked": false,
             "properties": [
               {
                 "nid": 10,
@@ -2289,6 +2148,11 @@
                 "strtype": "OBJECT/Align",
                 "strval": "TOP_MID",
                 "InheritedType": 3
+              },
+              {
+                "nid": 75,
+                "strtype": "OBJECT/Extend_click_area",
+                "InheritedType": 6
               },
               {
                 "nid": 90,
@@ -2414,17 +2278,12 @@
           },
           {
             "guid": "GUID69843562-430548S5034357",
-            "deepid": 1933161859,
             "children": [
               {
                 "guid": "GUID40000558-68999S1814355",
-                "deepid": -1577322599,
                 "children": [
                   {
                     "guid": "GUID90690797-862847S1705954",
-                    "deepid": 1275935300,
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -2480,6 +2339,11 @@
                         "strtype": "OBJECT/Align",
                         "strval": "CENTER",
                         "InheritedType": 3
+                      },
+                      {
+                        "nid": 75,
+                        "strtype": "OBJECT/Extend_click_area",
+                        "InheritedType": 6
                       },
                       {
                         "nid": 90,
@@ -2599,14 +2463,10 @@
                         "InheritedType": 11
                       }
                     ],
-                    "saved_objtypeKey": "PANEL",
-                    "tree_closed": true
+                    "saved_objtypeKey": "PANEL"
                   },
                   {
                     "guid": "GUID41153353-862846S1193154",
-                    "deepid": 1275935300,
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -2662,6 +2522,11 @@
                         "strtype": "OBJECT/Align",
                         "strval": "CENTER",
                         "InheritedType": 3
+                      },
+                      {
+                        "nid": 75,
+                        "strtype": "OBJECT/Extend_click_area",
+                        "InheritedType": 6
                       },
                       {
                         "nid": 90,
@@ -2781,14 +2646,10 @@
                         "InheritedType": 11
                       }
                     ],
-                    "saved_objtypeKey": "PANEL",
-                    "tree_closed": true
+                    "saved_objtypeKey": "PANEL"
                   },
                   {
                     "guid": "GUID326283-862848S2227654",
-                    "deepid": 1275935300,
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -2844,6 +2705,11 @@
                         "strtype": "OBJECT/Align",
                         "strval": "CENTER",
                         "InheritedType": 3
+                      },
+                      {
+                        "nid": 75,
+                        "strtype": "OBJECT/Extend_click_area",
+                        "InheritedType": 6
                       },
                       {
                         "nid": 90,
@@ -2963,14 +2829,10 @@
                         "InheritedType": 11
                       }
                     ],
-                    "saved_objtypeKey": "PANEL",
-                    "tree_closed": true
+                    "saved_objtypeKey": "PANEL"
                   },
                   {
                     "guid": "GUID34728151-155431S6754356",
-                    "deepid": 1275935300,
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -3026,6 +2888,11 @@
                         "strtype": "OBJECT/Align",
                         "strval": "CENTER",
                         "InheritedType": 3
+                      },
+                      {
+                        "nid": 75,
+                        "strtype": "OBJECT/Extend_click_area",
+                        "InheritedType": 6
                       },
                       {
                         "nid": 90,
@@ -3145,14 +3012,10 @@
                         "InheritedType": 11
                       }
                     ],
-                    "saved_objtypeKey": "PANEL",
-                    "tree_closed": true
+                    "saved_objtypeKey": "PANEL"
                   },
                   {
                     "guid": "GUID49515181-98916S7624362",
-                    "deepid": 869040931,
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -3208,6 +3071,11 @@
                         "strtype": "OBJECT/Align",
                         "strval": "CENTER",
                         "InheritedType": 3
+                      },
+                      {
+                        "nid": 75,
+                        "strtype": "OBJECT/Extend_click_area",
+                        "InheritedType": 6
                       },
                       {
                         "nid": 90,
@@ -3302,9 +3170,6 @@
                   },
                   {
                     "guid": "GUID79401473-98918S8004362",
-                    "deepid": -262194236,
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -3360,6 +3225,11 @@
                         "strtype": "OBJECT/Align",
                         "strval": "CENTER",
                         "InheritedType": 3
+                      },
+                      {
+                        "nid": 75,
+                        "strtype": "OBJECT/Extend_click_area",
+                        "InheritedType": 6
                       },
                       {
                         "nid": 90,
@@ -3465,13 +3335,9 @@
                   },
                   {
                     "guid": "GUID87870619-989445S5396453",
-                    "deepid": 565092003,
                     "children": [
                       {
                         "guid": "GUID1108541-989447S92453",
-                        "deepid": -1719762389,
-                        "dont_export": false,
-                        "locked": false,
                         "properties": [
                           {
                             "nid": 10,
@@ -3527,6 +3393,11 @@
                             "strtype": "OBJECT/Align",
                             "strval": "LEFT_MID",
                             "InheritedType": 3
+                          },
+                          {
+                            "nid": 75,
+                            "strtype": "OBJECT/Extend_click_area",
+                            "InheritedType": 6
                           },
                           {
                             "nid": 90,
@@ -3649,9 +3520,6 @@
                       },
                       {
                         "guid": "GUID15732503-989449S57553",
-                        "deepid": -1719762389,
-                        "dont_export": false,
-                        "locked": false,
                         "properties": [
                           {
                             "nid": 10,
@@ -3707,6 +3575,11 @@
                             "strtype": "OBJECT/Align",
                             "strval": "CENTER",
                             "InheritedType": 3
+                          },
+                          {
+                            "nid": 75,
+                            "strtype": "OBJECT/Extend_click_area",
+                            "InheritedType": 6
                           },
                           {
                             "nid": 90,
@@ -3818,9 +3691,6 @@
                       },
                       {
                         "guid": "GUID77339875-989450S1050253",
-                        "deepid": -1719762389,
-                        "dont_export": false,
-                        "locked": false,
                         "properties": [
                           {
                             "nid": 10,
@@ -3876,6 +3746,11 @@
                             "strtype": "OBJECT/Align",
                             "strval": "RIGHT_MID",
                             "InheritedType": 3
+                          },
+                          {
+                            "nid": 75,
+                            "strtype": "OBJECT/Extend_click_area",
+                            "InheritedType": 6
                           },
                           {
                             "nid": 90,
@@ -3997,8 +3872,6 @@
                         "saved_objtypeKey": "LABEL"
                       }
                     ],
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -4054,6 +3927,11 @@
                         "strtype": "OBJECT/Align",
                         "strval": "BOTTOM_MID",
                         "InheritedType": 3
+                      },
+                      {
+                        "nid": 75,
+                        "strtype": "OBJECT/Extend_click_area",
+                        "InheritedType": 6
                       },
                       {
                         "nid": 90,
@@ -4129,8 +4007,6 @@
                     "saved_objtypeKey": "CONTAINER"
                   }
                 ],
-                "dont_export": false,
-                "locked": false,
                 "properties": [
                   {
                     "nid": 10,
@@ -4186,6 +4062,11 @@
                     "strtype": "OBJECT/Align",
                     "strval": "CENTER",
                     "InheritedType": 3
+                  },
+                  {
+                    "nid": 75,
+                    "strtype": "OBJECT/Extend_click_area",
+                    "InheritedType": 6
                   },
                   {
                     "nid": 90,
@@ -4357,13 +4238,9 @@
               },
               {
                 "guid": "GUID78751988-155420S8764356",
-                "deepid": -1253876820,
                 "children": [
                   {
                     "guid": "GUID884834-155424S6724356",
-                    "deepid": 809747492,
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -4419,6 +4296,11 @@
                         "strtype": "OBJECT/Align",
                         "strval": "CENTER",
                         "InheritedType": 3
+                      },
+                      {
+                        "nid": 75,
+                        "strtype": "OBJECT/Extend_click_area",
+                        "InheritedType": 6
                       },
                       {
                         "nid": 90,
@@ -4532,14 +4414,10 @@
                         "InheritedType": 11
                       }
                     ],
-                    "saved_objtypeKey": "LABEL",
-                    "tree_closed": true
+                    "saved_objtypeKey": "LABEL"
                   },
                   {
                     "guid": "GUID79834816-155425S5454356",
-                    "deepid": -1310920733,
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -4595,6 +4473,11 @@
                         "strtype": "OBJECT/Align",
                         "strval": "CENTER",
                         "InheritedType": 3
+                      },
+                      {
+                        "nid": 75,
+                        "strtype": "OBJECT/Extend_click_area",
+                        "InheritedType": 6
                       },
                       {
                         "nid": 90,
@@ -4732,14 +4615,10 @@
                         "InheritedType": 11
                       }
                     ],
-                    "saved_objtypeKey": "IMAGE",
-                    "tree_closed": true
+                    "saved_objtypeKey": "IMAGE"
                   },
                   {
                     "guid": "GUID76026531-155422S4054356",
-                    "deepid": 809747492,
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -4795,6 +4674,11 @@
                         "strtype": "OBJECT/Align",
                         "strval": "CENTER",
                         "InheritedType": 3
+                      },
+                      {
+                        "nid": 75,
+                        "strtype": "OBJECT/Extend_click_area",
+                        "InheritedType": 6
                       },
                       {
                         "nid": 90,
@@ -4902,12 +4786,9 @@
                         "InheritedType": 11
                       }
                     ],
-                    "saved_objtypeKey": "LABEL",
-                    "tree_closed": true
+                    "saved_objtypeKey": "LABEL"
                   }
                 ],
-                "dont_export": false,
-                "locked": false,
                 "properties": [
                   {
                     "nid": 10,
@@ -4963,6 +4844,11 @@
                     "strtype": "OBJECT/Align",
                     "strval": "CENTER",
                     "InheritedType": 3
+                  },
+                  {
+                    "nid": 75,
+                    "strtype": "OBJECT/Extend_click_area",
+                    "InheritedType": 6
                   },
                   {
                     "nid": 90,
@@ -5038,8 +4924,6 @@
                 "saved_objtypeKey": "CONTAINER"
               }
             ],
-            "dont_export": false,
-            "locked": false,
             "properties": [
               {
                 "nid": 10,
@@ -5095,6 +4979,11 @@
                 "strtype": "OBJECT/Align",
                 "strval": "CENTER",
                 "InheritedType": 3
+              },
+              {
+                "nid": 75,
+                "strtype": "OBJECT/Extend_click_area",
+                "InheritedType": 6
               },
               {
                 "nid": 90,
@@ -5171,17 +5060,12 @@
           },
           {
             "guid": "GUID12873756-430552S3484357",
-            "deepid": -741119918,
             "children": [
               {
                 "guid": "GUID15522018-73173S422354359",
-                "deepid": -755641011,
                 "children": [
                   {
                     "guid": "GUID60809533-73172S422354359",
-                    "deepid": -1351592592,
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -5237,6 +5121,11 @@
                         "strtype": "OBJECT/Align",
                         "strval": "CENTER",
                         "InheritedType": 3
+                      },
+                      {
+                        "nid": 75,
+                        "strtype": "OBJECT/Extend_click_area",
+                        "InheritedType": 6
                       },
                       {
                         "nid": 90,
@@ -5341,8 +5230,6 @@
                     "saved_objtypeKey": "LABEL"
                   }
                 ],
-                "dont_export": false,
-                "locked": false,
                 "properties": [
                   {
                     "nid": 10,
@@ -5398,6 +5285,11 @@
                     "strtype": "OBJECT/Align",
                     "strval": "CENTER",
                     "InheritedType": 3
+                  },
+                  {
+                    "nid": 75,
+                    "strtype": "OBJECT/Extend_click_area",
+                    "InheritedType": 6
                   },
                   {
                     "nid": 90,
@@ -5578,13 +5470,9 @@
               },
               {
                 "guid": "GUID29848968-155427S6724356",
-                "deepid": -755641011,
                 "children": [
                   {
                     "guid": "GUID77308716-155429S1584356",
-                    "deepid": -1351592592,
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -5640,6 +5528,11 @@
                         "strtype": "OBJECT/Align",
                         "strval": "CENTER",
                         "InheritedType": 3
+                      },
+                      {
+                        "nid": 75,
+                        "strtype": "OBJECT/Extend_click_area",
+                        "InheritedType": 6
                       },
                       {
                         "nid": 90,
@@ -5744,8 +5637,6 @@
                     "saved_objtypeKey": "LABEL"
                   }
                 ],
-                "dont_export": false,
-                "locked": false,
                 "properties": [
                   {
                     "nid": 10,
@@ -5801,6 +5692,11 @@
                     "strtype": "OBJECT/Align",
                     "strval": "CENTER",
                     "InheritedType": 3
+                  },
+                  {
+                    "nid": 75,
+                    "strtype": "OBJECT/Extend_click_area",
+                    "InheritedType": 6
                   },
                   {
                     "nid": 90,
@@ -5917,13 +5813,9 @@
               },
               {
                 "guid": "GUID61733416-934770S366964356",
-                "deepid": -211345156,
                 "children": [
                   {
                     "guid": "GUID96116950-934769S366964356",
-                    "deepid": 986580644,
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -5979,6 +5871,11 @@
                         "strtype": "OBJECT/Align",
                         "strval": "CENTER",
                         "InheritedType": 3
+                      },
+                      {
+                        "nid": 75,
+                        "strtype": "OBJECT/Extend_click_area",
+                        "InheritedType": 6
                       },
                       {
                         "nid": 90,
@@ -6069,12 +5966,9 @@
                         "InheritedType": 11
                       }
                     ],
-                    "saved_objtypeKey": "LABEL",
-                    "tree_closed": true
+                    "saved_objtypeKey": "LABEL"
                   }
                 ],
-                "dont_export": false,
-                "locked": false,
                 "properties": [
                   {
                     "nid": 10,
@@ -6130,6 +6024,11 @@
                     "strtype": "OBJECT/Align",
                     "strval": "CENTER",
                     "InheritedType": 3
+                  },
+                  {
+                    "nid": 75,
+                    "strtype": "OBJECT/Extend_click_area",
+                    "InheritedType": 6
                   },
                   {
                     "nid": 90,
@@ -6321,13 +6220,9 @@
               },
               {
                 "guid": "GUID93999632-650710S271964356",
-                "deepid": -211345156,
                 "children": [
                   {
                     "guid": "GUID5832432-650712S5674356",
-                    "deepid": 986580644,
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -6383,6 +6278,11 @@
                         "strtype": "OBJECT/Align",
                         "strval": "CENTER",
                         "InheritedType": 3
+                      },
+                      {
+                        "nid": 75,
+                        "strtype": "OBJECT/Extend_click_area",
+                        "InheritedType": 6
                       },
                       {
                         "nid": 90,
@@ -6473,12 +6373,9 @@
                         "InheritedType": 11
                       }
                     ],
-                    "saved_objtypeKey": "LABEL",
-                    "tree_closed": true
+                    "saved_objtypeKey": "LABEL"
                   }
                 ],
-                "dont_export": false,
-                "locked": false,
                 "properties": [
                   {
                     "nid": 10,
@@ -6534,6 +6431,11 @@
                     "strtype": "OBJECT/Align",
                     "strval": "CENTER",
                     "InheritedType": 3
+                  },
+                  {
+                    "nid": 75,
+                    "strtype": "OBJECT/Extend_click_area",
+                    "InheritedType": 6
                   },
                   {
                     "nid": 90,
@@ -6724,8 +6626,6 @@
                 "saved_objtypeKey": "BUTTON"
               }
             ],
-            "dont_export": false,
-            "locked": false,
             "properties": [
               {
                 "nid": 10,
@@ -6781,6 +6681,11 @@
                 "strtype": "OBJECT/Align",
                 "strval": "CENTER",
                 "InheritedType": 3
+              },
+              {
+                "nid": 75,
+                "strtype": "OBJECT/Extend_click_area",
+                "InheritedType": 6
               },
               {
                 "nid": 90,
@@ -6859,8 +6764,6 @@
         "isPage": true,
         "editor_posx": 800,
         "editor_posy": -400,
-        "dont_export": false,
-        "locked": false,
         "properties": [
           {
             "nid": 10,
@@ -7067,17 +6970,12 @@
       },
       {
         "guid": "GUID40629891-934771S164356",
-        "deepid": 871077125,
         "children": [
           {
             "guid": "GUID32876125-838323S38634360",
-            "deepid": 1097060484,
             "children": [
               {
                 "guid": "GUID67585624-838322S38634360",
-                "deepid": 894182266,
-                "dont_export": false,
-                "locked": false,
                 "properties": [
                   {
                     "nid": 10,
@@ -7133,6 +7031,11 @@
                     "strtype": "OBJECT/Align",
                     "strval": "CENTER",
                     "InheritedType": 3
+                  },
+                  {
+                    "nid": 75,
+                    "strtype": "OBJECT/Extend_click_area",
+                    "InheritedType": 6
                   },
                   {
                     "nid": 90,
@@ -7260,8 +7163,6 @@
                 "saved_objtypeKey": "LABEL"
               }
             ],
-            "dont_export": false,
-            "locked": false,
             "properties": [
               {
                 "nid": 10,
@@ -7317,6 +7218,11 @@
                 "strtype": "OBJECT/Align",
                 "strval": "TOP_MID",
                 "InheritedType": 3
+              },
+              {
+                "nid": 75,
+                "strtype": "OBJECT/Extend_click_area",
+                "InheritedType": 6
               },
               {
                 "nid": 90,
@@ -7452,9 +7358,6 @@
           },
           {
             "guid": "GUID16541557-838428S3954360",
-            "deepid": -1892524658,
-            "dont_export": false,
-            "locked": false,
             "properties": [
               {
                 "nid": 10,
@@ -7510,6 +7413,11 @@
                 "strtype": "OBJECT/Align",
                 "strval": "CENTER",
                 "InheritedType": 3
+              },
+              {
+                "nid": 75,
+                "strtype": "OBJECT/Extend_click_area",
+                "InheritedType": 6
               },
               {
                 "nid": 90,
@@ -7586,17 +7494,12 @@
           },
           {
             "guid": "GUID84576620-989468S627153",
-            "deepid": -741119918,
             "children": [
               {
                 "guid": "GUID258430-989467S627153",
-                "deepid": -211345156,
                 "children": [
                   {
                     "guid": "GUID30745183-989466S627153",
-                    "deepid": 986580644,
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -7652,6 +7555,11 @@
                         "strtype": "OBJECT/Align",
                         "strval": "CENTER",
                         "InheritedType": 3
+                      },
+                      {
+                        "nid": 75,
+                        "strtype": "OBJECT/Extend_click_area",
+                        "InheritedType": 6
                       },
                       {
                         "nid": 90,
@@ -7742,12 +7650,9 @@
                         "InheritedType": 11
                       }
                     ],
-                    "saved_objtypeKey": "LABEL",
-                    "tree_closed": true
+                    "saved_objtypeKey": "LABEL"
                   }
                 ],
-                "dont_export": false,
-                "locked": false,
                 "properties": [
                   {
                     "nid": 10,
@@ -7803,6 +7708,11 @@
                     "strtype": "OBJECT/Align",
                     "strval": "CENTER",
                     "InheritedType": 3
+                  },
+                  {
+                    "nid": 75,
+                    "strtype": "OBJECT/Extend_click_area",
+                    "InheritedType": 6
                   },
                   {
                     "nid": 90,
@@ -7993,8 +7903,6 @@
                 "saved_objtypeKey": "BUTTON"
               }
             ],
-            "dont_export": false,
-            "locked": false,
             "properties": [
               {
                 "nid": 10,
@@ -8050,6 +7958,11 @@
                 "strtype": "OBJECT/Align",
                 "strval": "CENTER",
                 "InheritedType": 3
+              },
+              {
+                "nid": 75,
+                "strtype": "OBJECT/Extend_click_area",
+                "InheritedType": 6
               },
               {
                 "nid": 90,
@@ -8128,8 +8041,6 @@
         "isPage": true,
         "editor_posx": 1200,
         "editor_posy": -400,
-        "dont_export": false,
-        "locked": false,
         "properties": [
           {
             "nid": 10,
@@ -8411,17 +8322,12 @@
       },
       {
         "guid": "GUID10820859-155348S7984356",
-        "deepid": -1552217072,
         "children": [
           {
             "guid": "GUID98621717-155354S7474356",
-            "deepid": 1097060484,
             "children": [
               {
                 "guid": "GUID15718204-155356S9244356",
-                "deepid": 894182266,
-                "dont_export": false,
-                "locked": false,
                 "properties": [
                   {
                     "nid": 10,
@@ -8479,9 +8385,20 @@
                     "InheritedType": 3
                   },
                   {
+                    "nid": 75,
+                    "strtype": "OBJECT/Extend_click_area",
+                    "InheritedType": 6
+                  },
+                  {
                     "nid": 90,
                     "strtype": "OBJECT/Flags",
                     "InheritedType": 1
+                  },
+                  {
+                    "nid": 100,
+                    "strtype": "LABEL/Hidden",
+                    "strval": "False",
+                    "InheritedType": 2
                   },
                   {
                     "nid": 110,
@@ -8604,8 +8521,6 @@
                 "saved_objtypeKey": "LABEL"
               }
             ],
-            "dont_export": false,
-            "locked": false,
             "properties": [
               {
                 "nid": 10,
@@ -8663,9 +8578,20 @@
                 "InheritedType": 3
               },
               {
+                "nid": 75,
+                "strtype": "OBJECT/Extend_click_area",
+                "InheritedType": 6
+              },
+              {
                 "nid": 90,
                 "strtype": "OBJECT/Flags",
                 "InheritedType": 1
+              },
+              {
+                "nid": 100,
+                "strtype": "PANEL/Hidden",
+                "strval": "False",
+                "InheritedType": 2
               },
               {
                 "nid": 110,
@@ -8796,17 +8722,12 @@
           },
           {
             "guid": "GUID28971676-155358S944356",
-            "deepid": 612547169,
             "children": [
               {
                 "guid": "GUID70698399-430607S5284357",
-                "deepid": 1127433331,
                 "children": [
                   {
                     "guid": "GUID72017967-430596S5254357",
-                    "deepid": -467179531,
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -8864,9 +8785,20 @@
                         "InheritedType": 3
                       },
                       {
+                        "nid": 75,
+                        "strtype": "OBJECT/Extend_click_area",
+                        "InheritedType": 6
+                      },
+                      {
                         "nid": 90,
                         "strtype": "OBJECT/Flags",
                         "InheritedType": 1
+                      },
+                      {
+                        "nid": 100,
+                        "strtype": "LABEL/Hidden",
+                        "strval": "False",
+                        "InheritedType": 2
                       },
                       {
                         "nid": 110,
@@ -8986,22 +8918,16 @@
                         "InheritedType": 11
                       }
                     ],
-                    "saved_objtypeKey": "LABEL",
-                    "tree_closed": true
+                    "saved_objtypeKey": "LABEL"
                   },
                   {
                     "guid": "GUID64856691-430605S5284357",
-                    "deepid": 1755922259,
                     "children": [
                       {
                         "guid": "GUID83225215-430600S5254357",
-                        "deepid": 1424256055,
                         "children": [
                           {
                             "guid": "GUID95020504-430597S5254357",
-                            "deepid": -567540342,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -9059,9 +8985,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -9192,14 +9129,10 @@
                                 "InheritedType": 11
                               }
                             ],
-                            "saved_objtypeKey": "LABEL",
-                            "tree_closed": true
+                            "saved_objtypeKey": "LABEL"
                           },
                           {
                             "guid": "GUID55120083-47164S4384359",
-                            "deepid": -567540342,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -9257,9 +9190,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -9390,14 +9334,10 @@
                                 "InheritedType": 11
                               }
                             ],
-                            "saved_objtypeKey": "LABEL",
-                            "tree_closed": true
+                            "saved_objtypeKey": "LABEL"
                           },
                           {
                             "guid": "GUID56191097-584542S741516",
-                            "deepid": -567540342,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -9455,9 +9395,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -9588,12 +9539,9 @@
                                 "InheritedType": 11
                               }
                             ],
-                            "saved_objtypeKey": "LABEL",
-                            "tree_closed": true
+                            "saved_objtypeKey": "LABEL"
                           }
                         ],
-                        "dont_export": false,
-                        "locked": false,
                         "properties": [
                           {
                             "nid": 10,
@@ -9651,9 +9599,20 @@
                             "InheritedType": 3
                           },
                           {
+                            "nid": 75,
+                            "strtype": "OBJECT/Extend_click_area",
+                            "InheritedType": 6
+                          },
+                          {
                             "nid": 90,
                             "strtype": "OBJECT/Flags",
                             "InheritedType": 1
+                          },
+                          {
+                            "nid": 100,
+                            "strtype": "CONTAINER/Hidden",
+                            "strval": "False",
+                            "InheritedType": 2
                           },
                           {
                             "nid": 110,
@@ -9748,13 +9707,9 @@
                       },
                       {
                         "guid": "GUID62902718-430604S5284357",
-                        "deepid": 398216300,
                         "children": [
                           {
                             "guid": "GUID41923710-430601S5284357",
-                            "deepid": -1317032992,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -9812,9 +9767,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -9955,9 +9921,6 @@
                           },
                           {
                             "guid": "GUID97387059-584544S524516",
-                            "deepid": -1317032992,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -10015,9 +9978,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -10158,9 +10132,6 @@
                           },
                           {
                             "guid": "GUID64451864-584545S24208516",
-                            "deepid": -1317032992,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -10218,9 +10189,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -10360,8 +10342,6 @@
                             "saved_objtypeKey": "LABEL"
                           }
                         ],
-                        "dont_export": false,
-                        "locked": false,
                         "properties": [
                           {
                             "nid": 10,
@@ -10419,9 +10399,20 @@
                             "InheritedType": 3
                           },
                           {
+                            "nid": 75,
+                            "strtype": "OBJECT/Extend_click_area",
+                            "InheritedType": 6
+                          },
+                          {
                             "nid": 90,
                             "strtype": "OBJECT/Flags",
                             "InheritedType": 1
+                          },
+                          {
+                            "nid": 100,
+                            "strtype": "CONTAINER/Hidden",
+                            "strval": "False",
+                            "InheritedType": 2
                           },
                           {
                             "nid": 110,
@@ -10515,8 +10506,6 @@
                         "saved_objtypeKey": "CONTAINER"
                       }
                     ],
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -10574,10 +10563,21 @@
                         "InheritedType": 3
                       },
                       {
+                        "nid": 75,
+                        "strtype": "OBJECT/Extend_click_area",
+                        "InheritedType": 6
+                      },
+                      {
                         "nid": 90,
                         "flags": 1048576,
                         "strtype": "OBJECT/Flags",
                         "InheritedType": 1
+                      },
+                      {
+                        "nid": 100,
+                        "strtype": "CONTAINER/Hidden",
+                        "strval": "False",
+                        "InheritedType": 2
                       },
                       {
                         "nid": 110,
@@ -10667,8 +10667,6 @@
                     "saved_objtypeKey": "CONTAINER"
                   }
                 ],
-                "dont_export": false,
-                "locked": false,
                 "properties": [
                   {
                     "nid": 10,
@@ -10726,10 +10724,21 @@
                     "InheritedType": 3
                   },
                   {
+                    "nid": 75,
+                    "strtype": "OBJECT/Extend_click_area",
+                    "InheritedType": 6
+                  },
+                  {
                     "nid": 90,
                     "flags": 1048576,
                     "strtype": "OBJECT/Flags",
                     "InheritedType": 1
+                  },
+                  {
+                    "nid": 100,
+                    "strtype": "PANEL/Hidden",
+                    "strval": "False",
+                    "InheritedType": 2
                   },
                   {
                     "nid": 110,
@@ -10879,13 +10888,9 @@
               },
               {
                 "guid": "GUID57862356-155360S1954356",
-                "deepid": 1127433331,
                 "children": [
                   {
                     "guid": "GUID71204662-155362S3724356",
-                    "deepid": -467179531,
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -10943,9 +10948,20 @@
                         "InheritedType": 3
                       },
                       {
+                        "nid": 75,
+                        "strtype": "OBJECT/Extend_click_area",
+                        "InheritedType": 6
+                      },
+                      {
                         "nid": 90,
                         "strtype": "OBJECT/Flags",
                         "InheritedType": 1
+                      },
+                      {
+                        "nid": 100,
+                        "strtype": "LABEL/Hidden",
+                        "strval": "False",
+                        "InheritedType": 2
                       },
                       {
                         "nid": 110,
@@ -11065,22 +11081,16 @@
                         "InheritedType": 11
                       }
                     ],
-                    "saved_objtypeKey": "LABEL",
-                    "tree_closed": true
+                    "saved_objtypeKey": "LABEL"
                   },
                   {
                     "guid": "GUID64214999-155378S3394356",
-                    "deepid": 1755922259,
                     "children": [
                       {
                         "guid": "GUID53593748-155370S562344356",
-                        "deepid": 1424256055,
                         "children": [
                           {
                             "guid": "GUID91214090-155380S114356",
-                            "deepid": -567540342,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -11138,9 +11148,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -11271,14 +11292,10 @@
                                 "InheritedType": 11
                               }
                             ],
-                            "saved_objtypeKey": "LABEL",
-                            "tree_closed": true
+                            "saved_objtypeKey": "LABEL"
                           },
                           {
                             "guid": "GUID48938903-155382S2754356",
-                            "deepid": -422483377,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -11336,9 +11353,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -11473,9 +11501,6 @@
                           },
                           {
                             "guid": "GUID95955079-155384S188854356",
-                            "deepid": -1993817609,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -11533,9 +11558,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -11669,8 +11705,6 @@
                             "saved_objtypeKey": "LABEL"
                           }
                         ],
-                        "dont_export": false,
-                        "locked": false,
                         "properties": [
                           {
                             "nid": 10,
@@ -11728,9 +11762,20 @@
                             "InheritedType": 3
                           },
                           {
+                            "nid": 75,
+                            "strtype": "OBJECT/Extend_click_area",
+                            "InheritedType": 6
+                          },
+                          {
                             "nid": 90,
                             "strtype": "OBJECT/Flags",
                             "InheritedType": 1
+                          },
+                          {
+                            "nid": 100,
+                            "strtype": "CONTAINER/Hidden",
+                            "strval": "False",
+                            "InheritedType": 2
                           },
                           {
                             "nid": 110,
@@ -11825,13 +11870,9 @@
                       },
                       {
                         "guid": "GUID61454612-155376S624356",
-                        "deepid": 398216300,
                         "children": [
                           {
                             "guid": "GUID69353012-155390S9964356",
-                            "deepid": -1317032992,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -11889,9 +11930,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -12032,9 +12084,6 @@
                           },
                           {
                             "guid": "GUID31824688-155392S5694356",
-                            "deepid": -1317032992,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -12092,9 +12141,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -12235,9 +12295,6 @@
                           },
                           {
                             "guid": "GUID1425477-155393S19884356",
-                            "deepid": -1317032992,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -12295,9 +12352,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -12437,8 +12505,6 @@
                             "saved_objtypeKey": "LABEL"
                           }
                         ],
-                        "dont_export": false,
-                        "locked": false,
                         "properties": [
                           {
                             "nid": 10,
@@ -12496,9 +12562,20 @@
                             "InheritedType": 3
                           },
                           {
+                            "nid": 75,
+                            "strtype": "OBJECT/Extend_click_area",
+                            "InheritedType": 6
+                          },
+                          {
                             "nid": 90,
                             "strtype": "OBJECT/Flags",
                             "InheritedType": 1
+                          },
+                          {
+                            "nid": 100,
+                            "strtype": "CONTAINER/Hidden",
+                            "strval": "False",
+                            "InheritedType": 2
                           },
                           {
                             "nid": 110,
@@ -12592,8 +12669,6 @@
                         "saved_objtypeKey": "CONTAINER"
                       }
                     ],
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -12651,10 +12726,21 @@
                         "InheritedType": 3
                       },
                       {
+                        "nid": 75,
+                        "strtype": "OBJECT/Extend_click_area",
+                        "InheritedType": 6
+                      },
+                      {
                         "nid": 90,
                         "flags": 1048576,
                         "strtype": "OBJECT/Flags",
                         "InheritedType": 1
+                      },
+                      {
+                        "nid": 100,
+                        "strtype": "CONTAINER/Hidden",
+                        "strval": "False",
+                        "InheritedType": 2
                       },
                       {
                         "nid": 110,
@@ -12745,9 +12831,6 @@
                   },
                   {
                     "guid": "GUID34128925-155388S7674356",
-                    "deepid": -249429836,
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -12809,6 +12892,12 @@
                         "flags": 1048576,
                         "strtype": "OBJECT/Flags",
                         "InheritedType": 1
+                      },
+                      {
+                        "nid": 100,
+                        "strtype": "BAR/Hidden",
+                        "strval": "False",
+                        "InheritedType": 2
                       },
                       {
                         "nid": 110,
@@ -12976,8 +13065,6 @@
                     "saved_objtypeKey": "BAR"
                   }
                 ],
-                "dont_export": false,
-                "locked": false,
                 "properties": [
                   {
                     "nid": 10,
@@ -13035,10 +13122,21 @@
                     "InheritedType": 3
                   },
                   {
+                    "nid": 75,
+                    "strtype": "OBJECT/Extend_click_area",
+                    "InheritedType": 6
+                  },
+                  {
                     "nid": 90,
                     "flags": 1048576,
                     "strtype": "OBJECT/Flags",
                     "InheritedType": 1
+                  },
+                  {
+                    "nid": 100,
+                    "strtype": "PANEL/Hidden",
+                    "strval": "False",
+                    "InheritedType": 2
                   },
                   {
                     "nid": 110,
@@ -13188,13 +13286,9 @@
               },
               {
                 "guid": "GUID44018081-155417S20174356",
-                "deepid": 1127433331,
                 "children": [
                   {
                     "guid": "GUID18558271-155406S20134356",
-                    "deepid": -467179531,
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -13252,9 +13346,20 @@
                         "InheritedType": 3
                       },
                       {
+                        "nid": 75,
+                        "strtype": "OBJECT/Extend_click_area",
+                        "InheritedType": 6
+                      },
+                      {
                         "nid": 90,
                         "strtype": "OBJECT/Flags",
                         "InheritedType": 1
+                      },
+                      {
+                        "nid": 100,
+                        "strtype": "LABEL/Hidden",
+                        "strval": "False",
+                        "InheritedType": 2
                       },
                       {
                         "nid": 110,
@@ -13374,22 +13479,16 @@
                         "InheritedType": 11
                       }
                     ],
-                    "saved_objtypeKey": "LABEL",
-                    "tree_closed": true
+                    "saved_objtypeKey": "LABEL"
                   },
                   {
                     "guid": "GUID43255-155453S4464356",
-                    "deepid": 1865632034,
                     "children": [
                       {
                         "guid": "GUID70722931-155449S3594356",
-                        "deepid": -969207466,
                         "children": [
                           {
                             "guid": "GUID7903402-155437S25564356",
-                            "deepid": -567540342,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -13447,9 +13546,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -13580,14 +13690,10 @@
                                 "InheritedType": 11
                               }
                             ],
-                            "saved_objtypeKey": "LABEL",
-                            "tree_closed": true
+                            "saved_objtypeKey": "LABEL"
                           },
                           {
                             "guid": "GUID29520723-155438S25564356",
-                            "deepid": -422483377,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -13645,9 +13751,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -13782,9 +13899,6 @@
                           },
                           {
                             "guid": "GUID44302939-208082S5004365",
-                            "deepid": -422483377,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -13842,9 +13956,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -13979,9 +14104,6 @@
                           },
                           {
                             "guid": "GUID94008783-430544S7064357",
-                            "deepid": -422483377,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -14039,9 +14161,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -14176,9 +14309,6 @@
                           },
                           {
                             "guid": "GUID52254882-430562S8524357",
-                            "deepid": -422483377,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -14236,9 +14366,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -14373,9 +14514,6 @@
                           },
                           {
                             "guid": "GUID68439637-430563S113094357",
-                            "deepid": -422483377,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -14433,9 +14571,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -14569,8 +14718,6 @@
                             "saved_objtypeKey": "LABEL"
                           }
                         ],
-                        "dont_export": false,
-                        "locked": false,
                         "properties": [
                           {
                             "nid": 10,
@@ -14628,10 +14775,21 @@
                             "InheritedType": 3
                           },
                           {
+                            "nid": 75,
+                            "strtype": "OBJECT/Extend_click_area",
+                            "InheritedType": 6
+                          },
+                          {
                             "nid": 90,
                             "flags": 1048576,
                             "strtype": "OBJECT/Flags",
                             "InheritedType": 1
+                          },
+                          {
+                            "nid": 100,
+                            "strtype": "CONTAINER/Hidden",
+                            "strval": "False",
+                            "InheritedType": 2
                           },
                           {
                             "nid": 110,
@@ -14702,13 +14860,9 @@
                       },
                       {
                         "guid": "GUID93580312-155451S318044356",
-                        "deepid": 1436268651,
                         "children": [
                           {
                             "guid": "GUID84647470-155445S108144356",
-                            "deepid": -1317032992,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -14766,9 +14920,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -14909,9 +15074,6 @@
                           },
                           {
                             "guid": "GUID97949053-155446S108144356",
-                            "deepid": -1317032992,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -14969,9 +15131,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -15112,9 +15285,6 @@
                           },
                           {
                             "guid": "GUID43761664-208083S206274365",
-                            "deepid": -1317032992,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -15172,9 +15342,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -15315,9 +15496,6 @@
                           },
                           {
                             "guid": "GUID13171702-430545S82544357",
-                            "deepid": -1317032992,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -15375,9 +15553,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -15518,9 +15707,6 @@
                           },
                           {
                             "guid": "GUID86685667-430564S195944357",
-                            "deepid": -1317032992,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -15578,9 +15764,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -15721,9 +15918,6 @@
                           },
                           {
                             "guid": "GUID453239-430565S279304357",
-                            "deepid": -1317032992,
-                            "dont_export": false,
-                            "locked": false,
                             "properties": [
                               {
                                 "nid": 10,
@@ -15781,9 +15975,20 @@
                                 "InheritedType": 3
                               },
                               {
+                                "nid": 75,
+                                "strtype": "OBJECT/Extend_click_area",
+                                "InheritedType": 6
+                              },
+                              {
                                 "nid": 90,
                                 "strtype": "OBJECT/Flags",
                                 "InheritedType": 1
+                              },
+                              {
+                                "nid": 100,
+                                "strtype": "LABEL/Hidden",
+                                "strval": "False",
+                                "InheritedType": 2
                               },
                               {
                                 "nid": 110,
@@ -15923,8 +16128,6 @@
                             "saved_objtypeKey": "LABEL"
                           }
                         ],
-                        "dont_export": false,
-                        "locked": false,
                         "properties": [
                           {
                             "nid": 10,
@@ -15982,10 +16185,21 @@
                             "InheritedType": 3
                           },
                           {
+                            "nid": 75,
+                            "strtype": "OBJECT/Extend_click_area",
+                            "InheritedType": 6
+                          },
+                          {
                             "nid": 90,
                             "flags": 1048576,
                             "strtype": "OBJECT/Flags",
                             "InheritedType": 1
+                          },
+                          {
+                            "nid": 100,
+                            "strtype": "CONTAINER/Hidden",
+                            "strval": "False",
+                            "InheritedType": 2
                           },
                           {
                             "nid": 110,
@@ -16055,8 +16269,6 @@
                         "saved_objtypeKey": "CONTAINER"
                       }
                     ],
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -16114,10 +16326,21 @@
                         "InheritedType": 3
                       },
                       {
+                        "nid": 75,
+                        "strtype": "OBJECT/Extend_click_area",
+                        "InheritedType": 6
+                      },
+                      {
                         "nid": 90,
                         "flags": 1048576,
                         "strtype": "OBJECT/Flags",
                         "InheritedType": 1
+                      },
+                      {
+                        "nid": 100,
+                        "strtype": "CONTAINER/Hidden",
+                        "strval": "False",
+                        "InheritedType": 2
                       },
                       {
                         "nid": 110,
@@ -16187,8 +16410,6 @@
                     "saved_objtypeKey": "CONTAINER"
                   }
                 ],
-                "dont_export": false,
-                "locked": false,
                 "properties": [
                   {
                     "nid": 10,
@@ -16246,10 +16467,21 @@
                     "InheritedType": 3
                   },
                   {
+                    "nid": 75,
+                    "strtype": "OBJECT/Extend_click_area",
+                    "InheritedType": 6
+                  },
+                  {
                     "nid": 90,
                     "flags": 1048576,
                     "strtype": "OBJECT/Flags",
                     "InheritedType": 1
+                  },
+                  {
+                    "nid": 100,
+                    "strtype": "PANEL/Hidden",
+                    "strval": "False",
+                    "InheritedType": 2
                   },
                   {
                     "nid": 110,
@@ -16398,8 +16630,6 @@
                 "saved_objtypeKey": "PANEL"
               }
             ],
-            "dont_export": false,
-            "locked": false,
             "properties": [
               {
                 "nid": 10,
@@ -16457,9 +16687,20 @@
                 "InheritedType": 3
               },
               {
+                "nid": 75,
+                "strtype": "OBJECT/Extend_click_area",
+                "InheritedType": 6
+              },
+              {
                 "nid": 90,
                 "strtype": "OBJECT/Flags",
                 "InheritedType": 1
+              },
+              {
+                "nid": 100,
+                "strtype": "PANEL/Hidden",
+                "strval": "False",
+                "InheritedType": 2
               },
               {
                 "nid": 225,
@@ -16594,17 +16835,12 @@
           },
           {
             "guid": "GUID26295868-989474S771453",
-            "deepid": -741119918,
             "children": [
               {
                 "guid": "GUID79481689-989473S771453",
-                "deepid": -211345156,
                 "children": [
                   {
                     "guid": "GUID14912377-989472S771453",
-                    "deepid": 986580644,
-                    "dont_export": false,
-                    "locked": false,
                     "properties": [
                       {
                         "nid": 10,
@@ -16662,10 +16898,21 @@
                         "InheritedType": 3
                       },
                       {
+                        "nid": 75,
+                        "strtype": "OBJECT/Extend_click_area",
+                        "InheritedType": 6
+                      },
+                      {
                         "nid": 90,
                         "flags": 1048576,
                         "strtype": "OBJECT/Flags",
                         "InheritedType": 1
+                      },
+                      {
+                        "nid": 100,
+                        "strtype": "LABEL/Hidden",
+                        "strval": "False",
+                        "InheritedType": 2
                       },
                       {
                         "nid": 110,
@@ -16750,12 +16997,9 @@
                         "InheritedType": 11
                       }
                     ],
-                    "saved_objtypeKey": "LABEL",
-                    "tree_closed": true
+                    "saved_objtypeKey": "LABEL"
                   }
                 ],
-                "dont_export": false,
-                "locked": false,
                 "properties": [
                   {
                     "nid": 10,
@@ -16813,10 +17057,21 @@
                     "InheritedType": 3
                   },
                   {
+                    "nid": 75,
+                    "strtype": "OBJECT/Extend_click_area",
+                    "InheritedType": 6
+                  },
+                  {
                     "nid": 90,
                     "flags": 1048576,
                     "strtype": "OBJECT/Flags",
                     "InheritedType": 1
+                  },
+                  {
+                    "nid": 100,
+                    "strtype": "BUTTON/Hidden",
+                    "strval": "False",
+                    "InheritedType": 2
                   },
                   {
                     "nid": 225,
@@ -17001,8 +17256,6 @@
                 "saved_objtypeKey": "BUTTON"
               }
             ],
-            "dont_export": false,
-            "locked": false,
             "properties": [
               {
                 "nid": 10,
@@ -17060,10 +17313,21 @@
                 "InheritedType": 3
               },
               {
+                "nid": 75,
+                "strtype": "OBJECT/Extend_click_area",
+                "InheritedType": 6
+              },
+              {
                 "nid": 90,
                 "flags": 1048576,
                 "strtype": "OBJECT/Flags",
                 "InheritedType": 1
+              },
+              {
+                "nid": 100,
+                "strtype": "CONTAINER/Hidden",
+                "strval": "False",
+                "InheritedType": 2
               },
               {
                 "nid": 110,
@@ -17136,8 +17400,6 @@
         "isPage": true,
         "editor_posx": 800,
         "editor_posy": -740,
-        "dont_export": false,
-        "locked": false,
         "properties": [
           {
             "nid": 10,
@@ -17172,6 +17434,12 @@
             "nid": 90,
             "strtype": "OBJECT/Flags",
             "InheritedType": 1
+          },
+          {
+            "nid": 100,
+            "strtype": "SCREEN/Hidden",
+            "strval": "False",
+            "InheritedType": 2
           },
           {
             "nid": 110,
@@ -17419,8 +17687,6 @@
         "saved_objtypeKey": "SCREEN"
       }
     ],
-    "dont_export": false,
-    "locked": false,
     "properties": [
       {
         "nid": 1000201,
@@ -17433,6 +17699,7 @@
   },
   "animations": [],
   "selected_theme": "Default",
+  "selected_screen": "GUID63572141-853113S4094354",
   "info": {
     "name": "SquareLine_Project.spj",
     "depth": 1,
@@ -17446,7 +17713,7 @@
     "description": "",
     "board": "ESP WROVER KIT",
     "board_version": "2.0.0",
-    "editor_version": "1.5.4",
+    "editor_version": "1.6.0",
     "image": "",
     "export_temp_image": false,
     "force_export_images": false,
@@ -17458,9 +17725,12 @@
     "theme_color1": 5,
     "theme_color2": 0,
     "custom_variable_prefix": "uic",
-    "backup_cnt": 72,
+    "separate_screen_save": false,
+    "hierarchy_state_save": false,
+    "backup_cnt": 73,
     "autosave_cnt": 0,
     "group_color_cnt": 0,
+    "imagebytearrayprefix": null,
     "lvgl_version": "9.1.0",
     "callfuncsexport": "CPP_FILE",
     "imageexport": "SOURCE",

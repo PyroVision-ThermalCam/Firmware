@@ -33,6 +33,11 @@ esp_err_t ADC_Init(void);
 
 esp_err_t ADC_Deinit(void);
 
-esp_err_t ADC_ReadBattery(int *p_Voltage);
+/** @brief          Read battery voltage and calculate percentage
+ *  @param p_Voltage   Pointer to store battery voltage in mV
+ *  @param p_Percentage Pointer to store battery percentage (0-100%)
+ *  @return         ESP_OK on success
+ */
+esp_err_t ADC_ReadBattery(int *p_Voltage, uint8_t *p_Percentage);
 
 #endif /* ADC_H_ */

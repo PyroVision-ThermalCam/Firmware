@@ -177,19 +177,74 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 ## Documentation Standards
 
-### Code Comments
+### Function Documentation Requirements
 
-#### Doxygen-Style Documentation
-Use Doxygen comments for all public API functions:
+**CRITICAL**: Every function declaration in header files MUST include complete Doxygen documentation.
+
+#### Doxygen-Style Documentation for ALL Functions
+
+Use Doxygen comments for **ALL** public API functions with complete documentation:
 
 ```cpp
-/** @brief          Brief description of the function.
- *  @param p_Param  Description of parameter
- *  @param Size     Description of size parameter
- *  @return         ESP_OK on success, ESP_ERR_* on failure
+/** @brief          Initialize the settings manager and load configuration from NVS.
+ *  
+ *  This function initializes the settings subsystem, opens the NVS namespace,
+ *  and attempts to load stored settings. If no settings exist, default values
+ *  are loaded from JSON or hardcoded defaults.
+ *  
+ *  @return         ESP_OK on success
+ *  @return         ESP_ERR_NVS_NOT_FOUND if settings namespace doesn't exist
+ *  @return         ESP_ERR_NO_MEM if memory allocation fails
+ *  @return         ESP_ERR_INVALID_STATE if already initialized
+ *  
+ *  @note           Must be called after NVS flash initialization.
+ *  @note           This function must be called before any other SettingsManager API calls.
+ *  @warning        Not thread-safe during initialization. Call once from main task.
  */
-esp_err_t MyFunction(uint8_t *p_Param, size_t Size);
+esp_err_t SettingsManager_Init(void);
 ```
+
+**Mandatory documentation elements:**
+- `@brief` - Short one-line description
+- Detailed description paragraph explaining what the function does
+- `@param` - Description for EACH parameter (include direction: in/out/inout if relevant)
+- `@return` - Document ALL possible return values (one `@return` per value)
+- `@note` - Important usage notes (at least one recommended)
+- `@warning` - Critical warnings about misuse or side effects (if applicable)
+
+#### Incomplete Documentation is NOT Acceptable
+
+❌ **Insufficient:**
+```cpp
+/** @brief Brief description.
+ *  @param p_Param Description
+ *  @return ESP_OK on success
+ */
+```
+
+✅ **Complete:**
+```cpp
+/** @brief          Set WiFi credentials and update configuration.
+ *  
+ *  Updates the WiFi SSID and password in RAM and posts a SETTINGS_EVENT_WIFI_CHANGED
+ *  event. Changes are not persisted until SettingsManager_Save() is called.
+ *  
+ *  @param p_SSID   Pointer to null-terminated SSID string (max 32 chars)
+ *  @param p_Pass   Pointer to null-terminated password string (max 64 chars)
+ *  
+ *  @return         ESP_OK on success
+ *  @return         ESP_ERR_INVALID_ARG if p_SSID or p_Pass is NULL
+ *  @return         ESP_ERR_INVALID_ARG if strings exceed maximum length
+ *  @return         ESP_ERR_INVALID_STATE if SettingsManager not initialized
+ *  
+ *  @note           Call SettingsManager_Save() to persist changes to NVS.
+ *  @note           This function is thread-safe.
+ *  @warning        Password is stored in plain text in NVS.
+ */
+esp_err_t SettingsManager_SetWiFi(const char *p_SSID, const char *p_Pass);
+```
+
+### Code Comments
 
 #### Inline Comments
 - Use `//` for single-line comments
@@ -561,6 +616,70 @@ Documentation is automatically built and deployed via GitHub Actions workflow (`
 
 ---
 
+## Code Quality and Validation
+
+### Mandatory Checks After Code Changes
+
+**CRITICAL**: After making ANY code changes, you MUST perform the following validation steps:
+
+#### 1. Syntax Validation
+- Verify code compiles without errors using `pio run` or `idf.py build`
+- Check for correct bracket matching, semicolons, and C++ syntax
+- Validate all include statements and dependencies
+- Ensure no missing header files or forward declarations
+
+#### 2. Error and Warning Analysis
+- **Zero tolerance for compiler warnings** - all warnings must be addressed
+- Run static analysis if available
+- Check for:
+  - Unused variables
+  - Type mismatches or implicit conversions
+  - Potential null pointer dereferences
+  - Memory leaks in error paths
+  - Missing return statements
+
+#### 3. Error Handling Validation
+- Verify ALL ESP-IDF function return codes are checked
+- Ensure proper error propagation (don't silently ignore errors)
+- Validate error cleanup paths (free resources on failure)
+- Check mutex/semaphore release in all paths (including errors)
+
+#### 4. Documentation Synchronization
+- Update function documentation if signatures changed
+- Update parameter descriptions if behavior changed
+- Verify code examples in documentation still compile
+- Update relevant `.adoc` files in `docs/` directory
+
+**Example validation checklist for each change:**
+```
+☐ Code compiles without errors (pio run -e debug)
+☐ No compiler warnings introduced
+☐ All new/modified functions have complete Doxygen documentation
+☐ All return values and parameters documented
+☐ Error handling implemented for all ESP-IDF calls
+☐ Mutex/semaphore properly released in all code paths
+☐ Related documentation (.adoc files) updated
+☐ Code formatted with AStyle (scripts/format.py)
+☐ Run static analysis if available (pio check)
+```
+
+### Automated Validation
+
+Use provided scripts for validation:
+
+```bash
+# Format code
+python scripts/format.py
+
+# Build and check for errors/warnings
+pio run -e debug
+
+# Run static analysis (if configured)
+pio check
+```
+
+---
+
 ## Testing and Debugging
 
 ### Debugging
@@ -619,20 +738,24 @@ Documentation is automatically built and deployed via GitHub Actions workflow (`
 - Mix tabs and spaces
 - Exceed 120 character line length
 - Forget error checking on ESP-IDF calls
-- Access shared state without mutex protection
-- Forget to call `SettingsManager_Save()` after updates
+- Omit or provide incomplete function documentation
+- Skip syntax and error validation after code changes
+- Ignore compiler warnings (treat warnings as errors)
 - Use blocking operations in ISRs
-- Ignore compiler warnings
+- Forget to call `SettingsManager_Save()` after updates
+- Access shared state without mutex protection
 
 ✅ **Do:**
 - Use consistent naming conventions
-- Document all public APIs
+- **Document ALL public functions with complete Doxygen comments**
 - Include license headers in all files
-- Test error paths
+- **Validate syntax, check for errors and warnings after every code change**
+- Test error paths and edge cases
 - Use appropriate log levels
 - Clean up resources on failure
 - Follow the established module patterns
 - **Update corresponding AsciiDoc documentation when changing code**
+- Address all compiler warnings before committing
 
 ---
 

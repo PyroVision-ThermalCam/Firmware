@@ -129,11 +129,12 @@ static void on_GUI_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
     }
 }
 
-/** @brief          Lepton camera task main loop.
- *  @param p_Parameters Pointer to App_Context_t structure
+/** @brief              Lepton camera task main loop.
+ *  @param p_Parameters Task parameters
  */
 static void Task_Lepton(void *p_Parameters)
 {
+    Lepton_Error_t Lepton_Error;
     App_Context_t *App_Context;
     App_Lepton_Device_t DeviceInfo;
 
@@ -141,6 +142,16 @@ static void Task_Lepton(void *p_Parameters)
     App_Context = reinterpret_cast<App_Context_t *>(p_Parameters);
 
     ESP_LOGD(TAG, "Lepton task started on core %d", xPortGetCoreID());
+
+    /* Initialize Lepton (this creates I2C device handle) before framebuffer allocation */
+    Lepton_Error = Lepton_Init(&_LeptonTask_State.Lepton, &_LeptonTask_State.LeptonConf);
+    if (Lepton_Error != LEPTON_ERR_OK) {
+        ESP_LOGE(TAG, "Lepton initialization failed with error: %d!", Lepton_Error);
+        esp_event_post(LEPTON_EVENTS, LEPTON_EVENT_CAMERA_ERROR, NULL, 0, portMAX_DELAY);
+
+        esp_task_wdt_delete(NULL);
+        vTaskDelete(NULL);
+    }
 
     /* Format serial number as readable string: XXXX-XXXX-XXXX-XXXX */
     snprintf(DeviceInfo.SerialNumber, sizeof(DeviceInfo.SerialNumber),
@@ -183,8 +194,10 @@ static void Task_Lepton(void *p_Parameters)
         /* Critical error - cannot continue without capture task */
         _LeptonTask_State.Running = false;
         _LeptonTask_State.TaskHandle = NULL;
+
         esp_task_wdt_delete(NULL);
         vTaskDelete(NULL);
+
         return;
     }
 
@@ -446,8 +459,6 @@ static void Task_Lepton(void *p_Parameters)
 
 esp_err_t Lepton_Task_Init(void)
 {
-    Lepton_Error_t Lepton_Error;
-
     if (_LeptonTask_State.isInitialized) {
         ESP_LOGW(TAG, "Already initialized");
         return ESP_OK;
@@ -455,8 +466,6 @@ esp_err_t Lepton_Task_Init(void)
 
     ESP_LOGD(TAG, "Initializing Lepton Task");
     _LeptonTask_State.CurrentReadBuffer = 0;
-
-    Lepton_Error = LEPTON_ERR_OK;
 
     /* Create event group */
     _LeptonTask_State.EventGroup = xEventGroupCreate();
@@ -473,21 +482,9 @@ esp_err_t Lepton_Task_Init(void)
         return ESP_ERR_NO_MEM;
     }
 
-    /* Initialize Lepton configuration and I2C BEFORE allocating large buffers */
     _LeptonTask_State.LeptonConf = LEPTON_DEFAULT_CONF;
     LEPTON_ASSIGN_FUNC(_LeptonTask_State.LeptonConf, NULL, NULL, I2CM_Write, I2CM_Read);
     LEPTON_ASSIGN_I2C_HANDLE(_LeptonTask_State.LeptonConf, DevicesManager_GetI2CBusHandle());
-
-    /* Initialize Lepton (this creates I2C device handle) before framebuffer allocation */
-    Lepton_Error = Lepton_Init(&_LeptonTask_State.Lepton, &_LeptonTask_State.LeptonConf);
-    if (Lepton_Error != LEPTON_ERR_OK) {
-        ESP_LOGE(TAG, "Lepton initialization failed with error: %d!", Lepton_Error);
-
-        vSemaphoreDelete(_LeptonTask_State.BufferMutex);
-        vEventGroupDelete(_LeptonTask_State.EventGroup);
-
-        return ESP_FAIL;
-    }
 
     /* Allocate RGB buffers - both RAW14 and RGB888 use 160x120 resolution
      * RAW14: 160x120x3 = 57,600 bytes (after conversion to RGB)

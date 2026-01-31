@@ -111,11 +111,6 @@ esp_err_t DevicesManager_Init(void)
         return ESP_FAIL;
     }
 
-    if (ADC_Init() != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize ADC!");
-        return ESP_FAIL;
-    }
-
     if (PortExpander_Init(&_Devices_Manager_I2CM_Config, &_Devices_Manager_State.I2C_Bus_Handle) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to set default configuration for port expander!");
         return ESP_FAIL;
@@ -171,9 +166,8 @@ i2c_master_bus_handle_t DevicesManager_GetI2CBusHandle(void)
     return _Devices_Manager_State.I2C_Bus_Handle;
 }
 
-esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, int *p_Percentage)
+esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, uint8_t *p_Percentage)
 {
-    int Raw;
     esp_err_t Error;
 
     if (_Devices_Manager_State.initialized == false) {
@@ -185,7 +179,7 @@ esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, int *p_Percentage)
 
     PortExpander_EnableBatteryVoltage(true);
 
-    Error = ADC_ReadBattery(&Raw);
+    Error = ADC_ReadBattery(p_Voltage, p_Percentage);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read battery voltage: %d", Error);
 
@@ -195,15 +189,6 @@ esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, int *p_Percentage)
     }
 
     PortExpander_EnableBatteryVoltage(false);
-
-    *p_Voltage = Raw * (BATTERY_R1 + BATTERY_R2) / BATTERY_R2;
-
-    *p_Percentage = (*p_Voltage - BATTERY_MIN_VOLTAGE) * 100 / (BATTERY_MAX_VOLTAGE - BATTERY_MIN_VOLTAGE);
-    if (*p_Percentage < 0) {
-        *p_Percentage = 0;
-    } else if (*p_Percentage > 100) {
-        *p_Percentage = 100;
-    }
 
     return ESP_OK;
 }

@@ -44,7 +44,8 @@
 #define NETWORK_TASK_OPEN_WIFI_REQUEST          BIT5
 #define NETWORK_TASK_PROV_TIMEOUT               BIT6
 #define NETWORK_TASK_SNTP_TIMEZONE_SET          BIT7
-#define NETWORK_TASK_WIFI_CREDENTIALS_UPDATED   BIT8
+#define NETWORK_TASK_SNTP_TIME_SYNCED           BIT8
+#define NETWORK_TASK_WIFI_CREDENTIALS_UPDATED   BIT10
 
 typedef struct {
     bool isInitialized;
@@ -65,6 +66,37 @@ typedef struct {
 static Network_Task_State_t _NetworkTask_State;
 
 static const char *TAG = "network_task";
+
+/** @brief                  SNTP event handler for task coordination.
+ *  @param p_HandlerArgs    Handler argument
+ *  @param Base             Event base
+ *  @param ID               Event ID
+ *  @param p_Data           Event-specific data
+ */
+static void on_SNTP_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+{
+    switch (ID) {
+        case SNTP_EVENT_TZ_CHANGED: {
+            ESP_LOGD(TAG, "Timezone set");
+
+            _NetworkTask_State.Timezone = static_cast<const char *>(p_Data);
+
+            xEventGroupSetBits(_NetworkTask_State.EventGroup, NETWORK_TASK_SNTP_TIMEZONE_SET);
+
+            break;
+        }
+        case SNTP_EVENT_SNTP_SYNCED: {
+            ESP_LOGD(TAG, "SNTP time synchronized");
+
+            xEventGroupSetBits(_NetworkTask_State.EventGroup, NETWORK_TASK_SNTP_TIME_SYNCED);
+
+            break;
+        }
+        default: {
+            break;
+        }
+    }
+}
 
 /** @brief                  Network event handler for task coordination.
  *  @param p_HandlerArgs    Handler argument
@@ -88,15 +120,6 @@ static void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base,
                    sizeof(_NetworkTask_State.Password));
 
             xEventGroupSetBits(_NetworkTask_State.EventGroup, NETWORK_TASK_WIFI_CREDENTIALS_UPDATED);
-
-            break;
-        }
-        case NETWORK_EVENT_SET_TZ: {
-            ESP_LOGD(TAG, "Timezone set");
-
-            _NetworkTask_State.Timezone = static_cast<const char *>(p_Data);
-
-            xEventGroupSetBits(_NetworkTask_State.EventGroup, NETWORK_TASK_SNTP_TIMEZONE_SET);
 
             break;
         }
@@ -178,7 +201,7 @@ static void on_GUI_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
 }
 
 /** @brief              Network task main loop.
- *  @param p_Parameters Pointer to App_Context_t structure
+ *  @param p_Parameters Task parameters
  */
 static void Task_Network(void *p_Parameters)
 {
@@ -392,7 +415,8 @@ esp_err_t Network_Task_Init(App_Context_t *p_AppContext)
     }
 
     if ((esp_event_handler_register(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler, NULL) != ESP_OK) ||
-        (esp_event_handler_register(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler, NULL) != ESP_OK)) {
+        (esp_event_handler_register(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler, NULL) != ESP_OK) ||
+        (esp_event_handler_register(SNTP_EVENTS, ESP_EVENT_ANY_ID, on_SNTP_Event_Handler, NULL) != ESP_OK)) {
         ESP_LOGE(TAG, "Failed to register event handler: %d!", Error);
 
         vEventGroupDelete(_NetworkTask_State.EventGroup);
@@ -424,6 +448,7 @@ esp_err_t Network_Task_Init(App_Context_t *p_AppContext)
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to init WiFi manager: 0x%x!", Error);
 
+        esp_event_handler_unregister(SNTP_EVENTS, ESP_EVENT_ANY_ID, on_SNTP_Event_Handler);
         esp_event_handler_unregister(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler);
         esp_event_handler_unregister(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler);
         vEventGroupDelete(_NetworkTask_State.EventGroup);
@@ -458,6 +483,7 @@ void Network_Task_Deinit(void)
     Provisioning_Deinit();
     NetworkManager_Deinit();
 
+    esp_event_handler_unregister(SNTP_EVENTS, ESP_EVENT_ANY_ID, on_SNTP_Event_Handler);
     esp_event_handler_unregister(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler);
     esp_event_handler_unregister(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler);
 

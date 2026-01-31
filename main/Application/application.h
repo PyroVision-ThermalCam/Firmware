@@ -39,8 +39,7 @@ ESP_EVENT_DECLARE_BASE(SD_EVENTS);
  */
 enum {
     LEPTON_EVENT_CAMERA_READY,                  /**< Lepton camera is ready. */
-    LEPTON_EVENT_CAMERA_ERROR,                  /**< Lepton camera error occurred.
-                                                     Data is transmitted in a App_Lepton_Device_t structure. */
+    LEPTON_EVENT_CAMERA_ERROR,                  /**< Lepton camera error occurred. */
     LEPTON_EVENT_RESPONSE_FPA_AUX_TEMP,         /**< FPA and AUX temperatures are ready.
                                                      Data is transmitted in a App_Lepton_Temperatures_t structure. */
     LEPTON_EVENT_RESPONSE_SPOTMETER,            /**< Spotmeter data is ready.
@@ -95,7 +94,7 @@ typedef struct {
  */
 typedef struct {
     int Voltage;                                /**< Battery voltage in millivolts. */
-    int Percentage;                             /**< Battery percentage (0-100%). */
+    uint8_t Percentage;                         /**< Battery percentage (0-100%). */
 } App_Devices_Battery_t;
 
 /** @brief Structure representing a ready frame from the Lepton camera.

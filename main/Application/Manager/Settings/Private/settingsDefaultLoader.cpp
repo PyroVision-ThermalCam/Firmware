@@ -82,7 +82,7 @@ void SettingsManager_InitDefaults(SettingsManager_State_t *p_State)
     SettingsManager_InitDefaultDisplay(&p_State->Settings);
     SettingsManager_InitDefaultProvisioning(&p_State->Settings);
     SettingsManager_InitDefaultWiFi(&p_State->Settings);
-    SettingsManager_InitDefaultSystem(p_State);
+    SettingsManager_InitDefaultSystem(&p_State->Settings);
     SettingsManager_InitDefaultLepton(&p_State->Settings);
     SettingsManager_InitDefaultHTTPServer(&p_State->Settings);
     SettingsManager_InitDefaultVISAServer(&p_State->Settings);
@@ -111,28 +111,29 @@ void SettingsManager_InitDefaultWiFi(App_Settings_t *p_Settings)
     p_Settings->WiFi.AutoConnect = SETTINGS_WIFI_DEFAULT_AUTOCONNECT;
     p_Settings->WiFi.MaxRetries = SETTINGS_WIFI_DEFAULT_MAX_RETRIES;
     p_Settings->WiFi.RetryInterval = SETTINGS_WIFI_DEFAULT_RETRY_INTERVAL;
-    strncpy(p_Settings->WiFi.SSID, "", sizeof(p_Settings->WiFi.SSID));
-    strncpy(p_Settings->WiFi.Password, "", sizeof(p_Settings->WiFi.Password));
+    strncpy(p_Settings->WiFi.SSID, SETTINGS_WIFI_DEFAULT_SSID, sizeof(p_Settings->WiFi.SSID));
+    strncpy(p_Settings->WiFi.Password, SETTINGS_WIFI_DEFAULT_PASSWORD, sizeof(p_Settings->WiFi.Password));
 }
 
-void SettingsManager_InitDefaultSystem(SettingsManager_State_t *p_State)
+void SettingsManager_InitDefaultSystem(App_Settings_t *p_Settings)
 {
     uint8_t Mac[6];
 
     ESP_LOGW(TAG, "Loading default System settings");
 
     if (esp_efuse_mac_get_default(Mac) == ESP_OK) {
-        snprintf(p_State->Settings.System.DeviceName, sizeof(p_State->Settings.System.DeviceName),
+        snprintf(p_Settings->System.DeviceName, sizeof(p_Settings->System.DeviceName),
                  "PyroVision-%02X%02X%02X%02X%02X%02X",
                  Mac[0], Mac[1], Mac[2], Mac[3], Mac[4], Mac[5]);
     } else {
-        snprintf(p_State->Settings.System.DeviceName, sizeof(p_State->Settings.System.DeviceName),
+        snprintf(p_Settings->System.DeviceName, sizeof(p_Settings->System.DeviceName),
                  SETTINGS_SYSTEM_DEFAULT_DEVICENAME);
         ESP_LOGW(TAG, "Failed to get MAC address, using default name");
     }
 
-    p_State->Settings.System.SDCard_AutoMount = true;
-    strncpy(p_State->Settings.System.Timezone, SETTINGS_SYSTEM_DEFAULT_TIMEZONE, sizeof(p_State->Settings.System.Timezone));
+    p_Settings->System.SDCard_AutoMount = true;
+    strncpy(p_Settings->System.Timezone, SETTINGS_SYSTEM_DEFAULT_TIMEZONE, sizeof(p_Settings->System.Timezone));
+    strncpy(p_Settings->System.NTPServer, SETTINGS_SYSTEM_DEFAULT_NTP_SERVER, sizeof(p_Settings->System.NTPServer));
 }
 
 void SettingsManager_InitDefaultLepton(App_Settings_t *p_Settings)

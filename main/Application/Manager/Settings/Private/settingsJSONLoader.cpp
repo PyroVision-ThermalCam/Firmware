@@ -23,10 +23,15 @@
 
 #include <esp_log.h>
 #include <esp_littlefs.h>
+#include <esp_vfs_fat.h>
+#include <sdmmc_cmd.h>
+#include <driver/sdmmc_host.h>
 
 #include <string.h>
 #include <sys/stat.h>
 #include <cJSON.h>
+#include <sys/stat.h>
+#include <dirent.h>
 
 #include "settingsLoader.h"
 #include "../settingsManager.h"
@@ -151,14 +156,14 @@ static void SettingsManager_LoadWiFi(SettingsManager_State_t *p_State, const cJS
         if (cJSON_IsString(ssid)) {
             strncpy(p_State->Settings.WiFi.SSID, ssid->valuestring, sizeof(p_State->Settings.WiFi.SSID));
         } else {
-            strncpy(p_State->Settings.WiFi.SSID, "", sizeof(p_State->Settings.WiFi.SSID));
+            strncpy(p_State->Settings.WiFi.SSID, SETTINGS_WIFI_DEFAULT_SSID, sizeof(p_State->Settings.WiFi.SSID));
         }
 
         cJSON *password = cJSON_GetObjectItem(wifi, "password");
         if (cJSON_IsString(password)) {
             strncpy(p_State->Settings.WiFi.Password, password->valuestring, sizeof(p_State->Settings.WiFi.Password));
         } else {
-            strncpy(p_State->Settings.WiFi.Password, "", sizeof(p_State->Settings.WiFi.Password));
+            strncpy(p_State->Settings.WiFi.Password, SETTINGS_WIFI_DEFAULT_PASSWORD, sizeof(p_State->Settings.WiFi.Password));
         }
     } else {
         SettingsManager_InitDefaultWiFi(&p_State->Settings);
@@ -219,7 +224,7 @@ static void SettingsManager_LoadSystem(SettingsManager_State_t *p_State, const c
                     sizeof(p_State->Settings.System.DeviceName));
         }
     } else {
-        SettingsManager_InitDefaultSystem(p_State);
+        SettingsManager_InitDefaultSystem(&p_State->Settings);
     }
 }
 
@@ -279,110 +284,168 @@ static void SettingsManager_LoadVISAServer(SettingsManager_State_t *p_State, con
     }
 }
 
-esp_err_t SettingsManager_LoadDefaultsFromJSON(SettingsManager_State_t *p_State)
+/** @brief  Initialize and mount the SD card.
+ *  @return ESP_OK on success
+ */
+static esp_err_t SettingsManager_Mount_SD_Card(void)
 {
-    uint8_t ConfigLoaded = 0;
     esp_err_t Error;
-    cJSON *json = NULL;
-    size_t Total = 0;
-    size_t Used = 0;
-    size_t BytesRead = 0;
-    FILE* SettingsFile = NULL;
-    char *SettingsBuffer = NULL;
-    long FileSize;
-    esp_vfs_littlefs_conf_t LittleFS_Config = {
-        .base_path = "/littlefs",
-        .partition_label = "storage",
-        .format_if_mount_failed = true,
-        .read_only = true,
-        .dont_mount = false
+    sdmmc_card_t *card;
+    const char mount_point[] = "/sdcard";
+    
+    ESP_LOGD(TAG, "Initializing SD card");
+
+    sdmmc_host_t Host = SDSPI_HOST_DEFAULT();
+    Host.slot = SPI2_HOST;
+
+    spi_bus_config_t SPI_Config;
+    memset(&SPI_Config, 0, sizeof(SPI_Config));
+    SPI_Config = {
+        .mosi_io_num = GPIO_NUM_38,
+        .miso_io_num = GPIO_NUM_40,
+        .sclk_io_num = GPIO_NUM_39,
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
+        .max_transfer_sz = 4000,
     };
 
-    Error = nvs_get_u8(p_State->NVS_Handle, "config_loaded", &ConfigLoaded);
-    if ((Error == ESP_OK) && (ConfigLoaded == true)) {
-        ESP_LOGD(TAG, "Default config already loaded, skipping");
-        return ESP_OK;
+    Error = spi_bus_initialize(static_cast<spi_host_device_t>(Host.slot), &SPI_Config, SDSPI_DEFAULT_DMA);
+    if (Error != ESP_OK) {
+        if (Error == ESP_ERR_INVALID_STATE) {
+            ESP_LOGD(TAG, "SPI bus already initialized, continuing...");
+        } else {
+            ESP_LOGD(TAG, "Failed to initialize SPI: %d!", Error);
+
+            return Error;
+        }
     }
 
-    ESP_LOGD(TAG, "Initializing LittleFS");
+    sdspi_device_config_t Slot = SDSPI_DEVICE_CONFIG_DEFAULT();
+    Slot.gpio_cs = GPIO_NUM_47;
+    Slot.host_id = static_cast<spi_host_device_t>(Host.slot);
 
-    Error = esp_vfs_littlefs_register(&LittleFS_Config);
+    esp_vfs_fat_sdmmc_mount_config_t Mount_Config = {
+        .format_if_mount_failed = false,
+        .max_files = 5,
+        .allocation_unit_size = 16 * 1024
+    };
+
+    Error = esp_vfs_fat_sdspi_mount(mount_point, &Host, &Slot, &Mount_Config, &card); 
     if (Error != ESP_OK) {
         if (Error == ESP_FAIL) {
-            ESP_LOGE(TAG, "Failed to mount or format filesystem!");
-        } else if (Error == ESP_ERR_NOT_FOUND) {
-            ESP_LOGE(TAG, "Failed to find LittleFS partition!");
+            ESP_LOGD(TAG, "Failed to mount SD card filesystem!");
         } else {
-            ESP_LOGE(TAG, "Failed to initialize LittleFS: %d!", Error);
+            ESP_LOGD(TAG, "Failed to mount SD card: 0x%x!", Error);
         }
+        
+        return Error;
+    }
 
+    /* Log the mount point and list files in the directory */
+    DIR *dir = opendir(mount_point);
+    if (dir == NULL) {
+        ESP_LOGE(TAG, "Failed to open mount point: %s!", mount_point);
         return ESP_FAIL;
     }
 
-    Error = esp_littlefs_info(LittleFS_Config.partition_label, &Total, &Used);
-    if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to get LittleFS partition information: %d!", Error);
-    } else {
-        ESP_LOGD(TAG, "Partition size: total: %zu, used: %zu", Total, Used);
+    struct dirent *entry;
+    ESP_LOGD(TAG, "Files in mount point %s:", mount_point);
+    /* Enhanced logging for file names */
+    while ((entry = readdir(dir)) != NULL) {
+        ESP_LOGD(TAG, "  Found file: %s", entry->d_name);
+        if (strcmp(entry->d_name, "settings.json") == 0 || strcmp(entry->d_name, "SETTIN~1.JSO") == 0) {
+            ESP_LOGD(TAG, "  Matched settings file: %s", entry->d_name);
+        }
+    }
+    closedir(dir);
+
+    ESP_LOGD(TAG, "SD card mounted successfully");
+
+    return ESP_OK;
+}
+
+/** @brief Unmount the SD card.
+ */
+static void SettingsManager_Unmount_SD_Card(void)
+{
+    esp_vfs_fat_sdcard_unmount("/sdcard", NULL);
+    ESP_LOGD(TAG, "SD card unmounted");
+}
+
+/** @brief          Load and parse JSON settings from file.
+ *  @param p_State  Settings state structure
+ *  @param filepath Full path to JSON file
+ *  @return         ESP_OK on success
+ */
+static esp_err_t SettingsManager_Load_JSON(SettingsManager_State_t *p_State, const char *p_FilePath)
+{
+    FILE *File = NULL;
+    char *Buffer = NULL;
+    long FileSize;
+    size_t BytesRead;
+    cJSON *JSON = NULL;
+
+    ESP_LOGD(TAG, "Loading settings from: %s", p_FilePath);
+
+    /* Check if file exists */
+    struct stat st;
+    if (stat(p_FilePath, &st) != 0) {
+        ESP_LOGE(TAG, "File does not exist or cannot be accessed: %s!", p_FilePath);
+        return ESP_ERR_NOT_FOUND;
     }
 
     ESP_LOGD(TAG, "Opening settings file...");
-    SettingsFile = fopen("/littlefs/default_settings.json", "r");
-    if (SettingsFile == NULL) {
-        ESP_LOGE(TAG, "Failed to open file for reading!");
-        esp_vfs_littlefs_unregister(LittleFS_Config.partition_label);
+    File = fopen(p_FilePath, "r");
+    if (File == NULL) {
+        ESP_LOGW(TAG, "Failed to open: %s!", p_FilePath);
 
-        return ESP_FAIL;
+        return ESP_ERR_NOT_FOUND;
     }
 
     /* Get file size */
-    fseek(SettingsFile, 0, SEEK_END);
-    FileSize = ftell(SettingsFile);
-    fseek(SettingsFile, 0, SEEK_SET);
+    fseek(File, 0, SEEK_END);
+    FileSize = ftell(File);
+    fseek(File, 0, SEEK_SET);
 
     if (FileSize <= 0) {
         ESP_LOGE(TAG, "Invalid file size: %ld!", FileSize);
-        fclose(SettingsFile);
-        esp_vfs_littlefs_unregister(LittleFS_Config.partition_label);
 
-        return ESP_FAIL;
+        fclose(File);
+
+        return ESP_ERR_INVALID_SIZE;
     }
 
     ESP_LOGD(TAG, "File size: %ld bytes", FileSize);
 
     /* Allocate buffer for file content */
-    SettingsBuffer = (char*)heap_caps_malloc(FileSize + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (SettingsBuffer == NULL) {
+    Buffer = (char*)heap_caps_malloc(FileSize + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (Buffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate memory for file buffer!");
-        fclose(SettingsFile);
-        esp_vfs_littlefs_unregister(LittleFS_Config.partition_label);
+
+        fclose(File);
 
         return ESP_ERR_NO_MEM;
     }
 
     /* Read file content */
-    BytesRead = fread(SettingsBuffer, 1, FileSize, SettingsFile);
-    fclose(SettingsFile);
-    SettingsFile = NULL;
+    BytesRead = fread(Buffer, 1, FileSize, File);
+    fclose(File);
+    Buffer[FileSize] = '\0';
 
     if (BytesRead != FileSize) {
-        ESP_LOGE(TAG, "Failed to read file (read %zu of %ld bytes)", BytesRead, FileSize);
-        heap_caps_free(SettingsBuffer);
-        esp_vfs_littlefs_unregister(LittleFS_Config.partition_label);
+        ESP_LOGE(TAG, "Read error: got %zu of %ld bytes!", BytesRead, FileSize);
+
+        heap_caps_free(Buffer);
 
         return ESP_FAIL;
     }
 
-    esp_vfs_littlefs_unregister(LittleFS_Config.partition_label);
-
-    ESP_LOGD(TAG, "File read successfully, parsing JSON...");
-
     /* Parse JSON */
-    json = cJSON_Parse(SettingsBuffer);
-    heap_caps_free(SettingsBuffer);
-    SettingsBuffer = NULL;
+    JSON = cJSON_Parse(Buffer);
+    heap_caps_free(Buffer);
+    Buffer = NULL;
 
-    if (json == NULL) {
+    if (JSON == NULL) {
         const char *error_ptr = cJSON_GetErrorPtr();
         if (error_ptr != NULL) {
             ESP_LOGE(TAG, "JSON Parse Error: %s!", error_ptr);
@@ -393,30 +456,96 @@ esp_err_t SettingsManager_LoadDefaultsFromJSON(SettingsManager_State_t *p_State)
         return ESP_FAIL;
     }
 
-    ESP_LOGD(TAG, "JSON parsed successfully");
+    ESP_LOGD(TAG, "JSON parsed successfully from %s", p_FilePath);
 
-    /* Extract display settings */
-    SettingsManager_LoadDisplay(p_State, json);
+    /* Load settings sections */
+    SettingsManager_LoadDisplay(p_State, JSON);
 
     /* Extract provisioning settings */
-    SettingsManager_LoadProvisioning(p_State, json);
+    SettingsManager_LoadProvisioning(p_State, JSON);
 
     /* Extract WiFi settings */
-    SettingsManager_LoadWiFi(p_State, json);
+    SettingsManager_LoadWiFi(p_State, JSON);
 
     /* Extract system settings */
-    SettingsManager_LoadSystem(p_State, json);
+    SettingsManager_LoadSystem(p_State, JSON);
 
     /* Extract Lepton settings */
-    SettingsManager_LoadLepton(p_State, json);
+    SettingsManager_LoadLepton(p_State, JSON);
 
     /* Extract HTTP Server settings */
-    SettingsManager_LoadHTTPServer(p_State, json);
+    SettingsManager_LoadHTTPServer(p_State, JSON);
 
     /* Extract VISA Server settings */
-    SettingsManager_LoadVISAServer(p_State, json);
+    SettingsManager_LoadVISAServer(p_State, JSON);
 
-    cJSON_Delete(json);
+    cJSON_Delete(JSON);
+
+    return ESP_OK;
+}
+
+esp_err_t SettingsManager_LoadDefaultsFromJSON(SettingsManager_State_t *p_State)
+{
+    uint8_t ConfigLoaded = 0;
+    esp_err_t Error;
+    esp_vfs_littlefs_conf_t LittleFS_Config = {
+        .base_path = "/littlefs",
+        .partition_label = "storage",
+        .partition = NULL,
+		.format_if_mount_failed = true,
+        .read_only = true,
+        .dont_mount = false,
+        .grow_on_mount = false
+    };
+
+    Error = nvs_get_u8(p_State->NVS_Handle, "config_loaded", &ConfigLoaded);
+    if ((Error == ESP_OK) && (ConfigLoaded == true)) {
+        ESP_LOGD(TAG, "Default config already loaded, skipping");
+        return ESP_OK;
+    }
+
+    ESP_LOGD(TAG, "Loading settings with priority: SD Card -> LittleFS -> Built-in defaults");
+
+    /* 1. Try SD card */
+    Error = SettingsManager_Mount_SD_Card();
+    if (Error == ESP_OK) {
+        Error = SettingsManager_Load_JSON(p_State, "/sdcard/settings.json");
+
+        /* Check for 8.3 filename match */
+        if (Error != ESP_OK) {
+            ESP_LOGW(TAG, "Falling back to 8.3 filename: SETTIN~1.JSO");
+            Error = SettingsManager_Load_JSON(p_State, "/sdcard/SETTIN~1.JSO");
+        }
+
+        SettingsManager_Unmount_SD_Card();
+
+        if (Error == ESP_OK) {
+            ESP_LOGD(TAG, "Settings loaded from SD card");
+            return ESP_OK;
+        }
+        ESP_LOGW(TAG, "SD card mounted but no valid settings.json found");
+    } else {
+        ESP_LOGD(TAG, "SD card not available, trying LittleFS");
+    }
+
+    /* 2. Try LittleFS */
+    Error = esp_vfs_littlefs_register(&LittleFS_Config);
+    if (Error == ESP_OK) {        
+        Error = SettingsManager_Load_JSON(p_State, "/littlefs/settings.json");
+        esp_vfs_littlefs_unregister(LittleFS_Config.partition_label);
+        
+        if (Error == ESP_OK) {
+            ESP_LOGD(TAG, "Settings loaded from LittleFS");
+            return ESP_OK;
+        }
+        ESP_LOGW(TAG, "LittleFS mounted but no valid settings.json found");
+    } else {
+        ESP_LOGW(TAG, "Failed to mount LittleFS: %d!", Error);
+    }
+
+    /* 3. Fallback to built-in defaults */
+    ESP_LOGW(TAG, "Using built-in default settings");
+    SettingsManager_InitDefaults(p_State);
 
     /* Mark config as loaded */
     Error = nvs_set_u8(p_State->NVS_Handle, "config_loaded", true);
