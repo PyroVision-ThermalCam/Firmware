@@ -31,14 +31,28 @@
 
 #include "Application/application.h"
 
+/** @brief  Initializes the devices task.
+ *  @return ESP_OK on success, error code otherwise
+ */
 esp_err_t DevicesTask_Init(void);
 
+/** @brief Deinitializes the devices task.
+ */
 void DevicesTask_Deinit(void);
 
+/** @brief  Starts the devices task.
+ *  @return ESP_OK on success, error code otherwise
+ */
 esp_err_t DevicesTask_Start(App_Context_t *p_AppContext);
 
+/** @brief  Stops the devices task.
+ *  @return ESP_OK on success, error code otherwise
+ */
 esp_err_t DevicesTask_Stop(void);
 
+/** @brief  Checks if the devices task is running.
+ *  @return false if the task is not running, true if it is running
+ */
 bool DevicesTask_isRunning(void);
 
 #endif /* DEVICESTASK_H_ */

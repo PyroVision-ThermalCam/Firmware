@@ -3,11 +3,15 @@
 // LVGL version: 9.1.0
 // Project name: PyroVision
 
+#include <esp_log.h>
 #include <esp_event.h>
 
 #include "ui.h"
 
+#include "../UI/ui_Settings.h"
 #include "../../../application.h"
+
+static const char *TAG = "ui_Settings";
 
 void ScreenMainLoaded(lv_event_t *e)
 {
@@ -19,15 +23,15 @@ void ScreenMainLoaded(lv_event_t *e)
     snprintf(Buf, sizeof(Buf), "Firmware %s\n(c) 2026 PyroVision Project", Info.FirmwareVersion);
     lv_label_set_text(ui_SplashScreen_FirmwareVersion, Buf);
 
+    /* Set the symbols for the UI */
     lv_label_set_text(ui_Image_Main_WiFi, LV_SYMBOL_WIFI);
     lv_label_set_text(ui_Image_Main_SDCard, LV_SYMBOL_SD_CARD);
-
+    lv_label_set_text(ui_Label_Menu_Button_Save, LV_SYMBOL_SAVE);
     lv_label_set_text(ui_Label_Main_Button_Menu, "\uF0C9");
     lv_label_set_text(ui_Label_Main_Button_Info, "\uF129");
     lv_label_set_text(ui_Label_Main_Button_ROI, "\uE595");
     lv_label_set_text(ui_Label_Main_Button_WiFi, "\uF1EB");
     lv_label_set_text(ui_Label_Main_Thermal_Crosshair, "\uF05B");
-
     lv_label_set_text(ui_Label_Menu_Back, "\uF060");
     lv_label_set_text(ui_Label_Info_Back, "\uF060");
 }
@@ -43,7 +47,12 @@ void ButtonMainWiFiClicked(lv_event_t *e)
     esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_OPEN_WIFI_REQUEST, NULL, 0, 0);
 }
 
-void ScreenMenuLoaded(lv_event_t * e)
+void ScreenSplahLoaded(lv_event_t * e)
 {
-    // Your code here
+    ui_settings_build(ui_Container_Menu);
+}
+
+void ButtonMenuSaveClicked(lv_event_t * e)
+{
+	SettingsManager_Save();
 }

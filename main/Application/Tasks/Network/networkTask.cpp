@@ -46,6 +46,7 @@
 #define NETWORK_TASK_SNTP_TIMEZONE_SET          BIT7
 #define NETWORK_TASK_SNTP_TIME_SYNCED           BIT8
 #define NETWORK_TASK_WIFI_CREDENTIALS_UPDATED   BIT10
+#define LEPTON_SPOTMETER_READY                  BIT11
 
 typedef struct {
     bool isInitialized;
@@ -61,11 +62,33 @@ typedef struct {
     App_Context_t *AppContext;
     char SSID[33];
     char Password[65];
+    App_Lepton_ROI_Result_t ROIResult;
 } Network_Task_State_t;
 
 static Network_Task_State_t _NetworkTask_State;
 
 static const char *TAG = "network_task";
+
+/** @brief
+ *  @param p_HandlerArgs    Handler argument
+ *  @param Base             Event base
+ *  @param ID               Event ID
+ *  @param p_Data           Event-specific data
+ */
+static void on_Lepton_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+{
+    ESP_LOGD(TAG, "Lepton event received: ID=%d", ID);
+
+    switch (ID) {
+        case LEPTON_EVENT_RESPONSE_SPOTMETER: {
+            memcpy(&_NetworkTask_State.ROIResult, p_Data, sizeof(App_Lepton_ROI_Result_t));
+
+            xEventGroupSetBits(_NetworkTask_State.EventGroup, LEPTON_SPOTMETER_READY);
+
+            break;
+        }
+    }
+}
 
 /** @brief                  SNTP event handler for task coordination.
  *  @param p_HandlerArgs    Handler argument
@@ -361,6 +384,11 @@ static void Task_Network(void *p_Parameters)
             SettingsManager_Save();
 
             xEventGroupClearBits(_NetworkTask_State.EventGroup, NETWORK_TASK_WIFI_CREDENTIALS_UPDATED);
+        } else if (EventBits & LEPTON_SPOTMETER_READY) {
+            if (Server_isRunning()) {
+                
+            }
+            xEventGroupClearBits(_NetworkTask_State.EventGroup, LEPTON_SPOTMETER_READY);
         }
 
         vTaskDelay(10 / portTICK_PERIOD_MS);
@@ -416,7 +444,8 @@ esp_err_t Network_Task_Init(App_Context_t *p_AppContext)
 
     if ((esp_event_handler_register(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler, NULL) != ESP_OK) ||
         (esp_event_handler_register(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler, NULL) != ESP_OK) ||
-        (esp_event_handler_register(SNTP_EVENTS, ESP_EVENT_ANY_ID, on_SNTP_Event_Handler, NULL) != ESP_OK)) {
+        (esp_event_handler_register(SNTP_EVENTS, ESP_EVENT_ANY_ID, on_SNTP_Event_Handler, NULL) != ESP_OK) ||
+        (esp_event_handler_register(LEPTON_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Event_Handler, NULL) != ESP_OK)) {
         ESP_LOGE(TAG, "Failed to register event handler: %d!", Error);
 
         vEventGroupDelete(_NetworkTask_State.EventGroup);
@@ -483,6 +512,7 @@ void Network_Task_Deinit(void)
     Provisioning_Deinit();
     NetworkManager_Deinit();
 
+    esp_event_handler_unregister(LEPTON_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Event_Handler);
     esp_event_handler_unregister(SNTP_EVENTS, ESP_EVENT_ANY_ID, on_SNTP_Event_Handler);
     esp_event_handler_unregister(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler);
     esp_event_handler_unregister(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler);

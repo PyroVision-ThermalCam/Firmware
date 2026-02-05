@@ -43,14 +43,15 @@ ESP_EVENT_DEFINE_BASE(SETTINGS_EVENTS);
 
 static SettingsManager_State_t _State;
 
-/** @brief          Update a specific settings section in the Settings Manager RAM and emit the corresponding event.
- *  @param p_Src    Pointer to source settings structure
- *  @param p_Dst    Pointer to destination settings structure in RAM
- *  @param Size     Size of the settings structure to copy
- *  @param EventID  Event identifier to emit after update
- *  @return         ESP_OK on success
+/** @brief                  Update a specific settings section in the Settings Manager RAM and emit the corresponding event.
+ *  @param p_Src            Pointer to source settings structure
+ *  @param p_Dst            Pointer to destination settings structure in RAM
+ *  @param Size             Size of the settings structure to copy
+ *  @param EventID          Event identifier to emit after update
+ *  @param p_ChangedSetting Pointer to structure to receive changed setting ID and value for event data (can be NULL if not needed)
+ *  @return                 ESP_OK on success
  */
-static esp_err_t SettingsManager_Update(void* p_Src, void* p_Dst, size_t Size, int EventID)
+static esp_err_t SettingsManager_Update(void* p_Src, void* p_Dst, size_t Size, int EventID, SettingsManager_Setting_t* p_ChangedSetting = NULL)
 {
     if (_State.isInitialized == false) {
         return ESP_ERR_INVALID_STATE;
@@ -64,7 +65,7 @@ static esp_err_t SettingsManager_Update(void* p_Src, void* p_Dst, size_t Size, i
 
     xSemaphoreGive(_State.Mutex);
 
-    esp_event_post(SETTINGS_EVENTS, EventID, p_Dst, Size, portMAX_DELAY);
+    esp_event_post(SETTINGS_EVENTS, EventID, p_ChangedSetting, sizeof(SettingsManager_Setting_t), portMAX_DELAY);
 
     return ESP_OK;
 }
@@ -288,10 +289,10 @@ esp_err_t SettingsManager_GetLepton(App_Settings_Lepton_t* p_Settings)
     return ESP_OK;
 }
 
-esp_err_t SettingsManager_UpdateLepton(App_Settings_Lepton_t* p_Settings)
+esp_err_t SettingsManager_UpdateLepton(App_Settings_Lepton_t* p_Settings, SettingsManager_Setting_t* p_ChangedSetting)
 {
     return SettingsManager_Update(p_Settings, &_State.Settings.Lepton, sizeof(App_Settings_Lepton_t),
-                                  SETTINGS_EVENT_LEPTON_CHANGED);
+                                  SETTINGS_EVENT_LEPTON_CHANGED, p_ChangedSetting);
 }
 
 esp_err_t SettingsManager_GetWiFi(App_Settings_WiFi_t* p_Settings)

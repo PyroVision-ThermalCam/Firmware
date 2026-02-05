@@ -622,11 +622,17 @@ Documentation is automatically built and deployed via GitHub Actions workflow (`
 
 **CRITICAL**: After making ANY code changes, you MUST perform the following validation steps:
 
-#### 1. Syntax Validation
+#### 1. Syntax and Spelling Validation
 - Verify code compiles without errors using `pio run` or `idf.py build`
 - Check for correct bracket matching, semicolons, and C++ syntax
 - Validate all include statements and dependencies
 - Ensure no missing header files or forward declarations
+- **Check for spelling errors** in:
+  - Variable names, function names, and type names
+  - Comments and documentation strings
+  - String literals and user-facing messages
+  - Log messages (TAG names, error messages)
+- Use consistent spelling and terminology across the codebase
 
 #### 2. Error and Warning Analysis
 - **Zero tolerance for compiler warnings** - all warnings must be addressed
@@ -654,6 +660,7 @@ Documentation is automatically built and deployed via GitHub Actions workflow (`
 ```
 ☐ Code compiles without errors (pio run -e debug)
 ☐ No compiler warnings introduced
+☐ No spelling errors in code, comments, or documentation
 ☐ All new/modified functions have complete Doxygen documentation
 ☐ All return values and parameters documented
 ☐ Error handling implemented for all ESP-IDF calls

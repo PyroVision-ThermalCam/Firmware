@@ -9,6 +9,7 @@
 - [PyroVision - Firmware](#pyrovision---firmware)
   - [Table of Contents](#table-of-contents)
   - [License](#license)
+  - [Color palette](#color-palette)
   - [Maintainer](#maintainer)
 
 ## License
@@ -16,6 +17,19 @@
 This project is licensed under the **GNU General Public License v3.0**.
 
 See [LICENSE](LICENSE) for full text.
+
+## Color palette
+
+| Name               | Hex     | Description                  |
+| ------------------ | ------- | ---------------------------- |
+| Violet             | #7B3FF0 | Primary color, iconic accents |
+| Blue               | #2196F3 | Cool heatmap colors           |
+| Red                | #FF3B3B | Heat/hotspots                 |
+| Orange             | #FF9500 | Medium heat                   |
+| Yellow             | #FFD500 | Maximum hot areas             |
+| Light Purple       | #B998FF | Accent color                  |
+| Light Red/Orange   | #FF6F3C | Accent color                  |
+| Dark Gray/Black    | #1E1E1E | Background color              |
 
 ## Maintainer
 

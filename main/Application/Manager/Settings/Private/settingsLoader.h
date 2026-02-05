@@ -36,6 +36,8 @@
 
 #include "../settingsTypes.h"
 
+#define SETTINGS_DEFAULT_LEPTON_EMISSIVITY      100
+
 #define SETTINGS_DEFAULT_VISA_PORT              5025
 
 #define SETTINGS_DEFAULT_HTTP_PORT              80

@@ -123,13 +123,22 @@ static inline bool Server_isRunning(void)
     return HTTP_Server_isRunning();
 }
 
-/** @brief          Set thermal frame data for both HTTP and WebSocket endpoints.
+/** @brief          Set the thermal frame data for both HTTP and WebSocket endpoints.
  *  @param p_Frame  Pointer to thermal frame data
  */
 static inline void Server_SetThermalFrame(Network_Thermal_Frame_t *p_Frame)
 {
     HTTP_Server_SetThermalFrame(p_Frame);
     WebSocket_Handler_SetThermalFrame(p_Frame);
+}
+
+/** @brief Notify all clients that a new frame is ready (non-blocking).
+ */
+static inline void Server_NotifyClients(void)
+{
+    if (WebSocket_Handler_HasClients()) {
+        WebSocket_Handler_NotifyFrameReady();
+    }
 }
 
 #endif /* SERVER_H_ */

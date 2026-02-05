@@ -21,7 +21,9 @@
  * Errors and commissions should be reported to DanielKampert@kampis-elektroecke.de
  */
 
+
 #include <esp_log.h>
+#include <driver/i2c.h>
 
 #include "guiHelper.h"
 #include "Application/application.h"
@@ -179,7 +181,24 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUITask_State, lv_indev_read_cb_t 
 #endif
 
     ESP_LOGI(TAG, "Create I2C bus for touch controller...");
+
     i2c_new_master_bus(&_GUI_Touch_I2C_Config, &p_GUITask_State->Touch_Bus_Handle);
+
+    // --- I2C-Scanner ---
+    /*
+    ESP_LOGI(TAG, "Starte I2C-Scan auf Touch-Bus (driver_ng)...");
+    for (uint8_t addr = 1; addr < 127; addr++) {
+        esp_err_t ret = i2c_master_probe(p_GUITask_State->Touch_Bus_Handle, addr, 10 / portTICK_PERIOD_MS);
+        if (ret == ESP_OK) {
+            ESP_LOGW(TAG, "I2C-Gerät gefunden bei Adresse 0x%02X", addr);
+        }
+    }
+    ESP_LOGI(TAG, "I2C-Scan abgeschlossen.");
+
+    while(1)
+    {
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }*/
 
     ESP_LOGI(TAG, "Create panel IO...");
     ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(static_cast<esp_lcd_spi_bus_handle_t>(LCD_SPI_HOST), &_GUI_Panel_IO_Config,
@@ -242,17 +261,25 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUITask_State, lv_indev_read_cb_t 
                            GUI_DRAW_BUFFER_SIZE,
                            LV_DISPLAY_RENDER_MODE_PARTIAL);
 
-    ESP_LOGD(TAG, "Initialize GT911 touch controller...");
-    ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_gt911(p_GUITask_State->Touch_IO_Handle, &_GUI_Touch_Config,
-                                                &p_GUITask_State->TouchHandle));
+    ESP_LOGI(TAG, "Initialize GT911 touch controller...");
+    esp_err_t TouchError = esp_lcd_touch_new_i2c_gt911(p_GUITask_State->Touch_IO_Handle, &_GUI_Touch_Config,
+                                                        &p_GUITask_State->TouchHandle);
+    if (TouchError != ESP_OK) {
+        ESP_LOGW(TAG, "GT911 touch controller initialization failed (0x%x)", TouchError);
+        ESP_LOGW(TAG, "System will continue without touch functionality");
+        p_GUITask_State->TouchHandle = NULL;
+        p_GUITask_State->Touch = NULL;
+    } else {
+        ESP_LOGI(TAG, "GT911 touch controller initialized successfully");
 
-    /* Register touchpad input device */
-    ESP_LOGD(TAG, "Register touch input device to LVGL");
-    p_GUITask_State->Touch = lv_indev_create();
-    lv_indev_set_type(p_GUITask_State->Touch, LV_INDEV_TYPE_POINTER);
-    lv_indev_set_display(p_GUITask_State->Touch, p_GUITask_State->Display);
-    lv_indev_set_read_cb(p_GUITask_State->Touch, Touch_Read_Callback);
-    lv_indev_set_user_data(p_GUITask_State->Touch, p_GUITask_State->TouchHandle);
+        /* Register touchpad input device */
+        ESP_LOGD(TAG, "Register touch input device to LVGL");
+        p_GUITask_State->Touch = lv_indev_create();
+        lv_indev_set_type(p_GUITask_State->Touch, LV_INDEV_TYPE_POINTER);
+        lv_indev_set_display(p_GUITask_State->Touch, p_GUITask_State->Display);
+        lv_indev_set_read_cb(p_GUITask_State->Touch, Touch_Read_Callback);
+        lv_indev_set_user_data(p_GUITask_State->Touch, p_GUITask_State->TouchHandle);
+    }
 
     /* Create LVGL tick timer */
     const esp_timer_create_args_t LVGL_TickTimer_args = {

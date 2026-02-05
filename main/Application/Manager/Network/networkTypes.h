@@ -130,24 +130,26 @@ typedef enum {
 /** @brief Thermal frame data structure.
  */
 typedef struct {
-    uint8_t *buffer;                    /**< Pointer to RGB888 image data */
-    uint16_t width;                     /**< Frame width in pixels */
-    uint16_t height;                    /**< Frame height in pixels */
-    float temp_min;                     /**< Minimum temperature in frame */
-    float temp_max;                     /**< Maximum temperature in frame */
-    float temp_avg;                     /**< Average temperature in frame */
-    uint32_t timestamp;                 /**< Timestamp in milliseconds */
-    SemaphoreHandle_t mutex;            /**< Mutex for thread-safe access */
+    uint8_t *Buffer;                    /**< Pointer to RGB888 image data */
+    uint16_t Width;                     /**< Frame width in pixels */
+    uint16_t Height;                    /**< Frame height in pixels */
+    uint32_t Timestamp;                 /**< Timestamp in milliseconds */
+    SemaphoreHandle_t Mutex;            /**< Mutex for thread-safe access */
 } Network_Thermal_Frame_t;
+
+/** @brief Thermal telemetry data structure.
+ */
+typedef struct {
+} Network_Thermal_Telemetry_t;
 
 /** @brief Encoded image data.
  */
 typedef struct {
-    uint8_t *data;                      /**< Encoded image data */
-    size_t size;                        /**< Size of encoded data */
-    Network_ImageFormat_t format;       /**< Image format */
-    uint16_t width;                     /**< Image width */
-    uint16_t height;                    /**< Image height */
+    uint8_t *Data;                      /**< Encoded image data */
+    size_t Size;                        /**< Size of encoded data */
+    Network_ImageFormat_t Format;       /**< Image format */
+    uint16_t Width;                     /**< Image width */
+    uint16_t Height;                    /**< Image height */
 } Network_Encoded_Image_t;
 
 /** @brief IP info event data (for NETWORK_EVENT_WIFI_GOT_IP).
@@ -163,19 +165,6 @@ typedef struct {
 typedef struct {
     uint8_t MAC[6];
 } Network_Event_STA_Info_t;
-
-/** @brief OTA progress event data (for NETWORK_EVENT_OTA_PROGRESS).
- */
-typedef struct {
-    uint32_t bytes_written;
-    uint32_t total_bytes;
-} Network_Event_OTA_Progress_t;
-
-/** @brief WebSocket client event data.
- */
-typedef struct {
-    int client_fd;
-} Network_Event_WS_Client_t;
 
 /** @brief WiFi credentials.
  */

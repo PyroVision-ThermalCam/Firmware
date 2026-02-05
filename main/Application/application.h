@@ -38,7 +38,8 @@ ESP_EVENT_DECLARE_BASE(SD_EVENTS);
 /** @brief Lepton camera event identifiers.
  */
 enum {
-    LEPTON_EVENT_CAMERA_READY,                  /**< Lepton camera is ready. */
+    LEPTON_EVENT_CAMERA_READY,                  /**< Lepton camera is ready.
+                                                     Data is transmitted in a App_Lepton_Device_t structure. */
     LEPTON_EVENT_CAMERA_ERROR,                  /**< Lepton camera error occurred. */
     LEPTON_EVENT_RESPONSE_FPA_AUX_TEMP,         /**< FPA and AUX temperatures are ready.
                                                      Data is transmitted in a App_Lepton_Temperatures_t structure. */
@@ -72,13 +73,10 @@ enum {
                                                      Data is transmitted in a App_Settings_ROI_t structure. */
     GUI_EVENT_REQUEST_FPA_AUX_TEMP,             /**< Request update of the FPA and AUX temperature. */
     GUI_EVENT_REQUEST_UPTIME,                   /**< Request update of the uptime. */
-    GUI_EVENT_UPDATE_INFO,                      /**< Update the information screen. */
     GUI_EVENT_REQUEST_PIXEL_TEMPERATURE,        /**< Request update of pixel temperature.
                                                      Data is transmitted in a App_GUI_Screenposition_t structure. */
     GUI_EVENT_REQUEST_SPOTMETER,                /**< Request update of spotmeter data. */
     GUI_EVENT_REQUEST_SCENE_STATISTICS,         /**< Request update of scene statistics data. */
-    GUI_EVENT_REQUEST_EMISSIVITY,               /**< Request update of the emissivity setting.
-                                                     Data is transmitted as a uint16_t (Emissivity multiplied by 100). */
 };
 
 /** @brief Structure representing a screen position.
@@ -119,7 +117,11 @@ typedef struct {
  */
 typedef struct {
     char PartNumber[33];                        /**< Lepton device part number. */
-    char SerialNumber[24];                      /**< Lepton device serial number formatted as "XXXX-XXXX-XXXX-XXXX". */
+    char SerialNumber[24];                      /**< Lepton device serial number. */
+    struct {
+        char GPP_Revision[24];                  /**< Lepton GPP software revision. */
+        char DSP_Revision[24];                  /**< Lepton DSP software revision. */
+    } SoftwareRevision;
 } App_Lepton_Device_t;
 
 /** @brief Structure representing the ROI results from the Lepton camera.

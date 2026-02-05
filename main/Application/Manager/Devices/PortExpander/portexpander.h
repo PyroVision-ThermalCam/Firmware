@@ -28,20 +28,39 @@
 
 #include "../I2C/i2c.h"
 
+/** @brief              Initializes the port expander driver.
+ *  @param  p_Config    Pointer to the I2C master bus configuration.
+ *  @param  Bus_Handle  Pointer to the I2C master bus handle.
+ *  @return             ESP_OK on success, error code otherwise
+ */
 esp_err_t PortExpander_Init(i2c_master_bus_config_t *p_Config, i2c_master_bus_handle_t *Bus_Handle);
 
+/** @brief  Deinitializes the port expander driver.
+ *  @return ESP_OK on success, error code otherwise
+ */
 esp_err_t PortExpander_Deinit(void);
 
 #ifdef DEBUG
-/** @brief  Dump the content of the registers from the Port Expander.
+/** @brief Dump the content of the registers from the Port Expander.
  */
 void PortExpander_DumpRegister(void);
 #endif
 
+/** @brief  Sets the port expander to its default configuration.
+ *  @return ESP_OK on success, error code otherwise
+ */
 esp_err_t PortExpander_DefaultConfig(void);
 
+/** @brief          Enables or disables the LED.
+ *  @param Enable   true to enable the LED, false to disable it.
+ *  @return         ESP_OK on success, error code otherwise
+ */
 esp_err_t PortExpander_EnableLED(bool Enable);
 
+/** @brief 
+ *  @param Enable   true to enable battery voltage measurement, false to disable it.
+ *  @return         ESP_OK on success, error code otherwise
+ */
 esp_err_t PortExpander_EnableBatteryVoltage(bool Enable);
 
 #endif /* PORTEXPANDER_H_ */

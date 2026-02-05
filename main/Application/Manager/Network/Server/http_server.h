@@ -54,8 +54,8 @@ esp_err_t HTTP_Server_Stop(void);
  */
 bool HTTP_Server_isRunning(void);
 
-/** @brief              Set thermal frame data for image endpoint.
- *  @param p_Frame      Pointer to thermal frame data.
+/** @brief          Set thermal frame data for image endpoint.
+ *  @param p_Frame  Pointer to thermal frame data.
  */
 void HTTP_Server_SetThermalFrame(Network_Thermal_Frame_t *p_Frame);
 

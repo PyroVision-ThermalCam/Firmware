@@ -70,9 +70,11 @@ void SettingsManager_InitDefaultLeptonEmissivityPresets(App_Settings_t *p_Settin
 {
     /* No emissiviy values available */
     p_Settings->Lepton.EmissivityCount = 1;
-    p_Settings->Lepton.EmissivityPresets[0].Value = 100.0f;
+    p_Settings->Lepton.EmissivityPresets[0].Value = 1.0f;
     strncpy(p_Settings->Lepton.EmissivityPresets[0].Description, "Unknown",
             sizeof(p_Settings->Lepton.EmissivityPresets[0].Description));
+    
+    p_Settings->Lepton.CurrentEmissivity = SETTINGS_DEFAULT_LEPTON_EMISSIVITY;
 }
 
 void SettingsManager_InitDefaults(SettingsManager_State_t *p_State)

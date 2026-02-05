@@ -253,13 +253,13 @@ static esp_err_t HTTP_Handler_Image(httpd_req_t *p_Request)
         }
     }
 
-    if (xSemaphoreTake(_HTTPServer_State.ThermalFrame->mutex, 100 / portTICK_PERIOD_MS) != pdTRUE) {
+    if (xSemaphoreTake(_HTTPServer_State.ThermalFrame->Mutex, 100 / portTICK_PERIOD_MS) != pdTRUE) {
         return HTTP_Server_SendError(p_Request, 503, "Frame busy");
     }
 
     Error = ImageEncoder_Encode(_HTTPServer_State.ThermalFrame, format, palette, &encoded);
 
-    xSemaphoreGive(_HTTPServer_State.ThermalFrame->mutex);
+    xSemaphoreGive(_HTTPServer_State.ThermalFrame->Mutex);
 
     if (Error != ESP_OK) {
         return HTTP_Server_SendError(p_Request, 500, "Image encoding failed");
@@ -283,7 +283,7 @@ static esp_err_t HTTP_Handler_Image(httpd_req_t *p_Request)
     }
 
     /* Send image data */
-    Error = httpd_resp_send(p_Request, (const char *)encoded.data, encoded.size);
+    Error = httpd_resp_send(p_Request, (const char *)encoded.Data, encoded.Size);
 
     ImageEncoder_Free(&encoded);
 
@@ -304,22 +304,19 @@ static esp_err_t HTTP_Handler_Telemetry(httpd_req_t *p_Request)
         return HTTP_Server_SendError(p_Request, 401, "Unauthorized");
     }
 
-    /* Build telemetry response */
     cJSON *json = cJSON_CreateObject();
 
-    /* Uptime */
     uint32_t uptime = (esp_timer_get_time() / 1000000);
     cJSON_AddNumberToObject(json, "uptime_s", uptime);
 
     /* Sensor temperature (from thermal frame if available) */
     if (_HTTPServer_State.ThermalFrame != NULL) {
-        cJSON_AddNumberToObject(json, "sensor_temp_c", _HTTPServer_State.ThermalFrame->temp_avg);
+        // TODO
+        //cJSON_AddNumberToObject(json, "sensor_temp_c", _HTTPServer_State.ThermalFrame->temp_avg);
     }
 
-    /* Supply voltage (placeholder) */
     cJSON_AddNumberToObject(json, "supply_voltage_v", 0);
 
-    /* WiFi RSSI */
     wifi_ap_record_t ap_info;
     if (esp_wifi_sta_get_ap_info(&ap_info) == ESP_OK) {
         cJSON_AddNumberToObject(json, "wifi_rssi_dbm", ap_info.rssi);
@@ -327,7 +324,6 @@ static esp_err_t HTTP_Handler_Telemetry(httpd_req_t *p_Request)
         cJSON_AddNumberToObject(json, "wifi_rssi_dbm", 0);
     }
 
-    /* SD card info (placeholder) */
     cJSON *sdcard = cJSON_CreateObject();
     cJSON_AddBoolToObject(sdcard, "present", false);
     cJSON_AddNumberToObject(sdcard, "free_mb", 0);

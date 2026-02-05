@@ -1,9 +1,9 @@
 /*
- * adc.h
+ * ui_Settings.h
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: ADC driver interface for battery voltage monitoring.
+ *  File info: Settings UI implementation.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,29 +21,18 @@
  * Errors and commissions should be reported to DanielKampert@kampis-elektroecke.de
  */
 
-#ifndef ADC_H_
-#define ADC_H_
+#ifndef UI_SETTINGS_H_
+#define UI_SETTINGS_H_
+
+#include <lvgl.h>
 
 #include <stdint.h>
-#include <stdbool.h>
 
-#include <esp_err.h>
+extern lv_obj_t * wifi_status_label;
 
-/** @brief  Initializes the ADC driver.
- *  @return ESP_OK on success, error code otherwise
+/** @brief          Builds the settings UI.
+ *  @param p_Parent Pointer to the parent object where the settings UI will be attached
  */
-esp_err_t ADC_Init(void);
+void ui_settings_build(lv_obj_t * p_Parent);
 
-/** @brief  Deinitializes the ADC driver.
- *  @return ESP_OK on success, error code otherwise
- */
-esp_err_t ADC_Deinit(void);
-
-/** @brief              Read battery voltage and calculate percentage
- *  @param p_Voltage    Pointer to store battery voltage in mV
- *  @param p_Percentage Pointer to store battery percentage (0-100%)
- *  @return             ESP_OK on success, error code otherwise
- */
-esp_err_t ADC_ReadBattery(int *p_Voltage, uint8_t *p_Percentage);
-
-#endif /* ADC_H_ */
+#endif /* UI_SETTINGS_H_ */

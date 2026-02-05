@@ -79,6 +79,8 @@ static void SettingsManager_LoadLepton(SettingsManager_State_t *p_State, const c
                     ESP_LOGD(TAG, "  Preset %d: %s = %.2f", i, name->valuestring, value->valuedouble);
                 }
             }
+
+            p_State->Settings.Lepton.CurrentEmissivity = SETTINGS_DEFAULT_LEPTON_EMISSIVITY;
         } else {
             SettingsManager_InitDefaultLeptonEmissivityPresets(&p_State->Settings);
         }

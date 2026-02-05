@@ -40,22 +40,28 @@ enum {
     SETTINGS_EVENT_LOADED,                      /**< Settings loaded from NVS. */
     SETTINGS_EVENT_SAVED,                       /**< Settings saved to NVS. */
     SETTINGS_EVENT_LEPTON_CHANGED,              /**< Lepton settings changed.
-                                                     Data contains App_Settings_Lepton_t. */
+                                                     Data contains SettingsManager_Setting_t. */
     SETTINGS_EVENT_WIFI_CHANGED,                /**< WiFi settings changed.
-                                                     Data contains App_Settings_WiFi_t. */
+                                                     Data contains SettingsManager_Setting_t. */
     SETTINGS_EVENT_PROVISIONING_CHANGED,        /**< Provisioning settings changed.
-                                                     Data contains App_Settings_Provisioning_t. */
+                                                     Data contains SettingsManager_Setting_t. */
     SETTINGS_EVENT_DISPLAY_CHANGED,             /**< Display settings changed.
-                                                     Data contains App_Settings_Display_t. */
+                                                     Data contains SettingsManager_Setting_t. */
     SETTINGS_EVENT_HTTP_SERVER_CHANGED,        /**< HTTP server settings changed.
-                                                     Data contains App_Settings_HTTP_Server_t. */
+                                                     Data contains SettingsManager_Setting_t. */
     SETTINGS_EVENT_VISA_SERVER_CHANGED,         /**< VISA server settings changed.
-                                                     Data contains App_Settings_VISA_Server_t. */
+                                                     Data contains SettingsManager_Setting_t. */
     SETTINGS_EVENT_SYSTEM_CHANGED,              /**< System settings changed.
-                                                     Data contains App_Settings_System_t. */
+                                                     Data contains SettingsManager_Setting_t. */
     SETTINGS_EVENT_REQUEST_GET,                 /**< Request to get current settings. */
     SETTINGS_EVENT_REQUEST_SAVE,                /**< Request to save settings to NVS. */
     SETTINGS_EVENT_REQUEST_RESET,               /**< Request to reset settings to factory defaults. */
+};
+
+/** @brief Settings identifiers.
+ */
+enum {
+    SETTINGS_ID_LEPTON_EMISSIVITY,              /**< Emissivity setting changed. Data contains uint8_t with new emissivity value. */
 };
 
 /** @brief GUI ROI types.
@@ -66,6 +72,13 @@ typedef enum {
     ROI_TYPE_AGC,                               /**< AGC ROI. */
     ROI_TYPE_VIDEO_FOCUS,                       /**< Video focus ROI. */
 } App_Settings_ROI_Type_t;
+
+/** @brief Structure to hold the modified settings value.
+ */
+typedef struct {
+    bool ID;                                    /**< Identifier for the changed setting. */
+    uint32_t Value;                             /**< New value of the changed setting (can be cast to the appropriate type based on ID). */
+} SettingsManager_Setting_t;
 
 /** @brief Emissivity setting definition.
  */
@@ -90,6 +103,7 @@ typedef struct {
     App_Settings_ROI_t ROI[4];                  /**< Camera ROIs. */
     App_Settings_Emissivity_t EmissivityPresets[128];   /**< Array of emissivity presets. */
     size_t EmissivityCount;                     /**< Number of emissivity presets. */
+    uint8_t CurrentEmissivity;                  /**< Currently selected emissivity value in the range from 0 to 100. */
 } __attribute__((packed)) App_Settings_Lepton_t;
 
 /** @brief WiFi settings.

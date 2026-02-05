@@ -46,3 +46,15 @@ def ScreenMenuLoaded(event_struct):
 def Menu(event_struct):
     return
 
+
+def ContainerMenuLoaded(event_struct):
+    return
+
+
+def ScreenSplahLoaded(event_struct):
+    return
+
+
+def ButtonMenuSaveClicked(event_struct):
+    return
+

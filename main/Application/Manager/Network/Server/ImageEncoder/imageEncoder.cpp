@@ -67,32 +67,32 @@ static esp_err_t ImageEncoder_ApplyPalette(const Network_Thermal_Frame_t *p_Fram
                                            Server_Palette_t palette,
                                            uint8_t *p_Output)
 {
-    if ((p_Frame == NULL) || (p_Output == NULL) || (p_Frame->buffer == NULL)) {
+    if ((p_Frame == NULL) || (p_Output == NULL) || (p_Frame->Buffer == NULL)) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    memcpy(p_Output, p_Frame->buffer, p_Frame->width * p_Frame->height * 3);
+    memcpy(p_Output, p_Frame->Buffer, p_Frame->Width * p_Frame->Height * 3);
 
     return ESP_OK;
 }
 
 /** @brief              Encode RGB data to JPEG.
  *  @param p_RGB        RGB pixel data
- *  @param width        Image width
- *  @param height       Image height
- *  @param quality      JPEG quality (1-100)
+ *  @param Width        Image width
+ *  @param Height       Image height
+ *  @param Quality      JPEG quality (1-100)
  *  @param p_Encoded    Output encoded image
  *  @return             ESP_OK on success
  */
-static esp_err_t ImageEncoder_EncodeJPEG(const uint8_t *p_RGB, uint16_t width, uint16_t height,
-                                         uint8_t quality, Network_Encoded_Image_t *p_Encoded)
+static esp_err_t ImageEncoder_EncodeJPEG(const uint8_t *p_RGB, uint16_t Width, uint16_t Height,
+                                         uint8_t Quality, Network_Encoded_Image_t *p_Encoded)
 {
     jpeg_enc_config_t enc_config = {
-        .width = width,
-        .height = height,
+        .width = Width,
+        .height = Height,
         .src_type = JPEG_PIXEL_FORMAT_RGB888,
         .subsampling = JPEG_SUBSAMPLE_420,
-        .quality = quality,
+        .quality = Quality,
         .rotate = JPEG_ROTATE_0D,
         .task_enable = false,
         .hfm_task_priority = 0,
@@ -106,29 +106,29 @@ static esp_err_t ImageEncoder_EncodeJPEG(const uint8_t *p_RGB, uint16_t width, u
         return ESP_FAIL;
     }
     ;
-    p_Encoded->data = (uint8_t *)heap_caps_malloc(width * height * 3, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (p_Encoded->data == NULL) {
+    p_Encoded->Data = (uint8_t *)heap_caps_malloc(Width * Height * 3, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (p_Encoded->Data == NULL) {
         jpeg_enc_close(encoder);
         ESP_LOGE(TAG, "Failed to allocate JPEG output buffer!");
         return ESP_ERR_NO_MEM;
     }
 
     int out_size = 0;
-    err = jpeg_enc_process(encoder, p_RGB, width * height * 3, p_Encoded->data, width * height * 3, &out_size);
+    err = jpeg_enc_process(encoder, p_RGB, Width * Height * 3, p_Encoded->Data, Width * Height * 3, &out_size);
 
     jpeg_enc_close(encoder);
 
     if (err != JPEG_ERR_OK) {
-        heap_caps_free(p_Encoded->data);
-        p_Encoded->data = NULL;
+        heap_caps_free(p_Encoded->Data);
+        p_Encoded->Data = NULL;
         ESP_LOGE(TAG, "JPEG encoding failed: %d!", err);
         return ESP_FAIL;
     }
 
-    p_Encoded->size = out_size;
-    p_Encoded->format = NETWORK_IMAGE_FORMAT_JPEG;
-    p_Encoded->width = width;
-    p_Encoded->height = height;
+    p_Encoded->Size = out_size;
+    p_Encoded->Format = NETWORK_IMAGE_FORMAT_JPEG;
+    p_Encoded->Width = Width;
+    p_Encoded->Height = Height;
 
     return ESP_OK;
 }
@@ -180,7 +180,7 @@ esp_err_t ImageEncoder_Encode(const Network_Thermal_Frame_t *p_Frame,
 
     memset(p_Encoded, 0, sizeof(Network_Encoded_Image_t));
 
-    size_t pixel_count = p_Frame->width * p_Frame->height;
+    size_t pixel_count = p_Frame->Width * p_Frame->Height;
 
     uint8_t *rgb_buffer = (uint8_t *)heap_caps_malloc(pixel_count * 3, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (rgb_buffer == NULL) {
@@ -196,7 +196,7 @@ esp_err_t ImageEncoder_Encode(const Network_Thermal_Frame_t *p_Frame,
 
     switch (Format) {
         case NETWORK_IMAGE_FORMAT_JPEG: {
-            Error = ImageEncoder_EncodeJPEG(rgb_buffer, p_Frame->width, p_Frame->height,
+            Error = ImageEncoder_EncodeJPEG(rgb_buffer, p_Frame->Width, p_Frame->Height,
                                             _Encoder_State.JpegQuality, p_Encoded);
             break;
         }
@@ -208,11 +208,11 @@ esp_err_t ImageEncoder_Encode(const Network_Thermal_Frame_t *p_Frame,
         case NETWORK_IMAGE_FORMAT_RAW:
         default: {
             /* Return raw RGB data */
-            p_Encoded->data = rgb_buffer;
-            p_Encoded->size = pixel_count * 3;
-            p_Encoded->format = NETWORK_IMAGE_FORMAT_RAW;
-            p_Encoded->width = p_Frame->width;
-            p_Encoded->height = p_Frame->height;
+            p_Encoded->Data = rgb_buffer;
+            p_Encoded->Size = pixel_count * 3;
+            p_Encoded->Format = NETWORK_IMAGE_FORMAT_RAW;
+            p_Encoded->Width = p_Frame->Width;
+            p_Encoded->Height = p_Frame->Height;
 
             return ESP_OK;
         }
@@ -229,12 +229,12 @@ void ImageEncoder_Free(Network_Encoded_Image_t *p_Encoded)
         return;
     }
 
-    if (p_Encoded->data != NULL) {
-        heap_caps_free(p_Encoded->data);
-        p_Encoded->data = NULL;
+    if (p_Encoded->Data != NULL) {
+        heap_caps_free(p_Encoded->Data);
+        p_Encoded->Data = NULL;
     }
 
-    p_Encoded->size = 0;
+    p_Encoded->Size = 0;
 }
 
 void ImageEncoder_SetQuality(uint8_t Quality)

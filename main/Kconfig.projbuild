@@ -85,7 +85,7 @@ menu "PyroVision"
         menu "Task"
             config LEPTON_TASK_STACKSIZE
                 int "Stack size"
-                default 4096
+                default 8192
 
             config LEPTON_TASK_PRIO
                 int "Task prio"
@@ -280,7 +280,7 @@ menu "PyroVision"
         menu "Task"
             config GUI_TASK_STACKSIZE
                 int "Stack size"
-                default 32768
+                default 16384
 
             config GUI_TASK_PRIO
                 int "Task prio"

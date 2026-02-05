@@ -589,10 +589,10 @@ static void WS_BroadcastTask(void *p_Param)
             }
 
             /* Encode frame ONCE for all clients (assume JPEG format for simplicity) */
-            if (xSemaphoreTake(_WSHandler_State.ThermalFrame->mutex, 50 / portTICK_PERIOD_MS) == pdTRUE) {
+            if (xSemaphoreTake(_WSHandler_State.ThermalFrame->Mutex, 50 / portTICK_PERIOD_MS) == pdTRUE) {
                 esp_err_t err = ImageEncoder_Encode(_WSHandler_State.ThermalFrame,
                                                     NETWORK_IMAGE_FORMAT_JPEG, PALETTE_IRON, &Encoded);
-                xSemaphoreGive(_WSHandler_State.ThermalFrame->mutex);
+                xSemaphoreGive(_WSHandler_State.ThermalFrame->Mutex);
 
                 if (err != ESP_OK) {
                     ESP_LOGW(TAG, "Failed to encode frame: %d!", err);
@@ -622,7 +622,7 @@ static void WS_BroadcastTask(void *p_Param)
                 uint8_t client_idx = i;
 
                 xSemaphoreGive(_WSHandler_State.ClientsMutex);
-                esp_err_t send_err = WS_SendBinary(client_fd, Encoded.data, Encoded.size);
+                esp_err_t send_err = WS_SendBinary(client_fd, Encoded.Data, Encoded.Size);
                 xSemaphoreTake(_WSHandler_State.ClientsMutex, portMAX_DELAY);
 
                 /* Re-validate client is still active and same FD */
@@ -690,7 +690,8 @@ esp_err_t WebSocket_Handler_BroadcastTelemetry(void)
     cJSON *data = cJSON_CreateObject();
 
     if (_WSHandler_State.ThermalFrame != NULL) {
-        cJSON_AddNumberToObject(data, "temp", _WSHandler_State.ThermalFrame->temp_avg);
+        // TODO
+        //cJSON_AddNumberToObject(data, "temp", _WSHandler_State.ThermalFrame->temp_avg);
     }
 
     xSemaphoreTake(_WSHandler_State.ClientsMutex, portMAX_DELAY);

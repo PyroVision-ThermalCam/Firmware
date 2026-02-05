@@ -13,6 +13,14 @@ lv_obj_t * ui_SplashScreen_LoadingBar = NULL;
 lv_obj_t * ui_SplashScreen_StatusText = NULL;
 lv_obj_t * ui_SplashScreen_FirmwareVersion = NULL;
 // event funtions
+void ui_event_Splash(lv_event_t * e)
+{
+    lv_event_code_t event_code = lv_event_get_code(e);
+
+    if(event_code == LV_EVENT_SCREEN_LOADED) {
+        ScreenSplahLoaded(e);
+    }
+}
 
 // build funtions
 
@@ -108,6 +116,8 @@ void ui_Splash_screen_init(void)
     lv_obj_set_style_text_opa(ui_SplashScreen_FirmwareVersion, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_align(ui_SplashScreen_FirmwareVersion, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_SplashScreen_FirmwareVersion, &lv_font_montserrat_10, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    lv_obj_add_event_cb(ui_Splash, ui_event_Splash, LV_EVENT_ALL, NULL);
 
 }
 

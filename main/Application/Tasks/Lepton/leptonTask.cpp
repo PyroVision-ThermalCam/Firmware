@@ -56,7 +56,6 @@ typedef struct {
     EventGroupHandle_t EventGroup;
     uint8_t *RGB_Buffer[2];
     uint8_t CurrentReadBuffer;
-    uint16_t Emissivity;
     SemaphoreHandle_t BufferMutex;
     QueueHandle_t RawFrameQueue;
     Lepton_FrameBuffer_t RawFrame;
@@ -64,12 +63,45 @@ typedef struct {
     Lepton_t Lepton;
     App_Settings_ROI_t ROI;
     App_GUI_Screenposition_t ScreenPosition;
+    SettingsManager_Setting_t NewSetting;
 } Lepton_Task_State_t;
 
 static Lepton_Task_State_t _LeptonTask_State;
 
 static const char *TAG = "lepton_task";
 
+/** @brief                  
+ *  @param p_HandlerArgs    Handler argument
+ *  @param Base             Event base
+ *  @param ID               Event ID
+ *  @param p_Data           Event-specific data
+ */
+static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+{
+    ESP_LOGD(TAG, "Settings event received: ID=%d", ID);
+
+    switch (ID) {
+        case SETTINGS_EVENT_LEPTON_CHANGED: {
+            memcpy(&_LeptonTask_State.NewSetting, p_Data, sizeof(SettingsManager_Setting_t));
+
+            ESP_LOGD(TAG, "Lepton settings changed: ID=%d", _LeptonTask_State.NewSetting.ID);
+            ESP_LOGD(TAG, "Lepton settings changed: Value=%d", _LeptonTask_State.NewSetting.Value);
+
+            if(_LeptonTask_State.NewSetting.ID == SETTINGS_ID_LEPTON_EMISSIVITY) {
+                xEventGroupSetBits(_LeptonTask_State.EventGroup, LEPTON_TASK_UPDATE_EMISSIVITY);
+            }
+
+            break;
+        }
+    }
+}
+
+/** @brief                  
+ *  @param p_HandlerArgs    Handler argument
+ *  @param Base             Event base
+ *  @param ID               Event ID
+ *  @param p_Data           Event-specific data
+ */
 static void on_GUI_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
 {
     ESP_LOGD(TAG, "GUI event received: ID=%d", ID);
@@ -115,18 +147,25 @@ static void on_GUI_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
 
             break;
         }
-        case GUI_EVENT_REQUEST_EMISSIVITY: {
-            _LeptonTask_State.Emissivity = *(uint16_t *)p_Data;
-
-            xEventGroupSetBits(_LeptonTask_State.EventGroup, LEPTON_TASK_UPDATE_EMISSIVITY);
-
-            break;
-        }
         default: {
             ESP_LOGW(TAG, "Unhandled GUI event ID: %d", ID);
             break;
         }
     }
+}
+
+/** @brief Loads the Lepton settings from the Settings Manager and applies them to the Lepton.
+ */
+static void Lepton_LoadSettings(void)
+{
+    App_Settings_Lepton_t LeptonSettings;
+
+    SettingsManager_GetLepton(&LeptonSettings);
+
+    ESP_LOGI(TAG, "Loading Lepton settings...");
+    ESP_LOGI(TAG, "Emissivity: %d", LeptonSettings.CurrentEmissivity);
+
+    Lepton_SetEmissivity(&_LeptonTask_State.Lepton, static_cast<Lepton_Emissivity_t>(LeptonSettings.CurrentEmissivity));
 }
 
 /** @brief              Lepton camera task main loop.
@@ -162,8 +201,22 @@ static void Task_Lepton(void *p_Parameters)
              _LeptonTask_State.Lepton.SerialNumber[6], _LeptonTask_State.Lepton.SerialNumber[7]);
     memcpy(DeviceInfo.PartNumber, _LeptonTask_State.Lepton.PartNumber, sizeof(DeviceInfo.PartNumber));
 
+    snprintf(DeviceInfo.SoftwareRevision.GPP_Revision, sizeof(DeviceInfo.SoftwareRevision.GPP_Revision),
+             "%u.%u.%u",
+             _LeptonTask_State.Lepton.SoftwareVersion.gpp_major,
+             _LeptonTask_State.Lepton.SoftwareVersion.gpp_minor,
+             _LeptonTask_State.Lepton.SoftwareVersion.gpp_build);
+
+    snprintf(DeviceInfo.SoftwareRevision.DSP_Revision, sizeof(DeviceInfo.SoftwareRevision.DSP_Revision),
+             "%u.%u.%u",
+             _LeptonTask_State.Lepton.SoftwareVersion.dsp_major,
+             _LeptonTask_State.Lepton.SoftwareVersion.dsp_minor,
+             _LeptonTask_State.Lepton.SoftwareVersion.dsp_build);
+
     ESP_LOGD(TAG, "	Part number: %s", DeviceInfo.PartNumber);
     ESP_LOGD(TAG, "	Serial number: %s", DeviceInfo.SerialNumber);
+    ESP_LOGI(TAG, "	GPP revision: %s", DeviceInfo.SoftwareRevision.GPP_Revision);
+    ESP_LOGI(TAG, "	DSP revision: %s", DeviceInfo.SoftwareRevision.DSP_Revision);
 
     esp_event_post(LEPTON_EVENTS, LEPTON_EVENT_CAMERA_READY, &DeviceInfo, sizeof(App_Lepton_Device_t), portMAX_DELAY);
 
@@ -186,6 +239,8 @@ static void Task_Lepton(void *p_Parameters)
              FluxParams.TReflK);
 
     ESP_LOGD(TAG, "Start image capturing...");
+
+    Lepton_LoadSettings();
 
     if (Lepton_StartCapture(&_LeptonTask_State.Lepton, _LeptonTask_State.RawFrameQueue) != LEPTON_ERR_OK) {
         ESP_LOGE(TAG, "Can not start image capturing!");
@@ -436,11 +491,11 @@ static void Task_Lepton(void *p_Parameters)
         } else if (EventBits & LEPTON_TASK_UPDATE_EMISSIVITY) {
             Lepton_Error_t Error;
 
-            Error = Lepton_SetEmissivity(&_LeptonTask_State.Lepton, static_cast<Lepton_Emissivity_t>(_LeptonTask_State.Emissivity));
+            Error = Lepton_SetEmissivity(&_LeptonTask_State.Lepton, static_cast<Lepton_Emissivity_t>(_LeptonTask_State.NewSetting.Value));
             if (Error == LEPTON_ERR_OK) {
-                ESP_LOGD(TAG, "Updated emissivity to %u", _LeptonTask_State.Emissivity);
+                ESP_LOGD(TAG, "Updated emissivity to %u", _LeptonTask_State.NewSetting.Value);
             } else {
-                ESP_LOGE(TAG, "Failed to update emissivity to %u!", _LeptonTask_State.Emissivity);
+                ESP_LOGE(TAG, "Failed to update emissivity to %u!", _LeptonTask_State.NewSetting.Value);
             }
 
             xEventGroupClearBits(_LeptonTask_State.EventGroup, LEPTON_TASK_UPDATE_EMISSIVITY);
@@ -531,6 +586,7 @@ esp_err_t Lepton_Task_Init(void)
 
     /* Use the event loop to receive control signals from other tasks */
     esp_event_handler_register(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler, NULL);
+    esp_event_handler_register(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler, NULL);
 
     ESP_LOGD(TAG, "Lepton Task initialized");
 
@@ -556,6 +612,7 @@ void Lepton_Task_Deinit(void)
         _LeptonTask_State.EventGroup = NULL;
     }
 
+    esp_event_handler_unregister(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler);
     esp_event_handler_unregister(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler);
 
     Lepton_Deinit(&_LeptonTask_State.Lepton);
