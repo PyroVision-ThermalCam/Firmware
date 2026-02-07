@@ -65,6 +65,15 @@ void on_Lepton_Dropdown_Callback(lv_event_t * e);
  */
 void on_WiFi_Autoconnect_Callback(lv_event_t * e);
 
+/** @brief                  Network event handler which is used to handle network-related events such as WiFi connection changes.
+ *                          This can be used to update the UI or internal state based on network events.
+ *  @param p_HandlerArgs    Handler argument
+ *  @param Base             Event base
+ *  @param ID               Event ID
+ *  @param p_Data           Event-specific data
+ */
+void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data);
+
 /** @brief                  Settings event handler which is used to update the UI elements when a
  *                          settings change event is received from the Settings Manager.
  *                          This ensures that the UI always reflects the current settings values.

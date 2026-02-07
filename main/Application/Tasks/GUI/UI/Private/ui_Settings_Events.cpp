@@ -23,7 +23,7 @@
 
 #include <esp_log.h>
 
-#include "../../../../Manager/Settings/settingsManager.h"
+#include "managers.h"
 
 #include "ui_Settings_Events.h"
 
@@ -106,9 +106,25 @@ void on_WiFi_Autoconnect_Callback(lv_event_t * e) {
     SettingsManager_UpdateWiFi(&WiFiSettings);
 }
 
+void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+{
+    ESP_LOGD(TAG, "Network event received: ID=%d", ID);
+
+    switch (ID) {
+        case NETWORK_EVENT_WIFI_GOT_IP: {
+
+            break;
+        }
+        case NETWORK_EVENT_WIFI_DISCONNECTED: {
+
+            break;
+        }
+    }
+}
+
 void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
 {
-    ESP_LOGD(TAG, "Devices event received: ID=%d", ID);
+    ESP_LOGD(TAG, "Settings event received: ID=%d", ID);
 
     switch (ID) {
         case SETTINGS_EVENT_LEPTON_CHANGED: {

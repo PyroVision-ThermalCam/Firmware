@@ -49,8 +49,7 @@ ESP_EVENT_DEFINE_BASE(LEPTON_EVENTS);
 
 typedef struct {
     bool isInitialized;
-    bool Running;
-    bool RunTask;
+    bool isRunning;
     bool ApplicationStarted;
     TaskHandle_t TaskHandle;
     EventGroupHandle_t EventGroup;
@@ -247,7 +246,7 @@ static void Task_Lepton(void *p_Parameters)
         esp_event_post(LEPTON_EVENTS, LEPTON_EVENT_CAMERA_ERROR, NULL, 0, portMAX_DELAY);
 
         /* Critical error - cannot continue without capture task */
-        _LeptonTask_State.Running = false;
+        _LeptonTask_State.isRunning = false;
         _LeptonTask_State.TaskHandle = NULL;
 
         esp_task_wdt_delete(NULL);
@@ -256,8 +255,7 @@ static void Task_Lepton(void *p_Parameters)
         return;
     }
 
-    _LeptonTask_State.RunTask = true;
-    while (_LeptonTask_State.RunTask) {
+    while (_LeptonTask_State.isRunning) {
         EventBits_t EventBits;
 
         esp_task_wdt_reset();
@@ -405,6 +403,8 @@ static void Task_Lepton(void *p_Parameters)
         } else if (EventBits & LEPTON_TASK_STOP_REQUEST) {
             ESP_LOGI(TAG, "Stop request received");
 
+            _LeptonTask_State.isRunning = false;
+
             xEventGroupClearBits(_LeptonTask_State.EventGroup, LEPTON_TASK_STOP_REQUEST);
 
             break;
@@ -505,7 +505,6 @@ static void Task_Lepton(void *p_Parameters)
     ESP_LOGD(TAG, "Lepton task shutting down");
     Lepton_Deinit(&_LeptonTask_State.Lepton);
 
-    _LeptonTask_State.Running = false;
     _LeptonTask_State.TaskHandle = NULL;
 
     esp_task_wdt_delete(NULL);
@@ -601,7 +600,7 @@ void Lepton_Task_Deinit(void)
         return;
     }
 
-    if (_LeptonTask_State.Running) {
+    if (_LeptonTask_State.isRunning) {
         Lepton_Task_Stop();
     }
 
@@ -648,12 +647,15 @@ esp_err_t Lepton_Task_Start(App_Context_t *p_AppContext)
         return ESP_ERR_INVALID_ARG;
     } else if (_LeptonTask_State.isInitialized == false) {
         return ESP_ERR_INVALID_STATE;
-    } else if (_LeptonTask_State.Running) {
+    } else if (_LeptonTask_State.isRunning) {
         ESP_LOGW(TAG, "Task already Running");
         return ESP_OK;
     }
 
+    _LeptonTask_State.isRunning = true;
+
     ESP_LOGD(TAG, "Starting Lepton Task");
+
     Ret = xTaskCreatePinnedToCore(
               Task_Lepton,
               "Task_Lepton",
@@ -669,34 +671,23 @@ esp_err_t Lepton_Task_Start(App_Context_t *p_AppContext)
         return ESP_ERR_NO_MEM;
     }
 
-    _LeptonTask_State.Running = true;
-
     return ESP_OK;
 }
 
 esp_err_t Lepton_Task_Stop(void)
 {
-    if (_LeptonTask_State.Running == false) {
+    if (_LeptonTask_State.isRunning == false) {
         return ESP_OK;
     }
 
     ESP_LOGI(TAG, "Stopping Lepton Task");
 
-    /* Signal task to stop */
     xEventGroupSetBits(_LeptonTask_State.EventGroup, LEPTON_TASK_STOP_REQUEST);
-
-    /* Wait for task to set Running = false before deleting itself */
-    for (int i = 0; i < 20 && _LeptonTask_State.Running; i++) {
-        vTaskDelay(50 / portTICK_PERIOD_MS);
-    }
-
-    _LeptonTask_State.TaskHandle = NULL;
-    _LeptonTask_State.Running = false;
 
     return ESP_OK;
 }
 
 bool Lepton_Task_isRunning(void)
 {
-    return _LeptonTask_State.Running;
+    return _LeptonTask_State.isRunning;
 }

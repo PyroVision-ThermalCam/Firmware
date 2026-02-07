@@ -51,7 +51,7 @@ def ContainerMenuLoaded(event_struct):
     return
 
 
-def ScreenSplahLoaded(event_struct):
+def ScreenSplashLoaded(event_struct):
     return
 
 

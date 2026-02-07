@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-void ScreenSplahLoaded(lv_event_t * e);
+void ScreenSplashLoaded(lv_event_t * e);
 void ScreenMainLoaded(lv_event_t * e);
 void ButtonMainWiFiClicked(lv_event_t * e);
 void ButtonMenuSaveClicked(lv_event_t * e);

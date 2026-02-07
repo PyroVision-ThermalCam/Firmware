@@ -1,6 +1,7 @@
 FILE(GLOB_RECURSE app_sources ${CMAKE_SOURCE_DIR}/main/*.*)
 
 idf_component_register(SRCS ${app_sources}
+                       INCLUDE_DIRS "Application/Manager"
                        REQUIRES esp_http_server esp_timer esp_wifi json nvs_flash driver
                        EMBED_TXTFILES "../webserver/provision.html"
                        EMBED_TXTFILES "../LICENSE"

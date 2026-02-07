@@ -39,7 +39,7 @@
 #include "Application/application.h"
 #include "Application/Manager/Network/networkTypes.h"
 
-#define STOP_REQUEST                        BIT0
+#define GUI_TASK_STOP_REQUEST               BIT0
 #define BATTERY_VOLTAGE_READY               BIT1
 #define BATTERY_CHARGING_STATUS_READY       BIT2
 #define WIFI_CONNECTION_STATE_CHANGED       BIT3
@@ -57,13 +57,11 @@
 
 typedef struct {
     bool isInitialized;
-    bool Running;
-    bool ChargeStatus;
+    bool isRunning;
     bool WiFiConnected;
     bool ProvisioningActive;
-    bool RunTask;
     bool CardPresent;
-    TaskHandle_t GUI_Handle;
+    TaskHandle_t TaskHandle;
     void *DisplayBuffer1;
     void *DisplayBuffer2;
     i2c_master_bus_handle_t Touch_Bus_Handle;

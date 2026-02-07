@@ -44,8 +44,7 @@ ESP_EVENT_DEFINE_BASE(DEVICE_EVENTS);
 
 typedef struct {
     bool isInitialized;
-    bool Running;
-    bool RunTask;
+    bool isRunning;
     TaskHandle_t TaskHandle;
     EventGroupHandle_t EventGroup;
     uint32_t LastBatteryUpdate;
@@ -79,8 +78,7 @@ static void Task_Devices(void *p_Parameters)
 
     ESP_LOGD(TAG, "Devices task started on core %d", xPortGetCoreID());
 
-    _DevicesTask_State.RunTask = true;
-    while (_DevicesTask_State.RunTask) {
+    while (_DevicesTask_State.isRunning) {
         EventBits_t EventBits;
 
         esp_task_wdt_reset();
@@ -88,6 +86,8 @@ static void Task_Devices(void *p_Parameters)
         EventBits = xEventGroupGetBits(_DevicesTask_State.EventGroup);
         if (EventBits & DEVICES_TASK_STOP_REQUEST) {
             ESP_LOGD(TAG, "Stop request received");
+
+            _DevicesTask_State.isRunning = false;
 
             xEventGroupClearBits(_DevicesTask_State.EventGroup, DEVICES_TASK_STOP_REQUEST);
 
@@ -116,7 +116,6 @@ static void Task_Devices(void *p_Parameters)
     ESP_LOGD(TAG, "Devices task shutting down");
     DevicesManager_Deinit();
 
-    _DevicesTask_State.Running = false;
     _DevicesTask_State.TaskHandle = NULL;
 
     esp_task_wdt_delete(NULL);
@@ -184,10 +183,12 @@ esp_err_t DevicesTask_Start(App_Context_t *p_AppContext)
         return ESP_ERR_INVALID_ARG;
     } else if (_DevicesTask_State.isInitialized == false) {
         return ESP_ERR_INVALID_STATE;
-    } else if (_DevicesTask_State.Running) {
+    } else if (_DevicesTask_State.isRunning) {
         ESP_LOGW(TAG, "Task already running");
         return ESP_OK;
     }
+
+    _DevicesTask_State.isRunning = true;
 
     ESP_LOGD(TAG, "Starting Devices Task");
 
@@ -206,36 +207,23 @@ esp_err_t DevicesTask_Start(App_Context_t *p_AppContext)
         return ESP_ERR_NO_MEM;
     }
 
-    _DevicesTask_State.Running = true;
-
     return ESP_OK;
 }
 
 esp_err_t DevicesTask_Task_Stop(void)
 {
-    if (_DevicesTask_State.Running == false) {
+    if (_DevicesTask_State.isRunning == false) {
         return ESP_OK;
     }
 
     ESP_LOGD(TAG, "Stopping Devices Task");
+
     xEventGroupSetBits(_DevicesTask_State.EventGroup, DEVICES_TASK_STOP_REQUEST);
-
-    /* Wait for task to exit (with timeout) */
-    for (uint8_t i = 0; i < 100 && _DevicesTask_State.Running; i++) {
-        vTaskDelay(10 / portTICK_PERIOD_MS);
-    }
-
-    if (_DevicesTask_State.Running) {
-        ESP_LOGE(TAG, "Task did not stop in time");
-        return ESP_ERR_TIMEOUT;
-    }
-
-    _DevicesTask_State.TaskHandle = NULL;
 
     return ESP_OK;
 }
 
 bool DevicesTask_Task_isRunning(void)
 {
-    return _DevicesTask_State.Running;
+    return _DevicesTask_State.isRunning;
 }

@@ -45,14 +45,6 @@
 
 ESP_EVENT_DEFINE_BASE(GUI_EVENTS);
 
-/* Touch calibration ranges (based on measurements)
- * Adjusted: RAW_X increased to shift touch point up
- */
-const int16_t TOUCH_RAW_X_MIN = 47;
-const int16_t TOUCH_RAW_X_MAX = 281;
-const int16_t TOUCH_RAW_Y_MIN = 30;
-const int16_t TOUCH_RAW_Y_MAX = 234;
-
 static GUI_Task_State_t _GUITask_State;
 
 static const char *TAG = "gui_task";
@@ -76,8 +68,6 @@ static void on_Devices_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base,
             break;
         }
         case DEVICE_EVENT_RESPONSE_CHARGING: {
-            memcpy(&_GUITask_State.ChargeStatus, p_Data, sizeof(bool));
-
             xEventGroupSetBits(_GUITask_State.EventGroup, BATTERY_CHARGING_STATUS_READY);
 
             break;
@@ -571,8 +561,7 @@ void Task_GUI(void *p_Parameters)
 
     esp_event_post(GUI_EVENTS, GUI_EVENT_APP_STARTED, NULL, 0, portMAX_DELAY);
 
-    _GUITask_State.RunTask = true;
-    while (_GUITask_State.RunTask) {
+    while (_GUITask_State.isRunning) {
         EventBits_t EventBits;
         App_Lepton_FrameReady_t LeptonFrame;
 
@@ -780,8 +769,12 @@ void Task_GUI(void *p_Parameters)
 
         /* Process the recieved system events */
         EventBits = xEventGroupGetBits(_GUITask_State.EventGroup);
-        if (EventBits & STOP_REQUEST) {
-            xEventGroupClearBits(_GUITask_State.EventGroup, STOP_REQUEST);
+        if (EventBits & GUI_TASK_STOP_REQUEST) {
+            ESP_LOGD(TAG, "Stop request received");
+
+            _GUITask_State.isRunning = false;
+
+            xEventGroupClearBits(_GUITask_State.EventGroup, GUI_TASK_STOP_REQUEST);
 
             break;
         } else if (EventBits & BATTERY_VOLTAGE_READY) {
@@ -902,11 +895,12 @@ void Task_GUI(void *p_Parameters)
         _lock_release(&_GUITask_State.LVGL_API_Lock);
         uint32_t delay_ms = (time_till_next > 0) ? time_till_next : 10;
 
-        /* Reset watchdog at end of loop to prevent timeout during long operations */
         esp_task_wdt_reset();
 
         vTaskDelay(delay_ms / portTICK_PERIOD_MS);
     }
+
+    _GUITask_State.TaskHandle = NULL;
 
     esp_task_wdt_delete(NULL);
     vTaskDelete(NULL);
@@ -929,12 +923,14 @@ esp_err_t GUI_Task_Init(void)
 
     if (_GUITask_State.ThermalCanvasBuffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate thermal canvas buffer!");
+
         return ESP_ERR_NO_MEM;
     }
 
     if (_GUITask_State.GradientCanvasBuffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate gradient canvas buffer!");
         heap_caps_free(_GUITask_State.ThermalCanvasBuffer);
+
         return ESP_ERR_NO_MEM;
     }
 
@@ -942,6 +938,7 @@ esp_err_t GUI_Task_Init(void)
         ESP_LOGE(TAG, "Failed to allocate network RGB buffer!");
         heap_caps_free(_GUITask_State.ThermalCanvasBuffer);
         heap_caps_free(_GUITask_State.GradientCanvasBuffer);
+
         return ESP_ERR_NO_MEM;
     }
 
@@ -1013,6 +1010,7 @@ esp_err_t GUI_Task_Init(void)
         heap_caps_free(_GUITask_State.ThermalCanvasBuffer);
         heap_caps_free(_GUITask_State.GradientCanvasBuffer);
         heap_caps_free(_GUITask_State.NetworkRGBBuffer);
+
         return ESP_ERR_NO_MEM;
     }
 
@@ -1061,10 +1059,12 @@ esp_err_t GUI_Task_Start(App_Context_t *p_AppContext)
         return ESP_ERR_INVALID_ARG;
     } else if (_GUITask_State.isInitialized == false) {
         return ESP_ERR_INVALID_STATE;
-    } else if (_GUITask_State.Running) {
+    } else if (_GUITask_State.isRunning) {
         ESP_LOGW(TAG, "Task already running");
         return ESP_OK;
     }
+
+    _GUITask_State.isRunning = true;
 
     ESP_LOGD(TAG, "Starting GUI Task");
 
@@ -1074,7 +1074,7 @@ esp_err_t GUI_Task_Start(App_Context_t *p_AppContext)
               CONFIG_GUI_TASK_STACKSIZE,
               p_AppContext,
               CONFIG_GUI_TASK_PRIO,
-              &_GUITask_State.GUI_Handle,
+              &_GUITask_State.TaskHandle,
               CONFIG_GUI_TASK_CORE
           );
 
@@ -1083,27 +1083,21 @@ esp_err_t GUI_Task_Start(App_Context_t *p_AppContext)
         return ESP_ERR_NO_MEM;
     }
 
-    _GUITask_State.Running = true;
-
     return ESP_OK;
 }
 
 esp_err_t GUI_Task_Stop(void)
 {
-    if (_GUITask_State.Running == false) {
+    if (_GUITask_State.isRunning == false) {
         return ESP_OK;
     }
 
-    esp_task_wdt_delete(_GUITask_State.GUI_Handle);
-    vTaskDelete(_GUITask_State.GUI_Handle);
-
-    _GUITask_State.GUI_Handle = NULL;
-    _GUITask_State.Running = false;
+    xEventGroupSetBits(_GUITask_State.EventGroup, GUI_TASK_STOP_REQUEST);
 
     return ESP_OK;
 }
 
 bool GUI_Task_isRunning(void)
 {
-    return _GUITask_State.Running;
+    return _GUITask_State.isRunning;
 }

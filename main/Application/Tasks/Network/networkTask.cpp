@@ -32,8 +32,8 @@
 
 #include <string.h>
 
+#include "managers.h"
 #include "networkTask.h"
-#include "Application/Manager/managers.h"
 #include "Application/Tasks/GUI/guiTask.h"
 
 #define NETWORK_TASK_STOP_REQUEST               BIT0
@@ -51,8 +51,7 @@
 typedef struct {
     bool isInitialized;
     bool isConnected;
-    bool Running;
-    bool RunTask;
+    bool isRunning;
     bool ApplicationStarted;
     TaskHandle_t TaskHandle;
     EventGroupHandle_t EventGroup;
@@ -263,8 +262,7 @@ static void Task_Network(void *p_Parameters)
         _NetworkTask_State.State = NETWORK_STATE_IDLE;
     }
 
-    _NetworkTask_State.RunTask = true;
-    while (_NetworkTask_State.RunTask) {
+    while (_NetworkTask_State.isRunning) {
         EventBits_t EventBits;
 
         esp_task_wdt_reset();
@@ -273,7 +271,7 @@ static void Task_Network(void *p_Parameters)
         if (EventBits & NETWORK_TASK_STOP_REQUEST) {
             ESP_LOGD(TAG, "Stop request received");
 
-            _NetworkTask_State.RunTask = false;
+            _NetworkTask_State.isRunning = false;
 
             xEventGroupClearBits(_NetworkTask_State.EventGroup, NETWORK_TASK_STOP_REQUEST);
 
@@ -398,7 +396,6 @@ static void Task_Network(void *p_Parameters)
     Provisioning_Stop();
     NetworkManager_Stop();
 
-    _NetworkTask_State.Running = false;
     _NetworkTask_State.TaskHandle = NULL;
 
     esp_task_wdt_delete(NULL);
@@ -531,12 +528,15 @@ esp_err_t Network_Task_Start(void)
 
     if (_NetworkTask_State.isInitialized == false) {
         return ESP_ERR_INVALID_STATE;
-    } else if (_NetworkTask_State.Running) {
+    } else if (_NetworkTask_State.isRunning) {
         ESP_LOGW(TAG, "Task already Running");
         return ESP_OK;
     }
 
+    _NetworkTask_State.isRunning = true;
+
     ESP_LOGD(TAG, "Starting Network Task");
+
     Ret = xTaskCreatePinnedToCore(
               Task_Network,
               "Task_Network",
@@ -552,7 +552,6 @@ esp_err_t Network_Task_Start(void)
         return ESP_ERR_NO_MEM;
     }
 
-    _NetworkTask_State.Running = true;
     _NetworkTask_State.StartTime = xTaskGetTickCount() * portTICK_PERIOD_MS / 1000;
 
     return ESP_OK;
@@ -560,7 +559,7 @@ esp_err_t Network_Task_Start(void)
 
 esp_err_t Network_Task_Stop(void)
 {
-    if (_NetworkTask_State.Running == false) {
+    if (_NetworkTask_State.isRunning == false) {
         return ESP_OK;
     }
 
@@ -568,18 +567,10 @@ esp_err_t Network_Task_Stop(void)
 
     xEventGroupSetBits(_NetworkTask_State.EventGroup, NETWORK_TASK_STOP_REQUEST);
 
-    /* Wait for task to set Running = false before deleting itself */
-    for (uint8_t i = 0; (i < 20) && _NetworkTask_State.Running; i++) {
-        vTaskDelay(50 / portTICK_PERIOD_MS);
-    }
-
-    _NetworkTask_State.TaskHandle = NULL;
-    _NetworkTask_State.Running = false;
-
     return ESP_OK;
 }
 
 bool Network_Task_isRunning(void)
 {
-    return _NetworkTask_State.Running;
+    return _NetworkTask_State.isRunning;
 }

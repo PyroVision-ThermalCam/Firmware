@@ -1362,7 +1362,7 @@
               {
                 "nid": 1001724,
                 "strtype": "_event/name",
-                "strval": "ScreenSplahLoaded",
+                "strval": "ScreenSplashLoaded",
                 "InheritedType": 10
               },
               {
@@ -18737,7 +18737,7 @@
   },
   "animations": [],
   "selected_theme": "Default",
-  "selected_screen": "GUID40629891-934771S164356",
+  "selected_screen": "GUID66987770-852891S3274354",
   "info": {
     "name": "SquareLine_Project.spj",
     "depth": 1,
@@ -18765,7 +18765,7 @@
     "custom_variable_prefix": "uic",
     "separate_screen_save": false,
     "hierarchy_state_save": false,
-    "backup_cnt": 91,
+    "backup_cnt": 92,
     "autosave_cnt": 0,
     "group_color_cnt": 0,
     "imagebytearrayprefix": null,

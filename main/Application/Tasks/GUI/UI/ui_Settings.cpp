@@ -31,6 +31,7 @@
 #include "ui_Settings.h"
 #include "Private/ui_Settings_Events.h"
 #include "../../../Manager/Settings/settingsManager.h"
+#include "../../../Manager/Network/Server/server.h"
 
 Slider_Widgets_t brightness_widgets;
 Slider_Widgets_t emissivity_widgets;
@@ -435,6 +436,7 @@ void ui_settings_build(lv_obj_t *p_Parent)
     lv_menu_set_sidebar_page(menu, root_page);
 
     esp_event_handler_register(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler, NULL);
+    esp_event_handler_register(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler, NULL);
 }
 
 void ui_settings_deinit(lv_obj_t *p_Parent)
@@ -444,5 +446,6 @@ void ui_settings_deinit(lv_obj_t *p_Parent)
         lv_obj_delete(settings_Menu);
 
         esp_event_handler_unregister(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler);
+        esp_event_handler_unregister(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler);
     }
 }
