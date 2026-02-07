@@ -21,19 +21,19 @@
  * Errors and commissions should be reported to DanielKampert@kampis-elektroecke.de
  */
 
-#ifndef DNSSERVER_H_
-#define DNSSERVER_H_
+#ifndef DNS_SERVER_H_
+#define DNS_SERVER_H_
 
 #include <esp_err.h>
 
-/** @brief  Start DNS server for captive portal.
+/** @brief  Start the DNS server for captive portal.
  *          Redirects all DNS queries to the ESP32's IP address.
  *  @return ESP_OK on success
  */
 esp_err_t DNS_Server_Start(void);
 
-/** @brief  Stop DNS server.
+/** @brief Stop the DNS server.
  */
 void DNS_Server_Stop(void);
 
-#endif /* DNSSERVER_H_ */
+#endif /* DNS_SERVER_H_ */

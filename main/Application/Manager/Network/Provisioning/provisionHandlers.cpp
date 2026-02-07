@@ -37,7 +37,7 @@
 #include "../networkManager.h"
 #include "../../Settings/settingsManager.h"
 
-static const char *TAG = "ProvisionHandlers";
+static const char *TAG = "Provision-Handlers";
 
 /* Embed HTML file */
 extern const uint8_t provision_html_start[] asm("_binary_provision_html_start");
@@ -53,7 +53,7 @@ extern const uint8_t logo_png_end[] asm("_binary_logo_png_end");
  *  @param StatusCode   HTTP status code
  *  @return             ESP_OK on success
  */
-static esp_err_t send_JSON_Response(httpd_req_t *p_Request, cJSON *p_JSON, int StatusCode)
+static esp_err_t Provision_Handler_Send_JSON_Response(httpd_req_t *p_Request, cJSON *p_JSON, int StatusCode)
 {
     esp_err_t Error;
 
@@ -137,7 +137,7 @@ esp_err_t Provision_Handler_Scan(httpd_req_t *p_Request)
         Response = cJSON_CreateObject();
         cJSON_AddArrayToObject(Response, "networks");
 
-        return send_JSON_Response(p_Request, Response, 200);
+        return Provision_Handler_Send_JSON_Response(p_Request, Response, 200);
     }
 
     /* Wait for scan to complete (max 10 seconds) */
@@ -153,7 +153,7 @@ esp_err_t Provision_Handler_Scan(httpd_req_t *p_Request)
 
         Response = cJSON_CreateObject();
         cJSON_AddArrayToObject(Response, "networks");
-        return send_JSON_Response(p_Request, Response, 200);
+        return Provision_Handler_Send_JSON_Response(p_Request, Response, 200);
     }
 
     wifi_ap_record_t *APList = (wifi_ap_record_t *)malloc(sizeof(wifi_ap_record_t) * APCount);
@@ -180,7 +180,7 @@ esp_err_t Provision_Handler_Scan(httpd_req_t *p_Request)
 
     free(APList);
 
-    return send_JSON_Response(p_Request, Response, 200);
+    return Provision_Handler_Send_JSON_Response(p_Request, Response, 200);
 }
 
 esp_err_t Provision_Handler_Connect(httpd_req_t *p_Request)
@@ -262,7 +262,7 @@ esp_err_t Provision_Handler_Connect(httpd_req_t *p_Request)
             cJSON_AddBoolToObject(Response, "success", true);
             cJSON_AddStringToObject(Response, "message", "Credentials saved, connecting to WiFi...");
 
-            send_JSON_Response(p_Request, Response, 200);
+            Provision_Handler_Send_JSON_Response(p_Request, Response, 200);
 
             /* Post event with short timeout to avoid blocking HTTP task */
             esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_PROV_SUCCESS, NULL, 0, pdMS_TO_TICKS(100));
@@ -271,12 +271,12 @@ esp_err_t Provision_Handler_Connect(httpd_req_t *p_Request)
 
             cJSON_AddBoolToObject(Response, "success", false);
             cJSON_AddStringToObject(Response, "error", "NVS storage full, please reset device");
-            send_JSON_Response(p_Request, Response, 500);
+            Provision_Handler_Send_JSON_Response(p_Request, Response, 500);
         }
     } else {
         cJSON_AddBoolToObject(Response, "success", false);
         cJSON_AddStringToObject(Response, "error", "Failed to save credentials");
-        send_JSON_Response(p_Request, Response, 400);
+        Provision_Handler_Send_JSON_Response(p_Request, Response, 400);
     }
 
     cJSON_Delete(JSON);

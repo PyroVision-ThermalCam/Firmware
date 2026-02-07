@@ -1,0 +1,564 @@
+= PyroVision VISA/SCPI Server Documentation
+Daniel Kampert <DanielKampert@kampis-elektroecke.de>
+v1.0, 2026-02-09
+:toc: left
+:toclevels: 3
+:sectnums:
+:source-highlighter: coderay
+
+== Overview
+
+The VISA Server provides a standard SCPI (Standard Commands for Programmable Instruments) interface over TCP/IP on port 5025. This allows remote control and data acquisition using standard instrumentation software like MATLAB, LabVIEW, or Python's PyVISA.
+
+=== Key Features
+
+* *Standard Port*: 5025 (VISA/SCPI standard)
+* *TCP/IP Socket*: Multi-client support (up to 4 clients)
+* *SCPI Commands*: Standard command syntax
+* *Remote Control*: Configure camera, acquire data, save images
+* *Error Reporting*: Standard SCPI error queue
+* *Timeout Handling*: Automatic client disconnection on inactivity
+
+---
+
+== Architecture
+
+=== Component Structure
+
+[source]
+----
+main/Application/Manager/Network/Server/VISA/
+├── visaServer.h             # Public API
+├── visaServer.cpp           # Server implementation
+└── Private/
+    ├── visaCommands.h       # Command parser
+    └── visaCommands.cpp     # Command handlers
+----
+
+---
+
+== Public API
+
+=== VISAServer_Init()
+
+[source,c]
+----
+esp_err_t VISAServer_Init(const Network_VISA_Server_Config_t *p_Config);
+----
+
+Initializes the VISA server with configuration.
+
+**Configuration:**
+
+[source,c]
+----
+typedef struct {
+    uint16_t Port;              // Port number (default: 5025)
+    uint8_t MaxClients;         // Max concurrent clients (default: 4)
+    uint32_t TimeoutMS;         // Client timeout (default: 30000 ms)
+} Network_VISA_Server_Config_t;
+----
+
+**Return Values:**
+
+* `ESP_OK` - Initialization successful
+* `ESP_ERR_INVALID_ARG` - Invalid configuration
+* `ESP_ERR_NO_MEM` - Memory allocation failed
+* `ESP_ERR_INVALID_STATE` - Already initialized
+
+---
+
+=== VISAServer_Start()
+
+[source,c]
+----
+esp_err_t VISAServer_Start(void);
+----
+
+Starts the VISA server and begins listening for client connections.
+
+**Return Values:**
+
+* `ESP_OK` - Server started successfully
+* `ESP_FAIL` - Socket creation or binding failed
+* `ESP_ERR_INVALID_STATE` - Not initialized
+
+---
+
+=== VISAServer_Stop()
+
+[source,c]
+----
+esp_err_t VISAServer_Stop(void);
+----
+
+Stops the VISA server and closes all client connections.
+
+---
+
+=== VISAServer_isRunning()
+
+[source,c]
+----
+bool VISAServer_isRunning(void);
+----
+
+Checks if the VISA server is running.
+
+---
+
+== SCPI Command Reference
+
+=== IEEE 488.2 Common Commands
+
+==== `*IDN?` - Identification Query
+
+Returns device identification string.
+
+**Syntax:**
+[source]
+----
+*IDN?
+----
+
+**Response:**
+[source]
+----
+PyroVision,Thermal Camera,<serial>,<firmware_version>
+----
+
+**Example:**
+[source]
+----
+VISA>> *IDN?
+PyroVision,Thermal Camera,000001,1.0.0
+----
+
+---
+
+==== `*RST` - Reset
+
+Resets the device to default settings.
+
+**Syntax:**
+[source]
+----
+*RST
+----
+
+---
+
+==== `*CLS` - Clear Status
+
+Clears the error queue and status registers.
+
+**Syntax:**
+[source]
+----
+*CLS
+----
+
+---
+
+==== `*OPC?` - Operation Complete Query
+
+Returns `1` when all pending operations are complete.
+
+**Syntax:**
+[source]
+----
+*OPC?
+----
+
+**Response:**
+[source]
+----
+1
+----
+
+---
+
+=== Measurement Commands
+
+==== `MEASure:TEMPerature?` - Read Spotmeter Temperature
+
+Reads the current spotmeter temperature.
+
+**Syntax:**
+[source]
+----
+MEAS:TEMP?
+----
+
+**Response:**
+[source]
+----
+<temperature_celsius>
+----
+
+**Example:**
+[source]
+----
+VISA>> MEAS:TEMP?
+25.3
+----
+
+---
+
+==== `MEASure:TEMPerature:MINimum?` - Scene Minimum
+
+Reads the minimum temperature in the scene.
+
+**Syntax:**
+[source]
+----
+MEAS:TEMP:MIN?
+----
+
+**Response:**
+[source]
+----
+<min_temp_celsius>
+----
+
+---
+
+==== `MEASure:TEMPerature:MAXimum?` - Scene Maximum
+
+Reads the maximum temperature in the scene.
+
+**Syntax:**
+[source]
+----
+MEAS:TEMP:MAX?
+----
+
+---
+
+==== `MEASure:TEMPerature:AVERage?` - Scene Average
+
+Reads the average temperature in the scene.
+
+**Syntax:**
+[source]
+----
+MEAS:TEMP:AVER?
+----
+
+---
+
+=== Configuration Commands
+
+==== `CONFigure:ROI` - Set ROI Position
+
+Sets the position and size of a Region of Interest.
+
+**Syntax:**
+[source]
+----
+CONF:ROI <roi_id>,<x>,<y>,<width>,<height>
+----
+
+**Parameters:**
+
+* `<roi_id>` - ROI identifier (0=Spotmeter, 1=Scene, 2=AGC, 3=Video)
+* `<x>`, `<y>` - Top-left coordinates (pixels)
+* `<width>`, `<height>` - ROI dimensions (pixels)
+
+**Example:**
+[source]
+----
+VISA>> CONF:ROI 0,70,50,20,20
+OK
+----
+
+---
+
+==== `CONFigure:EMISSivity` - Set Emissivity
+
+Sets the emissivity correction factor.
+
+**Syntax:**
+[source]
+----
+CONF:EMIS <value>
+----
+
+**Parameters:**
+
+* `<value>` - Emissivity (0.1 - 1.0)
+
+**Example:**
+[source]
+----
+VISA>> CONF:EMIS 0.95
+OK
+----
+
+---
+
+==== `CONFigure:AGC` - AGC Mode
+
+Sets the Automatic Gain Control mode.
+
+**Syntax:**
+[source]
+----
+CONF:AGC <mode>
+----
+
+**Parameters:**
+
+* `<mode>` - AGC mode: `0` = Linear, `1` = HEQ (Histogram Equalization)
+
+**Example:**
+[source]
+----
+VISA>> CONF:AGC 1
+OK
+----
+
+---
+
+=== Data Acquisition Commands
+
+==== `DATA:IMAGe?` - Get Thermal Image
+
+Requests the current thermal frame as binary data.
+
+**Syntax:**
+[source]
+----
+DATA:IMAG?
+----
+
+**Response:**
+
+Binary data block in IEEE 488.2 format:
+
+[source]
+----
+#<digits><byte_count><binary_data>
+----
+
+**Example:**
+[source]
+----
+VISA>> DATA:IMAG?
+#512345<binary JPEG data>
+----
+
+---
+
+==== `DATA:TELEMetry?` - Get Telemetry
+
+Returns comprehensive telemetry data in JSON format.
+
+**Syntax:**
+[source]
+----
+DATA:TELE?
+----
+
+**Response:**
+[source,json]
+----
+{
+    "spotmeter": 25.3,
+    "min": 20.1,
+    "max": 30.5,
+    "avg": 25.0,
+    "frame_count": 12345,
+    "error_count": 2
+}
+----
+
+---
+
+=== System Commands
+
+==== `SYSTem:SAVE` - Save Settings
+
+Saves current settings to NVS.
+
+**Syntax:**
+[source]
+----
+SYST:SAVE
+----
+
+---
+
+==== `SYSTem:RESTore` - Restore Factory Defaults
+
+Restores factory default settings.
+
+**Syntax:**
+[source]
+----
+SYST:REST
+----
+
+---
+
+==== `SYSTem:TIME` - Set System Time
+
+Sets the system date and time.
+
+**Syntax:**
+[source]
+----
+SYST:TIME <YYYY-MM-DD>,<HH:MM:SS>
+----
+
+**Example:**
+[source]
+----
+VISA>> SYST:TIME 2026-02-09,14:30:00
+OK
+----
+
+---
+
+==== `SYSTem:ERRor?` - Query Error Queue
+
+Retrieves the oldest error from the error queue.
+
+**Syntax:**
+[source]
+----
+SYST:ERR?
+----
+
+**Response:**
+[source]
+----
+<error_code>,"<error_message>"
+----
+
+**Example:**
+[source]
+----
+VISA>> SYST:ERR?
+-200,"Execution error"
+----
+
+---
+
+== Error Codes
+
+Standard SCPI error codes are returned:
+
+* `0` - No error
+* `-100` - Command error (syntax error)
+* `-200` - Execution error (cannot execute)
+* `-300` - Device-specific error
+* `-400` - Query error (data not available)
+* `-410` - Query interrupted
+* `-420` - Query unterminated
+
+---
+
+== Usage Examples
+
+=== Python (PyVISA)
+
+[source,python]
+----
+import pyvisa
+
+rm = pyvisa.ResourceManager()
+inst = rm.open_resource('TCPIP::192.168.1.100::5025::SOCKET')
+inst.read_termination = '\n'
+inst.write_termination = '\n'
+
+# Query identification
+print(inst.query('*IDN?'))
+
+# Read temperature
+temp = float(inst.query('MEAS:TEMP?'))
+print(f"Temperature: {temp} °C")
+
+# Set ROI
+inst.write('CONF:ROI 0,70,50,20,20')
+
+# Get telemetry
+telemetry = inst.query('DATA:TELE?')
+print(telemetry)
+
+inst.close()
+----
+
+---
+
+=== MATLAB
+
+[source,matlab]
+----
+% Create VISA-TCPIP object
+t = tcpip('192.168.1.100', 5025);
+fopen(t);
+
+% Query identification
+fprintf(t, '*IDN?');
+idn = fscanf(t);
+disp(idn);
+
+% Read temperature
+fprintf(t, 'MEAS:TEMP?');
+temp = fscanf(t, '%f');
+fprintf('Temperature: %.2f °C\n', temp);
+
+% Close connection
+fclose(t);
+delete(t);
+----
+
+---
+
+== Protocol Details
+
+=== Connection Flow
+
+[source]
+----
+Client                    Server
+  |                         |
+  |-- TCP Connect (5025) -->|
+  |<-- Accept Connection ---|
+  |                         |
+  |-- Send Command -------->|
+  |                         | (Parse & Execute)
+  |<-- Send Response -------|
+  |                         |
+  |-- Close Connection ---->|
+----
+
+=== Command Termination
+
+Commands must be terminated with newline (`\n` or `\r\n`).
+
+=== Response Termination
+
+Responses are terminated with newline (`\n`).
+
+---
+
+== Performance
+
+* **Max Clients**: 4 concurrent connections
+* **Command Processing**: <10 ms (typical)
+* **Data Transfer**: ~500 KB/s (image data)
+* **Timeout**: 30 seconds idle disconnect
+
+---
+
+== Related Documentation
+
+* link:NetworkTask.adoc[Network Task Documentation]
+* link:NetworkManager.adoc[Network Manager Documentation]
+
+---
+
+**Last Updated**: February 9, 2026 +
+**Maintainer**: Daniel Kampert (DanielKampert@kampis-elektroecke.de)

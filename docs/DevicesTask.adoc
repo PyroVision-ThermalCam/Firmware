@@ -1,0 +1,217 @@
+= PyroVision Devices Task Documentation
+Daniel Kampert <DanielKampert@kampis-elektroecke.de>
+v1.0, 2026-02-09
+:toc: left
+:toclevels: 3
+:sectnums:
+:source-highlighter: coderay
+
+== Overview
+
+The Devices Task monitors peripheral hardware including battery voltage (via ADC), RTC (Real-Time Clock), port expander, and other sensors. It performs periodic polling and posts events when significant changes occur.
+
+=== Key Features
+
+* *Battery Monitoring*: ADC-based voltage measurement
+* *RTC Management*: Real-Time Clock synchronization
+* *Port Expander*: GPIO expansion and monitoring
+* *Sensor Polling*: Periodic updates of device states
+* *Event Generation*: Notifications for battery low, RTC sync, etc.
+
+---
+
+== Architecture
+
+=== Component Structure
+
+[source]
+----
+main/Application/Tasks/Devices/
+├── devicesTask.h            # Public API
+└── devicesTask.cpp          # Implementation
+----
+
+=== Task Architecture
+
+* *Task Name*: `"DevicesTask"`
+* *Priority*: Low (typically `tskIDLE_PRIORITY + 1`)
+* *Stack Size*: 4 KB
+* *Core Affinity*: Any (typically Core 0)
+* *Polling Interval*: 1 second (configurable)
+
+---
+
+== Public API
+
+=== DevicesTask_Init()
+
+[source,c]
+----
+esp_err_t DevicesTask_Init(void);
+----
+
+Initializes the devices task.
+
+**Return Values:**
+
+* `ESP_OK` - Initialization successful
+* `ESP_ERR_NO_MEM` - Memory allocation failed
+* `ESP_ERR_INVALID_STATE` - Already initialized
+
+---
+
+=== DevicesTask_Deinit()
+
+[source,c]
+----
+void DevicesTask_Deinit(void);
+----
+
+Deinitializes the devices task.
+
+---
+
+=== DevicesTask_Start()
+
+[source,c]
+----
+esp_err_t DevicesTask_Start(App_Context_t *p_AppContext);
+----
+
+Starts the devices monitoring task.
+
+**Parameters:**
+
+* `p_AppContext` - Pointer to application context
+
+**Return Values:**
+
+* `ESP_OK` - Task started
+* `ESP_ERR_INVALID_ARG` - NULL pointer
+* `ESP_ERR_INVALID_STATE` - Not initialized or already running
+
+---
+
+=== DevicesTask_Stop()
+
+[source,c]
+----
+esp_err_t DevicesTask_Stop(void);
+----
+
+Stops the devices task.
+
+---
+
+=== DevicesTask_isRunning()
+
+[source,c]
+----
+bool DevicesTask_isRunning(void);
+----
+
+Checks if the task is running.
+
+---
+
+## Monitored Devices
+
+=== 1. Battery Monitor (ADC)
+
+**Functionality:**
+
+* Measures battery voltage via ADC
+* Calculates battery percentage
+* Detects low battery condition
+
+**Events:**
+
+* `DEVICE_EVENT_BATTERY_LOW` - Battery below threshold (e.g., 10%)
+* `DEVICE_EVENT_BATTERY_CRITICAL` - Battery critically low (e.g., 5%)
+
+=== 2. RTC (Real-Time Clock)
+
+**Functionality:**
+
+* Monitors RTC synchronization status
+* Checks RTC battery
+* Validates time accuracy
+
+**Events:**
+
+* `DEVICE_EVENT_RTC_SYNC` - RTC synchronized with NTP
+* `DEVICE_EVENT_RTC_BATTERY_LOW` - RTC backup battery low
+
+=== 3. Port Expander
+
+**Functionality:**
+
+* Reads GPIO states from I2C port expander
+* Detects button presses
+* Controls external LEDs
+
+---
+
+== Task Operation
+
+=== Polling Loop
+
+[source,c]
+----
+while (running) {
+    // 1. Read battery voltage
+    float BatteryVoltage = ADC_ReadVoltage(ADC_CHANNEL_BATTERY);
+    uint8_t BatteryPercent = CalculateBatteryPercent(BatteryVoltage);
+    
+    if (BatteryPercent < LOW_BATTERY_THRESHOLD) {
+        esp_event_post(DEVICE_EVENTS, DEVICE_EVENT_BATTERY_LOW, 
+                       &BatteryPercent, sizeof(BatteryPercent), 0);
+    }
+    
+    // 2. Check RTC status
+    if (RTC_IsTimeValid()) {
+        // Update system time if necessary
+    }
+    
+    // 3. Read port expander inputs
+    uint8_t GPIO_States = PortExpander_ReadAll();
+    ProcessGPIOChanges(GPIO_States);
+    
+    vTaskDelay(pdMS_TO_TICKS(1000));  // 1 second interval
+}
+----
+
+---
+
+== Dependencies
+
+=== Required Managers
+
+* *Device Manager*: ADC, RTC, I2C port expander initialization
+* *Settings Manager*: Device configuration (thresholds, intervals)
+
+---
+
+## Configuration
+
+=== Battery Thresholds
+
+* Low Battery: 10% (configurable)
+* Critical Battery: 5% (configurable)
+* Voltage Range: 3.0V - 4.2V (Li-Po)
+
+=== Polling Interval
+
+* Default: 1000 ms
+* Range: 100 ms - 10000 ms
+
+---
+
+== Related Documentation
+
+* link:DeviceManager.adoc[Device Manager Documentation]
+
+---
+
+**Last Updated**: February 9, 2026 +
+**Maintainer**: Daniel Kampert (DanielKampert@kampis-elektroecke.de)

@@ -27,8 +27,8 @@
 
 #include <cstring>
 
-#include "websocket_handler.h"
-#include "ImageEncoder/imageEncoder.h"
+#include "websocket.h"
+#include "../ImageEncoder/imageEncoder.h"
 
 /** @brief WebSocket client state.
  */
@@ -46,36 +46,36 @@ typedef struct {
 
 typedef struct {
     bool isInitialized;
+    bool isRunning;
     httpd_handle_t ServerHandle;
     Network_HTTP_Server_Config_t Config;
-    WS_Client_t Clients[WS_MAX_CLIENTS];
+    WS_Client_t Clients[CONFIG_NETWORK_WEBSOCKET_CLIENTS];
     uint8_t ClientCount;
     Network_Thermal_Frame_t *ThermalFrame;
     SemaphoreHandle_t ClientsMutex;
     TaskHandle_t BroadcastTask;
     QueueHandle_t FrameReadyQueue;
-    bool TaskRunning;
-} WebSocket_Handler_State_t;
+} WebSocket_State_t;
 
-static WebSocket_Handler_State_t _WSHandler_State;
+static WebSocket_State_t WebSocket_State;
 
-static const char *TAG = "websocket_handler";
+static const char *TAG = "WebSocket";
 
 /** @brief      Find client by file descriptor.
  *  @param FD   File descriptor
  *  @return     Pointer to client or NULL if not found
  */
-static WS_Client_t *WS_FindClient(int FD)
+static WS_Client_t *WebSocket_FindClient(int FD)
 {
-    xSemaphoreTake(_WSHandler_State.ClientsMutex, portMAX_DELAY);
+    xSemaphoreTake(WebSocket_State.ClientsMutex, portMAX_DELAY);
 
-    for (uint8_t i = 0; i < WS_MAX_CLIENTS; i++) {
-        if (_WSHandler_State.Clients[i].active && _WSHandler_State.Clients[i].fd == FD) {
-            return &_WSHandler_State.Clients[i];
+    for (uint8_t i = 0; i < CONFIG_NETWORK_WEBSOCKET_CLIENTS; i++) {
+        if (WebSocket_State.Clients[i].active && WebSocket_State.Clients[i].fd == FD) {
+            return &WebSocket_State.Clients[i];
         }
     }
 
-    xSemaphoreGive(_WSHandler_State.ClientsMutex);
+    xSemaphoreGive(WebSocket_State.ClientsMutex);
 
     return NULL;
 }
@@ -84,31 +84,32 @@ static WS_Client_t *WS_FindClient(int FD)
  *  @param FD   File descriptor
  *  @return     Pointer to new client or NULL if full
  */
-static WS_Client_t *WS_AddClient(int FD)
+static WS_Client_t *WebSocket_AddClient(int FD)
 {
-    xSemaphoreTake(_WSHandler_State.ClientsMutex, portMAX_DELAY);
+    xSemaphoreTake(WebSocket_State.ClientsMutex, portMAX_DELAY);
 
-    for (uint8_t i = 0; i < WS_MAX_CLIENTS; i++) {
-        if (_WSHandler_State.Clients[i].active == false) {
-            _WSHandler_State.Clients[i].fd = FD;
-            _WSHandler_State.Clients[i].active = true;
-            _WSHandler_State.Clients[i].stream_enabled = false;
-            _WSHandler_State.Clients[i].telemetry_enabled = false;
-            _WSHandler_State.Clients[i].stream_format = NETWORK_IMAGE_FORMAT_JPEG;
-            _WSHandler_State.Clients[i].stream_fps = 8;
-            _WSHandler_State.Clients[i].telemetry_interval_ms = 1000;
-            _WSHandler_State.Clients[i].last_telemetry_time = 0;
-            _WSHandler_State.Clients[i].last_frame_time = 0;
-            _WSHandler_State.ClientCount++;
+    for (uint8_t i = 0; i < CONFIG_NETWORK_WEBSOCKET_CLIENTS; i++) {
+        if (WebSocket_State.Clients[i].active == false) {
+            WebSocket_State.Clients[i].fd = FD;
+            WebSocket_State.Clients[i].active = true;
+            WebSocket_State.Clients[i].stream_enabled = false;
+            WebSocket_State.Clients[i].telemetry_enabled = false;
+            WebSocket_State.Clients[i].stream_format = NETWORK_IMAGE_FORMAT_JPEG;
+            WebSocket_State.Clients[i].stream_fps = 8;
+            WebSocket_State.Clients[i].telemetry_interval_ms = 1000;
+            WebSocket_State.Clients[i].last_telemetry_time = 0;
+            WebSocket_State.Clients[i].last_frame_time = 0;
+            WebSocket_State.ClientCount++;
 
-            xSemaphoreGive(_WSHandler_State.ClientsMutex);
+            xSemaphoreGive(WebSocket_State.ClientsMutex);
 
-            ESP_LOGI(TAG, "Client added: fd=%d, total=%d", FD, _WSHandler_State.ClientCount);
-            return &_WSHandler_State.Clients[i];
+            ESP_LOGI(TAG, "Client added: fd=%d, total=%d", FD, WebSocket_State.ClientCount);
+
+            return &WebSocket_State.Clients[i];
         }
     }
 
-    xSemaphoreGive(_WSHandler_State.ClientsMutex);
+    xSemaphoreGive(WebSocket_State.ClientsMutex);
 
     ESP_LOGW(TAG, "Max clients reached, rejecting fd=%d", FD);
 
@@ -118,21 +119,22 @@ static WS_Client_t *WS_AddClient(int FD)
 /** @brief      Remove a client.
  *  @param FD   File descriptor
  */
-static void WS_RemoveClient(int FD)
+static void WebSocket_RemoveClient(int FD)
 {
-    xSemaphoreTake(_WSHandler_State.ClientsMutex, portMAX_DELAY);
+    xSemaphoreTake(WebSocket_State.ClientsMutex, portMAX_DELAY);
 
-    for (uint8_t i = 0; i < WS_MAX_CLIENTS; i++) {
-        if (_WSHandler_State.Clients[i].active && _WSHandler_State.Clients[i].fd == FD) {
-            _WSHandler_State.Clients[i].active = false;
-            _WSHandler_State.ClientCount--;
+    for (uint8_t i = 0; i < CONFIG_NETWORK_WEBSOCKET_CLIENTS; i++) {
+        if (WebSocket_State.Clients[i].active && WebSocket_State.Clients[i].fd == FD) {
+            WebSocket_State.Clients[i].active = false;
+            WebSocket_State.ClientCount--;
 
-            ESP_LOGI(TAG, "Client removed: fd=%d, total=%d", FD, _WSHandler_State.ClientCount);
+            ESP_LOGI(TAG, "Client removed: fd=%d, total=%d", FD, WebSocket_State.ClientCount);
+
             break;
         }
     }
 
-    xSemaphoreGive(_WSHandler_State.ClientsMutex);
+    xSemaphoreGive(WebSocket_State.ClientsMutex);
 }
 
 /** @brief          Send JSON message to a client.
@@ -141,8 +143,18 @@ static void WS_RemoveClient(int FD)
  *  @param p_Data   Data JSON object (will not be freed, can be NULL)
  *  @return         ESP_OK on success
  */
-static esp_err_t WS_SendJSON(int FD, const char *p_Cmd, cJSON *p_Data)
+static esp_err_t WebSocket_SendJSON(int FD, const char *p_Cmd, cJSON *p_Data)
 {
+    esp_err_t Error;
+    char *JSON;
+    httpd_ws_frame_t Frame = {
+        .final = true,
+        .fragmented = false,
+        .type = HTTPD_WS_TYPE_TEXT,
+        .payload = NULL,
+        .len = 0,
+    };
+
     cJSON *msg = cJSON_CreateObject();
     cJSON_AddStringToObject(msg, "cmd", p_Cmd);
 
@@ -150,26 +162,21 @@ static esp_err_t WS_SendJSON(int FD, const char *p_Cmd, cJSON *p_Data)
         cJSON_AddItemReferenceToObject(msg, "data", p_Data);
     }
 
-    char *json_str = cJSON_PrintUnformatted(msg);
+    JSON = cJSON_PrintUnformatted(msg);
     cJSON_Delete(msg);
 
-    if (json_str == NULL) {
+    if (JSON == NULL) {
         return ESP_ERR_NO_MEM;
     }
 
-    httpd_ws_frame_t Frame = {
-        .final = true,
-        .fragmented = false,
-        .type = HTTPD_WS_TYPE_TEXT,
-        .payload = (uint8_t *)json_str,
-        .len = strlen(json_str),
-    };
+    Frame.payload = (uint8_t *)JSON;
+    Frame.len = strlen(JSON);
 
-    esp_err_t err = httpd_ws_send_frame_async(_WSHandler_State.ServerHandle, FD, &Frame);
+    Error = httpd_ws_send_frame_async(WebSocket_State.ServerHandle, FD, &Frame);
 
-    cJSON_free(json_str);
+    cJSON_free(JSON);
 
-    return err;
+    return Error;
 }
 
 /** @brief          Send binary frame to a client.
@@ -178,8 +185,9 @@ static esp_err_t WS_SendJSON(int FD, const char *p_Cmd, cJSON *p_Data)
  *  @param Length   Data length
  *  @return         ESP_OK on success
  */
-static esp_err_t WS_SendBinary(int FD, const uint8_t *p_Data, size_t Length)
+static esp_err_t WebSocket_SendBinary(int FD, const uint8_t *p_Data, size_t Length)
 {
+    esp_err_t Error;
     httpd_ws_frame_t Frame = {
         .final = true,
         .fragmented = false,
@@ -189,35 +197,35 @@ static esp_err_t WS_SendBinary(int FD, const uint8_t *p_Data, size_t Length)
     };
 
     /* Try to send with retry logic to handle queue congestion */
-    esp_err_t err = ESP_FAIL;
+    Error = ESP_FAIL;
     for (uint8_t retry = 0; retry < 3; retry++) {
-        err = httpd_ws_send_frame_async(_WSHandler_State.ServerHandle, FD, &Frame);
+        Error = httpd_ws_send_frame_async(WebSocket_State.ServerHandle, FD, &Frame);
 
-        if (err == ESP_OK) {
+        if (Error == ESP_OK) {
             /* Send queued successfully - add small delay to prevent queue overflow */
             vTaskDelay(5 / portTICK_PERIOD_MS);
+
             break;
         }
 
         /* Queue might be full, wait and retry */
-        ESP_LOGW(TAG, "Failed to queue frame to fd=%d (retry %d): %s",
-                 FD, retry + 1, esp_err_to_name(err));
+        ESP_LOGW(TAG, "Failed to queue frame to fd=%d (retry %d): %d!", FD, retry + 1, Error);
         vTaskDelay(50 / portTICK_PERIOD_MS);
     }
 
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to send binary frame to fd=%d after retries: %s (len=%zu)",
-                 FD, esp_err_to_name(err), Length);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to send binary frame to fd=%d after retries: %d (len=%zu)!",
+                 FD, Error, Length);
     }
 
-    return err;
+    return Error;
 }
 
 /** @brief              Handle start command.
  *  @param p_Client     Client pointer
  *  @param p_Data       Command data
  */
-static void WS_HandleStart(WS_Client_t *p_Client, cJSON *p_Data)
+static void WebSocket_HandleStart(WS_Client_t *p_Client, cJSON *p_Data)
 {
     cJSON *fps = cJSON_GetObjectItem(p_Data, "fps");
 
@@ -240,34 +248,34 @@ static void WS_HandleStart(WS_Client_t *p_Client, cJSON *p_Data)
     ESP_LOGI(TAG, "Stream started for fd=%d, fps=%d", p_Client->fd, p_Client->stream_fps);
 
     /* Send ACK */
-    cJSON *response = cJSON_CreateObject();
-    cJSON_AddStringToObject(response, "status", "ok");
-    cJSON_AddNumberToObject(response, "fps", p_Client->stream_fps);
-    WS_SendJSON(p_Client->fd, "started", response);
-    cJSON_Delete(response);
+    cJSON *JSON = cJSON_CreateObject();
+    cJSON_AddStringToObject(JSON, "status", "ok");
+    cJSON_AddNumberToObject(JSON, "fps", p_Client->stream_fps);
+    WebSocket_SendJSON(p_Client->fd, "started", JSON);
+    cJSON_Delete(JSON);
 }
 
 /** @brief              Handle stop command.
  *  @param p_Client     Client pointer
  */
-static void WS_HandleStop(WS_Client_t *p_Client)
+static void WebSocket_HandleStop(WS_Client_t *p_Client)
 {
     p_Client->stream_enabled = false;
     p_Client->last_frame_time = 0;
 
     ESP_LOGI(TAG, "Stream stopped for fd=%d", p_Client->fd);
 
-    cJSON *response = cJSON_CreateObject();
-    cJSON_AddStringToObject(response, "status", "ok");
-    WS_SendJSON(p_Client->fd, "stopped", response);
-    cJSON_Delete(response);
+    cJSON *JSON = cJSON_CreateObject();
+    cJSON_AddStringToObject(JSON, "status", "ok");
+    WebSocket_SendJSON(p_Client->fd, "stopped", JSON);
+    cJSON_Delete(JSON);
 }
 
 /** @brief              Handle subscribe command.
  *  @param p_Client     Client pointer
  *  @param p_Data       Command data
  */
-static void WS_HandleTelemetrySubscribe(WS_Client_t *p_Client, cJSON *p_Data)
+static void WebSocket_HandleTelemetrySubscribe(WS_Client_t *p_Client, cJSON *p_Data)
 {
     cJSON *interval = cJSON_GetObjectItem(p_Data, "interval");
 
@@ -283,25 +291,25 @@ static void WS_HandleTelemetrySubscribe(WS_Client_t *p_Client, cJSON *p_Data)
     ESP_LOGI(TAG, "Telemetry subscribed for fd=%d, interval=%lu ms",
              p_Client->fd, p_Client->telemetry_interval_ms);
 
-    cJSON *response = cJSON_CreateObject();
-    cJSON_AddStringToObject(response, "status", "ok");
-    WS_SendJSON(p_Client->fd, "subscribed", response);
-    cJSON_Delete(response);
+    cJSON *JSON = cJSON_CreateObject();
+    cJSON_AddStringToObject(JSON, "status", "ok");
+    WebSocket_SendJSON(p_Client->fd, "subscribed", JSON);
+    cJSON_Delete(JSON);
 }
 
 /** @brief              Handle unsubscribe command.
  *  @param p_Client     Client pointer
  */
-static void WS_HandleTelemetryUnsubscribe(WS_Client_t *p_Client)
+static void WebSocket_HandleTelemetryUnsubscribe(WS_Client_t *p_Client)
 {
     p_Client->telemetry_enabled = false;
 
     ESP_LOGI(TAG, "Telemetry unsubscribed for fd=%d", p_Client->fd);
 
-    cJSON *response = cJSON_CreateObject();
-    cJSON_AddStringToObject(response, "status", "ok");
-    WS_SendJSON(p_Client->fd, "unsubscribed", response);
-    cJSON_Delete(response);
+    cJSON *JSON = cJSON_CreateObject();
+    cJSON_AddStringToObject(JSON, "status", "ok");
+    WebSocket_SendJSON(p_Client->fd, "unsubscribed", JSON);
+    cJSON_Delete(JSON);
 }
 
 /** @brief              Process incoming WebSocket message.
@@ -309,7 +317,7 @@ static void WS_HandleTelemetryUnsubscribe(WS_Client_t *p_Client)
  *  @param p_Data       Message data
  *  @param length       Message length
  */
-static void WS_ProcessMessage(WS_Client_t *p_Client, const char *p_Data, size_t length)
+static void WebSocket_ProcessMessage(WS_Client_t *p_Client, const char *p_Data, size_t length)
 {
     cJSON *json = cJSON_ParseWithLength(p_Data, length);
     if (json == NULL) {
@@ -329,13 +337,13 @@ static void WS_ProcessMessage(WS_Client_t *p_Client, const char *p_Data, size_t 
     /* Handle commands */
     const char *cmd_str = cmd->valuestring;
     if (strcmp(cmd_str, "start") == 0) {
-        WS_HandleStart(p_Client, data);
+        WebSocket_HandleStart(p_Client, data);
     } else if (strcmp(cmd_str, "stop") == 0) {
-        WS_HandleStop(p_Client);
+        WebSocket_HandleStop(p_Client);
     } else if (strcmp(cmd_str, "subscribe") == 0) {
-        WS_HandleTelemetrySubscribe(p_Client, data);
+        WebSocket_HandleTelemetrySubscribe(p_Client, data);
     } else if (strcmp(cmd_str, "unsubscribe") == 0) {
-        WS_HandleTelemetryUnsubscribe(p_Client);
+        WebSocket_HandleTelemetryUnsubscribe(p_Client);
     } else {
         ESP_LOGW(TAG, "Unknown command from fd=%d: %s", p_Client->fd, cmd_str);
     }
@@ -343,9 +351,11 @@ static void WS_ProcessMessage(WS_Client_t *p_Client, const char *p_Data, size_t 
     cJSON_Delete(json);
 }
 
-/** @brief WebSocket handler callback.
+/** @brief              WebSocket handler callback.
+ *  @param p_Request    HTTP request pointer
+ *  @return             ESP_OK on success, error code on failure
  */
-static esp_err_t WS_Handler(httpd_req_t *p_Request)
+static esp_err_t WebSocket_Handler(httpd_req_t *p_Request)
 {
     httpd_ws_frame_t Frame;
     esp_err_t Error;
@@ -354,13 +364,16 @@ static esp_err_t WS_Handler(httpd_req_t *p_Request)
 
     /* Handle new connection */
     if (p_Request->method == HTTP_GET) {
-        WS_Client_t *client = WS_AddClient(httpd_req_to_sockfd(p_Request));
+        WS_Client_t *client = WebSocket_AddClient(httpd_req_to_sockfd(p_Request));
+
         if (client == NULL) {
             httpd_resp_send_err(p_Request, HTTPD_500_INTERNAL_SERVER_ERROR, "Max clients reached");
+
             return ESP_FAIL;
         }
 
         ESP_LOGI(TAG, "WebSocket handshake with fd=%d", client->fd);
+
         return ESP_OK;
     }
 
@@ -371,20 +384,24 @@ static esp_err_t WS_Handler(httpd_req_t *p_Request)
     Error = httpd_ws_recv_frame(p_Request, &Frame, 0);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get frame info: %d!", Error);
+
         return Error;
     }
 
     if (Frame.len > 0) {
-        Frame.payload = (uint8_t *)heap_caps_malloc(Frame.len + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        Frame.payload = static_cast<uint8_t *>(heap_caps_malloc(Frame.len + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
         if (Frame.payload == NULL) {
             ESP_LOGE(TAG, "Failed to allocate frame buffer!");
+
             return ESP_ERR_NO_MEM;
         }
 
         Error = httpd_ws_recv_frame(p_Request, &Frame, Frame.len);
         if (Error != ESP_OK) {
             ESP_LOGE(TAG, "Failed to receive frame: %d!", Error);
+
             free(Frame.payload);
+
             return Error;
         }
 
@@ -392,19 +409,19 @@ static esp_err_t WS_Handler(httpd_req_t *p_Request)
     }
 
     FD = httpd_req_to_sockfd(p_Request);
-    Client = WS_FindClient(FD);
+    Client = WebSocket_FindClient(FD);
 
     switch (Frame.type) {
         case HTTPD_WS_TYPE_TEXT: {
             if (Client != NULL && Frame.payload != NULL) {
-                WS_ProcessMessage(Client, (const char *)Frame.payload, Frame.len);
+                WebSocket_ProcessMessage(Client, (const char *)Frame.payload, Frame.len);
             }
 
             break;
         }
         case HTTPD_WS_TYPE_CLOSE: {
             ESP_LOGI(TAG, "WebSocket close from fd=%d", FD);
-            WS_RemoveClient(FD);
+            WebSocket_RemoveClient(FD);
 
             break;
         }
@@ -420,16 +437,17 @@ static esp_err_t WS_Handler(httpd_req_t *p_Request)
                 .len = Frame.len,
             };
 
-            Error = httpd_ws_send_frame_async(_WSHandler_State.ServerHandle, FD, &pong_frame);
+            Error = httpd_ws_send_frame_async(WebSocket_State.ServerHandle, FD, &pong_frame);
             if (Error != ESP_OK) {
                 ESP_LOGW(TAG, "Failed to send Pong to fd=%d: %d, retrying...", FD, Error);
 
                 /* Pong fails sometimes. So we simply try again */
                 vTaskDelay(10 / portTICK_PERIOD_MS);
-                Error = httpd_ws_send_frame_async(_WSHandler_State.ServerHandle, FD, &pong_frame);
+                Error = httpd_ws_send_frame_async(WebSocket_State.ServerHandle, FD, &pong_frame);
                 if (Error != ESP_OK) {
                     ESP_LOGW(TAG, "Failed to send Pong to fd=%d again: %d, removing client!", FD, Error);
-                    WS_RemoveClient(FD);
+
+                    WebSocket_RemoveClient(FD);
                 }
             }
 
@@ -457,92 +475,97 @@ static esp_err_t WS_Handler(httpd_req_t *p_Request)
 static const httpd_uri_t _URI_WebSocket = {
     .uri       = "/ws",
     .method    = HTTP_GET,
-    .handler   = WS_Handler,
+    .handler   = WebSocket_Handler,
     .user_ctx  = NULL,
     .is_websocket = true,
     .handle_ws_control_frames = true,
     .supported_subprotocol = NULL,
 };
 
-esp_err_t WebSocket_Handler_Init(const Network_HTTP_Server_Config_t *p_Config)
+esp_err_t WebSocket_Init(const Network_HTTP_Server_Config_t *p_Config)
 {
     if (p_Config == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    if (_WSHandler_State.isInitialized) {
+    if (WebSocket_State.isInitialized) {
         ESP_LOGW(TAG, "Already initialized");
+
         return ESP_OK;
     }
 
     ESP_LOGI(TAG, "Initializing WebSocket handler");
 
-    memcpy(&_WSHandler_State.Config, p_Config, sizeof(Network_HTTP_Server_Config_t));
-    memset(_WSHandler_State.Clients, 0, sizeof(_WSHandler_State.Clients));
-    _WSHandler_State.ClientCount = 0;
-    _WSHandler_State.ThermalFrame = NULL;
-    _WSHandler_State.ServerHandle = NULL;
-    _WSHandler_State.BroadcastTask = NULL;
-    _WSHandler_State.FrameReadyQueue = NULL;
-    _WSHandler_State.TaskRunning = false;
+    memcpy(&WebSocket_State.Config, p_Config, sizeof(Network_HTTP_Server_Config_t));
+    memset(WebSocket_State.Clients, 0, sizeof(WebSocket_State.Clients));
+    WebSocket_State.ClientCount = 0;
+    WebSocket_State.ThermalFrame = NULL;
+    WebSocket_State.ServerHandle = NULL;
+    WebSocket_State.BroadcastTask = NULL;
+    WebSocket_State.FrameReadyQueue = NULL;
+    WebSocket_State.isRunning = false;
 
-    _WSHandler_State.ClientsMutex = xSemaphoreCreateMutex();
-    if (_WSHandler_State.ClientsMutex == NULL) {
-        ESP_LOGE(TAG, "Failed to create mutex");
+    WebSocket_State.ClientsMutex = xSemaphoreCreateMutex();
+    if (WebSocket_State.ClientsMutex == NULL) {
+        ESP_LOGE(TAG, "Failed to create mutex!");
+
         return ESP_ERR_NO_MEM;
     }
 
     /* Create queue for frame ready notifications (queue size = 1, only latest matters) */
-    _WSHandler_State.FrameReadyQueue = xQueueCreate(1, sizeof(uint8_t));
-    if (_WSHandler_State.FrameReadyQueue == NULL) {
+    WebSocket_State.FrameReadyQueue = xQueueCreate(1, sizeof(uint8_t));
+    if (WebSocket_State.FrameReadyQueue == NULL) {
         ESP_LOGE(TAG, "Failed to create frame queue!");
-        vSemaphoreDelete(_WSHandler_State.ClientsMutex);
+
+        vSemaphoreDelete(WebSocket_State.ClientsMutex);
+
         return ESP_ERR_NO_MEM;
     }
 
-    _WSHandler_State.isInitialized = true;
+    WebSocket_State.isInitialized = true;
 
     return ESP_OK;
 }
 
-void WebSocket_Handler_Deinit(void)
+void WebSocket_Deinit(void)
 {
-    if (_WSHandler_State.isInitialized == false) {
+    if (WebSocket_State.isInitialized == false) {
         return;
     }
 
-    WebSocket_Handler_StopTask();
+    WebSocket_StopTask();
 
-    if (_WSHandler_State.FrameReadyQueue != NULL) {
-        vQueueDelete(_WSHandler_State.FrameReadyQueue);
-        _WSHandler_State.FrameReadyQueue = NULL;
+    if (WebSocket_State.FrameReadyQueue != NULL) {
+        vQueueDelete(WebSocket_State.FrameReadyQueue);
+        WebSocket_State.FrameReadyQueue = NULL;
     }
 
-    if (_WSHandler_State.ClientsMutex != NULL) {
-        vSemaphoreDelete(_WSHandler_State.ClientsMutex);
-        _WSHandler_State.ClientsMutex = NULL;
+    if (WebSocket_State.ClientsMutex != NULL) {
+        vSemaphoreDelete(WebSocket_State.ClientsMutex);
+        WebSocket_State.ClientsMutex = NULL;
     }
 
-    _WSHandler_State.isInitialized = false;
+    WebSocket_State.isInitialized = false;
 
     ESP_LOGI(TAG, "WebSocket handler deinitialized");
 }
 
-esp_err_t WebSocket_Handler_Register(httpd_handle_t p_ServerHandle)
+esp_err_t WebSocket_Register(httpd_handle_t p_ServerHandle)
 {
     esp_err_t Error;
 
-    if (_WSHandler_State.isInitialized == false) {
+    if (WebSocket_State.isInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     } else if (p_ServerHandle == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    _WSHandler_State.ServerHandle = p_ServerHandle;
+    WebSocket_State.ServerHandle = p_ServerHandle;
 
     Error = httpd_register_uri_handler(p_ServerHandle, &_URI_WebSocket);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to register WebSocket URI: %d!", Error);
+
         return Error;
     }
 
@@ -551,51 +574,53 @@ esp_err_t WebSocket_Handler_Register(httpd_handle_t p_ServerHandle)
     return ESP_OK;
 }
 
-uint8_t WebSocket_Handler_GetClientCount(void)
+uint8_t WebSocket_GetClientCount(void)
 {
-    return _WSHandler_State.ClientCount;
+    return WebSocket_State.ClientCount;
 }
 
-bool WebSocket_Handler_HasClients(void)
+bool WebSocket_HasClients(void)
 {
-    return _WSHandler_State.ClientCount > 0;
+    return WebSocket_State.ClientCount > 0;
 }
 
-void WebSocket_Handler_SetThermalFrame(Network_Thermal_Frame_t *p_Frame)
+void WebSocket_SetThermalFrame(Network_Thermal_Frame_t *p_Frame)
 {
-    xSemaphoreTake(_WSHandler_State.ClientsMutex, portMAX_DELAY);
-    _WSHandler_State.ThermalFrame = p_Frame;
-    xSemaphoreGive(_WSHandler_State.ClientsMutex);
+    xSemaphoreTake(WebSocket_State.ClientsMutex, portMAX_DELAY);
+    WebSocket_State.ThermalFrame = p_Frame;
+    xSemaphoreGive(WebSocket_State.ClientsMutex);
 }
 
-/** @brief          Broadcast task function - runs in separate task to avoid blocking GUI.
- *  @param p_Param  Task parameter (unused)
+/** @brief          Broadcast task function. Runs in separate task to avoid blocking GUI.
+ *  @param p_Param  Task parameter
  */
-static void WS_BroadcastTask(void *p_Param)
+static void WebSocket_BroadcastTask(void *p_Param)
 {
     uint8_t Signal;
+    esp_err_t Error;
     Network_Encoded_Image_t Encoded;
 
     ESP_LOGI(TAG, "WebSocket broadcast task started");
 
-    while (_WSHandler_State.TaskRunning) {
+    while (WebSocket_State.isRunning) {
         /* Wait for frame ready notification (blocking, 100ms timeout) */
-        if (xQueueReceive(_WSHandler_State.FrameReadyQueue, &Signal, 100 / portTICK_PERIOD_MS) == pdTRUE) {
+        if (xQueueReceive(WebSocket_State.FrameReadyQueue, &Signal, 100 / portTICK_PERIOD_MS) == pdTRUE) {
             uint32_t Now = esp_timer_get_time() / 1000;
 
-            if ((_WSHandler_State.isInitialized == false) || (_WSHandler_State.ThermalFrame == NULL) ||
-                (_WSHandler_State.ClientCount == 0)) {
+            if ((WebSocket_State.isInitialized == false) || (WebSocket_State.ThermalFrame == NULL) ||
+                (WebSocket_State.ClientCount == 0)) {
                 continue;
             }
 
             /* Encode frame ONCE for all clients (assume JPEG format for simplicity) */
-            if (xSemaphoreTake(_WSHandler_State.ThermalFrame->Mutex, 50 / portTICK_PERIOD_MS) == pdTRUE) {
-                esp_err_t err = ImageEncoder_Encode(_WSHandler_State.ThermalFrame,
-                                                    NETWORK_IMAGE_FORMAT_JPEG, PALETTE_IRON, &Encoded);
-                xSemaphoreGive(_WSHandler_State.ThermalFrame->Mutex);
+            if (xSemaphoreTake(WebSocket_State.ThermalFrame->Mutex, 50 / portTICK_PERIOD_MS) == pdTRUE) {
+                Error = ImageEncoder_Encode(WebSocket_State.ThermalFrame,
+                                            NETWORK_IMAGE_FORMAT_JPEG, PALETTE_IRON, &Encoded);
+                xSemaphoreGive(WebSocket_State.ThermalFrame->Mutex);
 
-                if (err != ESP_OK) {
-                    ESP_LOGW(TAG, "Failed to encode frame: %d!", err);
+                if (Error != ESP_OK) {
+                    ESP_LOGW(TAG, "Failed to encode frame: %d!", Error);
+
                     continue;
                 }
             } else {
@@ -604,9 +629,9 @@ static void WS_BroadcastTask(void *p_Param)
             }
 
             /* Send to all active streaming clients */
-            xSemaphoreTake(_WSHandler_State.ClientsMutex, portMAX_DELAY);
-            for (uint8_t i = 0; i < WS_MAX_CLIENTS; i++) {
-                WS_Client_t *client = &_WSHandler_State.Clients[i];
+            xSemaphoreTake(WebSocket_State.ClientsMutex, portMAX_DELAY);
+            for (uint8_t i = 0; i < CONFIG_NETWORK_WEBSOCKET_CLIENTS; i++) {
+                WS_Client_t *client = &WebSocket_State.Clients[i];
 
                 if ((client->active == false) || (client->stream_enabled == false)) {
                     continue;
@@ -621,83 +646,81 @@ static void WS_BroadcastTask(void *p_Param)
                 int client_fd = client->fd;
                 uint8_t client_idx = i;
 
-                xSemaphoreGive(_WSHandler_State.ClientsMutex);
-                esp_err_t send_err = WS_SendBinary(client_fd, Encoded.Data, Encoded.Size);
-                xSemaphoreTake(_WSHandler_State.ClientsMutex, portMAX_DELAY);
+                xSemaphoreGive(WebSocket_State.ClientsMutex);
+                Error = WebSocket_SendBinary(client_fd, Encoded.Data, Encoded.Size);
+                xSemaphoreTake(WebSocket_State.ClientsMutex, portMAX_DELAY);
 
                 /* Re-validate client is still active and same FD */
-                if (_WSHandler_State.Clients[client_idx].active &&
-                    _WSHandler_State.Clients[client_idx].fd == client_fd) {
-                    if (send_err == ESP_OK) {
-                        _WSHandler_State.Clients[client_idx].last_frame_time = Now;
+                if (WebSocket_State.Clients[client_idx].active &&
+                    WebSocket_State.Clients[client_idx].fd == client_fd) {
+                    if (Error == ESP_OK) {
+                        WebSocket_State.Clients[client_idx].last_frame_time = Now;
                     } else {
                         ESP_LOGW(TAG, "Removing client fd=%d due to send failure", client_fd);
-                        _WSHandler_State.Clients[client_idx].active = false;
-                        _WSHandler_State.ClientCount--;
+                        WebSocket_State.Clients[client_idx].active = false;
+                        WebSocket_State.ClientCount--;
                     }
                 }
             }
 
-            xSemaphoreGive(_WSHandler_State.ClientsMutex);
+            xSemaphoreGive(WebSocket_State.ClientsMutex);
 
             /* Free encoded frame after sending to all clients */
             ImageEncoder_Free(&Encoded);
         }
 
-        /* Small yield to prevent task starvation */
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 
-    ESP_LOGI(TAG, "WebSocket broadcast task stopped");
-    _WSHandler_State.BroadcastTask = NULL;
+    WebSocket_State.BroadcastTask = NULL;
     vTaskDelete(NULL);
 }
 
-esp_err_t WebSocket_Handler_NotifyFrameReady(void)
+esp_err_t WebSocket_NotifyFrameReady(void)
 {
     uint8_t Signal;
 
-    if ((_WSHandler_State.isInitialized == false) || (_WSHandler_State.FrameReadyQueue == NULL)) {
+    if ((WebSocket_State.isInitialized == false) || (WebSocket_State.FrameReadyQueue == NULL)) {
         return ESP_ERR_INVALID_STATE;
     }
 
-    if (_WSHandler_State.ClientCount == 0) {
+    if (WebSocket_State.ClientCount == 0) {
         return ESP_OK;
     }
 
     /* Signal frame ready (overwrite if queue full - only latest frame matters) */
     Signal = 1;
-    xQueueOverwrite(_WSHandler_State.FrameReadyQueue, &Signal);
+    xQueueOverwrite(WebSocket_State.FrameReadyQueue, &Signal);
 
     return ESP_OK;
 }
 
-esp_err_t WebSocket_Handler_BroadcastTelemetry(void)
+esp_err_t WebSocket_BroadcastTelemetry(void)
 {
     uint32_t Now;
 
-    if (_WSHandler_State.isInitialized == false) {
+    if (WebSocket_State.isInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
-    if (_WSHandler_State.ClientCount == 0) {
+    if (WebSocket_State.ClientCount == 0) {
         return ESP_OK;
     }
 
     Now = esp_timer_get_time() / 1000;
 
     /* Build telemetry data */
-    cJSON *data = cJSON_CreateObject();
+    cJSON *JSON = cJSON_CreateObject();
 
-    if (_WSHandler_State.ThermalFrame != NULL) {
+    if (WebSocket_State.ThermalFrame != NULL) {
         // TODO
-        //cJSON_AddNumberToObject(data, "temp", _WSHandler_State.ThermalFrame->temp_avg);
+        //cJSON_AddNumberToObject(JSON, "temp", WebSocket_State.ThermalFrame->temp_avg);
     }
 
-    xSemaphoreTake(_WSHandler_State.ClientsMutex, portMAX_DELAY);
+    xSemaphoreTake(WebSocket_State.ClientsMutex, portMAX_DELAY);
 
-    for (uint8_t i = 0; i < WS_MAX_CLIENTS; i++) {
-        WS_Client_t *client = &_WSHandler_State.Clients[i];
+    for (uint8_t i = 0; i < CONFIG_NETWORK_WEBSOCKET_CLIENTS; i++) {
+        WS_Client_t *client = &WebSocket_State.Clients[i];
 
         if ((client->active == false) || (client->telemetry_enabled == false)) {
             continue;
@@ -708,20 +731,20 @@ esp_err_t WebSocket_Handler_BroadcastTelemetry(void)
             continue;
         }
 
-        WS_SendJSON(client->fd, "telemetry", data);
+        WebSocket_SendJSON(client->fd, "telemetry", JSON);
         client->last_telemetry_time = Now;
     }
 
-    xSemaphoreGive(_WSHandler_State.ClientsMutex);
+    xSemaphoreGive(WebSocket_State.ClientsMutex);
 
-    cJSON_Delete(data);
+    cJSON_Delete(JSON);
 
     return ESP_OK;
 }
 
-esp_err_t WebSocket_Handler_PingAll(void)
+esp_err_t WebSocket_PingAll(void)
 {
-    if ((_WSHandler_State.isInitialized == false) || (_WSHandler_State.ServerHandle == NULL)) {
+    if ((WebSocket_State.isInitialized == false) || (WebSocket_State.ServerHandle == NULL)) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -733,70 +756,58 @@ esp_err_t WebSocket_Handler_PingAll(void)
         .len = 0,
     };
 
-    xSemaphoreTake(_WSHandler_State.ClientsMutex, portMAX_DELAY);
+    xSemaphoreTake(WebSocket_State.ClientsMutex, portMAX_DELAY);
 
-    for (uint8_t i = 0; i < WS_MAX_CLIENTS; i++) {
-        if (_WSHandler_State.Clients[i].active) {
-            httpd_ws_send_frame_async(_WSHandler_State.ServerHandle, _WSHandler_State.Clients[i].fd, &Frame);
+    for (uint8_t i = 0; i < CONFIG_NETWORK_WEBSOCKET_CLIENTS; i++) {
+        if (WebSocket_State.Clients[i].active) {
+            httpd_ws_send_frame_async(WebSocket_State.ServerHandle, WebSocket_State.Clients[i].fd, &Frame);
         }
     }
 
-    xSemaphoreGive(_WSHandler_State.ClientsMutex);
+    xSemaphoreGive(WebSocket_State.ClientsMutex);
 
     return ESP_OK;
 }
 
-esp_err_t WebSocket_Handler_StartTask(void)
+esp_err_t WebSocket_StartTask(void)
 {
-    if (_WSHandler_State.isInitialized == false) {
+    if (WebSocket_State.isInitialized == false) {
         return ESP_ERR_INVALID_STATE;
-    } else if (_WSHandler_State.BroadcastTask != NULL) {
+    } else if (WebSocket_State.BroadcastTask != NULL) {
         ESP_LOGW(TAG, "Broadcast task already running");
+
         return ESP_OK;
     }
 
-    _WSHandler_State.TaskRunning = true;
+    WebSocket_State.isRunning = true;
 
     BaseType_t ret = xTaskCreatePinnedToCore(
-                         WS_BroadcastTask,
+                         WebSocket_BroadcastTask,
                          "WS_Broadcast",
                          4096,
                          NULL,
                          5,
-                         &_WSHandler_State.BroadcastTask,
+                         &WebSocket_State.BroadcastTask,
                          1
                      );
 
     if (ret != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create broadcast task");
-        _WSHandler_State.TaskRunning = false;
+        ESP_LOGE(TAG, "Failed to create broadcast task!");
+        WebSocket_State.isRunning = false;
+
         return ESP_ERR_NO_MEM;
     }
 
     return ESP_OK;
 }
 
-void WebSocket_Handler_StopTask(uint32_t Timeout_ms)
+void WebSocket_StopTask(uint32_t Timeout_ms)
 {
-    uint32_t Start;
-
-    if (_WSHandler_State.BroadcastTask == NULL) {
+    if (WebSocket_State.BroadcastTask == NULL) {
         return;
     }
 
     ESP_LOGI(TAG, "Stopping WebSocket broadcast task...");
 
-    _WSHandler_State.TaskRunning = false;
-
-    /* Wait for task to finish (max 2 seconds) */
-    Start = esp_timer_get_time() / 1000;
-
-    while (_WSHandler_State.BroadcastTask != NULL &&
-           ((esp_timer_get_time() / 1000) - Start) < Timeout_ms) {
-        vTaskDelay(10 / portTICK_PERIOD_MS);
-    }
-
-    _WSHandler_State.BroadcastTask = NULL;
-
-    ESP_LOGI(TAG, "WebSocket broadcast task stopped");
+    WebSocket_State.isRunning = false;
 }

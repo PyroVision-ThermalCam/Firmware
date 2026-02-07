@@ -62,6 +62,7 @@ typedef struct {
     bool ProvisioningActive;
     bool CardPresent;
     TaskHandle_t TaskHandle;
+    TaskHandle_t ImageSaveTaskHandle;
     void *DisplayBuffer1;
     void *DisplayBuffer2;
     i2c_master_bus_handle_t Touch_Bus_Handle;
@@ -80,16 +81,17 @@ typedef struct {
     App_Lepton_ROI_Result_t ROIResult;
     App_Lepton_Device_t LeptonDeviceInfo;
     App_Lepton_Temperatures_t LeptonTemperatures;
+    App_Context_t *AppContext;
     Network_IP_Info_t IP_Info;
     EventGroupHandle_t EventGroup;
     uint8_t *ThermalCanvasBuffer;
     uint8_t *GradientCanvasBuffer;
-    uint8_t *NetworkRGBBuffer;          /* RGB888 buffer for network streaming (240x180x3) */
+    uint8_t *NetworkRGBBuffer;
     uint32_t LeptonUptime;
     float SpotTemperature;
-
-    /* Network frame for server streaming */
+    QueueHandle_t ImageSaveQueue;
     Network_Thermal_Frame_t NetworkFrame;
+    bool SaveNextFrameRequested;
 
 #ifdef CONFIG_GUI_TOUCH_DEBUG
     /* Touch debug visualization */
@@ -100,15 +102,15 @@ typedef struct {
 } GUI_Task_State_t;
 
 /** @brief                      Initialize the GUI helper functions.
- *  @param p_GUITask_State      Pointer to the GUI task state structure.
+ *  @param p_GUI_Task_State     Pointer to the GUI task state structure.
  *  @param Touch_Read_Callback  LVGL touch read callback function.
  */
-esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUITask_State, lv_indev_read_cb_t Touch_Read_Callback);
+esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t Touch_Read_Callback);
 
 /** @brief                      Deinitialize the GUI helper functions.
- *  @param p_GUITask_State      Pointer to the GUI task state structure.
+ *  @param p_GUI_Task_State     Pointer to the GUI task state structure.
  */
-void GUI_Helper_Deinit(GUI_Task_State_t *p_GUITask_State);
+void GUI_Helper_Deinit(GUI_Task_State_t *p_GUI_Task_State);
 
 /** @brief          LVGL timer callback to update the clock display.
  *  @param p_Timer  Pointer to the LVGL timer structure.

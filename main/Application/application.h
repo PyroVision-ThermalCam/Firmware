@@ -33,7 +33,6 @@
 ESP_EVENT_DECLARE_BASE(LEPTON_EVENTS);
 ESP_EVENT_DECLARE_BASE(DEVICE_EVENTS);
 ESP_EVENT_DECLARE_BASE(GUI_EVENTS);
-ESP_EVENT_DECLARE_BASE(SD_EVENTS);
 
 /** @brief Lepton camera event identifiers.
  */
@@ -77,6 +76,9 @@ enum {
                                                      Data is transmitted in a App_GUI_Screenposition_t structure. */
     GUI_EVENT_REQUEST_SPOTMETER,                /**< Request update of spotmeter data. */
     GUI_EVENT_REQUEST_SCENE_STATISTICS,         /**< Request update of scene statistics data. */
+    GUI_EVENT_THERMAL_IMAGE_SAVED,              /**< Thermal image successfully saved to storage. */
+    GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED,        /**< Thermal image save operation failed.
+                                                     Data is transmitted as an int representing the errno value. */
 };
 
 /** @brief Structure representing a screen position.

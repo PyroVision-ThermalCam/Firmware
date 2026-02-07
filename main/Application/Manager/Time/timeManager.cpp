@@ -3,7 +3,7 @@
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: Unified time management with SNTP and RTC backup.
+ *  File info: Time Manager implementation.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,26 +24,24 @@
 #include <esp_log.h>
 #include <esp_sntp.h>
 #include <esp_timer.h>
-#include <esp_event.h>
 #include <sys/time.h>
 
 #include <string.h>
 
 #include "timeManager.h"
-#include "../Devices/RTC/rtc.h"
+#include "../Devices/devicesManager.h"
 
 ESP_EVENT_DEFINE_BASE(TIME_EVENTS);
 
-#define TIME_MANAGER_SYNC_INTERVAL_SEC      3600    /* Sync every hour */
+#define TIME_MANAGER_SYNC_INTERVAL_SEC          3600    /* Sync every hour */
 #define TIME_MANAGER_RTC_BACKUP_INTERVAL_SEC    300     /* Save to RTC every 5 minutes */
-#define TIME_MANAGER_VALID_YEAR_MIN         2025    /* Minimum valid year */
+#define TIME_MANAGER_VALID_YEAR_MIN             2025    /* Minimum valid year */
 
 typedef struct {
     bool isInitialized;
     bool hasRTC;
     bool hasNetwork;
     bool timeSynchronized;
-    i2c_master_dev_handle_t RTC_Handle;
     TimeManager_Source_t activeSource;
     time_t lastSNTP_Sync;
     time_t lastRTC_Sync;
@@ -55,7 +53,7 @@ typedef struct {
 
 static TimeManager_State_t _TimeManager_State;
 
-static const char *TAG = "time-manager";
+static const char *TAG = "Time-Manager";
 
 /** @brief  SNTP time synchronization notification callback.
  *  @param tv Pointer to the synchronized time value
@@ -83,7 +81,7 @@ static void TimeManager_SNTP_Sync_Callback(struct timeval *tv)
     if (_TimeManager_State.hasRTC) {
         esp_err_t Error;
 
-        Error = RTC_SetTime(&Timeinfo);
+        Error = DevicesManager_SetTime(&Timeinfo);
         if (Error == ESP_OK) {
             _TimeManager_State.lastRTC_Backup = Now;
             ESP_LOGD(TAG, "Time backed up to RTC");
@@ -123,7 +121,7 @@ static void TimeManager_Sync_Timer_Callback(void *p_Arg)
                 struct tm Timeinfo;
                 localtime_r(&Now, &Timeinfo);
 
-                if (RTC_SetTime(&Timeinfo) == ESP_OK) {
+                if (DevicesManager_SetTime(&Timeinfo) == ESP_OK) {
                     ESP_LOGD(TAG, "Periodic RTC backup");
 
                     _TimeManager_State.lastRTC_Backup = Now;
@@ -136,6 +134,7 @@ static void TimeManager_Sync_Timer_Callback(void *p_Arg)
 esp_err_t TimeManager_Init(void *p_RTC_Handle)
 {
     esp_err_t Error;
+    struct tm RtcTime;
 
     if (_TimeManager_State.isInitialized) {
         ESP_LOGW(TAG, "Already initialized");
@@ -146,43 +145,34 @@ esp_err_t TimeManager_Init(void *p_RTC_Handle)
 
     memset(&_TimeManager_State, 0, sizeof(TimeManager_State_t));
 
-    /* Store RTC handle if available */
-    if (p_RTC_Handle != NULL) {
-        esp_err_t RtcError;
-        struct tm RtcTime;
+    _TimeManager_State.hasRTC = true;
+    ESP_LOGD(TAG, "RTC available for time backup");
 
-        _TimeManager_State.RTC_Handle = *(i2c_master_dev_handle_t *)p_RTC_Handle;
-        _TimeManager_State.hasRTC = true;
-        ESP_LOGD(TAG, "RTC available for time backup");
+    /* Try to load time from RTC */
+    Error = DevicesManager_GetTime(&RtcTime);
+    if (Error == ESP_OK) {
+        /* Validate RTC time (check if year is reasonable) */
+        if ((RtcTime.tm_year + 1900) >= TIME_MANAGER_VALID_YEAR_MIN) {
+            /* Set system time from RTC */
+            time_t T = mktime(&RtcTime);
+            struct timeval Tv = {.tv_sec = T, .tv_usec = 0};
 
-        /* Try to load time from RTC */
-        RtcError = RTC_GetTime(&RtcTime);
-        if (RtcError == ESP_OK) {
-            /* Validate RTC time (check if year is reasonable) */
-            if ((RtcTime.tm_year + 1900) >= TIME_MANAGER_VALID_YEAR_MIN) {
-                /* Set system time from RTC */
-                time_t T = mktime(&RtcTime);
-                struct timeval Tv = {.tv_sec = T, .tv_usec = 0};
+            settimeofday(&Tv, NULL);
 
-                settimeofday(&Tv, NULL);
+            _TimeManager_State.activeSource = TIME_SOURCE_RTC;
+            _TimeManager_State.timeSynchronized = true;
+            _TimeManager_State.lastRTC_Sync = T;
+            _TimeManager_State.rtcSyncCount++;
 
-                _TimeManager_State.activeSource = TIME_SOURCE_RTC;
-                _TimeManager_State.timeSynchronized = true;
-                _TimeManager_State.lastRTC_Sync = T;
-                _TimeManager_State.rtcSyncCount++;
-
-                ESP_LOGD(TAG, "System time initialized from RTC: %04d-%02d-%02d %02d:%02d:%02d",
-                         RtcTime.tm_year + 1900, RtcTime.tm_mon + 1, RtcTime.tm_mday,
-                         RtcTime.tm_hour, RtcTime.tm_min, RtcTime.tm_sec);
-            } else {
-                ESP_LOGW(TAG, "RTC time invalid (year: %d), waiting for SNTP",
-                         RtcTime.tm_year + 1900);
-            }
+            ESP_LOGD(TAG, "System time initialized from RTC: %04d-%02d-%02d %02d:%02d:%02d",
+                     RtcTime.tm_year + 1900, RtcTime.tm_mon + 1, RtcTime.tm_mday,
+                     RtcTime.tm_hour, RtcTime.tm_min, RtcTime.tm_sec);
         } else {
-            ESP_LOGW(TAG, "Failed to read time from RTC: %d!", RtcError);
+            ESP_LOGW(TAG, "RTC time invalid (year: %d), waiting for SNTP",
+                     RtcTime.tm_year + 1900);
         }
     } else {
-        ESP_LOGD(TAG, "No RTC available, SNTP will be primary time source");
+        ESP_LOGW(TAG, "Failed to read time from RTC: %d!", Error);
     }
 
     /* Set timezone to UTC by default */
@@ -201,6 +191,7 @@ esp_err_t TimeManager_Init(void *p_RTC_Handle)
     Error = esp_timer_create(&TimerArgs, &_TimeManager_State.syncTimer);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to create sync timer: %d!", Error);
+
         return Error;
     }
 
@@ -208,7 +199,9 @@ esp_err_t TimeManager_Init(void *p_RTC_Handle)
     Error = esp_timer_start_periodic(_TimeManager_State.syncTimer, 60 * 1000000ULL);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to start sync timer: %d!", Error);
+
         esp_timer_delete(_TimeManager_State.syncTimer);
+
         return Error;
     }
 
@@ -255,12 +248,13 @@ esp_err_t TimeManager_OnNetworkConnected(void)
         /* Restart SNTP to immediately try to sync time */
         esp_sntp_restart();
     } else {
+        ESP_LOGD(TAG, "SNTP initialized");
+
         /* First time init */
         esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
         esp_sntp_setservername(0, "pool.ntp.org");
         sntp_set_time_sync_notification_cb(TimeManager_SNTP_Sync_Callback);
         esp_sntp_init();
-        ESP_LOGD(TAG, "SNTP initialized");
     }
 
     return ESP_OK;

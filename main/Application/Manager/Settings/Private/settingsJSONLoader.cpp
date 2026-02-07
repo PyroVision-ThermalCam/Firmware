@@ -36,13 +36,13 @@
 #include "settingsLoader.h"
 #include "../settingsManager.h"
 
-static const char *TAG = "settings_json_loader";
+static const char *TAG = "Settings-JSON-Loader";
 
-/** @brief
- *  @param p_State
- *  @param p_JSON
+/** @brief          Load the Lepton settings from the JSON object and apply them to the Settings Manager state. If a setting is missing or invalid, the default value is used.
+ *  @param p_State  The Settings Manager state structure to update with the loaded settings
+ *  @param p_JSON   The cJSON object representing the root of the settings JSON document
  */
-static void SettingsManager_LoadLepton(SettingsManager_State_t *p_State, const cJSON *p_JSON)
+static void SettingsManager_LoadLepton(Settings_Manager_State_t *p_State, const cJSON *p_JSON)
 {
     cJSON *lepton = NULL;
     cJSON *emissivity_array = NULL;
@@ -95,11 +95,11 @@ static void SettingsManager_LoadLepton(SettingsManager_State_t *p_State, const c
     }
 }
 
-/** @brief
- *  @param p_State
- *  @param p_JSON
+/** @brief          Load the Display settings from the JSON object and apply them to the Settings Manager state. If a setting is missing or invalid, the default value is used.
+ *  @param p_State  The Settings Manager state structure to update with the loaded settings
+ *  @param p_JSON   The cJSON object representing the root of the settings JSON document
  */
-static void SettingsManager_LoadDisplay(SettingsManager_State_t *p_State, const cJSON *p_JSON)
+static void SettingsManager_LoadDisplay(Settings_Manager_State_t *p_State, const cJSON *p_JSON)
 {
     cJSON *display = NULL;
 
@@ -107,14 +107,14 @@ static void SettingsManager_LoadDisplay(SettingsManager_State_t *p_State, const 
     if (display != NULL) {
         cJSON *brightness = cJSON_GetObjectItem(display, "brightness");
         if (cJSON_IsNumber(brightness)) {
-            p_State->Settings.Display.Brightness = (uint8_t)(brightness->valueint);
+            p_State->Settings.Display.Brightness = static_cast<uint8_t>(brightness->valueint);
         } else {
             p_State->Settings.Display.Brightness = SETTINGS_DISPLAY_DEFAULT_BRIGHTNESS;
         }
 
         cJSON *timeout = cJSON_GetObjectItem(display, "timeout");
         if (cJSON_IsNumber(timeout)) {
-            p_State->Settings.Display.Timeout = (uint16_t)(timeout->valueint);
+            p_State->Settings.Display.Timeout = static_cast<uint16_t>(timeout->valueint);
         } else {
             p_State->Settings.Display.Timeout = SETTINGS_DISPLAY_DEFAULT_TIMEOUT;
         }
@@ -123,11 +123,11 @@ static void SettingsManager_LoadDisplay(SettingsManager_State_t *p_State, const 
     }
 }
 
-/** @brief
- *  @param p_State
- *  @param p_JSON
+/** @brief          Load the WiFi settings from the JSON object and apply them to the Settings Manager state. If a setting is missing or invalid, the default value is used.
+ *  @param p_State  The Settings Manager state structure to update with the loaded settings
+ *  @param p_JSON   The cJSON object representing the root of the settings JSON document
  */
-static void SettingsManager_LoadWiFi(SettingsManager_State_t *p_State, const cJSON *p_JSON)
+static void SettingsManager_LoadWiFi(Settings_Manager_State_t *p_State, const cJSON *p_JSON)
 {
     cJSON *wifi = NULL;
 
@@ -135,14 +135,14 @@ static void SettingsManager_LoadWiFi(SettingsManager_State_t *p_State, const cJS
     if (wifi != NULL) {
         cJSON *maxRetries = cJSON_GetObjectItem(wifi, "maxRetries");
         if (cJSON_IsNumber(maxRetries)) {
-            p_State->Settings.WiFi.MaxRetries = (uint8_t)(maxRetries->valueint);
+            p_State->Settings.WiFi.MaxRetries = static_cast<uint8_t>(maxRetries->valueint);
         } else {
             p_State->Settings.WiFi.MaxRetries = SETTINGS_WIFI_DEFAULT_MAX_RETRIES;
         }
 
         cJSON *retryInterval = cJSON_GetObjectItem(wifi, "retryInterval");
         if (cJSON_IsNumber(retryInterval)) {
-            p_State->Settings.WiFi.RetryInterval = (uint32_t)(retryInterval->valueint);
+            p_State->Settings.WiFi.RetryInterval = static_cast<uint32_t>(retryInterval->valueint);
         } else {
             p_State->Settings.WiFi.RetryInterval = SETTINGS_WIFI_DEFAULT_RETRY_INTERVAL;
         }
@@ -172,11 +172,11 @@ static void SettingsManager_LoadWiFi(SettingsManager_State_t *p_State, const cJS
     }
 }
 
-/** @brief
- *  @param p_State
- *  @param p_JSON
+/** @brief          Load the Provisioning settings from the JSON object and apply them to the Settings Manager state. If a setting is missing or invalid, the default value is used.
+ *  @param p_State  The Settings Manager state structure to update with the loaded settings
+ *  @param p_JSON   The cJSON object representing the root of the settings JSON document
  */
-static void SettingsManager_LoadProvisioning(SettingsManager_State_t *p_State, const cJSON *p_JSON)
+static void SettingsManager_LoadProvisioning(Settings_Manager_State_t *p_State, const cJSON *p_JSON)
 {
     cJSON *provisioning = NULL;
 
@@ -192,7 +192,7 @@ static void SettingsManager_LoadProvisioning(SettingsManager_State_t *p_State, c
 
         cJSON *timeout = cJSON_GetObjectItem(provisioning, "timeout");
         if (cJSON_IsNumber(timeout)) {
-            p_State->Settings.Provisioning.Timeout = (uint32_t)(timeout->valueint);
+            p_State->Settings.Provisioning.Timeout = static_cast<uint32_t>(timeout->valueint);
         } else {
             p_State->Settings.Provisioning.Timeout = SETTINGS_PROVISIONING_DEFAULT_TIMEOUT;
         }
@@ -201,11 +201,11 @@ static void SettingsManager_LoadProvisioning(SettingsManager_State_t *p_State, c
     }
 }
 
-/** @brief
- *  @param p_State
- *  @param p_JSON
+/** @brief          Load the System settings from the JSON object and apply them to the Settings Manager state. If a setting is missing or invalid, the default value is used.
+ *  @param p_State  The Settings Manager state structure to update with the loaded settings
+ *  @param p_JSON   The cJSON object representing the root of the settings JSON document
  */
-static void SettingsManager_LoadSystem(SettingsManager_State_t *p_State, const cJSON *p_JSON)
+static void SettingsManager_LoadSystem(Settings_Manager_State_t *p_State, const cJSON *p_JSON)
 {
     cJSON *system = NULL;
 
@@ -230,11 +230,11 @@ static void SettingsManager_LoadSystem(SettingsManager_State_t *p_State, const c
     }
 }
 
-/** @brief
- *  @param p_State
- *  @param p_JSON
+/** @brief          Load the HTTP server settings from the JSON object and apply them to the Settings Manager state. If a setting is missing or invalid, the default value is used.
+ *  @param p_State  The Settings Manager state structure to update with the loaded settings
+ *  @param p_JSON   The cJSON object representing the root of the settings JSON document
  */
-static void SettingsManager_LoadHTTPServer(SettingsManager_State_t *p_State, const cJSON *p_JSON)
+static void SettingsManager_LoadHTTPServer(Settings_Manager_State_t *p_State, const cJSON *p_JSON)
 {
     cJSON *http_server = NULL;
 
@@ -242,21 +242,21 @@ static void SettingsManager_LoadHTTPServer(SettingsManager_State_t *p_State, con
     if (http_server != NULL) {
         cJSON *port = cJSON_GetObjectItem(http_server, "port");
         if (cJSON_IsNumber(port)) {
-            p_State->Settings.HTTPServer.Port = (uint16_t)(port->valueint);
+            p_State->Settings.HTTPServer.Port = static_cast<uint16_t>(port->valueint);
         } else {
             p_State->Settings.HTTPServer.Port = SETTINGS_DEFAULT_HTTP_PORT;
         }
 
         cJSON *wsPingIntervalSec = cJSON_GetObjectItem(http_server, "wsPingIntervalSec");
         if (cJSON_IsNumber(wsPingIntervalSec)) {
-            p_State->Settings.HTTPServer.WSPingIntervalSec = (uint16_t)(wsPingIntervalSec->valueint);
+            p_State->Settings.HTTPServer.WSPingIntervalSec = static_cast<uint16_t>(wsPingIntervalSec->valueint);
         } else {
             p_State->Settings.HTTPServer.WSPingIntervalSec = SETTINGS_DEFAULT_WS_PING_INTERVAL;
         }
 
         cJSON *maxClients = cJSON_GetObjectItem(http_server, "maxClients");
         if (cJSON_IsNumber(maxClients)) {
-            p_State->Settings.HTTPServer.MaxClients = (uint8_t)(maxClients->valueint);
+            p_State->Settings.HTTPServer.MaxClients = static_cast<uint8_t>(maxClients->valueint);
         } else {
             p_State->Settings.HTTPServer.MaxClients = SETTINGS_DEFAULT_HTTP_MAX_CLIENTS;
         }
@@ -265,11 +265,11 @@ static void SettingsManager_LoadHTTPServer(SettingsManager_State_t *p_State, con
     }
 }
 
-/** @brief
- *  @param p_State
- *  @param p_JSON
+/** @brief          Load the VISA server settings from the JSON object and apply them to the Settings Manager state. If a setting is missing or invalid, the default value is used.
+ *  @param p_State  The Settings Manager state structure to update with the loaded settings
+ *  @param p_JSON   The cJSON object representing the root of the settings JSON document
  */
-static void SettingsManager_LoadVISAServer(SettingsManager_State_t *p_State, const cJSON *p_JSON)
+static void SettingsManager_LoadVISAServer(Settings_Manager_State_t *p_State, const cJSON *p_JSON)
 {
     cJSON *visa_server = NULL;
 
@@ -277,7 +277,7 @@ static void SettingsManager_LoadVISAServer(SettingsManager_State_t *p_State, con
     if (visa_server != NULL) {
         cJSON *port = cJSON_GetObjectItem(visa_server, "port");
         if (cJSON_IsNumber(port)) {
-            p_State->Settings.VISAServer.Port = (uint16_t)(port->valueint);
+            p_State->Settings.VISAServer.Port = static_cast<uint16_t>(port->valueint);
         } else {
             p_State->Settings.VISAServer.Port = SETTINGS_DEFAULT_VISA_PORT;
         }
@@ -286,106 +286,19 @@ static void SettingsManager_LoadVISAServer(SettingsManager_State_t *p_State, con
     }
 }
 
-/** @brief  Initialize and mount the SD card.
- *  @return ESP_OK on success
- */
-static esp_err_t SettingsManager_Mount_SD_Card(void)
-{
-    esp_err_t Error;
-    sdmmc_card_t *card;
-    const char mount_point[] = "/sdcard";
-    
-    ESP_LOGD(TAG, "Initializing SD card");
-
-    sdmmc_host_t Host = SDSPI_HOST_DEFAULT();
-    Host.slot = SPI2_HOST;
-
-    spi_bus_config_t SPI_Config;
-    memset(&SPI_Config, 0, sizeof(SPI_Config));
-    SPI_Config = {
-        .mosi_io_num = GPIO_NUM_38,
-        .miso_io_num = GPIO_NUM_40,
-        .sclk_io_num = GPIO_NUM_39,
-        .quadwp_io_num = -1,
-        .quadhd_io_num = -1,
-        .max_transfer_sz = 4000,
-    };
-
-    Error = spi_bus_initialize(static_cast<spi_host_device_t>(Host.slot), &SPI_Config, SDSPI_DEFAULT_DMA);
-    if (Error != ESP_OK) {
-        if (Error == ESP_ERR_INVALID_STATE) {
-            ESP_LOGD(TAG, "SPI bus already initialized, continuing...");
-        } else {
-            ESP_LOGD(TAG, "Failed to initialize SPI: %d!", Error);
-
-            return Error;
-        }
-    }
-
-    sdspi_device_config_t Slot = SDSPI_DEVICE_CONFIG_DEFAULT();
-    Slot.gpio_cs = GPIO_NUM_47;
-    Slot.host_id = static_cast<spi_host_device_t>(Host.slot);
-
-    esp_vfs_fat_sdmmc_mount_config_t Mount_Config = {
-        .format_if_mount_failed = false,
-        .max_files = 5,
-        .allocation_unit_size = 16 * 1024
-    };
-
-    Error = esp_vfs_fat_sdspi_mount(mount_point, &Host, &Slot, &Mount_Config, &card); 
-    if (Error != ESP_OK) {
-        if (Error == ESP_FAIL) {
-            ESP_LOGD(TAG, "Failed to mount SD card filesystem!");
-        } else {
-            ESP_LOGD(TAG, "Failed to mount SD card: 0x%x!", Error);
-        }
-        
-        return Error;
-    }
-
-    /* Log the mount point and list files in the directory */
-    DIR *dir = opendir(mount_point);
-    if (dir == NULL) {
-        ESP_LOGE(TAG, "Failed to open mount point: %s!", mount_point);
-        return ESP_FAIL;
-    }
-
-    struct dirent *entry;
-    ESP_LOGD(TAG, "Files in mount point %s:", mount_point);
-    /* Enhanced logging for file names */
-    while ((entry = readdir(dir)) != NULL) {
-        ESP_LOGD(TAG, "  Found file: %s", entry->d_name);
-        if (strcmp(entry->d_name, "settings.json") == 0 || strcmp(entry->d_name, "SETTIN~1.JSO") == 0) {
-            ESP_LOGD(TAG, "  Matched settings file: %s", entry->d_name);
-        }
-    }
-    closedir(dir);
-
-    ESP_LOGD(TAG, "SD card mounted successfully");
-
-    return ESP_OK;
-}
-
-/** @brief Unmount the SD card.
- */
-static void SettingsManager_Unmount_SD_Card(void)
-{
-    esp_vfs_fat_sdcard_unmount("/sdcard", NULL);
-    ESP_LOGD(TAG, "SD card unmounted");
-}
-
 /** @brief          Load and parse JSON settings from file.
  *  @param p_State  Settings state structure
  *  @param filepath Full path to JSON file
  *  @return         ESP_OK on success
  */
-static esp_err_t SettingsManager_Load_JSON(SettingsManager_State_t *p_State, const char *p_FilePath)
+static esp_err_t SettingsManager_Load_JSON(Settings_Manager_State_t *p_State, const char *p_FilePath)
 {
     FILE *File = NULL;
     char *Buffer = NULL;
     long FileSize;
     size_t BytesRead;
     cJSON *JSON = NULL;
+    esp_err_t Error;
 
     ESP_LOGD(TAG, "Loading settings from: %s", p_FilePath);
 
@@ -420,7 +333,7 @@ static esp_err_t SettingsManager_Load_JSON(SettingsManager_State_t *p_State, con
     ESP_LOGD(TAG, "File size: %ld bytes", FileSize);
 
     /* Allocate buffer for file content */
-    Buffer = (char*)heap_caps_malloc(FileSize + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    Buffer = static_cast<char *>(heap_caps_malloc(FileSize + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     if (Buffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate memory for file buffer!");
 
@@ -460,16 +373,37 @@ static esp_err_t SettingsManager_Load_JSON(SettingsManager_State_t *p_State, con
 
     ESP_LOGD(TAG, "JSON parsed successfully from %s", p_FilePath);
 
+    /* Check the version number of the JSON and the version from the firmware. Skip the loading if the version in the JSON is older or invalid. */
+    cJSON *version = cJSON_GetObjectItem(JSON, "version");
+    if (cJSON_IsNumber(version)) {
+        p_State->Settings.Version = static_cast<uint32_t>(version->valueint);
+
+        if (p_State->Settings.Version != SETTINGS_VERSION) {
+            ESP_LOGW(TAG, "Settings version mismatch (expected %u, got %u), erasing and using defaults",
+                     SETTINGS_VERSION, p_State->Settings.Version);
+
+            Error = ESP_ERR_INVALID_VERSION;
+
+            goto SettingsManager_Load_JSON_Exit;
+        }
+    } else {
+        Error = ESP_ERR_INVALID_VERSION;
+
+        goto SettingsManager_Load_JSON_Exit;
+    }
+
+    Error = ESP_OK;
+
     /* Load settings sections */
     SettingsManager_LoadDisplay(p_State, JSON);
 
-    /* Extract provisioning settings */
+    /* Extract Provisioning settings */
     SettingsManager_LoadProvisioning(p_State, JSON);
 
     /* Extract WiFi settings */
     SettingsManager_LoadWiFi(p_State, JSON);
 
-    /* Extract system settings */
+    /* Extract System settings */
     SettingsManager_LoadSystem(p_State, JSON);
 
     /* Extract Lepton settings */
@@ -481,24 +415,16 @@ static esp_err_t SettingsManager_Load_JSON(SettingsManager_State_t *p_State, con
     /* Extract VISA Server settings */
     SettingsManager_LoadVISAServer(p_State, JSON);
 
+SettingsManager_Load_JSON_Exit:
     cJSON_Delete(JSON);
 
-    return ESP_OK;
+    return Error;
 }
 
-esp_err_t SettingsManager_LoadDefaultsFromJSON(SettingsManager_State_t *p_State)
+esp_err_t SettingsManager_LoadDefaultsFromJSON(Settings_Manager_State_t *p_State)
 {
     uint8_t ConfigLoaded = 0;
     esp_err_t Error;
-    esp_vfs_littlefs_conf_t LittleFS_Config = {
-        .base_path = "/littlefs",
-        .partition_label = "storage",
-        .partition = NULL,
-		.format_if_mount_failed = true,
-        .read_only = true,
-        .dont_mount = false,
-        .grow_on_mount = false
-    };
 
     Error = nvs_get_u8(p_State->NVS_Handle, "config_loaded", &ConfigLoaded);
     if ((Error == ESP_OK) && (ConfigLoaded == true)) {
@@ -506,46 +432,20 @@ esp_err_t SettingsManager_LoadDefaultsFromJSON(SettingsManager_State_t *p_State)
         return ESP_OK;
     }
 
-    ESP_LOGD(TAG, "Loading settings with priority: SD Card -> LittleFS -> Built-in defaults");
+    ESP_LOGI(TAG, "Loading settings from /storage (managed by MemoryManager)");
 
-    /* 1. Try SD card */
-    Error = SettingsManager_Mount_SD_Card();
+    /* Try to load from /storage - MemoryManager decides if this is SD card or internal flash */
+    Error = SettingsManager_Load_JSON(p_State, "/storage/settings.json");
     if (Error == ESP_OK) {
-        Error = SettingsManager_Load_JSON(p_State, "/sdcard/settings.json");
+        ESP_LOGI(TAG, "Settings loaded from /storage/settings.json");
 
-        /* Check for 8.3 filename match */
-        if (Error != ESP_OK) {
-            ESP_LOGW(TAG, "Falling back to 8.3 filename: SETTIN~1.JSO");
-            Error = SettingsManager_Load_JSON(p_State, "/sdcard/SETTIN~1.JSO");
-        }
-
-        SettingsManager_Unmount_SD_Card();
-
-        if (Error == ESP_OK) {
-            ESP_LOGD(TAG, "Settings loaded from SD card");
-            return ESP_OK;
-        }
-        ESP_LOGW(TAG, "SD card mounted but no valid settings.json found");
-    } else {
-        ESP_LOGD(TAG, "SD card not available, trying LittleFS");
+        /* Do NOT delete the file - user should be able to edit it via USB or by placing it on SD card */
+        return ESP_OK;
     }
 
-    /* 2. Try LittleFS */
-    Error = esp_vfs_littlefs_register(&LittleFS_Config);
-    if (Error == ESP_OK) {        
-        Error = SettingsManager_Load_JSON(p_State, "/littlefs/settings.json");
-        esp_vfs_littlefs_unregister(LittleFS_Config.partition_label);
-        
-        if (Error == ESP_OK) {
-            ESP_LOGD(TAG, "Settings loaded from LittleFS");
-            return ESP_OK;
-        }
-        ESP_LOGW(TAG, "LittleFS mounted but no valid settings.json found");
-    } else {
-        ESP_LOGW(TAG, "Failed to mount LittleFS: %d!", Error);
-    }
+    ESP_LOGW(TAG, "No settings.json found on /storage, falling back to built-in defaults");
 
-    /* 3. Fallback to built-in defaults */
+    /* Fallback to built-in defaults */
     ESP_LOGW(TAG, "Using built-in default settings");
     SettingsManager_InitDefaults(p_State);
 

@@ -3,7 +3,7 @@
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: Devices task for peripheral monitoring and management.
+ *  File info: Devices task definition.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,8 +21,8 @@
  * Errors and commissions should be reported to DanielKampert@kampis-elektroecke.de
  */
 
-#ifndef DEVICESTASK_H_
-#define DEVICESTASK_H_
+#ifndef DEVICES_TASK_H_
+#define DEVICES_TASK_H_
 
 #include <esp_err.h>
 #include <esp_event.h>
@@ -34,25 +34,25 @@
 /** @brief  Initializes the devices task.
  *  @return ESP_OK on success, error code otherwise
  */
-esp_err_t DevicesTask_Init(void);
+esp_err_t Devices_Task_Init(void);
 
 /** @brief Deinitializes the devices task.
  */
-void DevicesTask_Deinit(void);
+void Devices_Task_Deinit(void);
 
 /** @brief  Starts the devices task.
  *  @return ESP_OK on success, error code otherwise
  */
-esp_err_t DevicesTask_Start(App_Context_t *p_AppContext);
+esp_err_t Devices_Task_Start(App_Context_t *p_AppContext);
 
 /** @brief  Stops the devices task.
  *  @return ESP_OK on success, error code otherwise
  */
-esp_err_t DevicesTask_Stop(void);
+esp_err_t Devices_Task_Stop(void);
 
 /** @brief  Checks if the devices task is running.
  *  @return false if the task is not running, true if it is running
  */
-bool DevicesTask_isRunning(void);
+bool Devices_Task_IsRunning(void);
 
-#endif /* DEVICESTASK_H_ */
+#endif /* DEVICES_TASK_H_ */

@@ -21,21 +21,12 @@
  * Errors and commissions should be reported to DanielKampert@kampis-elektroecke.de
  */
 
-
 #include <esp_log.h>
 #include <driver/i2c.h>
 
 #include "guiHelper.h"
 #include "Application/application.h"
 #include "../Export/ui.h"
-
-#if defined(CONFIG_TOUCH_I2C0_HOST)
-#define TOUCH_I2C_HOST                      I2C_NUM_0
-#elif defined(CONFIG_TOUCH_I2C1_HOST)
-#define TOUCH_I2C_HOST                      I2C_NUM_1
-#else
-#error "No I2C host defined for Touch!"
-#endif
 
 #if defined(CONFIG_LCD_SPI2_HOST)
 #define LCD_SPI_HOST                        SPI2_HOST
@@ -86,20 +77,6 @@ static const esp_lcd_panel_io_spi_config_t _GUI_Panel_IO_Config = {
     },
 };
 
-static const i2c_master_bus_config_t _GUI_Touch_I2C_Config = {
-    .i2c_port = TOUCH_I2C_HOST,
-    .sda_io_num = static_cast<gpio_num_t>(CONFIG_TOUCH_SDA),
-    .scl_io_num = static_cast<gpio_num_t>(CONFIG_TOUCH_SCL),
-    .clk_source = I2C_CLK_SRC_DEFAULT,
-    .glitch_ignore_cnt = 7,
-    .intr_priority = 0,
-    .trans_queue_depth = 0,
-    .flags = {
-        .enable_internal_pullup = true,
-        .allow_pd = false,
-    },
-};
-
 static const esp_lcd_panel_io_i2c_config_t _GUI_Touch_IO_Config = {
 #if((CONFIG_TOUCH_IRQ != -1) && (CONFIG_TOUCH_RST != -1))
     .dev_addr = ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS,
@@ -144,13 +121,18 @@ static const esp_lcd_touch_config_t _GUI_Touch_Config = {
     .driver_data = &_GUI_Touch_GT911_Config,
 };
 
-static const char *TAG = "gui_helper";
+static const char *TAG = "GUI-Helper";
 
 inline void GUI_LVGL_TickTimer_CB(void *p_Arg)
 {
     lv_tick_inc(CONFIG_GUI_LVGL_TICK_PERIOD_MS);
 }
 
+/** @brief          Initialize the GUI helper functions.
+ *  @param p_Disp
+ *  @param p_Area
+ *  @param p_PxMap
+ */
 static void GUI_LCD_Flush_CB(lv_display_t *p_Disp, const lv_area_t *p_Area, uint8_t *p_PxMap)
 {
     esp_lcd_panel_handle_t panel_handle = static_cast<esp_lcd_panel_handle_t>(lv_display_get_user_data(p_Disp));
@@ -165,16 +147,18 @@ static void GUI_LCD_Flush_CB(lv_display_t *p_Disp, const lv_area_t *p_Area, uint
     lv_display_flush_ready(p_Disp);
 }
 
-esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUITask_State, lv_indev_read_cb_t Touch_Read_Callback)
+esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t Touch_Read_Callback)
 {
+    esp_err_t Error;
+
 #if (CONFIG_LCD_BL != -1)
     ESP_LOGI(TAG, "Configure LCD backlight GPIO...");
     gpio_config_t bk_gpio_config = {
         .pin_bit_mask = 1ULL << CONFIG_LCD_BL,
-        .mode = GPIO_MODE_OUTPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE,
+                             .mode = GPIO_MODE_OUTPUT,
+                             .pull_up_en = GPIO_PULLUP_DISABLE,
+                             .pull_down_en = GPIO_PULLDOWN_DISABLE,
+                             .intr_type = GPIO_INTR_DISABLE,
     };
     ESP_ERROR_CHECK(gpio_config(&bk_gpio_config));
     gpio_set_level(static_cast<gpio_num_t>(CONFIG_LCD_BL), LCD_BK_LIGHT_ON_LEVEL);
@@ -182,106 +166,91 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUITask_State, lv_indev_read_cb_t 
 
     ESP_LOGI(TAG, "Create I2C bus for touch controller...");
 
-    i2c_new_master_bus(&_GUI_Touch_I2C_Config, &p_GUITask_State->Touch_Bus_Handle);
-
-    // --- I2C-Scanner ---
-    /*
-    ESP_LOGI(TAG, "Starte I2C-Scan auf Touch-Bus (driver_ng)...");
-    for (uint8_t addr = 1; addr < 127; addr++) {
-        esp_err_t ret = i2c_master_probe(p_GUITask_State->Touch_Bus_Handle, addr, 10 / portTICK_PERIOD_MS);
-        if (ret == ESP_OK) {
-            ESP_LOGW(TAG, "I2C-Gerät gefunden bei Adresse 0x%02X", addr);
-        }
-    }
-    ESP_LOGI(TAG, "I2C-Scan abgeschlossen.");
-
-    while(1)
-    {
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-    }*/
+    p_GUI_Task_State->Touch_Bus_Handle = DevicesManager_GetTouchI2CBusHandle();
 
     ESP_LOGI(TAG, "Create panel IO...");
     ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(static_cast<esp_lcd_spi_bus_handle_t>(LCD_SPI_HOST), &_GUI_Panel_IO_Config,
-                                             &p_GUITask_State->Panel_IO_Handle));
-    ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(p_GUITask_State->Touch_Bus_Handle, &_GUI_Touch_IO_Config,
-                                             &p_GUITask_State->Touch_IO_Handle));
+                                             &p_GUI_Task_State->Panel_IO_Handle));
+    ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(p_GUI_Task_State->Touch_Bus_Handle, &_GUI_Touch_IO_Config,
+                                             &p_GUI_Task_State->Touch_IO_Handle));
 
     ESP_LOGI(TAG, "Initialize LVGL library and display...");
     lv_init();
-    p_GUITask_State->Display = lv_display_create(CONFIG_GUI_WIDTH, CONFIG_GUI_HEIGHT);
+    p_GUI_Task_State->Display = lv_display_create(CONFIG_GUI_WIDTH, CONFIG_GUI_HEIGHT);
 
     ESP_LOGI(TAG, "Register LCD panel IO callbacks...");
-    ESP_ERROR_CHECK(esp_lcd_panel_io_register_event_callbacks(p_GUITask_State->Panel_IO_Handle, &_GUI_Panel_Callbacks,
-                                                              p_GUITask_State->Display));
+    ESP_ERROR_CHECK(esp_lcd_panel_io_register_event_callbacks(p_GUI_Task_State->Panel_IO_Handle, &_GUI_Panel_Callbacks,
+                                                              p_GUI_Task_State->Display));
 
-    ESP_LOGI(TAG, "Install ILI9341 panel driver...");                                                  
-    ESP_ERROR_CHECK(esp_lcd_new_panel_ili9341(p_GUITask_State->Panel_IO_Handle, &_GUI_Panel_Config,
-                                              &p_GUITask_State->PanelHandle));
+    ESP_LOGI(TAG, "Install ILI9341 panel driver...");
+    ESP_ERROR_CHECK(esp_lcd_new_panel_ili9341(p_GUI_Task_State->Panel_IO_Handle, &_GUI_Panel_Config,
+                                              &p_GUI_Task_State->PanelHandle));
     ESP_LOGD(TAG, " ILI9341 panel driver installed");
 
     ESP_LOGD(TAG, "Reset the panel...");
-    ESP_ERROR_CHECK(esp_lcd_panel_reset(p_GUITask_State->PanelHandle));
+    ESP_ERROR_CHECK(esp_lcd_panel_reset(p_GUI_Task_State->PanelHandle));
     vTaskDelay(100 / portTICK_PERIOD_MS);
     ESP_LOGD(TAG, " Panel reset complete");
 
     ESP_LOGI(TAG, "Initialize the panel...");
-    ESP_ERROR_CHECK(esp_lcd_panel_init(p_GUITask_State->PanelHandle));
+    ESP_ERROR_CHECK(esp_lcd_panel_init(p_GUI_Task_State->PanelHandle));
     vTaskDelay(100 / portTICK_PERIOD_MS);
     ESP_LOGD(TAG, " Panel initialized");
 
     ESP_LOGI(TAG, "Configure panel for landscape mode...");
-    ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(p_GUITask_State->PanelHandle, true));
+    ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(p_GUI_Task_State->PanelHandle, true));
     ESP_LOGD(TAG, " Panel swap_xy enabled for landscape");
 
     ESP_LOGI(TAG, "Configure panel mirroring...");
-    ESP_ERROR_CHECK(esp_lcd_panel_mirror(p_GUITask_State->PanelHandle, true, true));
+    ESP_ERROR_CHECK(esp_lcd_panel_mirror(p_GUI_Task_State->PanelHandle, true, true));
     ESP_LOGD(TAG, " Panel mirroring configured (180 degree rotation)");
 
     ESP_LOGI(TAG, "Turn ON the panel display...");
-    ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(p_GUITask_State->PanelHandle, true));
+    ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(p_GUI_Task_State->PanelHandle, true));
     vTaskDelay(100 / portTICK_PERIOD_MS);
     ESP_LOGD(TAG, " Panel display turned ON");
 
     /* Set LVGL display properties */
-    lv_display_set_flush_cb(p_GUITask_State->Display, GUI_LCD_Flush_CB);
-    lv_display_set_user_data(p_GUITask_State->Display,
-                             p_GUITask_State->PanelHandle);
+    lv_display_set_flush_cb(p_GUI_Task_State->Display, GUI_LCD_Flush_CB);
+    lv_display_set_user_data(p_GUI_Task_State->Display,
+                             p_GUI_Task_State->PanelHandle);
 
     /* Note: Color format set to RGB565 by default, matching thermal image BGR565 conversion */
-    p_GUITask_State->DisplayBuffer1 = heap_caps_malloc(GUI_DRAW_BUFFER_SIZE, MALLOC_CAP_SPIRAM);
-    p_GUITask_State->DisplayBuffer2 = heap_caps_malloc(GUI_DRAW_BUFFER_SIZE, MALLOC_CAP_SPIRAM);
+    p_GUI_Task_State->DisplayBuffer1 = heap_caps_malloc(GUI_DRAW_BUFFER_SIZE, MALLOC_CAP_SPIRAM);
+    p_GUI_Task_State->DisplayBuffer2 = heap_caps_malloc(GUI_DRAW_BUFFER_SIZE, MALLOC_CAP_SPIRAM);
     ESP_LOGD(TAG, "Allocated LVGL buffers: %d bytes each in PSRAM", GUI_DRAW_BUFFER_SIZE);
-    if ((p_GUITask_State->DisplayBuffer1 == NULL) || (p_GUITask_State->DisplayBuffer2 == NULL)) {
+    if ((p_GUI_Task_State->DisplayBuffer1 == NULL) || (p_GUI_Task_State->DisplayBuffer2 == NULL)) {
         ESP_LOGE(TAG, "Failed to allocate LVGL draw buffers!");
+
         return ESP_ERR_NO_MEM;
     }
-    lv_display_set_buffers(p_GUITask_State->Display,
-                           p_GUITask_State->DisplayBuffer1,
-                           p_GUITask_State->DisplayBuffer2,
+    lv_display_set_buffers(p_GUI_Task_State->Display,
+                           p_GUI_Task_State->DisplayBuffer1,
+                           p_GUI_Task_State->DisplayBuffer2,
                            GUI_DRAW_BUFFER_SIZE,
                            LV_DISPLAY_RENDER_MODE_PARTIAL);
 
     ESP_LOGI(TAG, "Initialize GT911 touch controller...");
-    esp_err_t TouchError = esp_lcd_touch_new_i2c_gt911(p_GUITask_State->Touch_IO_Handle, &_GUI_Touch_Config,
-                                                        &p_GUITask_State->TouchHandle);
-    if (TouchError != ESP_OK) {
-        ESP_LOGW(TAG, "GT911 touch controller initialization failed (0x%x)", TouchError);
+    Error = esp_lcd_touch_new_i2c_gt911(p_GUI_Task_State->Touch_IO_Handle, &_GUI_Touch_Config,
+                                        &p_GUI_Task_State->TouchHandle);
+    if (Error != ESP_OK) {
+        ESP_LOGW(TAG, "GT911 touch controller initialization failed (0x%x)", Error);
         ESP_LOGW(TAG, "System will continue without touch functionality");
-        p_GUITask_State->TouchHandle = NULL;
-        p_GUITask_State->Touch = NULL;
+
+        p_GUI_Task_State->TouchHandle = NULL;
+        p_GUI_Task_State->Touch = NULL;
     } else {
         ESP_LOGI(TAG, "GT911 touch controller initialized successfully");
 
         /* Register touchpad input device */
         ESP_LOGD(TAG, "Register touch input device to LVGL");
-        p_GUITask_State->Touch = lv_indev_create();
-        lv_indev_set_type(p_GUITask_State->Touch, LV_INDEV_TYPE_POINTER);
-        lv_indev_set_display(p_GUITask_State->Touch, p_GUITask_State->Display);
-        lv_indev_set_read_cb(p_GUITask_State->Touch, Touch_Read_Callback);
-        lv_indev_set_user_data(p_GUITask_State->Touch, p_GUITask_State->TouchHandle);
+        p_GUI_Task_State->Touch = lv_indev_create();
+        lv_indev_set_type(p_GUI_Task_State->Touch, LV_INDEV_TYPE_POINTER);
+        lv_indev_set_display(p_GUI_Task_State->Touch, p_GUI_Task_State->Display);
+        lv_indev_set_read_cb(p_GUI_Task_State->Touch, Touch_Read_Callback);
+        lv_indev_set_user_data(p_GUI_Task_State->Touch, p_GUI_Task_State->TouchHandle);
     }
 
-    /* Create LVGL tick timer */
     const esp_timer_create_args_t LVGL_TickTimer_args = {
         .callback = &GUI_LVGL_TickTimer_CB,
         .arg = NULL,
@@ -290,100 +259,99 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUITask_State, lv_indev_read_cb_t 
         .skip_unhandled_events = false,
     };
 
-    p_GUITask_State->EventGroup = xEventGroupCreate();
-    if (p_GUITask_State->EventGroup == NULL) {
+    p_GUI_Task_State->EventGroup = xEventGroupCreate();
+    if (p_GUI_Task_State->EventGroup == NULL) {
         ESP_LOGE(TAG, "Failed to create GUI event group!");
+
         return ESP_ERR_NO_MEM;
     }
 
-    ESP_ERROR_CHECK(esp_timer_create(&LVGL_TickTimer_args, &p_GUITask_State->LVGL_TickTimer));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(p_GUITask_State->LVGL_TickTimer, CONFIG_GUI_LVGL_TICK_PERIOD_MS * 1000));
+    ESP_ERROR_CHECK(esp_timer_create(&LVGL_TickTimer_args, &p_GUI_Task_State->LVGL_TickTimer));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(p_GUI_Task_State->LVGL_TickTimer, CONFIG_GUI_LVGL_TICK_PERIOD_MS * 1000));
 
     /* Create LVGL clock update timer. Use a 100 ms interval for smoother updates */
-    p_GUITask_State->UpdateTimer[0] = lv_timer_create(GUI_Helper_Timer_ClockUpdate, 100, NULL);
+    p_GUI_Task_State->UpdateTimer[0] = lv_timer_create(GUI_Helper_Timer_ClockUpdate, 100, NULL);
 
-    p_GUITask_State->UpdateTimer[1] = lv_timer_create(GUI_Helper_Timer_SpotUpdate, 2000, NULL);
-    p_GUITask_State->UpdateTimer[2] = lv_timer_create(GUI_Helper_Timer_SpotmeterUpdate, 5000, NULL);
-    p_GUITask_State->UpdateTimer[3] = lv_timer_create(GUI_Helper_Timer_SceneStatisticsUpdate, 5000, NULL);
+    p_GUI_Task_State->UpdateTimer[1] = lv_timer_create(GUI_Helper_Timer_SpotUpdate, 2000, NULL);
+    p_GUI_Task_State->UpdateTimer[2] = lv_timer_create(GUI_Helper_Timer_SpotmeterUpdate, 5000, NULL);
+    p_GUI_Task_State->UpdateTimer[3] = lv_timer_create(GUI_Helper_Timer_SceneStatisticsUpdate, 5000, NULL);
 
-    _lock_init(&p_GUITask_State->LVGL_API_Lock);
+    _lock_init(&p_GUI_Task_State->LVGL_API_Lock);
 
     return ESP_OK;
 }
 
-void GUI_Helper_Deinit(GUI_Task_State_t *p_GUITask_State)
+void GUI_Helper_Deinit(GUI_Task_State_t *p_GUI_Task_State)
 {
-    if (p_GUITask_State->isInitialized == false) {
+    if (p_GUI_Task_State->isInitialized == false) {
         return;
     }
 
-    for (uint32_t i = 0; i < sizeof(p_GUITask_State->UpdateTimer) / sizeof(p_GUITask_State->UpdateTimer[0]); i++) {
-        if (p_GUITask_State->UpdateTimer[i] != NULL) {
-            lv_timer_delete(p_GUITask_State->UpdateTimer[i]);
-            p_GUITask_State->UpdateTimer[i] = NULL;
+    for (uint32_t i = 0; i < sizeof(p_GUI_Task_State->UpdateTimer) / sizeof(p_GUI_Task_State->UpdateTimer[0]); i++) {
+        if (p_GUI_Task_State->UpdateTimer[i] != NULL) {
+            lv_timer_delete(p_GUI_Task_State->UpdateTimer[i]);
+            p_GUI_Task_State->UpdateTimer[i] = NULL;
         }
     }
 
-    if (p_GUITask_State->LVGL_TickTimer != NULL) {
-        esp_timer_stop(p_GUITask_State->LVGL_TickTimer);
-        esp_timer_delete(p_GUITask_State->LVGL_TickTimer);
-        p_GUITask_State->LVGL_TickTimer = NULL;
+    if (p_GUI_Task_State->LVGL_TickTimer != NULL) {
+        esp_timer_stop(p_GUI_Task_State->LVGL_TickTimer);
+        esp_timer_delete(p_GUI_Task_State->LVGL_TickTimer);
+        p_GUI_Task_State->LVGL_TickTimer = NULL;
     }
 
-    if (p_GUITask_State->EventGroup != NULL) {
-        vEventGroupDelete(p_GUITask_State->EventGroup);
-        p_GUITask_State->EventGroup = NULL;
+    if (p_GUI_Task_State->EventGroup != NULL) {
+        vEventGroupDelete(p_GUI_Task_State->EventGroup);
+        p_GUI_Task_State->EventGroup = NULL;
     }
 
-    if (p_GUITask_State->Touch != NULL) {
-        lv_indev_delete(p_GUITask_State->Touch);
-        p_GUITask_State->Touch = NULL;
+    if (p_GUI_Task_State->Touch != NULL) {
+        lv_indev_delete(p_GUI_Task_State->Touch);
+        p_GUI_Task_State->Touch = NULL;
     }
 
-    esp_lcd_touch_del(p_GUITask_State->TouchHandle);
+    esp_lcd_touch_del(p_GUI_Task_State->TouchHandle);
 
-    if (p_GUITask_State->Display != NULL) {
-        lv_display_delete(p_GUITask_State->Display);
-        p_GUITask_State->Display = NULL;
+    if (p_GUI_Task_State->Display != NULL) {
+        lv_display_delete(p_GUI_Task_State->Display);
+        p_GUI_Task_State->Display = NULL;
     }
 
-    if (p_GUITask_State->DisplayBuffer1 != NULL) {
-        heap_caps_free(p_GUITask_State->DisplayBuffer1);
-        p_GUITask_State->DisplayBuffer1 = NULL;
+    if (p_GUI_Task_State->DisplayBuffer1 != NULL) {
+        heap_caps_free(p_GUI_Task_State->DisplayBuffer1);
+        p_GUI_Task_State->DisplayBuffer1 = NULL;
     }
 
-    if (p_GUITask_State->DisplayBuffer2 != NULL) {
-        heap_caps_free(p_GUITask_State->DisplayBuffer2);
-        p_GUITask_State->DisplayBuffer2 = NULL;
+    if (p_GUI_Task_State->DisplayBuffer2 != NULL) {
+        heap_caps_free(p_GUI_Task_State->DisplayBuffer2);
+        p_GUI_Task_State->DisplayBuffer2 = NULL;
     }
 
-    if (p_GUITask_State->Touch_IO_Handle != NULL) {
-        esp_lcd_panel_io_del(p_GUITask_State->Touch_IO_Handle);
-        p_GUITask_State->Touch_IO_Handle = NULL;
+    if (p_GUI_Task_State->Touch_IO_Handle != NULL) {
+        esp_lcd_panel_io_del(p_GUI_Task_State->Touch_IO_Handle);
+        p_GUI_Task_State->Touch_IO_Handle = NULL;
     }
 
-    if (p_GUITask_State->PanelHandle != NULL) {
-        esp_lcd_panel_del(p_GUITask_State->PanelHandle);
-        p_GUITask_State->PanelHandle = NULL;
+    if (p_GUI_Task_State->PanelHandle != NULL) {
+        esp_lcd_panel_del(p_GUI_Task_State->PanelHandle);
+        p_GUI_Task_State->PanelHandle = NULL;
     }
 
-    _lock_close(&p_GUITask_State->LVGL_API_Lock);
+    _lock_close(&p_GUI_Task_State->LVGL_API_Lock);
 }
 
 void GUI_Helper_Timer_ClockUpdate(lv_timer_t *p_Timer)
 {
-    char buf[9];
-    struct tm time_now;
+    char Buffer[9];
+    struct tm Now;
 
-    /* Get current time from TimeManager */
-    TimeManager_GetTime(&time_now, NULL);
+    TimeManager_GetTime(&Now, NULL);
 
-    snprintf(buf, sizeof(buf), "%02d:%02d:%02d", time_now.tm_hour, time_now.tm_min, time_now.tm_sec);
-    lv_label_set_text(ui_Label_Main_Time, buf);
+    snprintf(Buffer, sizeof(Buffer), "%02d:%02d:%02d", Now.tm_hour, Now.tm_min, Now.tm_sec);
+    lv_label_set_text(ui_Label_Main_Time, Buffer);
 
-    /* Broadcast telemetry to WebSocket clients if server is running */
-    if (Server_isRunning()) {
-        WebSocket_Handler_BroadcastTelemetry();
+    if (Server_IsRunning()) {
+        WebSocket_BroadcastTelemetry();
     }
 }
 

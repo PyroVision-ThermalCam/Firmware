@@ -169,7 +169,7 @@ ESP_EVENT_DECLARE_BASE(SETTINGS_EVENTS);
 
 |`SETTINGS_EVENT_LEPTON_CHANGED`
 |Lepton settings changed
-|`App_Settings_Lepton_t`
+|`Settings_Manager_Setting_t` or NULL (see note below)
 
 |`SETTINGS_EVENT_WIFI_CHANGED`
 |WiFi settings changed
@@ -207,6 +207,8 @@ ESP_EVENT_DECLARE_BASE(SETTINGS_EVENTS);
 |Request to reset to factory defaults
 |NULL
 |===
+
+*NOTE*: For `SETTINGS_EVENT_LEPTON_CHANGED` events, the event data may be NULL if the update was called without specifying which particular setting changed (i.e., when `SettingsManager_UpdateLepton()` is called without the optional `p_ChangedSetting` parameter). Event handlers MUST check for NULL before accessing event data.
 
 == API Reference
 

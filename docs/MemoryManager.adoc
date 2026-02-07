@@ -1,0 +1,1176 @@
+= PyroVision Memory Manager Documentation
+Daniel Kampert <DanielKampert@kampis-elektroecke.de>
+v1.0, 2026-02-08
+:toc: left
+:toclevels: 3
+:sectnums:
+:source-highlighter: coderay
+
+== Overview
+
+The Memory Manager is a unified storage abstraction component for the PyroVision firmware that provides seamless access to either internal flash storage or external SD card storage. It automatically detects the available storage medium and provides a consistent API for filesystem operations, usage monitoring, and USB Mass Storage integration.
+
+=== Key Features
+
+* *Automatic Storage Detection*: Detects SD card presence and selects storage location automatically
+* *Unified Interface*: Consistent API regardless of storage medium (internal flash or SD card)
+* *Dual Storage Support*: Internal FAT32 with wear leveling or external SD card (SDMMC)
+* *Usage Monitoring*: Real-time filesystem usage statistics
+* *USB Integration*: Filesystem locking mechanism for safe USB Mass Storage Device operation
+* *Partition Management*: Access to storage and coredump partition information
+* *Thread-safe Operations*: Protected access to shared resources
+* *Coredump Support*: Separate coredump partition management
+
+---
+
+== Architecture
+
+=== Component Structure
+
+[source]
+----
+main/Application/Manager/Memory/
+├── memoryManager.h          # Public API
+└── memoryManager.cpp        # Implementation
+----
+
+=== Storage Architecture
+
+The Memory Manager supports two distinct storage backends:
+
+==== 1. Internal Flash Storage
+
+* *Technology*: SPI Flash with FAT32 filesystem
+* *Wear Leveling*: ESP-IDF wear leveling layer for flash longevity
+* *Partition*: Dedicated `storage` partition in flash
+* *Mount Point*: `/storage`
+* *Capacity*: Configurable via partition table (typically 1-4 MB)
+* *Advantages*: Always available, no external hardware required
+* *Disadvantages*: Limited capacity, wear concerns
+
+==== 2. SD Card Storage
+
+* *Technology*: SDMMC interface with FAT32 filesystem
+* *Mount Point*: `/sdcard`
+* *Capacity*: Up to 32 GB (FAT32 limit)
+* *Advantages*: High capacity, removable, replaceable
+* *Disadvantages*: Requires external SD card slot, card must be inserted
+* *Detection*: Automatic on initialization
+
+=== Storage Selection Logic
+
+The Memory Manager follows this priority:
+
+1. *SD Card Detection*: On initialization, check if SD card is present and mounted
+2. *SD Card Priority*: If SD card available, use it as primary storage
+3. *Flash Fallback*: If no SD card, use internal flash storage
+4. *Static Selection*: Selection persists until reinitialization
+
+[source]
+----
++-----------------------------+
+|  MemoryManager_Init()       |
++-------------+---------------+
+              |
+              v
+       +--------------+
+       | SD Card      | YES   +------------------+
+       | Present?     +------>| Use /sdcard      |
+       +------+-------+       | (SD Card)        |
+              | NO            +------------------+
+              v
+       +------------------+
+       | Use /storage     |
+       | (Internal Flash) |
+       +------------------+
+----
+
+=== Internal State Management
+
+The manager maintains its state in the `MemoryManager_State_t` structure:
+
+[source,cpp]
+----
+typedef struct {
+    bool isInitialized;                 // Initialization status
+    bool hasSDCard;                     // SD card detected
+    bool filesystemLocked;              // Filesystem locked for USB access
+    MemoryManager_Location_t location;  // Active storage location
+    wl_handle_t wl_handle;              // Wear leveling handle (internal flash)
+    sdmmc_card_t *p_SDCard;             // SD card handle (SD card storage)
+} MemoryManager_State_t;
+----
+
+=== Filesystem Locking Mechanism
+
+The Memory Manager provides a locking mechanism to prevent concurrent access conflicts when USB Mass Storage Device (MSC) mode is active. This is critical because:
+
+* *USB Host Control*: When USB MSC is active, the PC has direct block-level access to the storage
+* *Data Corruption Risk*: Simultaneous access from firmware and PC can corrupt filesystem structures
+* *FAT32 Limitation*: FAT32 has no built-in locking or journaling
+* *Safe USB Mode*: Locking prevents firmware writes during USB MSC operation
+
+==== Lock/Unlock Flow
+
+[source]
+----
+USB Activation:
+  1. Application calls MemoryManager_LockFilesystem()
+  2. Memory Manager sets filesystemLocked = true
+  3. USB Manager exposes storage to PC
+  4. Firmware must not write to filesystem
+
+USB Deactivation:
+  1. USB Manager safely disconnects from PC
+  2. Application calls MemoryManager_UnlockFilesystem()
+  3. Memory Manager sets filesystemLocked = false
+  4. Firmware can safely write to filesystem again
+----
+
+---
+
+== Data Structures
+
+=== Storage Location Enum
+
+[source,cpp]
+----
+typedef enum {
+    MEMORY_LOCATION_INTERNAL,  // Internal flash storage partition
+    MEMORY_LOCATION_SD_CARD,   // External SD card
+} MemoryManager_Location_t;
+----
+
+=== Memory Usage Structure
+
+[source,cpp]
+----
+typedef struct {
+    size_t TotalBytes;    // Total partition/storage size in bytes
+    size_t UsedBytes;     // Used space in bytes
+    size_t FreeBytes;     // Free space in bytes
+    uint8_t UsedPercent;  // Used space percentage (0-100)
+} MemoryManager_Usage_t;
+----
+
+* *TotalBytes*: Total capacity of storage or partition
+* *UsedBytes*: Space occupied by files and filesystem metadata
+* *FreeBytes*: Available space for new files
+* *UsedPercent*: Calculated usage percentage for UI display
+
+---
+
+== API Reference
+
+=== Initialization and Lifecycle
+
+==== MemoryManager_Init()
+
+[source,cpp]
+----
+esp_err_t MemoryManager_Init(void);
+----
+
+Initialize the Memory Manager and mount the storage filesystem.
+
+**Behavior:**
+
+1. Detects SD card presence via SDMMC interface
+2. If SD card present and mountable, selects SD card storage
+3. Otherwise, selects internal flash storage with wear leveling
+4. Mounts the filesystem at appropriate mount point
+5. Posts MEMORY_EVENT_INITIALIZED event
+
+**Return Values:**
+
+* `ESP_OK` - Storage successfully initialized and mounted
+* `ESP_ERR_INVALID_STATE` - Already initialized
+* `ESP_FAIL` - Failed to mount storage
+
+**Thread Safety:** Not thread-safe during initialization. Call once from main task.
+
+**Example:**
+
+[source,cpp]
+----
+esp_err_t Error = MemoryManager_Init();
+if (Error != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to initialize Memory Manager: %d", Error);
+    return Error;
+}
+
+// Check which storage is active
+if (MemoryManager_HasSDCard()) {
+    ESP_LOGI(TAG, "Using SD card storage");
+} else {
+    ESP_LOGI(TAG, "Using internal flash storage");
+}
+----
+
+==== MemoryManager_Deinit()
+
+[source,cpp]
+----
+esp_err_t MemoryManager_Deinit(void);
+----
+
+Deinitialize the Memory Manager and unmount the storage filesystem.
+
+**Behavior:**
+
+1. Unmounts the active filesystem
+2. Releases wear leveling handle (if internal flash)
+3. Releases SD card handle (if SD card)
+4. Resets internal state
+
+**Return Values:**
+
+* `ESP_OK` - Successfully deinitialized
+* `ESP_ERR_INVALID_STATE` - Not initialized
+
+**Warning:** Ensure no files are open and filesystem is not locked before calling this function.
+
+---
+
+=== Storage Information
+
+==== MemoryManager_HasSDCard()
+
+[source,cpp]
+----
+bool MemoryManager_HasSDCard(void);
+----
+
+Check if SD card is present and successfully mounted.
+
+**Return Values:**
+
+* `true` - SD card is available and active
+* `false` - Using internal flash storage
+
+**Example:**
+
+[source,cpp]
+----
+if (MemoryManager_HasSDCard()) {
+    ESP_LOGI(TAG, "SD card detected: %s", MemoryManager_GetStoragePath());
+    
+    // Display SD card icon in UI
+    lv_obj_clear_flag(ui_Icon_SDCard, LV_OBJ_FLAG_HIDDEN);
+} else {
+    ESP_LOGI(TAG, "Using internal storage: %s", MemoryManager_GetStoragePath());
+    
+    // Hide SD card icon
+    lv_obj_add_flag(ui_Icon_SDCard, LV_OBJ_FLAG_HIDDEN);
+}
+----
+
+==== MemoryManager_GetStorageLocation()
+
+[source,cpp]
+----
+MemoryManager_Location_t MemoryManager_GetStorageLocation(void);
+----
+
+Get the currently active storage location type.
+
+**Return Values:**
+
+* `MEMORY_LOCATION_INTERNAL` - Internal flash storage
+* `MEMORY_LOCATION_SD_CARD` - SD card storage
+
+**Example:**
+
+[source,cpp]
+----
+MemoryManager_Location_t Location = MemoryManager_GetStorageLocation();
+
+switch (Location) {
+    case MEMORY_LOCATION_INTERNAL:
+        ESP_LOGI(TAG, "Storage: Internal Flash (FAT32 with Wear Leveling)");
+        break;
+        
+    case MEMORY_LOCATION_SD_CARD:
+        ESP_LOGI(TAG, "Storage: SD Card (SDMMC)");
+        break;
+}
+----
+
+==== MemoryManager_GetStoragePath()
+
+[source,cpp]
+----
+const char *MemoryManager_GetStoragePath(void);
+----
+
+Get the base mount point path for the current storage location.
+
+**Return Values:**
+
+* `"/storage"` - Internal flash storage mount point
+* `"/sdcard"` - SD card storage mount point
+* `NULL` - Not initialized
+
+**Thread Safety:** Thread-safe (returns pointer to static string).
+
+**Example:**
+
+[source,cpp]
+----
+const char *p_Path = MemoryManager_GetStoragePath();
+if (p_Path == NULL) {
+    ESP_LOGE(TAG, "Memory Manager not initialized!");
+    return ESP_ERR_INVALID_STATE;
+}
+
+// Construct full file path
+char FilePath[256];
+snprintf(FilePath, sizeof(FilePath), "%s/thermal_image_%d.jpg", p_Path, ImageCounter);
+
+// Open file
+FILE *fp = fopen(FilePath, "wb");
+if (fp != NULL) {
+    // Write image data
+    fwrite(p_ImageData, 1, ImageSize, fp);
+    fclose(fp);
+    
+    ESP_LOGI(TAG, "Image saved: %s", FilePath);
+}
+----
+
+---
+
+=== Usage Monitoring
+
+==== MemoryManager_GetStorageUsage()
+
+[source,cpp]
+----
+esp_err_t MemoryManager_GetStorageUsage(MemoryManager_Usage_t *p_Usage);
+----
+
+Get filesystem usage statistics for the current storage location.
+
+**Parameters:**
+
+* `p_Usage` - Pointer to usage structure to populate
+
+**Return Values:**
+
+* `ESP_OK` - Usage information retrieved successfully
+* `ESP_ERR_INVALID_ARG` - p_Usage is NULL
+* `ESP_ERR_NOT_FOUND` - Storage not found
+* `ESP_FAIL` - Filesystem not mounted
+
+**Note:** Storage must be mounted to get usage information.
+
+**Example:**
+
+[source,cpp]
+----
+MemoryManager_Usage_t Usage;
+esp_err_t Error = MemoryManager_GetStorageUsage(&Usage);
+if (Error == ESP_OK) {
+    ESP_LOGI(TAG, "Storage Usage:");
+    ESP_LOGI(TAG, "  Total: %zu bytes (%.2f MB)", 
+             Usage.TotalBytes, Usage.TotalBytes / (1024.0 * 1024.0));
+    ESP_LOGI(TAG, "  Used:  %zu bytes (%.2f MB)", 
+             Usage.UsedBytes, Usage.UsedBytes / (1024.0 * 1024.0));
+    ESP_LOGI(TAG, "  Free:  %zu bytes (%.2f MB)", 
+             Usage.FreeBytes, Usage.FreeBytes / (1024.0 * 1024.0));
+    ESP_LOGI(TAG, "  Usage: %u%%", Usage.UsedPercent);
+    
+    // Update UI progress bar
+    lv_bar_set_value(ui_Bar_StorageUsage, Usage.UsedPercent, LV_ANIM_ON);
+    lv_label_set_text_fmt(ui_Label_StorageUsage, "%u%% Used", Usage.UsedPercent);
+} else {
+    ESP_LOGE(TAG, "Failed to get storage usage: %d", Error);
+}
+----
+
+==== MemoryManager_GetCoredumpUsage()
+
+[source,cpp]
+----
+esp_err_t MemoryManager_GetCoredumpUsage(MemoryManager_Usage_t *p_Usage);
+----
+
+Get usage information for the coredump partition.
+
+**Parameters:**
+
+* `p_Usage` - Pointer to usage structure to populate
+
+**Return Values:**
+
+* `ESP_OK` - Coredump usage retrieved successfully
+* `ESP_ERR_INVALID_ARG` - p_Usage is NULL
+* `ESP_ERR_NOT_FOUND` - Coredump partition not found
+
+**Note:** Returns size of stored coredump data. If no crash has occurred, UsedBytes will be 0.
+
+**Example:**
+
+[source,cpp]
+----
+MemoryManager_Usage_t CoredumpUsage;
+esp_err_t Error = MemoryManager_GetCoredumpUsage(&CoredumpUsage);
+if (Error == ESP_OK) {
+    if (CoredumpUsage.UsedBytes > 0) {
+        ESP_LOGW(TAG, "Coredump found: %zu bytes", CoredumpUsage.UsedBytes);
+        ESP_LOGW(TAG, "A previous crash was detected!");
+        
+        // Show warning in UI
+        lv_obj_clear_flag(ui_Icon_CoredumpWarning, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        ESP_LOGI(TAG, "No coredump stored");
+    }
+} else {
+    ESP_LOGE(TAG, "Failed to get coredump usage: %d", Error);
+}
+----
+
+---
+
+=== USB Integration
+
+==== MemoryManager_LockFilesystem()
+
+[source,cpp]
+----
+esp_err_t MemoryManager_LockFilesystem(void);
+----
+
+Lock the filesystem for USB Mass Storage access. Prevents the application from writing to the filesystem while USB MSC is active.
+
+**Return Values:**
+
+* `ESP_OK` - Filesystem successfully locked
+* `ESP_ERR_INVALID_STATE` - Already locked
+
+**Warning:** Application must not write to filesystem after locking. Data corruption will occur if both USB host and firmware access the filesystem simultaneously.
+
+**Thread Safety:** Thread-safe.
+
+**Example:**
+
+[source,cpp]
+----
+// Before activating USB Mass Storage
+esp_err_t Error = MemoryManager_LockFilesystem();
+if (Error != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to lock filesystem: %d", Error);
+    return Error;
+}
+
+ESP_LOGW(TAG, "Filesystem locked - Application CANNOT write!");
+
+// Now safe to activate USB MSC
+Error = USBManager_Init(&USB_Config);
+if (Error != ESP_OK) {
+    // Unlock on failure
+    MemoryManager_UnlockFilesystem();
+    return Error;
+}
+----
+
+==== MemoryManager_UnlockFilesystem()
+
+[source,cpp]
+----
+esp_err_t MemoryManager_UnlockFilesystem(void);
+----
+
+Unlock the filesystem for application access. Re-enables filesystem write operations after USB Mass Storage is deactivated.
+
+**Return Values:**
+
+* `ESP_OK` - Filesystem successfully unlocked
+* `ESP_ERR_INVALID_STATE` - Not locked
+
+**Note:** Call this function only after USB MSC has been safely deactivated and the host has ejected the device.
+
+**Thread Safety:** Thread-safe.
+
+**Example:**
+
+[source,cpp]
+----
+// After USB Mass Storage deactivated
+esp_err_t Error = MemoryManager_UnlockFilesystem();
+if (Error != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to unlock filesystem: %d", Error);
+    return Error;
+}
+
+ESP_LOGI(TAG, "Filesystem unlocked - Application can write again!");
+
+// Safe to write files now
+FILE *fp = fopen("/storage/test.txt", "w");
+if (fp != NULL) {
+    fprintf(fp, "USB MSC deactivated, filesystem accessible again\n");
+    fclose(fp);
+}
+----
+
+==== MemoryManager_IsFilesystemLocked()
+
+[source,cpp]
+----
+bool MemoryManager_IsFilesystemLocked(void);
+----
+
+Check if the filesystem is currently locked for USB access.
+
+**Return Values:**
+
+* `true` - Filesystem locked (USB active, application must not write)
+* `false` - Filesystem unlocked (application can write safely)
+
+**Thread Safety:** Thread-safe.
+
+**Example:**
+
+[source,cpp]
+----
+void SaveImage(uint8_t *p_ImageData, size_t ImageSize)
+{
+    // Check if filesystem is accessible
+    if (MemoryManager_IsFilesystemLocked()) {
+        ESP_LOGW(TAG, "Cannot save image - USB mode is active!");
+        
+        // Show error message in UI
+        lv_obj_t *msgbox = lv_msgbox_create(NULL);
+        lv_msgbox_add_title(msgbox, "USB Active");
+        lv_msgbox_add_text(msgbox, "Cannot save - USB mode is active!\nDisable USB first.");
+        
+        return;
+    }
+    
+    // Safe to write
+    const char *p_Path = MemoryManager_GetStoragePath();
+    char FilePath[256];
+    snprintf(FilePath, sizeof(FilePath), "%s/image_%d.jpg", p_Path, ImageCounter++);
+    
+    FILE *fp = fopen(FilePath, "wb");
+    if (fp != NULL) {
+        fwrite(p_ImageData, 1, ImageSize, fp);
+        fclose(fp);
+        ESP_LOGI(TAG, "Image saved: %s", FilePath);
+    }
+}
+----
+
+---
+
+=== Partition Management
+
+==== MemoryManager_EraseStorage()
+
+[source,cpp]
+----
+esp_err_t MemoryManager_EraseStorage(void);
+----
+
+Erase the current storage location completely and reformat it.
+
+**Warning:** This will delete ALL files in the active storage filesystem. Operation is irreversible.
+
+**Behavior:**
+
+1. Unmounts the filesystem
+2. Erases the partition (internal flash) or reformats SD card
+3. Remounts the filesystem (clean/empty)
+
+**Return Values:**
+
+* `ESP_OK` - Storage successfully erased and reformatted
+* `ESP_ERR_NOT_FOUND` - Storage not found
+* `ESP_FAIL` - Erase or mount operation failed
+
+**Note:** Filesystem will be automatically reformatted after erase.
+
+**Example:**
+
+[source,cpp]
+----
+void FactoryReset_Storage(void)
+{
+    ESP_LOGW(TAG, "Erasing storage partition...");
+    
+    esp_err_t Error = MemoryManager_EraseStorage();
+    if (Error == ESP_OK) {
+        ESP_LOGI(TAG, "Storage partition erased and reformatted");
+        
+        // Show success message
+        lv_obj_t *msgbox = lv_msgbox_create(NULL);
+        lv_msgbox_add_title(msgbox, "Storage Erased");
+        lv_msgbox_add_text(msgbox, "All files have been deleted.");
+    } else {
+        ESP_LOGE(TAG, "Failed to erase storage: %d", Error);
+    }
+}
+----
+
+==== MemoryManager_EraseCoredump()
+
+[source,cpp]
+----
+esp_err_t MemoryManager_EraseCoredump(void);
+----
+
+Erase the coredump partition completely.
+
+**Warning:** This will delete any stored crash dumps. Use cautiously if debugging.
+
+**Behavior:**
+
+1. Finds the coredump partition
+2. Erases the entire partition
+3. Partition is ready for new coredumps
+
+**Return Values:**
+
+* `ESP_OK` - Coredump partition successfully erased
+* `ESP_ERR_NOT_FOUND` - Coredump partition not found
+* `ESP_FAIL` - Erase operation failed
+
+**Example:**
+
+[source,cpp]
+----
+void ClearCoredump(void)
+{
+    ESP_LOGW(TAG, "Erasing coredump partition...");
+    
+    esp_err_t Error = MemoryManager_EraseCoredump();
+    if (Error == ESP_OK) {
+        ESP_LOGI(TAG, "Coredump partition cleared");
+        
+        // Hide coredump warning icon
+        lv_obj_add_flag(ui_Icon_CoredumpWarning, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        ESP_LOGE(TAG, "Failed to erase coredump: %d", Error);
+    }
+}
+----
+
+---
+
+=== Advanced Access
+
+==== MemoryManager_GetWearLevelingHandle()
+
+[source,cpp]
+----
+esp_err_t MemoryManager_GetWearLevelingHandle(wl_handle_t *p_Handle);
+----
+
+Get the wear leveling handle for internal flash storage.
+
+**Parameters:**
+
+* `p_Handle` - Pointer to receive the wear leveling handle
+
+**Return Values:**
+
+* `ESP_OK` - Handle retrieved successfully
+* `ESP_ERR_INVALID_ARG` - p_Handle is NULL
+* `ESP_ERR_INVALID_STATE` - Not using internal storage or not mounted
+
+**Note:** Only valid for internal flash storage (not SD card). Required for USB MSC TinyUSB integration.
+
+**Example:**
+
+[source,cpp]
+----
+wl_handle_t WL_Handle;
+esp_err_t Error = MemoryManager_GetWearLevelingHandle(&WL_Handle);
+if (Error == ESP_OK) {
+    ESP_LOGD(TAG, "Wear leveling handle: %d", WL_Handle);
+    
+    // Use with TinyUSB MSC
+    tinyusb_msc_storage_config_t msc_cfg;
+    memset(&msc_cfg, 0, sizeof(tinyusb_msc_storage_config_t));
+    msc_cfg.medium.wl_handle = WL_Handle;
+    
+    Error = tinyusb_msc_new_storage_spiflash(&msc_cfg, &Storage);
+} else {
+    ESP_LOGE(TAG, "Not using internal storage or not mounted");
+}
+----
+
+==== MemoryManager_GetSDCardHandle()
+
+[source,cpp]
+----
+esp_err_t MemoryManager_GetSDCardHandle(sdmmc_card_t **pp_Card);
+----
+
+Get the SD card handle for direct SDMMC access.
+
+**Parameters:**
+
+* `pp_Card` - Pointer to receive the SD card handle pointer
+
+**Return Values:**
+
+* `ESP_OK` - Handle retrieved successfully
+* `ESP_ERR_INVALID_ARG` - pp_Card is NULL
+* `ESP_ERR_INVALID_STATE` - SD card not mounted
+
+**Note:** Only valid when SD card storage is active. Required for USB MSC TinyUSB integration.
+
+**Example:**
+
+[source,cpp]
+----
+sdmmc_card_t *p_Card = NULL;
+esp_err_t Error = MemoryManager_GetSDCardHandle(&p_Card);
+if (Error == ESP_OK) {
+    ESP_LOGD(TAG, "SD card name: %s", p_Card->cid.name);
+    ESP_LOGD(TAG, "SD card sectors: %llu", p_Card->csd.capacity);
+    
+    // Use with TinyUSB MSC
+    tinyusb_msc_storage_config_t msc_cfg;
+    memset(&msc_cfg, 0, sizeof(tinyusb_msc_storage_config_t));
+    msc_cfg.medium.card = p_Card;
+    
+    Error = tinyusb_msc_new_storage_sdmmc(&msc_cfg, &Storage);
+} else {
+    ESP_LOGE(TAG, "SD card not mounted or not in use");
+}
+----
+
+---
+
+== Common Use Cases
+
+=== Use Case 1: Application Startup
+
+[source,cpp]
+----
+void app_main(void)
+{
+    // Initialize NVS
+    esp_err_t Error = nvs_flash_init();
+    ESP_ERROR_CHECK(Error);
+    
+    // Initialize Memory Manager
+    Error = MemoryManager_Init();
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize storage: %d", Error);
+        esp_restart();
+    }
+    
+    // Log storage information
+    if (MemoryManager_HasSDCard()) {
+        ESP_LOGI(TAG, "Storage: SD Card at %s", MemoryManager_GetStoragePath());
+    } else {
+        ESP_LOGI(TAG, "Storage: Internal Flash at %s", MemoryManager_GetStoragePath());
+    }
+    
+    // Check available space
+    MemoryManager_Usage_t Usage;
+    if (MemoryManager_GetStorageUsage(&Usage) == ESP_OK) {
+        ESP_LOGI(TAG, "Free space: %zu bytes (%.2f MB)", 
+                 Usage.FreeBytes, Usage.FreeBytes / (1024.0 * 1024.0));
+    }
+    
+    // Continue with other initialization...
+}
+----
+
+=== Use Case 2: Saving Files
+
+[source,cpp]
+----
+esp_err_t SaveThermalImage(uint8_t *p_ImageData, size_t ImageSize)
+{
+    // Check if filesystem is accessible
+    if (MemoryManager_IsFilesystemLocked()) {
+        ESP_LOGW(TAG, "Cannot save - USB mode active!");
+        return ESP_ERR_INVALID_STATE;
+    }
+    
+    // Check available space
+    MemoryManager_Usage_t Usage;
+    if (MemoryManager_GetStorageUsage(&Usage) == ESP_OK) {
+        if (Usage.FreeBytes < ImageSize) {
+            ESP_LOGE(TAG, "Insufficient space: need %zu, have %zu", ImageSize, Usage.FreeBytes);
+            return ESP_ERR_NO_MEM;
+        }
+    }
+    
+    // Build file path
+    const char *p_BasePath = MemoryManager_GetStoragePath();
+    char FilePath[256];
+    time_t now;
+    time(&now);
+    struct tm timeinfo;
+    localtime_r(&now, &timeinfo);
+    
+    snprintf(FilePath, sizeof(FilePath), "%s/thermal_%04d%02d%02d_%02d%02d%02d.jpg",
+             p_BasePath,
+             timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+             timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+    
+    // Save file
+    FILE *fp = fopen(FilePath, "wb");
+    if (fp == NULL) {
+        ESP_LOGE(TAG, "Failed to open file: %s", FilePath);
+        return ESP_FAIL;
+    }
+    
+    size_t Written = fwrite(p_ImageData, 1, ImageSize, fp);
+    fclose(fp);
+    
+    if (Written != ImageSize) {
+        ESP_LOGE(TAG, "Write error: expected %zu, wrote %zu", ImageSize, Written);
+        return ESP_FAIL;
+    }
+    
+    ESP_LOGI(TAG, "Image saved: %s (%zu bytes)", FilePath, ImageSize);
+    return ESP_OK;
+}
+----
+
+=== Use Case 3: USB Mass Storage Activation
+
+[source,cpp]
+----
+esp_err_t EnableUSB_MassStorage(void)
+{
+    // Lock filesystem for USB access
+    esp_err_t Error = MemoryManager_LockFilesystem();
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to lock filesystem: %d", Error);
+        return Error;
+    }
+    
+    ESP_LOGW(TAG, "Filesystem locked - Application cannot write!");
+    
+    // Configure USB MSC
+    const USB_Manager_Config_t USB_Config = {
+        .p_MountPoint = MemoryManager_GetStoragePath(),
+        .p_VendorID = "PyroVis",
+        .p_ProductID = "ThermalCam",
+        .p_ProductRevision = "1.0",
+    };
+    
+    // Initialize USB Manager
+    Error = USBManager_Init(&USB_Config);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize USB Manager: %d", Error);
+        
+        // Unlock on failure
+        MemoryManager_UnlockFilesystem();
+        return Error;
+    }
+    
+    ESP_LOGI(TAG, "USB Mass Storage Device active!");
+    return ESP_OK;
+}
+
+void DisableUSB_MassStorage_Callback(void *p_HandlerArgs, esp_event_base_t Base, 
+                                      int32_t ID, void *p_Data)
+{
+    if (ID == USB_EVENT_UNINITIALIZED) {
+        // USB has been safely deactivated
+        esp_err_t Error = MemoryManager_UnlockFilesystem();
+        if (Error == ESP_OK) {
+            ESP_LOGI(TAG, "Filesystem unlocked - Application can write again!");
+        } else {
+            ESP_LOGE(TAG, "Failed to unlock filesystem: %d", Error);
+        }
+    }
+}
+----
+
+=== Use Case 4: Storage Diagnostics
+
+[source,cpp]
+----
+void PrintStorageDiagnostics(void)
+{
+    ESP_LOGI(TAG, "=== Storage Diagnostics ===");
+    
+    // Storage location
+    if (MemoryManager_HasSDCard()) {
+        ESP_LOGI(TAG, "Location: SD Card (External)");
+    } else {
+        ESP_LOGI(TAG, "Location: Internal Flash (SPI)");
+    }
+    
+    // Mount point
+    ESP_LOGI(TAG, "Path: %s", MemoryManager_GetStoragePath());
+    
+    // Storage usage
+    MemoryManager_Usage_t StorageUsage;
+    if (MemoryManager_GetStorageUsage(&StorageUsage) == ESP_OK) {
+        ESP_LOGI(TAG, "Storage Usage:");
+        ESP_LOGI(TAG, "  Total: %.2f MB", StorageUsage.TotalBytes / (1024.0 * 1024.0));
+        ESP_LOGI(TAG, "  Used:  %.2f MB (%u%%)", 
+                 StorageUsage.UsedBytes / (1024.0 * 1024.0), StorageUsage.UsedPercent);
+        ESP_LOGI(TAG, "  Free:  %.2f MB", StorageUsage.FreeBytes / (1024.0 * 1024.0));
+    }
+    
+    // Coredump status
+    MemoryManager_Usage_t CoredumpUsage;
+    if (MemoryManager_GetCoredumpUsage(&CoredumpUsage) == ESP_OK) {
+        if (CoredumpUsage.UsedBytes > 0) {
+            ESP_LOGW(TAG, "Coredump: %zu bytes (crash detected!)", CoredumpUsage.UsedBytes);
+        } else {
+            ESP_LOGI(TAG, "Coredump: Empty (no crashes)");
+        }
+    }
+    
+    // Filesystem lock status
+    if (MemoryManager_IsFilesystemLocked()) {
+        ESP_LOGW(TAG, "Filesystem: LOCKED (USB active)");
+    } else {
+        ESP_LOGI(TAG, "Filesystem: Unlocked (app can write)");
+    }
+    
+    ESP_LOGI(TAG, "=========================");
+}
+----
+
+---
+
+== Best Practices
+
+=== Storage Selection
+
+* *Automatic Detection*: Let Memory Manager auto-detect storage - do not hardcode assumptions
+* *Check Availability*: Always check `MemoryManager_HasSDCard()` if behavior depends on storage type
+* *Path Usage*: Always use `MemoryManager_GetStoragePath()` for base path - never hardcode "/storage" or "/sdcard"
+
+=== File Operations
+
+* *Check Lock State*: Always call `MemoryManager_IsFilesystemLocked()` before writing files
+* *Error Handling*: Always check return values from file operations
+* *Space Checks*: Check available space before writing large files with `MemoryManager_GetStorageUsage()`
+* *Sync After Write*: Call `fsync()` or `fclose()` to ensure data is written to storage
+
+=== USB Integration
+
+* *Lock Before USB*: Always lock filesystem with `MemoryManager_LockFilesystem()` before activating USB MSC
+* *Unlock After USB*: Always unlock filesystem with `MemoryManager_UnlockFilesystem()` after deactivating USB MSC
+* *Safe Ejection*: Ensure PC has ejected/unmounted the USB drive before deactivating USB MSC
+* *No Writes During USB*: Never write to filesystem while USB MSC is active
+
+=== SD Card Handling
+
+* *Removable Media*: SD card can be removed at runtime - implement error handling for file operations
+* *Power Cycling*: SD card mount may fail after deep sleep - add retry logic
+* *Format Requirements*: SD card must be formatted as FAT32 before use
+
+=== Partition Management
+
+* *Coredump Preservation*: Do not erase coredump partition unless you've extracted the crash logs
+* *Factory Reset*: Use `MemoryManager_EraseStorage()` for complete data wipe in factory reset scenarios
+* *User Confirmation*: Always require user confirmation before erasing storage
+
+---
+
+== Troubleshooting
+
+=== SD Card Not Detected
+
+**Symptoms:**
+* `MemoryManager_HasSDCard()` returns false
+* Using internal flash despite SD card being inserted
+
+**Possible Causes:**
+* SD card not inserted or not properly seated
+* SD card not formatted or corrupted filesystem
+* SD card not FAT32 formatted
+* SDMMC interface initialization failed
+
+**Solutions:**
+* Check SD card is properly inserted
+* Format SD card as FAT32 on PC
+* Check ESP32 GPIO connections for SDMMC
+* Enable debug logging: `idf.py menuconfig → Component config → Log output`
+
+=== Filesystem Lock Issues
+
+**Symptoms:**
+* Cannot save files even after USB MSC deactivation
+* `MemoryManager_IsFilesystemLocked()` returns true unexpectedly
+
+**Possible Causes:**
+* `MemoryManager_UnlockFilesystem()` not called after USB deactivation
+* USB Manager crashed during deinitialization
+
+**Solutions:**
+* Ensure `MemoryManager_UnlockFilesystem()` is called in USB_EVENT_UNINITIALIZED handler
+* Restart device to reset filesystem lock state
+
+=== Out of Space Errors
+
+**Symptoms:**
+* File writes fail with no error message
+* `fopen()` returns NULL
+* `MemoryManager_GetStorageUsage()` shows 100% usage
+
+**Possible Causes:**
+* Storage partition full
+* Many small files (FAT32 cluster overhead)
+* Corrupted filesystem
+
+**Solutions:**
+* Delete old files to free space
+* Erase storage partition: `MemoryManager_EraseStorage()`
+* Use SD card for larger capacity
+* Implement automatic old file cleanup
+
+=== Wear Leveling Warnings
+
+**Symptoms:**
+* ESP_LOGW messages about wear leveling
+* Reduced write performance on internal flash
+
+**Possible Causes:**
+* High write frequency to internal flash
+* Flash nearing end of life
+
+**Solutions:**
+* Use SD card for high-frequency writes
+* Reduce write frequency (batch writes, use RAM buffer)
+* Monitor flash health with wear leveling statistics
+
+---
+
+== Configuration
+
+=== PlatformIO / ESP-IDF
+
+Memory Manager requires the following components:
+
+[source,ini]
+----
+[env]
+platform = espressif32
+framework = espidf
+board = esp32-s3-devkitc-1
+
+lib_deps =
+    espressif/esp_tinyusb    # For USB MSC integration
+    joltwallet/littlefs      # If using LittleFS (optional)
+----
+
+=== Partition Table
+
+Define storage and coredump partitions in `partitions.csv`:
+
+[source]
+----
+# Name,     Type, SubType,  Offset,  Size,    Flags
+nvs,        data, nvs,      0x9000,  0x6000,
+phy_init,   data, phy,      0xf000,  0x1000,
+factory,    app,  factory,  0x10000, 0x300000,
+storage,    data, fat,      0x310000,0x100000,  # 1 MB internal storage
+coredump,   data, coredump, 0x410000,0x10000,   # 64 KB coredump
+----
+
+Adjust `storage` partition size based on your requirements.
+
+=== SDMMC Configuration
+
+Configure SDMMC pins in `sdkconfig`:
+
+[source]
+----
+CONFIG_SDMMC_HOST_MAX_FREQ_HIGHSPEED=40000000
+CONFIG_SDMMC_HOST_SLOT_AUTO_DETECT_EN=y
+----
+
+GPIO pin assignment is typically done in `DeviceManager` (I2C bus, SDMMC pins, etc.).
+
+---
+
+== Advanced Topics
+
+=== Custom Mount Points
+
+While Memory Manager uses `/storage` and `/sdcard`, you can mount additional partitions:
+
+[source,cpp]
+----
+// Mount additional partition
+const esp_vfs_fat_mount_config_t mount_config = {
+    .max_files = 5,
+    .format_if_mount_failed = true,
+};
+
+wl_handle_t wl_handle;
+esp_err_t Error = esp_vfs_fat_spiflash_mount("/data", "data_partition", 
+                                             &mount_config, &wl_handle);
+if (Error == ESP_OK) {
+    ESP_LOGI(TAG, "Custom partition mounted at /data");
+}
+----
+
+=== LittleFS Integration
+
+Memory Manager currently uses FAT32, but LittleFS can be integrated:
+
+[source,cpp]
+----
+const esp_vfs_littlefs_conf_t lfs_conf = {
+    .base_path = "/lfs",
+    .partition_label = "littlefs",
+    .format_if_mount_failed = true,
+};
+
+esp_err_t Error = esp_vfs_littlefs_register(&lfs_conf);
+if (Error == ESP_OK) {
+    ESP_LOGI(TAG, "LittleFS mounted at /lfs");
+}
+----
+
+Note: LittleFS is not supported by USB MSC (requires FAT filesystem).
+
+=== SPIFFS Alternative
+
+SPIFFS is deprecated but still available:
+
+[source,cpp]
+----
+esp_vfs_spiffs_conf_t spiffs_conf = {
+    .base_path = "/spiffs",
+    .partition_label = "spiffs",
+    .max_files = 5,
+    .format_if_mount_failed = true,
+};
+
+esp_err_t Error = esp_vfs_spiffs_register(&spiffs_conf);
+if (Error == ESP_OK) {
+    ESP_LOGI(TAG, "SPIFFS mounted at /spiffs");
+}
+----
+
+Note: SPIFFS does not support wear leveling and is not recommended for new projects.
+
+---
+
+== Related Documentation
+
+* link:USBManager.adoc[USB Manager Documentation] - USB Mass Storage Device integration
+* link:SettingsManager.adoc[Settings Manager Documentation] - Persistent settings storage
+* link:DeviceManager.adoc[Device Manager Documentation] - Hardware initialization (I2C, SDMMC)
+
+== References
+
+* https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/storage/wear-levelling.html[ESP-IDF Wear Levelling]
+* https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/storage/fatfs.html[ESP-IDF FAT Filesystem]
+* https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/sdmmc_host.html[ESP-IDF SDMMC Host Driver]
+* https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/partition-tables.html[ESP-IDF Partition Tables]
+
+---
+
+**Last Updated:** February 8, 2026 +
+**Maintainer:** Daniel Kampert (DanielKampert@kampis-elektroecke.de) +
+**License:** GNU General Public License v3.0

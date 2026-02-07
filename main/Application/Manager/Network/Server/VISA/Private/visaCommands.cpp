@@ -230,7 +230,7 @@ static int VISA_CMD_SENS_IMG_DATA(char *Response, size_t MaxLen)
     /* Format: #<n><length><data> where n = digits in length */
 
     /* Example with dummy data */
-    uint8_t *image_data = (uint8_t *)heap_caps_malloc(1024, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    uint8_t *image_data = static_cast<uint8_t *>(heap_caps_malloc(1024, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     if (image_data == NULL) {
         VISA_PushError(SCPI_ERROR_OUT_OF_MEMORY);
         return SCPI_ERROR_OUT_OF_MEMORY;

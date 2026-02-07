@@ -51,6 +51,7 @@ int32_t I2CM_Init(i2c_master_bus_config_t *p_Config, i2c_master_bus_handle_t *p_
 
     if (_I2C_Mutex == NULL) {
         ESP_LOGE(TAG, "Failed to create I2C mutex!");
+
         return ESP_ERR_NO_MEM;
     }
 
@@ -80,6 +81,7 @@ int32_t I2CM_Write(i2c_master_dev_handle_t *p_Dev_Handle, const uint8_t *p_Data,
 
     if ((p_Dev_Handle == NULL) || (*p_Dev_Handle == NULL) || (p_Data == NULL)) {
         ESP_LOGE(TAG, "I2C Write: Invalid handle or data pointer");
+
         return ESP_ERR_INVALID_ARG;
     } else if (Length == 0) {
         return ESP_OK;
@@ -94,7 +96,9 @@ int32_t I2CM_Write(i2c_master_dev_handle_t *p_Dev_Handle, const uint8_t *p_Data,
 
     if (xSemaphoreTake(_I2C_Mutex, portMAX_DELAY) == pdTRUE) {
         Error = i2c_master_transmit(*p_Dev_Handle, p_Data, Length, I2C_WAIT);
+
         xSemaphoreGive(_I2C_Mutex);
+
         if (Error != ESP_OK) {
             ESP_LOGW(TAG, "I2C transmit failed: %d", Error);
         }
@@ -115,6 +119,7 @@ int32_t I2CM_Read(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t *p_Data, uint32
 
     if ((p_Dev_Handle == NULL) || (*p_Dev_Handle == NULL) || (p_Data == NULL)) {
         ESP_LOGE(TAG, "I2C Read: Invalid handle or data pointer");
+
         return ESP_ERR_INVALID_ARG;
     } else if (Length == 0) {
         return ESP_OK;
@@ -130,9 +135,11 @@ int32_t I2CM_Read(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t *p_Data, uint32
 
     if (xSemaphoreTake(_I2C_Mutex, portMAX_DELAY) == pdTRUE) {
         Error = i2c_master_receive(*p_Dev_Handle, p_Data, Length, I2C_WAIT);
+
         xSemaphoreGive(_I2C_Mutex);
+
         if (Error != ESP_OK) {
-            ESP_LOGW(TAG, "I2C receive failed: %d", Error);
+            ESP_LOGW(TAG, "I2C receive failed: %d!", Error);
         }
     }
 

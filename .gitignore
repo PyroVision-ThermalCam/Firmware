@@ -5,7 +5,6 @@
 .vscode/ipch
 *.old
 *.lock
-
 managed_components/
 */backup/
 */Font-Awesome/*

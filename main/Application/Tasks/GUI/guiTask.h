@@ -3,7 +3,7 @@
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: GUI task implementation.
+ *  File info: GUI task definition.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -56,12 +56,22 @@ esp_err_t GUI_Task_Stop(void);
 /** @brief  Check if the GUI task is running.
  *  @return true if running, false otherwise
  */
-bool GUI_Task_isRunning(void);
+bool GUI_Task_IsRunning(void);
 
 /** @brief Toggle ROI (Region of Interest) edit mode.
  *         When enabled, shows a draggable rectangle overlay on the thermal image
  *         that can be moved by touch to adjust the spotmeter region.
  */
 void GUI_Toggle_ROI_EditMode(void);
+
+/** @brief          Request to save the next thermal image to storage as PNG file.
+ *  @note           Sets a flag that triggers image save on the next frame update.
+ *                  The actual save happens in background task (non-blocking).
+ *                  A message box will be displayed upon completion or error.
+ *                  Saves the scaled 240x180 display image (not the raw 160x120 frame).
+ *  @return         ESP_OK on success
+ *                  ESP_ERR_INVALID_STATE if filesystem is locked (USB active)
+ */
+esp_err_t GUI_SaveThermalImage(void);
 
 #endif /* GUI_TASK_H_ */

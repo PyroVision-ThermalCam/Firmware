@@ -10,13 +10,16 @@
 
 #include "../UI/ui_Settings.h"
 #include "../../../application.h"
+#include "../guiTask.h"
+
+static const char *TAG = "ui_events";
 
 /** @brief          Callback for the message box timer to close the box after a delay.
  *  @param p_Timer  Timer handle (user data is the message box to close)
  */
-static void MessageBox_on_Close(lv_timer_t * p_Timer)
+static void MessageBox_on_Close(lv_timer_t *p_Timer)
 {
-    lv_obj_t * Box = (lv_obj_t *)lv_timer_get_user_data(p_Timer);
+    lv_obj_t *Box = (lv_obj_t *)lv_timer_get_user_data(p_Timer);
     lv_msgbox_close(Box);
 }
 
@@ -34,10 +37,10 @@ void ScreenMainLoaded(lv_event_t *e)
     lv_label_set_text(ui_Image_Main_WiFi, LV_SYMBOL_WIFI);
     lv_label_set_text(ui_Image_Main_SDCard, LV_SYMBOL_SD_CARD);
     lv_label_set_text(ui_Label_Menu_Button_Save, LV_SYMBOL_SAVE);
+    lv_label_set_text(ui_Label_Main_Button_Save, LV_SYMBOL_SAVE);
     lv_label_set_text(ui_Label_Main_Button_Menu, "\uF0C9");
     lv_label_set_text(ui_Label_Main_Button_Info, "\uF129");
     lv_label_set_text(ui_Label_Main_Button_ROI, "\uE595");
-    lv_label_set_text(ui_Label_Main_Button_WiFi, "\uF1EB");
     lv_label_set_text(ui_Label_Main_Thermal_Crosshair, "\uF05B");
     lv_label_set_text(ui_Label_Menu_Back, "\uF060");
     lv_label_set_text(ui_Label_Info_Back, "\uF060");
@@ -54,19 +57,47 @@ void ButtonMainWiFiClicked(lv_event_t *e)
     esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_OPEN_WIFI_REQUEST, NULL, 0, 0);
 }
 
-void ScreenSplashLoaded(lv_event_t * e)
+void ScreenSplashLoaded(lv_event_t *e)
 {
     ui_settings_build(ui_Container_Menu);
 }
 
-void ButtonMenuSaveClicked(lv_event_t * e)
+void ButtonMenuSaveClicked(lv_event_t *e)
 {
-    lv_obj_t * Box = lv_msgbox_create(NULL);
+    lv_obj_t *Box = lv_msgbox_create(NULL);
 
     SettingsManager_Save();
 
     lv_msgbox_add_title(Box, "Settings Saved");
 
-    lv_timer_t * Timer = lv_timer_create(MessageBox_on_Close, 1000, Box);
+    lv_timer_t *Timer = lv_timer_create(MessageBox_on_Close, 1000, Box);
+    lv_timer_set_repeat_count(Timer, 1);
+}
+
+void ButtonMainSaveClicked(lv_event_t *e)
+{
+    lv_obj_t *Box = lv_msgbox_create(NULL);
+    esp_err_t Error = GUI_SaveThermalImage();
+
+    if (Error == ESP_OK) {
+        lv_msgbox_add_title(Box, "Image Saved");
+        lv_msgbox_add_text(Box, "Thermal image saved to storage");
+        ESP_LOGI(TAG, "Thermal image saved successfully");
+    } else if (Error == ESP_ERR_INVALID_STATE) {
+        lv_msgbox_add_title(Box, "USB Active");
+        lv_msgbox_add_text(Box, "Cannot save - USB mode is active!\\nDisable USB first.");
+        ESP_LOGW(TAG, "Cannot save image - USB mode active");
+    } else if (Error == ESP_ERR_NO_MEM) {
+        lv_msgbox_add_title(Box, "No Frame");
+        lv_msgbox_add_text(Box, "No thermal frame available");
+        ESP_LOGW(TAG, "No thermal frame available");
+    } else {
+        lv_msgbox_add_title(Box, "Save Failed");
+        lv_msgbox_add_text(Box, "Failed to save image");
+        ESP_LOGE(TAG, "Failed to save thermal image: %d!", Error);
+    }
+
+    /* Auto-close message box after 2 seconds */
+    lv_timer_t *Timer = lv_timer_create(MessageBox_on_Close, 2000, Box);
     lv_timer_set_repeat_count(Timer, 1);
 }

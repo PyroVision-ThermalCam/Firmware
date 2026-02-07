@@ -40,16 +40,14 @@
 
 /** @brief DNS header structure.
  */
-typedef struct __attribute__((packed))
-{
+typedef struct {
     uint16_t ID;                            /**< Identification */
     uint16_t Flags;                         /**< Flags */
     uint16_t QDCount;                       /**< Number of questions */
     uint16_t ANCount;                       /**< Number of answer RRs */
     uint16_t NSCount;                       /**< Number of authority RRs */
     uint16_t ARCount;                       /**< Number of additional RRs */
-}
-DNS_Header_t;
+}  __attribute__((packed)) DNS_Header_t;
 
 typedef struct {
     bool isRunning;
@@ -59,7 +57,7 @@ typedef struct {
 
 static DNS_Server_State_t _DNS_Server_State;
 
-static const char *TAG = "DNS_Server";
+static const char *TAG = "DNS-Server";
 
 /** @brief          DNS server task.
  *  @param p_Arg    Task argument (not used)
@@ -153,6 +151,7 @@ esp_err_t DNS_Server_Start(void)
 
     if (_DNS_Server_State.isRunning) {
         ESP_LOGW(TAG, "DNS server already running");
+
         return ESP_OK;
     }
 
@@ -160,6 +159,7 @@ esp_err_t DNS_Server_Start(void)
     _DNS_Server_State.Socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (_DNS_Server_State.Socket < 0) {
         ESP_LOGE(TAG, "Failed to create socket: %d!", errno);
+
         return ESP_FAIL;
     }
 
@@ -168,7 +168,7 @@ esp_err_t DNS_Server_Start(void)
     Timeout.tv_sec = 1;
     Timeout.tv_usec = 0;
     if (setsockopt(_DNS_Server_State.Socket, SOL_SOCKET, SO_RCVTIMEO, &Timeout, sizeof(Timeout)) < 0) {
-        ESP_LOGW(TAG, "Failed to set socket timeout: %d", errno);
+        ESP_LOGW(TAG, "Failed to set socket timeout: %d!", errno);
     }
 
     /* Bind to DNS port */
@@ -179,7 +179,9 @@ esp_err_t DNS_Server_Start(void)
 
     if (bind(_DNS_Server_State.Socket, (struct sockaddr *)&ServerAddr, sizeof(ServerAddr)) < 0) {
         ESP_LOGE(TAG, "Failed to bind socket: %d!", errno);
+
         close(_DNS_Server_State.Socket);
+
         return ESP_FAIL;
     }
 

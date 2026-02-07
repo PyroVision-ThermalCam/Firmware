@@ -34,23 +34,23 @@
 #include <sdkconfig.h>
 
 #ifdef CONFIG_BATTERY_ADC_1
-    #define ADC_UNIT    ADC_UNIT_1
+#define ADC_UNIT    ADC_UNIT_1
 #elif CONFIG_BATTERY_ADC_2
-    #define ADC_UNIT    ADC_UNIT_2
+#define ADC_UNIT    ADC_UNIT_2
 #else
-    #error "No ADC channel configured for battery measurement"
+#error "No ADC channel configured for battery measurement"
 #endif
 
 #ifdef CONFIG_BATTERY_ADC_ATT_0
-    #define ADC_ATTEN   ADC_ATTEN_DB_0
+#define ADC_ATTEN   ADC_ATTEN_DB_0
 #elif CONFIG_BATTERY_ADC_ATT_2_5
-    #define ADC_ATTEN   ADC_ATTEN_DB_2_5
+#define ADC_ATTEN   ADC_ATTEN_DB_2_5
 #elif CONFIG_BATTERY_ADC_ATT_6
-    #define ADC_ATTEN   ADC_ATTEN_DB_6
+#define ADC_ATTEN   ADC_ATTEN_DB_6
 #elif CONFIG_BATTERY_ADC_ATT_12
-    #define ADC_ATTEN   ADC_ATTEN_DB_12
+#define ADC_ATTEN   ADC_ATTEN_DB_12
 #else
-    #error "No ADC attenuation configured for battery measurement"
+#error "No ADC attenuation configured for battery measurement"
 #endif
 
 static bool _ADC_Calib_Done = false;
@@ -64,7 +64,7 @@ static adc_oneshot_unit_init_cfg_t _ADC_Init_Config = {
     .ulp_mode = ADC_ULP_MODE_DISABLE,
 };
 
-static adc_oneshot_chan_cfg_t ADC_Config = {
+static adc_oneshot_chan_cfg_t _ADC_Config = {
     .atten = static_cast<adc_atten_t>(ADC_ATTEN),
     .bitwidth = ADC_BITWIDTH_DEFAULT,
 };
@@ -76,17 +76,17 @@ esp_err_t ADC_Init(void)
     esp_err_t Error;
 
     ESP_ERROR_CHECK(adc_oneshot_new_unit(&_ADC_Init_Config, &_ADC_Handle));
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(_ADC_Handle, _ADC_Channel, &ADC_Config));
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(_ADC_Handle, _ADC_Channel, &_ADC_Config));
 
     Error = ESP_OK;
     _ADC_Calib_Done = false;
 
     if (_ADC_Calib_Done == false) {
-        ESP_LOGD(TAG, "calibration scheme version is %s", "Curve Fitting");
+        ESP_LOGD(TAG, "Calibration scheme version is %s", "Curve Fitting");
         adc_cali_curve_fitting_config_t CaliConfig = {
             .unit_id = _ADC_Init_Config.unit_id,
             .chan = _ADC_Channel,
-            .atten = ADC_Config.atten,
+            .atten = _ADC_Config.atten,
             .bitwidth = ADC_BITWIDTH_DEFAULT,
         };
 
@@ -146,7 +146,8 @@ esp_err_t ADC_ReadBattery(int *p_Voltage, uint8_t *p_Percentage)
     } else if (*p_Voltage >= CONFIG_BATTERY_ADC_MAX_MV) {
         *p_Percentage = 100;
     } else {
-        *p_Percentage = (uint8_t)((*p_Voltage - CONFIG_BATTERY_ADC_MIN_MV) * 100 / (CONFIG_BATTERY_ADC_MAX_MV - CONFIG_BATTERY_ADC_MIN_MV));
+        *p_Percentage = (uint8_t)((*p_Voltage - CONFIG_BATTERY_ADC_MIN_MV) * 100 / (CONFIG_BATTERY_ADC_MAX_MV -
+                                                                                    CONFIG_BATTERY_ADC_MIN_MV));
     }
 
     ESP_LOGD(TAG, "ADC%d Channel%d raw data: %d", ADC_UNIT_1, _ADC_Channel, Raw);

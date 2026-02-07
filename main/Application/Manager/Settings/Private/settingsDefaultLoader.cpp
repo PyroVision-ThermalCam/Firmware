@@ -33,7 +33,7 @@
 #include "settingsLoader.h"
 #include "../settingsManager.h"
 
-static const char *TAG = "settings_default_loader";
+static const char *TAG = "Settings-Default-Loader";
 
 void SettingsManager_InitDefaultLeptonROIs(App_Settings_t *p_Settings)
 {
@@ -73,14 +73,15 @@ void SettingsManager_InitDefaultLeptonEmissivityPresets(App_Settings_t *p_Settin
     p_Settings->Lepton.EmissivityPresets[0].Value = 1.0f;
     strncpy(p_Settings->Lepton.EmissivityPresets[0].Description, "Unknown",
             sizeof(p_Settings->Lepton.EmissivityPresets[0].Description));
-    
+
     p_Settings->Lepton.CurrentEmissivity = SETTINGS_DEFAULT_LEPTON_EMISSIVITY;
 }
 
-void SettingsManager_InitDefaults(SettingsManager_State_t *p_State)
+void SettingsManager_InitDefaults(Settings_Manager_State_t *p_State)
 {
     memset(&p_State->Settings, 0, sizeof(App_Settings_t));
 
+    p_State->Settings.Version = SETTINGS_VERSION;
     SettingsManager_InitDefaultDisplay(&p_State->Settings);
     SettingsManager_InitDefaultProvisioning(&p_State->Settings);
     SettingsManager_InitDefaultWiFi(&p_State->Settings);

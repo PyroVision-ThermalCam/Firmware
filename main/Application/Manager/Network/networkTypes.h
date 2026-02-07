@@ -1,9 +1,9 @@
 /*
- * network_types.h
+ * networkTypes.h
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: Common type definitions for the network interface component.
+ *  File info: Common type definitions for the Network Manager component.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,7 +35,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-/* Declare network event base */
+/** @brief Network Manager events base.
+ */
 ESP_EVENT_DECLARE_BASE(NETWORK_EVENTS);
 
 /** @brief Network connection state.
@@ -169,15 +170,14 @@ typedef struct {
 /** @brief WiFi credentials.
  */
 typedef struct {
-    char SSID[33];
-    char Password[65];
+    char SSID[33];                          /**< WiFi SSID (null-terminated, max 32 chars). */
+    char Password[65];                      /**< WiFi password (null-terminated, max 64 chars). */
 } Network_WiFi_Credentials_t;
 
 /** @brief WiFi provisioning configuration.
  */
 typedef struct {
-    char Name[32];
-    char PoP[32];
+    char Name[32];                          /**< Product name (null-terminated, max 31 chars). */
     uint32_t Timeout;
 } Network_Provisioning_Config_t;
 

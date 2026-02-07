@@ -3,7 +3,7 @@
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: Persistent settings management using NVS storage.
+ *  File info: Settings Manager definition.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,24 +29,57 @@
 
 #include "settingsTypes.h"
 
-/** @brief  Initialize the Settings Manager and load all settings from NVS into the Settings Manager RAM and into the provided structure.
- *  @return ESP_OK on success
+/** @brief          Initialize the Settings Manager and load settings from NVS.
+ *                  Opens NVS namespace, loads stored settings into RAM, or loads defaults
+ *                  if no settings exist. Creates event handlers for settings changes.
+ *  @note           Must be called after NVS flash initialization.
+ *                  Default settings loaded from JSON or hardcoded fallback.
+ *                  Call this before any other SettingsManager functions.
+ *  @warning        Not thread-safe during initialization.
+ *  @return         ESP_OK on success
+ *                  ESP_ERR_NVS_NOT_FOUND if NVS namespace doesn't exist (first boot)
+ *                  ESP_ERR_NO_MEM if memory allocation fails
+ *                  ESP_ERR_INVALID_STATE if already initialized
+ *                  ESP_FAIL if NVS initialization fails
  */
 esp_err_t SettingsManager_Init(void);
 
-/** @brief  Deinitialize the Settings Manager.
- *  @return ESP_OK on success
+/** @brief          Deinitialize the Settings Manager.
+ *                  Closes NVS handle and frees all resources. Unsaved settings in RAM
+ *                  are lost.
+ *  @note           Call SettingsManager_Save() first to persist changes.
+ *  @warning        All unsaved settings changes are lost permanently.
+ *  @return         ESP_OK on success
+ *                  ESP_FAIL if NVS close fails
  */
 esp_err_t SettingsManager_Deinit(void);
 
-/** @brief              Load all settings from NVS into the Settings Manager RAM and into the provided structure. This function overwrites all unsaved settings in RAM.
+/** @brief              Load all settings from NVS into RAM.
+ *                      Reloads settings from NVS, overwriting any unsaved changes in RAM.
+ *                      Use this to discard uncommitted changes.
+ *  @note               This overwrites all unsaved settings in RAM.
+ *                      Version mismatch triggers default settings reload.
+ *  @warning            All uncommitted changes are lost!
  *  @param p_Settings   Pointer to settings structure to populate
- *  @return             ESP_OK on success, ESP_ERR_NVS_NOT_FOUND if no settings exist
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_ARG if p_Settings is NULL
+ *                      ESP_ERR_NVS_NOT_FOUND if no settings exist in NVS
+ *                      ESP_ERR_INVALID_VERSION if version mismatch
+ *                      ESP_ERR_INVALID_SIZE if size mismatch (corrupted)
+ *                      ESP_FAIL on other NVS errors
  */
 esp_err_t SettingsManager_Load(App_Settings_t *p_Settings);
 
-/** @brief  Save all RAM settings to NVS.
- *  @return ESP_OK on success, ESP_ERR_* on failure
+/** @brief          Save all RAM settings to NVS.
+ *                  Writes current settings from RAM to non-volatile storage. Changes
+ *                  become permanent and survive power cycles.
+ *  @note           Call this after any Update functions to persist changes.
+ *                  NVS has limited write cycles (~100k) - avoid excessive saves.
+ *                  Posts SETTINGS_EVENT_SAVED event on success.
+ *  @return         ESP_OK on success
+ *                  ESP_ERR_INVALID_STATE if not initialized
+ *                  ESP_ERR_NVS_NOT_ENOUGH_SPACE if NVS is full
+ *                  ESP_FAIL if NVS write fails
  */
 esp_err_t SettingsManager_Save(void);
 
@@ -54,13 +87,13 @@ esp_err_t SettingsManager_Save(void);
  *  @param p_Settings   Pointer to Info structure to populate
  *  @return             ESP_OK on success, ESP_ERR_* on failure
 */
-esp_err_t SettingsManager_GetInfo(App_Settings_Info_t* p_Settings);
+esp_err_t SettingsManager_GetInfo(App_Settings_Info_t *p_Settings);
 
 /** @brief              Get the Lepton settings from the Settings Manager RAM.
  *  @param p_Settings   Pointer to System settings structure to populate
  *  @return             ESP_OK on success, ESP_ERR_* on failure
 */
-esp_err_t SettingsManager_GetLepton(App_Settings_Lepton_t* p_Settings);
+esp_err_t SettingsManager_GetLepton(App_Settings_Lepton_t *p_Settings);
 
 /** @brief                  Update Lepton settings in the Settings Manager RAM.
  *                          This function triggers the SETTINGS_EVENT_LEPTON_CHANGED event.
@@ -68,85 +101,86 @@ esp_err_t SettingsManager_GetLepton(App_Settings_Lepton_t* p_Settings);
  *  @param p_ChangedSetting Optional pointer to structure to receive changed setting ID and value for event data (can be NULL if not needed)
  *  @return                 ESP_OK on success, ESP_ERR_* on failure
  */
-esp_err_t SettingsManager_UpdateLepton(App_Settings_Lepton_t* p_Settings, SettingsManager_Setting_t* p_ChangedSetting = NULL);
+esp_err_t SettingsManager_UpdateLepton(App_Settings_Lepton_t *p_Settings,
+                                       SettingsManager_Setting_t *p_ChangedSetting = NULL);
 
 /** @brief              Get the WiFi settings from the Settings Manager RAM.
  *  @param p_Settings   Pointer to WiFi settings structure to populate
  *  @return             ESP_OK on success, ESP_ERR_* on failure
 */
-esp_err_t SettingsManager_GetWiFi(App_Settings_WiFi_t* p_Settings);
+esp_err_t SettingsManager_GetWiFi(App_Settings_WiFi_t *p_Settings);
 
 /** @brief              Update WiFi settings in the Settings Manager RAM.
  *                      This function triggers the SETTINGS_EVENT_WIFI_CHANGED event.
  *  @param p_Settings   Pointer to WiFi settings structure
  *  @return             ESP_OK on success, ESP_ERR_* on failure
  */
-esp_err_t SettingsManager_UpdateWiFi(App_Settings_WiFi_t* p_Settings);
+esp_err_t SettingsManager_UpdateWiFi(App_Settings_WiFi_t *p_Settings);
 
 /** @brief              Get the Provisioning settings from the Settings Manager RAM.
  *  @param p_Settings   Pointer to Provisioning settings structure to populate
  *  @return             ESP_OK on success, ESP_ERR_* on failure
 */
-esp_err_t SettingsManager_GetProvisioning(App_Settings_Provisioning_t* p_Settings);
+esp_err_t SettingsManager_GetProvisioning(App_Settings_Provisioning_t *p_Settings);
 
 /** @brief              Update Provisioning settings in the Settings Manager RAM.
  *                      This function triggers the SETTINGS_EVENT_PROVISIONING_CHANGED event.
  *  @param p_Settings   Pointer to Provisioning settings structure
  *  @return             ESP_OK on success, ESP_ERR_* on failure
  */
-esp_err_t SettingsManager_UpdateProvisioning(App_Settings_Provisioning_t* p_Settings);
+esp_err_t SettingsManager_UpdateProvisioning(App_Settings_Provisioning_t *p_Settings);
 
 /** @brief              Get the Display settings from the Settings Manager RAM.
  *  @param p_Settings   Pointer to Display settings structure to populate
  *  @return             ESP_OK on success, ESP_ERR_* on failure
 */
-esp_err_t SettingsManager_GetDisplay(App_Settings_Display_t* p_Settings);
+esp_err_t SettingsManager_GetDisplay(App_Settings_Display_t *p_Settings);
 
 /** @brief              Update Display settings in the Settings Manager RAM.
  *                      This function triggers the SETTINGS_EVENT_DISPLAY_CHANGED event.
  *  @param p_Settings   Pointer to Display settings structure
  *  @return             ESP_OK on success, ESP_ERR_* on failure
  */
-esp_err_t SettingsManager_UpdateDisplay(App_Settings_Display_t* p_Settings);
+esp_err_t SettingsManager_UpdateDisplay(App_Settings_Display_t *p_Settings);
 
 /** @brief              Get the HTTP Server settings from the Settings Manager RAM.
  *  @param p_Settings   Pointer to HTTP Server settings structure to populate
  *  @return             ESP_OK on success, ESP_ERR_* on failure
 */
-esp_err_t SettingsManager_GetHTTPServer(App_Settings_HTTP_Server_t* p_Settings);
+esp_err_t SettingsManager_GetHTTPServer(App_Settings_HTTP_Server_t *p_Settings);
 
 /** @brief              Update HTTP Server settings in the Settings Manager RAM.
  *                      This function triggers the SETTINGS_EVENT_HTTP_SERVER_CHANGED event.
  *  @param p_Settings   Pointer to HTTP Server settings structure
  *  @return             ESP_OK on success, ESP_ERR_* on failure
  */
-esp_err_t SettingsManager_UpdateHTTPServer(App_Settings_HTTP_Server_t* p_Settings);
+esp_err_t SettingsManager_UpdateHTTPServer(App_Settings_HTTP_Server_t *p_Settings);
 
 /** @brief              Get the VISA Server settings from the Settings Manager RAM.
  *  @param p_Settings   Pointer to VISA Server settings structure to populate
  *  @return             ESP_OK on success, ESP_ERR_* on failure
 */
-esp_err_t SettingsManager_GetVISAServer(App_Settings_VISA_Server_t* p_Settings);
+esp_err_t SettingsManager_GetVISAServer(App_Settings_VISA_Server_t *p_Settings);
 
 /** @brief              Update VISA Server settings in the Settings Manager RAM.
  *                      This function triggers the SETTINGS_EVENT_VISA_SERVER_CHANGED event.
  *  @param p_Settings   Pointer to VISA Server settings structure
  *  @return             ESP_OK on success, ESP_ERR_* on failure
  */
-esp_err_t SettingsManager_UpdateVISAServer(App_Settings_VISA_Server_t* p_Settings);
+esp_err_t SettingsManager_UpdateVISAServer(App_Settings_VISA_Server_t *p_Settings);
 
 /** @brief              Get the system settings from the Settings Manager RAM.
  *  @param p_Settings   Pointer to System settings structure to populate
  *  @return             ESP_OK on success, ESP_ERR_* on failure
 */
-esp_err_t SettingsManager_GetSystem(App_Settings_System_t* p_Settings);
+esp_err_t SettingsManager_GetSystem(App_Settings_System_t *p_Settings);
 
 /** @brief              Update System settings in the Settings Manager RAM.
  *                      This function triggers the SETTINGS_EVENT_SYSTEM_CHANGED event.
  *  @param p_Settings   Pointer to System settings structure
  *  @return             ESP_OK on success, ESP_ERR_* on failure
  */
-esp_err_t SettingsManager_UpdateSystem(App_Settings_System_t* p_Settings);
+esp_err_t SettingsManager_UpdateSystem(App_Settings_System_t *p_Settings);
 
 /** @brief  Reset all settings to factory defaults.
  *          Erases NVS partition and reloads defaults.

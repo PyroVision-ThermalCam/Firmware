@@ -5,40 +5,40 @@
 
 #include "../ui.h"
 
-lv_obj_t * ui_Menu = NULL;
-lv_obj_t * ui_Panel_Menu_Header = NULL;
-lv_obj_t * ui_Label_Menu_Header = NULL;
-lv_obj_t * ui_Container_Menu = NULL;
-lv_obj_t * ui_Container_Menu_Buttons = NULL;
-lv_obj_t * ui_Button_Menu_Back = NULL;
-lv_obj_t * ui_Label_Menu_Back = NULL;
-lv_obj_t * ui_Button_Menu_Save = NULL;
-lv_obj_t * ui_Label_Menu_Button_Save = NULL;
+lv_obj_t *ui_Menu = NULL;
+lv_obj_t *ui_Panel_Menu_Header = NULL;
+lv_obj_t *ui_Label_Menu_Header = NULL;
+lv_obj_t *ui_Container_Menu = NULL;
+lv_obj_t *ui_Container_Menu_Buttons = NULL;
+lv_obj_t *ui_Button_Menu_Back = NULL;
+lv_obj_t *ui_Label_Menu_Back = NULL;
+lv_obj_t *ui_Button_Menu_Save = NULL;
+lv_obj_t *ui_Label_Menu_Button_Save = NULL;
 // event funtions
-void ui_event_Menu(lv_event_t * e)
+void ui_event_Menu(lv_event_t *e)
 {
     lv_event_code_t event_code = lv_event_get_code(e);
 
-    if(event_code == LV_EVENT_GESTURE &&  lv_indev_get_gesture_dir(lv_indev_active()) == LV_DIR_RIGHT) {
+    if (event_code == LV_EVENT_GESTURE &&  lv_indev_get_gesture_dir(lv_indev_active()) == LV_DIR_RIGHT) {
         lv_indev_wait_release(lv_indev_active());
         _ui_screen_change(&ui_Main, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Main_screen_init);
     }
 }
 
-void ui_event_Button_Menu_Back(lv_event_t * e)
+void ui_event_Button_Menu_Back(lv_event_t *e)
 {
     lv_event_code_t event_code = lv_event_get_code(e);
 
-    if(event_code == LV_EVENT_CLICKED) {
+    if (event_code == LV_EVENT_CLICKED) {
         _ui_screen_change(&ui_Main, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Main_screen_init);
     }
 }
 
-void ui_event_Button_Menu_Save(lv_event_t * e)
+void ui_event_Button_Menu_Save(lv_event_t *e)
 {
     lv_event_code_t event_code = lv_event_get_code(e);
 
-    if(event_code == LV_EVENT_CLICKED) {
+    if (event_code == LV_EVENT_CLICKED) {
         ButtonMenuSaveClicked(e);
     }
 }
@@ -153,7 +153,9 @@ void ui_Menu_screen_init(void)
 
 void ui_Menu_screen_destroy(void)
 {
-    if(ui_Menu) lv_obj_del(ui_Menu);
+    if (ui_Menu) {
+        lv_obj_del(ui_Menu);
+    }
 
     // NULL screen variables
     ui_Menu = NULL;

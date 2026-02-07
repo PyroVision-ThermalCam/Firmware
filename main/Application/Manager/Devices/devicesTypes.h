@@ -1,9 +1,9 @@
 /*
- * devices.h
+ * devicesTypes.h
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: Device hardware abstraction layer includes.
+ *  File info: Common type definitions for the Devices Manager component.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,11 +21,28 @@
  * Errors and commissions should be reported to DanielKampert@kampis-elektroecke.de
  */
 
-#ifndef DEVICES_H_
-#define DEVICES_H_
+#ifndef DEVICES_TYPES_H_
+#define DEVICES_TYPES_H_
 
-#include "ADC/adc.h"
-#include "RTC/rtc.h"
-#include "PortExpander/portexpander.h"
+#include <esp_err.h>
+#include <esp_event.h>
 
-#endif /* DEVICES_H_ */
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
+#include <freertos/semphr.h>
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/** @brief Devices Manager events base.
+ */
+ESP_EVENT_DECLARE_BASE(DEVICES_EVENTS);
+
+/** @brief Devices Manager event identifiers.
+ */
+enum {
+
+};
+
+#endif /* DEVICES_TYPES_H_ */
