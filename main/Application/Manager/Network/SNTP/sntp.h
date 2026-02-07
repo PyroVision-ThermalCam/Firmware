@@ -29,6 +29,10 @@
 
 #include <stdint.h>
 
+/** @brief SNTP events base.
+ */
+ESP_EVENT_DECLARE_BASE(SNTP_EVENTS);
+
 /** @brief SNTP event types (used as event IDs in SNTP_EVENTS base).
  */
 typedef enum {
@@ -37,8 +41,6 @@ typedef enum {
     SNTP_EVENT_TZ_CHANGED,                      /**< Timezone changed
                                                      Data is of type const char* */
 } SNTP_Event_t;
-
-ESP_EVENT_DECLARE_BASE(SNTP_EVENTS);
 
 /** @brief              Initialize SNTP and event handlers.
  *  @param p_Timezone   Timezone string (e.g. "CET-1CEST,M3.5.0,M10.5.0/3")

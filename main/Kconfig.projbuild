@@ -63,6 +63,12 @@ menu "PyroVision"
     endmenu
 
     menu "Network"
+        menu "Websocket"
+            config NETWORK_WEBSOCKET_CLIENTS
+                int "Maximum number of WebSocket clients"
+                default 4
+        endmenu
+
         menu "Task"
             config NETWORK_TASK_STACKSIZE
                 int "Stack size"

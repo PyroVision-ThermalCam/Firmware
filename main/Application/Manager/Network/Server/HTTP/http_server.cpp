@@ -34,10 +34,9 @@
 #include <cstring>
 
 #include "http_server.h"
-#include "ImageEncoder/imageEncoder.h"
-#include "../networkTypes.h"
-#include "../Provisioning/provisionHandlers.h"
-#include "../SNTP/sntp.h"
+#include "../ImageEncoder/imageEncoder.h"
+#include "../../Provisioning/provisionHandlers.h"
+#include "../../SNTP/sntp.h"
 
 #define HTTP_SERVER_API_BASE_PATH           "/api/v1"
 #define HTTP_SERVER_API_KEY_HEADER          "X-API-Key"
@@ -140,23 +139,21 @@ static esp_err_t HTTP_Server_SendError(httpd_req_t *p_Request, int StatusCode, c
  */
 static cJSON *HTTP_Server_ParseJSON(httpd_req_t *p_Request)
 {
-    int ContentLen = p_Request->content_len;
-    if (ContentLen <= 0 || ContentLen > 4096) {
+    if ((p_Request->content_len <= 0) || (p_Request->content_len > 4096)) {
         return NULL;
     }
 
-    char *Buffer = (char *)heap_caps_malloc(ContentLen + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    char *Buffer = (char *)heap_caps_malloc(p_Request->content_len + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (Buffer == NULL) {
         return NULL;
     }
 
-    int Received = httpd_req_recv(p_Request, Buffer, ContentLen);
-    if (Received != ContentLen) {
+    if (httpd_req_recv(p_Request, Buffer, p_Request->content_len) != p_Request->content_len) {
         free(Buffer);
         return NULL;
     }
 
-    Buffer[ContentLen] = '\0';
+    Buffer[p_Request->content_len] = '\0';
     cJSON *Json = cJSON_Parse(Buffer);
     free(Buffer);
 
@@ -341,9 +338,8 @@ static esp_err_t HTTP_Handler_Telemetry(httpd_req_t *p_Request)
  */
 static esp_err_t HTTP_Handler_Update(httpd_req_t *p_Request)
 {
-    int content_len;
-    int received = 0;
-    int total_received = 0;
+    int Received;
+    int Total_Received;
     esp_err_t Error;
     esp_ota_handle_t ota_handle;
 
@@ -375,12 +371,12 @@ static esp_err_t HTTP_Handler_Update(httpd_req_t *p_Request)
         return HTTP_Server_SendError(p_Request, 500, "Memory allocation failed");
     }
 
-    content_len = p_Request->content_len;
-
-    while (total_received < content_len) {
-        received = httpd_req_recv(p_Request, buffer, 1024);
-        if (received <= 0) {
-            if (received == HTTPD_SOCK_ERR_TIMEOUT) {
+    Received = 0;
+    Total_Received = 0;
+    while (Total_Received < p_Request->content_len) {
+        Received = httpd_req_recv(p_Request, buffer, 1024);
+        if (Received <= 0) {
+            if (Received == HTTPD_SOCK_ERR_TIMEOUT) {
                 continue;
             }
             free(buffer);
@@ -389,7 +385,7 @@ static esp_err_t HTTP_Handler_Update(httpd_req_t *p_Request)
             return HTTP_Server_SendError(p_Request, 500, "Receive failed");
         }
 
-        Error = esp_ota_write(ota_handle, buffer, received);
+        Error = esp_ota_write(ota_handle, buffer, Received);
         if (Error != ESP_OK) {
             free(buffer);
             esp_ota_abort(ota_handle);
@@ -398,8 +394,8 @@ static esp_err_t HTTP_Handler_Update(httpd_req_t *p_Request)
             return HTTP_Server_SendError(p_Request, 500, "OTA write failed");
         }
 
-        total_received += received;
-        ESP_LOGD(TAG, "OTA progress: %d/%d bytes", total_received, content_len);
+        Total_Received += Received;
+        ESP_LOGD(TAG, "OTA progress: %d/%d bytes", Total_Received, p_Request->content_len);
     }
 
     free(buffer);
@@ -565,7 +561,9 @@ esp_err_t HTTP_Server_Init(const Network_HTTP_Server_Config_t *p_Config)
 
     if (_HTTPServer_State.isInitialized) {
         ESP_LOGW(TAG, "Already initialized, updating config");
+
         memcpy(&_HTTPServer_State.Config, p_Config, sizeof(Network_HTTP_Server_Config_t));
+
         return ESP_OK;
     }
 

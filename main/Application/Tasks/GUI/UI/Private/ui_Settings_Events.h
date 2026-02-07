@@ -28,6 +28,12 @@
 
 #include <stdint.h>
 
+/** @brief          Forward declaration for memory usage update function.
+ *                  Implemented in ui_Settings.cpp to update storage and
+ *                  coredump partition usage displays.
+ */
+void ui_settings_update_flash_usage(void);
+
 /** @brief 
  */
 typedef struct {
@@ -64,6 +70,26 @@ void on_Lepton_Dropdown_Callback(lv_event_t * e);
  *  @param e    Pointer to the event object
  */
 void on_WiFi_Autoconnect_Callback(lv_event_t * e);
+
+/** @brief      WiFi connect button callback to open WiFi connection dialog.
+ *  @param e    Pointer to the event object
+ */
+void on_WiFi_Connect_Callback(lv_event_t * e);
+
+/** @brief      Flash clear NVS button callback to reset all settings to factory defaults.
+ *  @param e    Pointer to the event object
+ */
+void on_Flash_ClearNVS_Callback(lv_event_t * e);
+
+/** @brief      Flash clear storage button callback to erase storage partition.
+ *  @param e    Pointer to the event object
+ */
+void on_Flash_ClearStorage_Callback(lv_event_t * e);
+
+/** @brief      Flash clear coredump button callback to erase coredump partition.
+ *  @param e    Pointer to the event object
+ */
+void on_Flash_ClearCoredump_Callback(lv_event_t * e);
 
 /** @brief                  Network event handler which is used to handle network-related events such as WiFi connection changes.
  *                          This can be used to update the UI or internal state based on network events.

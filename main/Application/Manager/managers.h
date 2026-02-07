@@ -3,7 +3,7 @@
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info:
+ *  File info: Central header for all manager modules (Network, Devices, Time, Memory, Settings).
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
 #include "Network/networkManager.h"
 #include "Devices/devicesManager.h"
 #include "Time/timeManager.h"
-#include "SD/sdManager.h"
+#include "Memory/memoryManager.h"
 #include "Settings/settingsManager.h"
 
 #endif /* MANAGERS_H_ */

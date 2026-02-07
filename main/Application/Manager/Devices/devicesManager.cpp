@@ -166,6 +166,11 @@ i2c_master_bus_handle_t DevicesManager_GetI2CBusHandle(void)
     return _Devices_Manager_State.I2C_Bus_Handle;
 }
 
+spi_host_device_t DevicesManager_GetSPIHost(void)
+{
+    return SPI3_HOST;
+}
+
 esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, uint8_t *p_Percentage)
 {
     esp_err_t Error;

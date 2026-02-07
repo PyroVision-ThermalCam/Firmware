@@ -27,8 +27,8 @@
 
 #include <cstring>
 
-#include "websocket_handler.h"
-#include "ImageEncoder/imageEncoder.h"
+#include "websocket.h"
+#include "../ImageEncoder/imageEncoder.h"
 
 /** @brief WebSocket client state.
  */
@@ -46,18 +46,18 @@ typedef struct {
 
 typedef struct {
     bool isInitialized;
+    bool isRunning;
     httpd_handle_t ServerHandle;
     Network_HTTP_Server_Config_t Config;
-    WS_Client_t Clients[WS_MAX_CLIENTS];
+    WS_Client_t Clients[CONFIG_NETWORK_WEBSOCKET_CLIENTS];
     uint8_t ClientCount;
     Network_Thermal_Frame_t *ThermalFrame;
     SemaphoreHandle_t ClientsMutex;
     TaskHandle_t BroadcastTask;
     QueueHandle_t FrameReadyQueue;
-    bool TaskRunning;
-} WebSocket_Handler_State_t;
+} WebSocket_State_t;
 
-static WebSocket_Handler_State_t _WSHandler_State;
+static WebSocket_State_t _WSHandler_State;
 
 static const char *TAG = "websocket_handler";
 
@@ -69,7 +69,7 @@ static WS_Client_t *WS_FindClient(int FD)
 {
     xSemaphoreTake(_WSHandler_State.ClientsMutex, portMAX_DELAY);
 
-    for (uint8_t i = 0; i < WS_MAX_CLIENTS; i++) {
+    for (uint8_t i = 0; i < CONFIG_NETWORK_WEBSOCKET_CLIENTS; i++) {
         if (_WSHandler_State.Clients[i].active && _WSHandler_State.Clients[i].fd == FD) {
             return &_WSHandler_State.Clients[i];
         }
@@ -88,7 +88,7 @@ static WS_Client_t *WS_AddClient(int FD)
 {
     xSemaphoreTake(_WSHandler_State.ClientsMutex, portMAX_DELAY);
 
-    for (uint8_t i = 0; i < WS_MAX_CLIENTS; i++) {
+    for (uint8_t i = 0; i < CONFIG_NETWORK_WEBSOCKET_CLIENTS; i++) {
         if (_WSHandler_State.Clients[i].active == false) {
             _WSHandler_State.Clients[i].fd = FD;
             _WSHandler_State.Clients[i].active = true;
@@ -122,7 +122,7 @@ static void WS_RemoveClient(int FD)
 {
     xSemaphoreTake(_WSHandler_State.ClientsMutex, portMAX_DELAY);
 
-    for (uint8_t i = 0; i < WS_MAX_CLIENTS; i++) {
+    for (uint8_t i = 0; i < CONFIG_NETWORK_WEBSOCKET_CLIENTS; i++) {
         if (_WSHandler_State.Clients[i].active && _WSHandler_State.Clients[i].fd == FD) {
             _WSHandler_State.Clients[i].active = false;
             _WSHandler_State.ClientCount--;
@@ -464,7 +464,7 @@ static const httpd_uri_t _URI_WebSocket = {
     .supported_subprotocol = NULL,
 };
 
-esp_err_t WebSocket_Handler_Init(const Network_HTTP_Server_Config_t *p_Config)
+esp_err_t WebSocket_Init(const Network_HTTP_Server_Config_t *p_Config)
 {
     if (p_Config == NULL) {
         return ESP_ERR_INVALID_ARG;
@@ -484,7 +484,7 @@ esp_err_t WebSocket_Handler_Init(const Network_HTTP_Server_Config_t *p_Config)
     _WSHandler_State.ServerHandle = NULL;
     _WSHandler_State.BroadcastTask = NULL;
     _WSHandler_State.FrameReadyQueue = NULL;
-    _WSHandler_State.TaskRunning = false;
+    _WSHandler_State.isRunning = false;
 
     _WSHandler_State.ClientsMutex = xSemaphoreCreateMutex();
     if (_WSHandler_State.ClientsMutex == NULL) {
@@ -505,13 +505,13 @@ esp_err_t WebSocket_Handler_Init(const Network_HTTP_Server_Config_t *p_Config)
     return ESP_OK;
 }
 
-void WebSocket_Handler_Deinit(void)
+void WebSocket_Deinit(void)
 {
     if (_WSHandler_State.isInitialized == false) {
         return;
     }
 
-    WebSocket_Handler_StopTask();
+    WebSocket_StopTask();
 
     if (_WSHandler_State.FrameReadyQueue != NULL) {
         vQueueDelete(_WSHandler_State.FrameReadyQueue);
@@ -528,7 +528,7 @@ void WebSocket_Handler_Deinit(void)
     ESP_LOGI(TAG, "WebSocket handler deinitialized");
 }
 
-esp_err_t WebSocket_Handler_Register(httpd_handle_t p_ServerHandle)
+esp_err_t WebSocket_Register(httpd_handle_t p_ServerHandle)
 {
     esp_err_t Error;
 
@@ -551,17 +551,17 @@ esp_err_t WebSocket_Handler_Register(httpd_handle_t p_ServerHandle)
     return ESP_OK;
 }
 
-uint8_t WebSocket_Handler_GetClientCount(void)
+uint8_t WebSocket_GetClientCount(void)
 {
     return _WSHandler_State.ClientCount;
 }
 
-bool WebSocket_Handler_HasClients(void)
+bool WebSocket_HasClients(void)
 {
     return _WSHandler_State.ClientCount > 0;
 }
 
-void WebSocket_Handler_SetThermalFrame(Network_Thermal_Frame_t *p_Frame)
+void WebSocket_SetThermalFrame(Network_Thermal_Frame_t *p_Frame)
 {
     xSemaphoreTake(_WSHandler_State.ClientsMutex, portMAX_DELAY);
     _WSHandler_State.ThermalFrame = p_Frame;
@@ -578,7 +578,7 @@ static void WS_BroadcastTask(void *p_Param)
 
     ESP_LOGI(TAG, "WebSocket broadcast task started");
 
-    while (_WSHandler_State.TaskRunning) {
+    while (_WSHandler_State.isRunning) {
         /* Wait for frame ready notification (blocking, 100ms timeout) */
         if (xQueueReceive(_WSHandler_State.FrameReadyQueue, &Signal, 100 / portTICK_PERIOD_MS) == pdTRUE) {
             uint32_t Now = esp_timer_get_time() / 1000;
@@ -605,7 +605,7 @@ static void WS_BroadcastTask(void *p_Param)
 
             /* Send to all active streaming clients */
             xSemaphoreTake(_WSHandler_State.ClientsMutex, portMAX_DELAY);
-            for (uint8_t i = 0; i < WS_MAX_CLIENTS; i++) {
+            for (uint8_t i = 0; i < CONFIG_NETWORK_WEBSOCKET_CLIENTS; i++) {
                 WS_Client_t *client = &_WSHandler_State.Clients[i];
 
                 if ((client->active == false) || (client->stream_enabled == false)) {
@@ -644,16 +644,14 @@ static void WS_BroadcastTask(void *p_Param)
             ImageEncoder_Free(&Encoded);
         }
 
-        /* Small yield to prevent task starvation */
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 
-    ESP_LOGI(TAG, "WebSocket broadcast task stopped");
     _WSHandler_State.BroadcastTask = NULL;
     vTaskDelete(NULL);
 }
 
-esp_err_t WebSocket_Handler_NotifyFrameReady(void)
+esp_err_t WebSocket_NotifyFrameReady(void)
 {
     uint8_t Signal;
 
@@ -672,7 +670,7 @@ esp_err_t WebSocket_Handler_NotifyFrameReady(void)
     return ESP_OK;
 }
 
-esp_err_t WebSocket_Handler_BroadcastTelemetry(void)
+esp_err_t WebSocket_BroadcastTelemetry(void)
 {
     uint32_t Now;
 
@@ -696,7 +694,7 @@ esp_err_t WebSocket_Handler_BroadcastTelemetry(void)
 
     xSemaphoreTake(_WSHandler_State.ClientsMutex, portMAX_DELAY);
 
-    for (uint8_t i = 0; i < WS_MAX_CLIENTS; i++) {
+    for (uint8_t i = 0; i < CONFIG_NETWORK_WEBSOCKET_CLIENTS; i++) {
         WS_Client_t *client = &_WSHandler_State.Clients[i];
 
         if ((client->active == false) || (client->telemetry_enabled == false)) {
@@ -719,7 +717,7 @@ esp_err_t WebSocket_Handler_BroadcastTelemetry(void)
     return ESP_OK;
 }
 
-esp_err_t WebSocket_Handler_PingAll(void)
+esp_err_t WebSocket_PingAll(void)
 {
     if ((_WSHandler_State.isInitialized == false) || (_WSHandler_State.ServerHandle == NULL)) {
         return ESP_ERR_INVALID_STATE;
@@ -735,7 +733,7 @@ esp_err_t WebSocket_Handler_PingAll(void)
 
     xSemaphoreTake(_WSHandler_State.ClientsMutex, portMAX_DELAY);
 
-    for (uint8_t i = 0; i < WS_MAX_CLIENTS; i++) {
+    for (uint8_t i = 0; i < CONFIG_NETWORK_WEBSOCKET_CLIENTS; i++) {
         if (_WSHandler_State.Clients[i].active) {
             httpd_ws_send_frame_async(_WSHandler_State.ServerHandle, _WSHandler_State.Clients[i].fd, &Frame);
         }
@@ -746,7 +744,7 @@ esp_err_t WebSocket_Handler_PingAll(void)
     return ESP_OK;
 }
 
-esp_err_t WebSocket_Handler_StartTask(void)
+esp_err_t WebSocket_StartTask(void)
 {
     if (_WSHandler_State.isInitialized == false) {
         return ESP_ERR_INVALID_STATE;
@@ -755,7 +753,7 @@ esp_err_t WebSocket_Handler_StartTask(void)
         return ESP_OK;
     }
 
-    _WSHandler_State.TaskRunning = true;
+    _WSHandler_State.isRunning = true;
 
     BaseType_t ret = xTaskCreatePinnedToCore(
                          WS_BroadcastTask,
@@ -769,34 +767,20 @@ esp_err_t WebSocket_Handler_StartTask(void)
 
     if (ret != pdPASS) {
         ESP_LOGE(TAG, "Failed to create broadcast task");
-        _WSHandler_State.TaskRunning = false;
+        _WSHandler_State.isRunning = false;
         return ESP_ERR_NO_MEM;
     }
 
     return ESP_OK;
 }
 
-void WebSocket_Handler_StopTask(uint32_t Timeout_ms)
+void WebSocket_StopTask(uint32_t Timeout_ms)
 {
-    uint32_t Start;
-
     if (_WSHandler_State.BroadcastTask == NULL) {
         return;
     }
 
     ESP_LOGI(TAG, "Stopping WebSocket broadcast task...");
 
-    _WSHandler_State.TaskRunning = false;
-
-    /* Wait for task to finish (max 2 seconds) */
-    Start = esp_timer_get_time() / 1000;
-
-    while (_WSHandler_State.BroadcastTask != NULL &&
-           ((esp_timer_get_time() / 1000) - Start) < Timeout_ms) {
-        vTaskDelay(10 / portTICK_PERIOD_MS);
-    }
-
-    _WSHandler_State.BroadcastTask = NULL;
-
-    ESP_LOGI(TAG, "WebSocket broadcast task stopped");
+    _WSHandler_State.isRunning = false;
 }

@@ -383,7 +383,7 @@ void GUI_Helper_Timer_ClockUpdate(lv_timer_t *p_Timer)
 
     /* Broadcast telemetry to WebSocket clients if server is running */
     if (Server_isRunning()) {
-        WebSocket_Handler_BroadcastTelemetry();
+        WebSocket_BroadcastTelemetry();
     }
 }
 

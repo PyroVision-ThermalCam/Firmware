@@ -24,8 +24,8 @@
 #ifndef SERVER_H_
 #define SERVER_H_
 
-#include "http_server.h"
-#include "websocket_handler.h"
+#include "HTTP/http_server.h"
+#include "WebSocket/websocket.h"
 #include "VISA/visaServer.h"
 #include "ImageEncoder/imageEncoder.h"
 
@@ -49,7 +49,7 @@ static inline esp_err_t Server_Init(const Network_Server_Config_t *p_Config)
         return Error;
     }
 
-    Error = WebSocket_Handler_Init(&p_Config->HTTP_Server);
+    Error = WebSocket_Init(&p_Config->HTTP_Server);
     if (Error != ESP_OK) {
         HTTP_Server_Deinit();
         ImageEncoder_Deinit();
@@ -58,9 +58,10 @@ static inline esp_err_t Server_Init(const Network_Server_Config_t *p_Config)
 
     Error = VISAServer_Init(&p_Config->VISA_Server);
     if (Error != ESP_OK) {
-        WebSocket_Handler_Deinit();
+        WebSocket_Deinit();
         HTTP_Server_Deinit();
         ImageEncoder_Deinit();
+
         return Error;
     }
 
@@ -72,7 +73,7 @@ static inline esp_err_t Server_Init(const Network_Server_Config_t *p_Config)
 static inline void Server_Deinit(void)
 {
     VISAServer_Deinit();
-    WebSocket_Handler_Deinit();
+    WebSocket_Deinit();
     HTTP_Server_Deinit();
     ImageEncoder_Deinit();
 }
@@ -89,14 +90,13 @@ static inline esp_err_t Server_Start(void)
         return Error;
     }
 
-    Error = WebSocket_Handler_Register(HTTP_Server_GetHandle());
+    Error = WebSocket_Register(HTTP_Server_GetHandle());
     if (Error != ESP_OK) {
         HTTP_Server_Stop();
         return Error;
     }
 
-    /* Start WebSocket broadcast task */
-    Error = WebSocket_Handler_StartTask();
+    Error = WebSocket_StartTask();
     if (Error != ESP_OK) {
         HTTP_Server_Stop();
         return Error;
@@ -110,7 +110,7 @@ static inline esp_err_t Server_Start(void)
  */
 static inline esp_err_t Server_Stop(void)
 {
-    WebSocket_Handler_StopTask();
+    WebSocket_StopTask();
 
     return HTTP_Server_Stop();
 }
@@ -129,15 +129,15 @@ static inline bool Server_isRunning(void)
 static inline void Server_SetThermalFrame(Network_Thermal_Frame_t *p_Frame)
 {
     HTTP_Server_SetThermalFrame(p_Frame);
-    WebSocket_Handler_SetThermalFrame(p_Frame);
+    WebSocket_SetThermalFrame(p_Frame);
 }
 
 /** @brief Notify all clients that a new frame is ready (non-blocking).
  */
 static inline void Server_NotifyClients(void)
 {
-    if (WebSocket_Handler_HasClients()) {
-        WebSocket_Handler_NotifyFrameReady();
+    if (WebSocket_HasClients()) {
+        WebSocket_NotifyFrameReady();
     }
 }
 

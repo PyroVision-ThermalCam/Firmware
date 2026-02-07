@@ -106,6 +106,12 @@ void on_WiFi_Autoconnect_Callback(lv_event_t * e) {
     SettingsManager_UpdateWiFi(&WiFiSettings);
 }
 
+void on_WiFi_Connect_Callback(lv_event_t * e)
+{
+    ESP_LOGI(TAG, "WiFi connect button clicked, posting network event...");
+    esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_OPEN_WIFI_REQUEST, NULL, 0, 0);
+}
+
 void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
 {
     ESP_LOGD(TAG, "Network event received: ID=%d", ID);
@@ -147,5 +153,47 @@ void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32
 
             break;
         }
+    }
+}
+
+void on_Flash_ClearNVS_Callback(lv_event_t * e)
+{
+    ESP_LOGI(TAG, "Resetting settings to factory defaults...");
+
+    esp_err_t Error = SettingsManager_ResetToDefaults();
+    if (Error == ESP_OK) {
+        ESP_LOGI(TAG, "Settings reset successfully, restarting...");
+        vTaskDelay(pdMS_TO_TICKS(500));
+        esp_restart();
+    } else {
+        ESP_LOGE(TAG, "Failed to reset settings: %d!", Error);
+    }
+}
+
+void on_Flash_ClearStorage_Callback(lv_event_t * e)
+{
+    ESP_LOGI(TAG, "Erasing storage partition...");
+
+    esp_err_t Error = MemoryManager_EraseStorage();
+    if (Error == ESP_OK) {
+        ESP_LOGI(TAG, "Storage partition erased successfully");
+        /* Update UI to show 0 bytes used */
+        ui_settings_update_flash_usage();
+    } else {
+        ESP_LOGE(TAG, "Failed to erase storage partition: %d!", Error);
+    }
+}
+
+void on_Flash_ClearCoredump_Callback(lv_event_t * e)
+{
+    ESP_LOGI(TAG, "Erasing coredump partition...");
+
+    esp_err_t Error = MemoryManager_EraseCoredump();
+    if (Error == ESP_OK) {
+        ESP_LOGI(TAG, "Coredump partition erased successfully");
+        /* Update UI to show 0 bytes used */
+        ui_settings_update_flash_usage();
+    } else {
+        ESP_LOGE(TAG, "Failed to erase coredump partition: %d!", Error);
     }
 }

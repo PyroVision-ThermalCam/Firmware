@@ -188,28 +188,6 @@ static void on_SD_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int3
     ESP_LOGD(TAG, "SD card event received: ID=%ld", ID);
 
     switch (ID) {
-        case SD_EVENT_CARD_CHANGED: {
-            _GUITask_State.CardPresent = *(bool *)p_Data;
-            ESP_LOGI(TAG, "SD card %s", (_GUITask_State.CardPresent) ? "inserted" : "removed");
-
-            xEventGroupSetBits(_GUITask_State.EventGroup, SD_CARD_STATE_CHANGED);
-
-            break;
-        }
-        case SD_EVENT_MOUNTED: {
-            ESP_LOGI(TAG, "SD card mounted successfully event");
-
-            xEventGroupSetBits(_GUITask_State.EventGroup, SD_CARD_MOUNTED);
-
-            break;
-        }
-        case SD_EVENT_MOUNT_ERROR: {
-            ESP_LOGE(TAG, "SD card mount error event");
-
-            xEventGroupSetBits(_GUITask_State.EventGroup, SD_CARD_MOUNT_ERROR);
-
-            break;
-        }
         default: {
             ESP_LOGW(TAG, "Unknown SD event ID: %ld", ID);
             break;
@@ -816,11 +794,15 @@ void Task_GUI(void *p_Parameters)
 
                 lv_label_set_text(ui_Label_Info_IP, Buffer);
                 lv_obj_set_style_text_color(ui_Image_Main_WiFi, lv_color_hex(0x00FF00), LV_PART_MAIN);
-                lv_obj_remove_flag(ui_Button_Main_WiFi, LV_OBJ_FLAG_CLICKABLE);
+
+                // TODO: Disable WiFi buttons in the menu
+                //lv_obj_remove_flag(ui_Button_Main_WiFi, LV_OBJ_FLAG_CLICKABLE);
             } else {
                 lv_label_set_text(ui_Label_Info_IP, "Not connected");
                 lv_obj_set_style_text_color(ui_Image_Main_WiFi, lv_color_hex(0xFF0000), LV_PART_MAIN);
-                lv_obj_add_flag(ui_Button_Main_WiFi, LV_OBJ_FLAG_CLICKABLE);
+
+                // TODO: Disable WiFi buttons in the menu
+                //lv_obj_add_flag(ui_Button_Main_WiFi, LV_OBJ_FLAG_CLICKABLE);
             }
 
             xEventGroupClearBits(_GUITask_State.EventGroup, WIFI_CONNECTION_STATE_CHANGED);
@@ -1007,6 +989,7 @@ esp_err_t GUI_Task_Init(void)
     _GUITask_State.NetworkFrame.Mutex = xSemaphoreCreateMutex();
     if (_GUITask_State.NetworkFrame.Mutex == NULL) {
         ESP_LOGE(TAG, "Failed to create NetworkFrame mutex!");
+
         heap_caps_free(_GUITask_State.ThermalCanvasBuffer);
         heap_caps_free(_GUITask_State.GradientCanvasBuffer);
         heap_caps_free(_GUITask_State.NetworkRGBBuffer);
@@ -1019,7 +1002,7 @@ esp_err_t GUI_Task_Init(void)
     esp_event_handler_register(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler, NULL);
     esp_event_handler_register(LEPTON_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Event_Handler, NULL);
     esp_event_handler_register(TIME_EVENTS, ESP_EVENT_ANY_ID, on_Time_Event_Handler, NULL);
-    esp_event_handler_register(SD_EVENTS, ESP_EVENT_ANY_ID, on_SD_Event_Handler, NULL);
+    esp_event_handler_register(MEMORY_EVENTS, ESP_EVENT_ANY_ID, on_SD_Event_Handler, NULL);
 
     _GUITask_State.isInitialized = true;
 
@@ -1036,7 +1019,7 @@ void GUI_Task_Deinit(void)
     esp_event_handler_unregister(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler);
     esp_event_handler_unregister(LEPTON_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Event_Handler);
     esp_event_handler_unregister(TIME_EVENTS, ESP_EVENT_ANY_ID, on_Time_Event_Handler);
-    esp_event_handler_unregister(SD_EVENTS, ESP_EVENT_ANY_ID, on_SD_Event_Handler);
+    esp_event_handler_unregister(MEMORY_EVENTS, ESP_EVENT_ANY_ID, on_SD_Event_Handler);
 
     ui_destroy();
 
@@ -1080,6 +1063,7 @@ esp_err_t GUI_Task_Start(App_Context_t *p_AppContext)
 
     if (ret != pdPASS) {
         ESP_LOGE(TAG, "Failed to create GUI task: %d!", ret);
+
         return ESP_ERR_NO_MEM;
     }
 

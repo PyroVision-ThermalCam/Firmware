@@ -34,10 +34,10 @@ void ScreenMainLoaded(lv_event_t *e)
     lv_label_set_text(ui_Image_Main_WiFi, LV_SYMBOL_WIFI);
     lv_label_set_text(ui_Image_Main_SDCard, LV_SYMBOL_SD_CARD);
     lv_label_set_text(ui_Label_Menu_Button_Save, LV_SYMBOL_SAVE);
+    lv_label_set_text(ui_Label_Main_Button_Save, LV_SYMBOL_SAVE);
     lv_label_set_text(ui_Label_Main_Button_Menu, "\uF0C9");
     lv_label_set_text(ui_Label_Main_Button_Info, "\uF129");
     lv_label_set_text(ui_Label_Main_Button_ROI, "\uE595");
-    lv_label_set_text(ui_Label_Main_Button_WiFi, "\uF1EB");
     lv_label_set_text(ui_Label_Main_Thermal_Crosshair, "\uF05B");
     lv_label_set_text(ui_Label_Menu_Back, "\uF060");
     lv_label_set_text(ui_Label_Info_Back, "\uF060");
@@ -69,4 +69,9 @@ void ButtonMenuSaveClicked(lv_event_t * e)
 
     lv_timer_t * Timer = lv_timer_create(MessageBox_on_Close, 1000, Box);
     lv_timer_set_repeat_count(Timer, 1);
+}
+
+void ButtonMainSaveClicked(lv_event_t * e)
+{
+	// Your code here
 }

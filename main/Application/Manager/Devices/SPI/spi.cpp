@@ -58,6 +58,7 @@ esp_err_t SPIM_Init(const spi_bus_config_t *p_Config, spi_host_device_t Host, in
     /* Check if already initialized */
     if (_SPI_State[Host].isInitialized) {
         ESP_LOGW(TAG, "SPI%d already initialized", Host + 1);
+
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -65,6 +66,7 @@ esp_err_t SPIM_Init(const spi_bus_config_t *p_Config, spi_host_device_t Host, in
     _SPI_State[Host].Mutex = xSemaphoreCreateMutex();
     if (_SPI_State[Host].Mutex == NULL) {
         ESP_LOGE(TAG, "Failed to create SPI%d mutex!", Host + 1);
+
         return ESP_ERR_NO_MEM;
     }
 
@@ -72,15 +74,17 @@ esp_err_t SPIM_Init(const spi_bus_config_t *p_Config, spi_host_device_t Host, in
     Error = spi_bus_initialize(Host, p_Config, DMA_Channel);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize SPI%d bus: %d", Host + 1, Error);
+
         vSemaphoreDelete(_SPI_State[Host].Mutex);
         _SPI_State[Host].Mutex = NULL;
+
         return Error;
     }
 
     _SPI_State[Host].isInitialized = true;
     _SPI_State[Host].DeviceCount = 0;
 
-    ESP_LOGI(TAG, "SPI%d bus initialized successfully", Host + 1);
+    ESP_LOGD(TAG, "SPI%d bus initialized successfully", Host + 1);
 
     return ESP_OK;
 }
@@ -120,7 +124,7 @@ esp_err_t SPIM_Deinit(spi_host_device_t Host)
     _SPI_State[Host].isInitialized = false;
     _SPI_State[Host].DeviceCount = 0;
 
-    ESP_LOGI(TAG, "SPI%d bus deinitialized", Host + 1);
+    ESP_LOGD(TAG, "SPI%d bus deinitialized", Host + 1);
 
     return ESP_OK;
 }
@@ -155,7 +159,7 @@ esp_err_t SPIM_AddDevice(spi_host_device_t Host, const spi_device_interface_conf
     _SPI_State[Host].DeviceCount++;
     xSemaphoreGive(_SPI_State[Host].Mutex);
 
-    ESP_LOGI(TAG, "Device added to SPI%d (total: %d devices)", Host + 1, _SPI_State[Host].DeviceCount);
+    ESP_LOGD(TAG, "Device added to SPI%d (total: %d devices)", Host + 1, _SPI_State[Host].DeviceCount);
 
     return ESP_OK;
 }
@@ -182,7 +186,7 @@ esp_err_t SPIM_RemoveDevice(spi_host_device_t Host, spi_device_handle_t Handle)
 
     xSemaphoreGive(_SPI_State[Host].Mutex);
 
-    ESP_LOGI(TAG, "SPI device removed");
+    ESP_LOGD(TAG, "SPI device removed");
 
     return ESP_OK;
 }

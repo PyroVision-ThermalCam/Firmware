@@ -25,11 +25,9 @@
 
 #include <nvs_flash.h>
 
+#include "managers.h"
 #include "Application/Tasks/tasks.h"
 #include "Application/application.h"
-#include "Application/Manager/Time/timeManager.h"
-#include "Application/Manager/Devices/devicesManager.h"
-#include "Application/Manager/SD/sdManager.h"
 
 static App_Context_t _App_Context;
 
@@ -47,15 +45,13 @@ extern "C" void app_main(void)
     _App_Context.Lepton_FrameEventQueue = xQueueCreate(1, sizeof(App_Lepton_FrameReady_t));
     if (_App_Context.Lepton_FrameEventQueue == NULL) {
         ESP_LOGE(TAG, "Failed to create frame queue!");
+
         return;
     }
 
     ESP_ERROR_CHECK(SettingsManager_Init());
-
-    ESP_LOGI(TAG, "Loading settings...");
-
-    ESP_LOGI(TAG, "Initializing application tasks...");
     ESP_ERROR_CHECK(DevicesTask_Init());
+    ESP_ERROR_CHECK(MemoryManager_Init());
 
     /* Initialize Time Manager (requires RTC from DevicesManager) */
     if (DevicesManager_GetRTCHandle(&RtcHandle) == ESP_OK) {
