@@ -32,6 +32,12 @@
  */
 esp_err_t Provision_Handler_Root(httpd_req_t *p_Request);
 
+/** @brief              Serve PyroVision logo SVG.
+ *  @param p_Request    HTTP request handle
+ *  @return             ESP_OK on success
+ */
+esp_err_t Provision_Handler_Logo(httpd_req_t *p_Request);
+
 /** @brief              Handle WiFi scan request.
  *  @param p_Request    HTTP request handle
  *  @return             ESP_OK on success

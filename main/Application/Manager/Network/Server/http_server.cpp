@@ -507,6 +507,16 @@ static const httpd_uri_t _URI_Provision_Root = {
     .supported_subprotocol = NULL,
 };
 
+static const httpd_uri_t _URI_Provision_Logo = {
+    .uri       = "/logo.png",
+    .method    = HTTP_GET,
+    .handler   = Provision_Handler_Logo,
+    .user_ctx  = NULL,
+    .is_websocket = false,
+    .handle_ws_control_frames = false,
+    .supported_subprotocol = NULL,
+};
+
 static const httpd_uri_t _URI_Provision_Scan = {
     .uri       = HTTP_SERVER_API_BASE_PATH "/provision/scan",
     .method    = HTTP_GET,
@@ -627,6 +637,7 @@ esp_err_t HTTP_Server_Start(void)
 
     /* Register URI handlers */
     httpd_register_uri_handler(_HTTPServer_State.Handle, &_URI_Provision_Root);
+    httpd_register_uri_handler(_HTTPServer_State.Handle, &_URI_Provision_Logo);
     httpd_register_uri_handler(_HTTPServer_State.Handle, &_URI_Provision_Scan);
     httpd_register_uri_handler(_HTTPServer_State.Handle, &_URI_Provision_Connect);
     httpd_register_uri_handler(_HTTPServer_State.Handle, &_URI_CaptivePortal_Generate204);

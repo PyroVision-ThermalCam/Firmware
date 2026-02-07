@@ -43,6 +43,10 @@ static const char *TAG = "ProvisionHandlers";
 extern const uint8_t provision_html_start[] asm("_binary_provision_html_start");
 extern const uint8_t provision_html_end[] asm("_binary_provision_html_end");
 
+/* Embed logo PNG */
+extern const uint8_t logo_png_start[] asm("_binary_logo_png_start");
+extern const uint8_t logo_png_end[] asm("_binary_logo_png_end");
+
 /** @brief              Send JSON response.
  *  @param p_Request    HTTP request handle
  *  @param p_JSON       JSON object to send
@@ -77,6 +81,14 @@ esp_err_t Provision_Handler_Root(httpd_req_t *p_Request)
     httpd_resp_set_hdr(p_Request, "Cache-Control", "no-cache");
 
     return httpd_resp_send(p_Request, (const char *)provision_html_start, provision_html_end - provision_html_start);
+}
+
+esp_err_t Provision_Handler_Logo(httpd_req_t *p_Request)
+{
+    httpd_resp_set_type(p_Request, "image/png+xml");
+    httpd_resp_set_hdr(p_Request, "Cache-Control", "public, max-age=86400");
+
+    return httpd_resp_send(p_Request, (const char *)logo_png_start, logo_png_end - logo_png_start);
 }
 
 esp_err_t Provision_Handler_CaptivePortal(httpd_req_t *p_Request)
