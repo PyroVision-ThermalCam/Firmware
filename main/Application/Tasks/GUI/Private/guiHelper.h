@@ -82,6 +82,7 @@ typedef struct {
     App_Lepton_Temperatures_t LeptonTemperatures;
     Network_IP_Info_t IP_Info;
     EventGroupHandle_t EventGroup;
+    App_Context_t *p_AppContext;        /**< Pointer to application context. */
     uint8_t *ThermalCanvasBuffer;
     uint8_t *GradientCanvasBuffer;
     uint8_t *NetworkRGBBuffer;          /* RGB888 buffer for network streaming (240x180x3) */

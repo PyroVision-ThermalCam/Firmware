@@ -51,6 +51,8 @@ typedef struct {
 extern Slider_Widgets_t brightness_widgets;
 extern Slider_Widgets_t emissivity_widgets;
 
+extern lv_obj_t * usb_mode_switch;
+
 /** @brief      Display brightness slider event callback to update value label.
  *  @param e    Pointer to the event object
  */
@@ -91,6 +93,11 @@ void on_Flash_ClearStorage_Callback(lv_event_t * e);
  */
 void on_Flash_ClearCoredump_Callback(lv_event_t * e);
 
+/** @brief      USB mode switch callback to enable/disable USB Mass Storage.
+ *  @param e    Pointer to the event object
+ */
+void on_USB_Mode_Switch_Callback(lv_event_t * e);
+
 /** @brief                  Network event handler which is used to handle network-related events such as WiFi connection changes.
  *                          This can be used to update the UI or internal state based on network events.
  *  @param p_HandlerArgs    Handler argument
@@ -109,5 +116,15 @@ void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_
  *  @param p_Data           Event-specific data
  */
 void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data);
+
+/** @brief                  USB event handler which is used to update the UI elements when a
+ *                          USB change event is received from the USB Manager.
+ *                          This ensures that the UI always reflects the current settings values.
+ *  @param p_HandlerArgs    Handler argument
+ *  @param Base             Event base
+ *  @param ID               Event ID
+ *  @param p_Data           Event-specific data
+ */
+void on_USB_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data);
 
 #endif /* UI_SETTINGS_EVENTS_H_ */

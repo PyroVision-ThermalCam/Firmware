@@ -463,13 +463,13 @@ static esp_err_t SettingsManager_Load_JSON(SettingsManager_State_t *p_State, con
     /* Load settings sections */
     SettingsManager_LoadDisplay(p_State, JSON);
 
-    /* Extract provisioning settings */
+    /* Extract Provisioning settings */
     SettingsManager_LoadProvisioning(p_State, JSON);
 
     /* Extract WiFi settings */
     SettingsManager_LoadWiFi(p_State, JSON);
 
-    /* Extract system settings */
+    /* Extract System settings */
     SettingsManager_LoadSystem(p_State, JSON);
 
     /* Extract Lepton settings */
@@ -490,15 +490,6 @@ esp_err_t SettingsManager_LoadDefaultsFromJSON(SettingsManager_State_t *p_State)
 {
     uint8_t ConfigLoaded = 0;
     esp_err_t Error;
-    esp_vfs_littlefs_conf_t LittleFS_Config = {
-        .base_path = "/littlefs",
-        .partition_label = "storage",
-        .partition = NULL,
-		.format_if_mount_failed = true,
-        .read_only = false,
-        .dont_mount = false,
-        .grow_on_mount = false
-    };
 
     Error = nvs_get_u8(p_State->NVS_Handle, "config_loaded", &ConfigLoaded);
     if ((Error == ESP_OK) && (ConfigLoaded == true)) {
@@ -506,63 +497,19 @@ esp_err_t SettingsManager_LoadDefaultsFromJSON(SettingsManager_State_t *p_State)
         return ESP_OK;
     }
 
-    ESP_LOGD(TAG, "Loading settings with priority: SD Card -> LittleFS -> Built-in defaults");
+    ESP_LOGI(TAG, "Loading settings from /storage (managed by MemoryManager)");
 
-    /* 1. Try SD card */
-    Error = SettingsManager_Mount_SD_Card();
+    /* Try to load from /storage - MemoryManager decides if this is SD card or internal flash */
+    Error = SettingsManager_Load_JSON(p_State, "/storage/settings.json");
     if (Error == ESP_OK) {
-        Error = SettingsManager_Load_JSON(p_State, "/sdcard/settings.json");
-
-        /* Check for 8.3 filename match */
-        if (Error != ESP_OK) {
-            ESP_LOGW(TAG, "Falling back to 8.3 filename: SETTIN~1.JSO");
-            Error = SettingsManager_Load_JSON(p_State, "/sdcard/SETTIN~1.JSO");
-        }
-
-        if (Error == ESP_OK) {
-            ESP_LOGD(TAG, "Settings loaded from SD card");
-            
-            /* Delete the settings file after successful load */
-            if (remove("/sdcard/settings.json") == 0) {
-                ESP_LOGD(TAG, "Deleted settings.json from SD card");
-            } else if (remove("/sdcard/SETTIN~1.JSO") == 0) {
-                ESP_LOGD(TAG, "Deleted SETTIN~1.JSO from SD card");
-            }
-            
-            SettingsManager_Unmount_SD_Card();
-            return ESP_OK;
-        }
-        
-        SettingsManager_Unmount_SD_Card();
-        ESP_LOGW(TAG, "SD card mounted but no valid settings.json found");
-    } else {
-        ESP_LOGD(TAG, "SD card not available, trying LittleFS");
+        ESP_LOGI(TAG, "Settings loaded from /storage/settings.json");
+        /* Do NOT delete the file - user should be able to edit it via USB or by placing it on SD card */
+        return ESP_OK;
     }
 
-    /* 2. Try LittleFS */
-    Error = esp_vfs_littlefs_register(&LittleFS_Config);
-    if (Error == ESP_OK) {        
-        Error = SettingsManager_Load_JSON(p_State, "/littlefs/settings.json");
-        
-        if (Error == ESP_OK) {
-            ESP_LOGD(TAG, "Settings loaded from LittleFS");
-            
-            /* Delete the settings file after successful load */
-            if (remove("/littlefs/settings.json") == 0) {
-                ESP_LOGD(TAG, "Deleted settings.json from LittleFS");
-            }
-            
-            esp_vfs_littlefs_unregister(LittleFS_Config.partition_label);
-            return ESP_OK;
-        }
-        
-        esp_vfs_littlefs_unregister(LittleFS_Config.partition_label);
-        ESP_LOGW(TAG, "LittleFS mounted but no valid settings.json found");
-    } else {
-        ESP_LOGW(TAG, "Failed to mount LittleFS: %d!", Error);
-    }
+    ESP_LOGW(TAG, "No settings.json found on /storage, falling back to built-in defaults");
 
-    /* 3. Fallback to built-in defaults */
+    /* Fallback to built-in defaults */
     ESP_LOGW(TAG, "Using built-in default settings");
     SettingsManager_InitDefaults(p_State);
 

@@ -156,14 +156,34 @@ void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32
     }
 }
 
+void on_USB_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+{
+    ESP_LOGD(TAG, "USB event received: ID=%d", ID);
+
+    switch (ID) {
+        case USB_EVENT_INITIALIZED: {
+            lv_obj_add_state(usb_mode_switch, LV_STATE_CHECKED);
+
+            break;
+        }
+        case USB_EVENT_UNINITIALIZED: {
+            lv_obj_clear_state(usb_mode_switch, LV_STATE_CHECKED);
+
+            break;
+        }
+    }
+}
+
 void on_Flash_ClearNVS_Callback(lv_event_t * e)
 {
+    esp_err_t Error;
+
     ESP_LOGI(TAG, "Resetting settings to factory defaults...");
 
-    esp_err_t Error = SettingsManager_ResetToDefaults();
+    Error = SettingsManager_ResetToDefaults();
     if (Error == ESP_OK) {
         ESP_LOGI(TAG, "Settings reset successfully, restarting...");
-        vTaskDelay(pdMS_TO_TICKS(500));
+        vTaskDelay(500 / portTICK_PERIOD_MS);
         esp_restart();
     } else {
         ESP_LOGE(TAG, "Failed to reset settings: %d!", Error);
@@ -172,12 +192,13 @@ void on_Flash_ClearNVS_Callback(lv_event_t * e)
 
 void on_Flash_ClearStorage_Callback(lv_event_t * e)
 {
+    esp_err_t Error;
+
     ESP_LOGI(TAG, "Erasing storage partition...");
 
-    esp_err_t Error = MemoryManager_EraseStorage();
+    Error = MemoryManager_EraseStorage();
     if (Error == ESP_OK) {
         ESP_LOGI(TAG, "Storage partition erased successfully");
-        /* Update UI to show 0 bytes used */
         ui_settings_update_flash_usage();
     } else {
         ESP_LOGE(TAG, "Failed to erase storage partition: %d!", Error);
@@ -186,14 +207,61 @@ void on_Flash_ClearStorage_Callback(lv_event_t * e)
 
 void on_Flash_ClearCoredump_Callback(lv_event_t * e)
 {
+    esp_err_t Error;
+
     ESP_LOGI(TAG, "Erasing coredump partition...");
 
-    esp_err_t Error = MemoryManager_EraseCoredump();
+    Error = MemoryManager_EraseCoredump();
     if (Error == ESP_OK) {
         ESP_LOGI(TAG, "Coredump partition erased successfully");
-        /* Update UI to show 0 bytes used */
         ui_settings_update_flash_usage();
     } else {
         ESP_LOGE(TAG, "Failed to erase coredump partition: %d!", Error);
+    }
+}
+
+void on_USB_Mode_Switch_Callback(lv_event_t * e)
+{
+    lv_obj_t * switch_obj = static_cast<lv_obj_t*>(lv_event_get_target(e));
+    esp_err_t Error;
+
+    if (lv_obj_has_state(switch_obj, LV_STATE_CHECKED)) {
+        ESP_LOGI(TAG, "Enabling USB Mass Storage...");
+
+        if (USBManager_IsInitialized()) {
+            ESP_LOGW(TAG, "USB already active!");
+
+            return;
+        }
+
+        /* Configure USB Mass Storage with auto-detected mount point */
+        const USB_Manager_Config_t USB_Config = {
+            .MountPoint = MemoryManager_GetStoragePath(),
+            .VendorID = CONFIG_DEVICE_MANUFACTURER,
+            .ProductID = CONFIG_DEVICE_NAME,
+            .ProductRevision = CONFIG_DEVICE_REVISION,
+        };
+
+        Error = USBManager_Init(&USB_Config);
+        if (Error != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize USB Manager: %d", Error);
+
+            lv_obj_clear_state(switch_obj, LV_STATE_CHECKED);
+        } else {
+            ESP_LOGI(TAG, "\u2713 USB Mass Storage Device active!");
+            ESP_LOGW(TAG, "\u26a0\ufe0f  Application CANNOT write to /storage while USB is active!");
+        }
+    } else {
+        ESP_LOGI(TAG, "Disabling USB Mass Storage...");
+
+        if (USBManager_IsInitialized() == false) {
+            ESP_LOGW(TAG, "USB not active!");
+
+            lv_obj_clear_state(switch_obj, LV_STATE_CHECKED);
+
+            return;
+        }
+
+        USBManager_Deinit();
     }
 }

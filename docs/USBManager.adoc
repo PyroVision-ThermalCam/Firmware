@@ -1,0 +1,1040 @@
+= PyroVision USB Manager Documentation
+Daniel Kampert <DanielKampert@kampis-elektroecke.de>
+v1.0, 2026-02-08
+:toc: left
+:toclevels: 3
+:sectnums:
+:source-highlighter: coderay
+
+== Overview
+
+The USB Manager implements USB Mass Storage Device (MSC) functionality for the PyroVision firmware, allowing the device's storage (internal flash or SD card) to be exposed as a USB drive to a PC. This enables convenient file transfer, firmware updates, and data backup without requiring network connectivity or special software.
+
+=== Key Features
+
+* *USB Mass Storage Class (MSC)*: Standard USB drive functionality compatible with all operating systems
+* *Automatic Storage Detection*: Works with both internal flash and SD card storage
+* *TinyUSB Integration*: Based on Espressif's esp_tinyusb component
+* *Asynchronous Deinitialization*: Non-blocking USB disconnect with background task
+* *Event-driven Architecture*: Notification of USB state changes via ESP Event System
+* *Windows Compatibility*: Proper USB enumeration and ejection support
+* *Re-initialization Support*: Reliable activate → deactivate → activate cycles
+* *Filesystem Locking*: Integrates with Memory Manager to prevent data corruption
+
+---
+
+== Architecture
+
+=== Component Structure
+
+[source]
+----
+main/Application/Manager/USB/
+├── usbManager.h          # Public API
+├── usbManager.cpp        # Implementation
+└── usbTypes.h           # Event types and configuration
+----
+
+=== TinyUSB Stack Integration
+
+The USB Manager is built on top of the TinyUSB stack provided by Espressif:
+
+[source]
+----
+┌─────────────────────────────────────────┐
+│         Application Layer               │
+│  (GUI, Settings, File Operations)       │
+└──────────────┬──────────────────────────┘
+               │
+┌──────────────▼──────────────────────────┐
+│         USB Manager                     │
+│  - Init/Deinit Lifecycle                │
+│  - Storage Configuration                │
+│  - Event Posting                        │
+└──────────────┬──────────────────────────┘
+               │
+┌──────────────▼──────────────────────────┐
+│      TinyUSB MSC Layer                  │
+│  - tinyusb_msc_new_storage_sdmmc()      │
+│  - tinyusb_msc_new_storage_spiflash()   │
+│  - tinyusb_msc_delete_storage()         │
+└──────────────┬──────────────────────────┘
+               │
+┌──────────────▼──────────────────────────┐
+│      TinyUSB Core                       │
+│  - USB Stack Implementation             │
+│  - tud_connect() / tud_disconnect()     │
+│  - tud_mounted() Status                 │
+└──────────────┬──────────────────────────┘
+               │
+┌──────────────▼──────────────────────────┐
+│      USB Hardware (ESP32-S3)            │
+│  - Native USB OTG Interface             │
+└─────────────────────────────────────────┘
+----
+
+=== Storage Backend Selection
+
+USB Manager automatically detects and configures the appropriate storage backend:
+
+[source]
+----
+MemoryManager_GetStorageLocation()
+           │
+           ├─► SD Card Detected
+           │   └─► tinyusb_msc_new_storage_sdmmc()
+           │       └─► Uses sdmmc_card_t handle
+           │
+           └─► Internal Flash
+               └─► tinyusb_msc_new_storage_spiflash()
+                   └─► Uses wl_handle_t (Wear Leveling)
+----
+
+=== USB Lifecycle State Machine
+
+[source]
+----
+┌─────────────┐
+│  NOT_INIT   │ Initial state
+└──────┬──────┘
+       │ USBManager_Init()
+       ▼
+┌─────────────┐
+│ INITIALIZED │ USB MSC Active, Device Visible
+│             │ Posts: USB_EVENT_INITIALIZED
+└──────┬──────┘
+       │ USBManager_Deinit()
+       ▼
+┌─────────────┐
+│DEINITIALIZING│ Background Task Running
+│             │ Waiting for USB Disconnect
+└──────┬──────┘
+       │ tud_mounted() == false
+       │ Timeout or Disconnect Confirmed
+       ▼
+┌─────────────┐
+│  NOT_INIT   │ Posts: USB_EVENT_UNINITIALIZED
+│             │ Ready for Re-initialization
+└─────────────┘
+----
+
+=== Internal State Management
+
+The manager maintains its state in the `USBManager_State_t` structure:
+
+[source,cpp]
+----
+typedef struct {
+    bool isInitialized;                     // USB MSC active
+    bool isDeinitializing;                  // Deinitialization in progress
+    bool isUSBMounted;                      // USB host has mounted device
+    USB_Manager_Config_t Config;            // Current configuration
+    tinyusb_msc_storage_handle_t Storage;   // Storage handle
+    TaskHandle_t DeinitTask;                // Deinit task handle
+    SemaphoreHandle_t DisconnectSemaphore;  // Disconnect detection
+} USBManager_State_t;
+----
+
+---
+
+== Data Structures
+
+=== USB Manager Configuration
+
+[source,cpp]
+----
+typedef struct {
+    const char *p_MountPoint;       // Mount point (from MemoryManager)
+    const char *p_VendorID;         // USB vendor ID string
+    const char *p_ProductID;        // USB product ID string
+    const char *p_ProductRevision;  // USB product revision string
+} USB_Manager_Config_t;
+----
+
+* *p_MountPoint*: Must match MemoryManager mount point (`/storage` or `/sdcard`)
+* *p_VendorID*: Vendor identifier shown on PC (max 8 characters)
+* *p_ProductID*: Product name shown on PC (max 16 characters)
+* *p_ProductRevision*: Product revision string (max 4 characters)
+
+**Example:**
+
+[source,cpp]
+----
+const USB_Manager_Config_t USB_Config = {
+    .p_MountPoint = MemoryManager_GetStoragePath(),
+    .p_VendorID = "PyroVis",        // Shows as "PyroVis" in device manager
+    .p_ProductID = "ThermalCam",    // Shows as "ThermalCam" drive name
+    .p_ProductRevision = "1.0",     // Firmware version
+};
+----
+
+=== Event System
+
+==== Event Base
+
+[source,cpp]
+----
+ESP_EVENT_DECLARE_BASE(USB_EVENTS);
+----
+
+==== Event IDs
+
+[cols="2,3,2"]
+|===
+|Event |Description |Data Payload
+
+|`USB_EVENT_INITIALIZED`
+|USB MSC initialized and ready +
+Device is visible to PC
+|NULL
+
+|`USB_EVENT_UNINITIALIZED`
+|USB MSC deinitialized +
+Filesystem unlocked, app can write
+|NULL
+|===
+
+**Event Handler Example:**
+
+[source,cpp]
+----
+void on_USB_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, 
+                           int32_t ID, void *p_Data)
+{
+    switch (ID) {
+        case USB_EVENT_INITIALIZED:
+            ESP_LOGI(TAG, "USB MSC Active - Device visible to PC");
+            
+            // Update UI: Show USB icon
+            lv_obj_clear_flag(ui_Icon_USB, LV_OBJ_FLAG_HIDDEN);
+            
+            // Disable save buttons (filesystem locked)
+            lv_obj_add_state(ui_Button_Save, LV_STATE_DISABLED);
+            break;
+            
+        case USB_EVENT_UNINITIALIZED:
+            ESP_LOGI(TAG, "USB MSC Deactivated - Filesystem accessible");
+            
+            // Update UI: Hide USB icon
+            lv_obj_add_flag(ui_Icon_USB, LV_OBJ_FLAG_HIDDEN);
+            
+            // Enable save buttons again
+            lv_obj_clear_state(ui_Button_Save, LV_STATE_DISABLED);
+            break;
+    }
+}
+----
+
+**Registration:**
+
+[source,cpp]
+----
+esp_event_handler_register(USB_EVENTS, ESP_EVENT_ANY_ID, 
+                            on_USB_Event_Handler, NULL);
+----
+
+---
+
+== API Reference
+
+=== Initialization and Lifecycle
+
+==== USBManager_Init()
+
+[source,cpp]
+----
+esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config);
+----
+
+Initialize the USB Manager and expose storage as USB Mass Storage Device.
+
+**Behavior:**
+
+1. Validates configuration parameters
+2. Waits for any pending deinitialization to complete (max 10 seconds)
+3. Locks filesystem via `MemoryManager_LockFilesystem()`
+4. Detects storage type from Memory Manager (SD card or internal flash)
+5. Cleans up old storage handles from previous sessions
+6. Installs TinyUSB driver (reuses if already installed)
+7. Creates MSC storage backend (SDMMC or SPI flash)
+8. Connects to USB bus via `tud_connect()` to trigger PC enumeration
+9. Posts `USB_EVENT_INITIALIZED` event
+
+**Parameters:**
+
+* `p_Config` - Pointer to USB manager configuration structure
+
+**Return Values:**
+
+* `ESP_OK` - USB MSC successfully initialized and active
+* `ESP_ERR_INVALID_ARG` - p_Config is NULL or invalid parameters
+* `ESP_ERR_INVALID_STATE` - Already initialized or deinitialization timeout
+* `ESP_ERR_NO_MEM` - Failed to allocate memory (increase DMA pool)
+* `ESP_FAIL` - USB initialization failed
+
+**Thread Safety:** Not thread-safe during initialization. Call once from main task.
+
+**Critical Requirements:**
+
+* Memory Manager must be initialized first
+* DMA memory pool must be adequate (CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL ≥ 160 KB)
+* Filesystem must not be accessed by application during USB MSC operation
+
+**Example:**
+
+[source,cpp]
+----
+void EnableUSB_Mode(void)
+{
+    // Lock filesystem first
+    esp_err_t Error = MemoryManager_LockFilesystem();
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to lock filesystem: %d", Error);
+        return;
+    }
+    
+    // Configure USB Mass Storage
+    const USB_Manager_Config_t USB_Config = {
+        .p_MountPoint = MemoryManager_GetStoragePath(),
+        .p_VendorID = "PyroVis",
+        .p_ProductID = "ThermalCam",
+        .p_ProductRevision = "1.0",
+    };
+    
+    // Initialize USB MSC
+    Error = USBManager_Init(&USB_Config);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize USB: %d", Error);
+        
+        // Unlock filesystem on failure
+        MemoryManager_UnlockFilesystem();
+        return;
+    }
+    
+    ESP_LOGI(TAG, "✓ USB Mass Storage Device active!");
+    ESP_LOGW(TAG, "⚠️  Application CANNOT write to storage while USB is active!");
+    
+    // Wait for USB_EVENT_INITIALIZED event...
+}
+----
+
+==== USBManager_Deinit()
+
+[source,cpp]
+----
+esp_err_t USBManager_Deinit(void);
+----
+
+Deinitialize the USB Manager and stop USB Mass Storage Device asynchronously.
+
+**Behavior:**
+
+1. Validates USB Manager is initialized
+2. Validates not already deinitializing
+3. Sets `isInitialized = false` to prevent new operations
+4. Sets `isDeinitializing = true` to signal deinitialization in progress
+5. Creates background task `Task_USB_Deinit` (priority 1) to handle the lengthy disconnect process
+6. Returns immediately (non-blocking)
+
+**Background Task Operations:**
+
+1. Calls `tud_disconnect()` to actively disconnect from USB bus
+2. Waits 500 ms for Windows to process disconnect
+3. Polls `tud_mounted()` every 100 ms until false (max 5 seconds)
+4. Unlocks filesystem via `MemoryManager_UnlockFilesystem()`
+5. Posts `USB_EVENT_UNINITIALIZED` event
+6. Self-deletes task via `vTaskDelete(NULL)`
+
+**Return Values:**
+
+* `ESP_OK` - Deinitialization started successfully (async operation)
+* `ESP_ERR_INVALID_STATE` - Not initialized or already deinitializing
+
+**Thread Safety:** Thread-safe. Can be called from any task.
+
+**Important Notes:**
+
+* Function returns immediately; actual deinitialization happens in background
+* Storage handle is NOT deleted to prevent TinyUSB callback crashes
+* Old handle is cleaned up on next `USBManager_Init()` call
+* Application should wait for `USB_EVENT_UNINITIALIZED` before writing to filesystem
+
+**Example:**
+
+[source,cpp]
+----
+void DisableUSB_Mode(void)
+{
+    if (!USBManager_IsInitialized()) {
+        ESP_LOGW(TAG, "USB not active!");
+        return;
+    }
+    
+    ESP_LOGI(TAG, "Disabling USB Mass Storage...");
+    
+    // Start asynchronous deinitialization
+    esp_err_t Error = USBManager_Deinit();
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to deinitialize USB: %d", Error);
+        return;
+    }
+    
+    ESP_LOGI(TAG, "USB deinitialization started - waiting for completion...");
+    
+    // Show loading message box
+    lv_obj_t *msgbox = lv_msgbox_create(NULL);
+    lv_msgbox_add_title(msgbox, "USB Deinitialization");
+    lv_msgbox_add_text(msgbox, "Waiting for USB device to disconnect...\nPlease wait.");
+    lv_obj_center(msgbox);
+    
+    // Message box will be closed by USB_EVENT_UNINITIALIZED handler
+}
+----
+
+==== USBManager_IsInitialized()
+
+[source,cpp]
+----
+bool USBManager_IsInitialized(void);
+----
+
+Check if USB Manager is initialized and USB MSC is active.
+
+**Return Values:**
+
+* `true` - USB MSC is active, device is exposed to PC
+* `false` - USB MSC not initialized
+
+**Thread Safety:** Thread-safe.
+
+**Example:**
+
+[source,cpp]
+----
+void SaveImage(uint8_t *p_Data, size_t Size)
+{
+    // Check if USB is active
+    if (USBManager_IsInitialized()) {
+        ESP_LOGW(TAG, "Cannot save image - USB mode is active!");
+        
+        // Show error message
+        lv_obj_t *msgbox = lv_msgbox_create(NULL);
+        lv_msgbox_add_title(msgbox, "USB Active");
+        lv_msgbox_add_text(msgbox, "Cannot save - USB mode is active!\nDisable USB first.");
+        
+        return;
+    }
+    
+    // Safe to write file
+    const char *p_Path = MemoryManager_GetStoragePath();
+    char FilePath[256];
+    snprintf(FilePath, sizeof(FilePath), "%s/image_%d.jpg", p_Path, ImageCounter++);
+    
+    FILE *fp = fopen(FilePath, "wb");
+    if (fp != NULL) {
+        fwrite(p_Data, 1, Size, fp);
+        fclose(fp);
+        ESP_LOGI(TAG, "Image saved: %s", FilePath);
+    }
+}
+----
+
+---
+
+== Common Use Cases
+
+=== Use Case 1: Basic USB Activation
+
+[source,cpp]
+----
+void ActivateUSB_Button_Callback(lv_event_t *e)
+{
+    ESP_LOGI(TAG, "USB activation requested by user");
+    
+    // Check if already active
+    if (USBManager_IsInitialized()) {
+        ESP_LOGW(TAG, "USB already active!");
+        return;
+    }
+    
+    // Lock filesystem
+    esp_err_t Error = MemoryManager_LockFilesystem();
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to lock filesystem!");
+        return;
+    }
+    
+    // Configure USB MSC
+    const USB_Manager_Config_t USB_Config = {
+        .p_MountPoint = MemoryManager_GetStoragePath(),
+        .p_VendorID = "PyroVis",
+        .p_ProductID = "ThermalCam",
+        .p_ProductRevision = "1.0",
+    };
+    
+    // Initialize USB
+    Error = USBManager_Init(&USB_Config);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "USB initialization failed: %d", Error);
+        MemoryManager_UnlockFilesystem();
+        
+        // Show error message
+        lv_obj_t *msgbox = lv_msgbox_create(NULL);
+        lv_msgbox_add_title(msgbox, "USB Error");
+        lv_msgbox_add_text(msgbox, "Failed to activate USB mode!");
+        return;
+    }
+    
+    ESP_LOGI(TAG, "✓ USB Mass Storage Device active!");
+}
+----
+
+=== Use Case 2: Event-Driven UI Updates
+
+[source,cpp]
+----
+void on_USB_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, 
+                           int32_t ID, void *p_Data)
+{
+    switch (ID) {
+        case USB_EVENT_INITIALIZED: {
+            ESP_LOGI(TAG, "USB initialized - updating UI");
+            
+            // Set switch to ON state
+            lv_obj_add_state(ui_Switch_USB, LV_STATE_CHECKED);
+            
+            // Show USB icon in status bar
+            lv_obj_clear_flag(ui_Icon_USB_Active, LV_OBJ_FLAG_HIDDEN);
+            
+            // Hide save buttons (filesystem locked)
+            lv_obj_add_flag(ui_Button_Save, LV_OBJ_FLAG_HIDDEN);
+            
+            // Update status label
+            lv_label_set_text(ui_Label_Status, "USB Mode Active");
+            
+            // Show success message
+            lv_obj_t *msgbox = lv_msgbox_create(NULL);
+            lv_msgbox_add_title(msgbox, "USB Active");
+            lv_msgbox_add_text(msgbox, "Device connected to PC\nDo not disconnect during file transfer!");
+            
+            break;
+        }
+        
+        case USB_EVENT_UNINITIALIZED: {
+            ESP_LOGI(TAG, "USB deinitialized - updating UI");
+            
+            // Set switch to OFF state
+            lv_obj_clear_state(ui_Switch_USB, LV_STATE_CHECKED);
+            
+            // Hide USB icon
+            lv_obj_add_flag(ui_Icon_USB_Active, LV_OBJ_FLAG_HIDDEN);
+            
+            // Show save buttons again
+            lv_obj_clear_flag(ui_Button_Save, LV_OBJ_FLAG_HIDDEN);
+            
+            // Update status label
+            lv_label_set_text(ui_Label_Status, "USB Mode Disabled");
+            
+            // Close loading message box if visible
+            if (usb_msgbox != NULL) {
+                lv_obj_del(usb_msgbox);
+                usb_msgbox = NULL;
+            }
+            
+            // Show completion message
+            lv_obj_t *msgbox = lv_msgbox_create(NULL);
+            lv_msgbox_add_title(msgbox, "USB Deactivated");
+            lv_msgbox_add_text(msgbox, "USB safely disconnected\nYou can save files again.");
+            
+            break;
+        }
+    }
+}
+
+// Register event handler in initialization
+void app_main(void)
+{
+    // ... other initialization ...
+    
+    esp_event_handler_register(USB_EVENTS, ESP_EVENT_ANY_ID, 
+                                on_USB_Event_Handler, NULL);
+}
+----
+
+=== Use Case 3: Toggle Switch with Animation Fix
+
+[source,cpp]
+----
+void on_USB_Mode_Switch_Callback(lv_event_t *e)
+{
+    lv_obj_t *switch_obj = lv_event_get_target(e);
+    
+    if (lv_obj_has_state(switch_obj, LV_STATE_CHECKED)) {
+        // Switch turned ON - Activate USB
+        ESP_LOGI(TAG, "Enabling USB Mass Storage...");
+        
+        if (USBManager_IsInitialized()) {
+            ESP_LOGW(TAG, "USB already active!");
+            return;
+        }
+        
+        // Configure and initialize
+        const USB_Manager_Config_t USB_Config = {
+            .p_MountPoint = MemoryManager_GetStoragePath(),
+            .p_VendorID = "PyroVis",
+            .p_ProductID = "ThermalCam",
+            .p_ProductRevision = "1.0",
+        };
+        
+        esp_err_t Error = USBManager_Init(&USB_Config);
+        if (Error != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize USB: %d", Error);
+            
+            // Revert switch on error
+            lv_obj_clear_state(switch_obj, LV_STATE_CHECKED);
+        }
+    } else {
+        // Switch turned OFF - Deactivate USB
+        ESP_LOGI(TAG, "Disabling USB Mass Storage...");
+        
+        if (!USBManager_IsInitialized()) {
+            ESP_LOGW(TAG, "USB not active!");
+            return;
+        }
+        
+        // Start asynchronous deinitialization
+        esp_err_t Error = USBManager_Deinit();
+        if (Error != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to deinitialize USB: %d", Error);
+            return;
+        }
+        
+        // Show waiting message
+        lv_obj_t *msgbox = lv_msgbox_create(NULL);
+        lv_msgbox_add_title(msgbox, "USB Deinitialization");
+        lv_msgbox_add_text(msgbox, "Waiting for USB device to disconnect...\nPlease wait.");
+        lv_obj_center(msgbox);
+        
+        // Switch will be updated to OFF by USB_EVENT_UNINITIALIZED handler
+    }
+}
+----
+
+=== Use Case 4: Re-initialization Cycle
+
+[source,cpp]
+----
+void TestUSB_Reinitialization(void)
+{
+    ESP_LOGI(TAG, "=== USB Re-initialization Test ===");
+    
+    // First activation
+    ESP_LOGI(TAG, "Activation #1");
+    const USB_Manager_Config_t USB_Config = {
+        .p_MountPoint = MemoryManager_GetStoragePath(),
+        .p_VendorID = "PyroVis",
+        .p_ProductID = "Test",
+        .p_ProductRevision = "1.0",
+    };
+    
+    esp_err_t Error = USBManager_Init(&USB_Config);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Init #1 failed: %d", Error);
+        return;
+    }
+    
+    ESP_LOGI(TAG, "Init #1 successful, waiting 5 seconds...");
+    vTaskDelay(pdMS_TO_TICKS(5000));
+    
+    // First deactivation
+    ESP_LOGI(TAG, "Deactivation #1");
+    Error = USBManager_Deinit();
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Deinit #1 failed: %d", Error);
+        return;
+    }
+    
+    ESP_LOGI(TAG, "Deinit #1 started, waiting for completion...");
+    
+    // Wait for USB_EVENT_UNINITIALIZED (in real code, use event handler)
+    uint32_t WaitCount = 0;
+    while (USBManager_IsInitialized() && WaitCount < 100) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        WaitCount++;
+    }
+    
+    if (WaitCount >= 100) {
+        ESP_LOGE(TAG, "Deinit #1 timeout!");
+        return;
+    }
+    
+    ESP_LOGI(TAG, "Deinit #1 completed after %u ms", WaitCount * 100);
+    
+    // Additional delay to ensure cleanup
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    
+    // Second activation (re-initialization)
+    ESP_LOGI(TAG, "Activation #2 (Re-initialization)");
+    Error = USBManager_Init(&USB_Config);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Init #2 failed: %d", Error);
+        return;
+    }
+    
+    ESP_LOGI(TAG, "Init #2 successful!");
+    ESP_LOGI(TAG, "=== Re-initialization Test PASSED ===");
+}
+----
+
+---
+
+== Best Practices
+
+=== Initialization
+
+* *Order Matters*: Initialize Memory Manager before USB Manager
+* *Lock Filesystem*: Always lock filesystem before activating USB MSC
+* *Event Registration*: Register USB event handlers before initialization
+* *Configuration Validation*: Validate mount point matches Memory Manager
+
+=== Deinitialization
+
+* *Async Operation*: Understand that `USBManager_Deinit()` returns immediately
+* *Wait for Event*: Always wait for `USB_EVENT_UNINITIALIZED` before writing files
+* *Safe Ejection*: Ensure PC has ejected/unmounted drive before deactivating
+* *No Forced Disconnect*: Never unplug cable without proper deactivation
+
+=== Filesystem Access
+
+* *Check Lock State*: Always check `MemoryManager_IsFilesystemLocked()` before writing
+* *No Concurrent Access*: Never write to filesystem while USB MSC is active
+* *UI Feedback*: Disable file save buttons during USB mode
+* *Error Handling*: Show clear error messages if user tries to save during USB mode
+
+=== Error Recovery
+
+* *Unlock on Failure*: Always unlock filesystem if USB initialization fails
+* *Timeout Handling*: Implement timeouts for deinitialization (max 10 seconds recommended)
+* *State Validation*: Check `USBManager_IsInitialized()` before operations
+* *Restart as Last Resort*: If USB state is corrupted, restart device
+
+=== UI/UX Considerations
+
+* *Visual Feedback*: Show USB icon in status bar when active
+* *Loading Indicators*: Show progress during async deinitialization
+* *Clear Warnings*: Warn users not to disconnect during file transfer
+* *Disable Controls*: Disable conflicting operations during USB mode
+
+---
+
+== Troubleshooting
+
+=== USB Device Not Visible on PC
+
+**Symptoms:**
+* Device plugged in, but no drive letter appears
+* Device manager shows unknown device or error code
+
+**Possible Causes:**
+* `tud_connect()` not called or failed
+* DMA memory insufficient (heap_caps_aligned_calloc failure)
+* TinyUSB callbacks conflicting with library
+* USB cable is charge-only (no data lines)
+
+**Solutions:**
+* Ensure CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL ≥ 160 KB
+* Use proper USB data cable, not charge-only cable
+* Check ESP32-S3 USB port (not UART USB port)
+* Enable debug logging: `ESP_LOG_LEVEL(TAG, ESP_LOG_DEBUG)`
+
+=== USB Deinitialization Timeout
+
+**Symptoms:**
+* `USBManager_Deinit()` never posts `USB_EVENT_UNINITIALIZED`
+* `tud_mounted()` remains true after deinitialization
+* PC still shows device after deactivation
+
+**Possible Causes:**
+* PC has not ejected the drive
+* Background deinit task crashed
+* `tud_disconnect()` not called
+
+**Solutions:**
+* Eject drive from PC before calling `USBManager_Deinit()`
+* Add explicit `tud_disconnect()` call in deinit task
+* Increase polling timeout (currently 5 seconds)
+* Restart device if timeout occurs
+
+=== Re-initialization Failure
+
+**Symptoms:**
+* Cannot activate USB after deactivating it
+* `USBManager_Init()` returns ESP_ERR_INVALID_STATE
+* Error: "Previous deinit still running"
+
+**Possible Causes:**
+* `USBManager_Init()` called too soon after `USBManager_Deinit()`
+* Background deinit task still running
+* Storage handle not cleaned up
+
+**Solutions:**
+* Wait for `USB_EVENT_UNINITIALIZED` before re-initialization
+* Implement wait loop for `isDeinitializing` flag (max 10 seconds)
+* Add delay (500-1000 ms) after deinitialization completes
+* Check for pending deinitialization in `USBManager_Init()`
+
+=== Display Artifacts During USB Operations
+
+**Symptoms:**
+* Screen shows stripes or corruption when activating/deactivating USB
+* Display freezes momentarily
+
+**Possible Causes:**
+* High-priority USB deinit task starving display task
+* SPI bus contention (display and flash on same bus)
+* Display refresh interrupted
+
+**Solutions:**
+* Lower USB deinit task priority to 1 (below display task)
+* Avoid display invalidation pause (not necessary for internal flash)
+* Ensure display task priority is higher (e.g., 5)
+* Use Core 1 for USB operations, Core 0 for display
+
+=== Windows Drive Remains After Deactivation
+
+**Symptoms:**
+* Windows shows drive letter even after USB deactivation
+* "Device not responding" error when accessing drive
+
+**Possible Causes:**
+* `tud_disconnect()` not called explicitly
+* Windows cached driver state
+* PC has files open on the drive
+
+**Solutions:**
+* Add explicit `tud_disconnect()` in deinit task
+* Ensure all files closed before deactivation
+* Manually eject drive in Windows before deactivation
+* Wait 500 ms after `tud_disconnect()` for OS processing
+
+=== Memory Allocation Failures
+
+**Symptoms:**
+* `USBManager_Init()` returns ESP_ERR_NO_MEM
+* Log: "Failed to allocate memory for MSC storage"
+
+**Possible Causes:**
+* Insufficient DMA memory pool
+* Memory fragmentation
+* Large allocations by other components
+
+**Solutions:**
+* Increase CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL to 160 KB or higher
+* Initialize USB Manager early in boot sequence
+* Free unused memory before USB initialization
+* Check memory usage: `heap_caps_get_free_size(MALLOC_CAP_DMA)`
+
+---
+
+== Configuration
+
+=== PlatformIO / ESP-IDF
+
+USB Manager requires the following components:
+
+[source,ini]
+----
+[env]
+platform = espressif32
+framework = espidf
+board = esp32-s3-devkitc-1
+
+lib_deps =
+    espressif/esp_tinyusb@^2.1.0
+----
+
+=== sdkconfig Settings
+
+==== DMA Memory Pool (Critical)
+
+[source]
+----
+# Increase DMA-capable memory pool for TinyUSB MSC
+CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=163840  # 160 KB
+----
+
+**Why:** TinyUSB MSC storage allocation requires substantial DMA memory via `heap_caps_aligned_calloc()`. Default 32 KB is insufficient.
+
+**Calculation:**
+- TinyUSB MSC buffer: ~64 KB
+- WiFi/Bluetooth: ~32 KB
+- Lepton VoSPI: ~32 KB
+- Safety margin: ~32 KB
+- Total: 160 KB
+
+==== USB OTG Configuration
+
+[source]
+----
+CONFIG_TINYUSB_ENABLED=y
+CONFIG_TINYUSB_MSC_ENABLED=y
+----
+
+==== PSRAM Configuration
+
+[source]
+----
+CONFIG_SPIRAM_MODE_OCT=y      # Octal SPI for 8 MB PSRAM
+CONFIG_SPIRAM_SIZE=8388608    # 8 MB
+----
+
+=== Partition Table
+
+No special partition requirements. USB Manager uses existing storage partition defined in [MemoryManager](MemoryManager.adoc).
+
+---
+
+== Advanced Topics
+
+=== Custom USB Descriptors
+
+To customize USB device descriptors, modify TinyUSB configuration:
+
+[source,cpp]
+----
+// In your component config or before tinyusb_driver_install()
+
+#define USB_DEVICE_VID  0x303A  // Espressif VID
+#define USB_DEVICE_PID  0x4002  // Custom PID
+#define USB_MANUFACTURER "PyroVision"
+#define USB_PRODUCT      "Thermal Camera"
+----
+
+Note: USB Manager currently uses runtime configuration via `USB_Manager_Config_t`, not compile-time descriptors.
+
+=== TinyUSB Callbacks
+
+USB Manager does NOT override TinyUSB callbacks to avoid linker conflicts:
+
+[source,cpp]
+----
+// Do NOT implement these in your code if using USB Manager:
+void tud_mount_cb(void);      // Already defined in esp_tinyusb
+void tud_umount_cb(void);     // Already defined in esp_tinyusb
+----
+
+**Polling Instead:** USB Manager uses `tud_mounted()` polling for disconnect detection.
+
+=== Storage Handle Lifetime
+
+**Critical Implementation Detail:**
+
+Storage handle is NOT deleted during deinitialization to prevent crashes:
+
+[source,cpp]
+----
+// In Task_USB_Deinit():
+// DO NOT: tinyusb_msc_delete_storage(_State.Storage);
+// Reason: TinyUSB callbacks may still access storage for up to 5 seconds
+
+// Instead: Keep storage alive, clean up on next USBManager_Init()
+----
+
+**Why:** TinyUSB MSC callbacks (`tud_msc_read10_cb`, `tud_msc_write10_cb`) may still be active for several seconds after disconnect, even after `tud_mounted()` returns false.
+
+**Cleanup Strategy:** Old storage handle is deleted in next `USBManager_Init()` call, when we know no callbacks are active.
+
+=== Multi-Device Support
+
+Current implementation supports single USB MSC device. For multiple drives:
+
+[source,cpp]
+----
+// Not currently supported, would require:
+// 1. Multiple tinyusb_msc_storage_handle_t instances
+// 2. Separate LUN (Logical Unit Number) configuration
+// 3. Modified TinyUSB descriptors
+
+// Future enhancement possibility
+----
+
+---
+
+== Performance Considerations
+
+=== USB Transfer Speed
+
+* *SD Card*: ~10-20 MB/s read, ~5-10 MB/s write
+* *Internal Flash*: ~2-5 MB/s read/write (limited by wear leveling)
+
+**Optimization:**
+* Use SD card for large file transfers
+* Format as FAT32 with 4 KB cluster size
+* Use high-speed SD card (UHS-I or better)
+
+=== Deinitialization Time
+
+* *Typical*: 0.5-2 seconds
+* *Maximum*: 5 seconds (timeout)
+
+**Factors:**
+* PC operating system (Windows slower than Linux)
+* Open file handles on PC
+* USB bus congestion
+* Number of files in filesystem
+
+=== Task Priority Impact
+
+USB deinit task priority affects GUI responsiveness:
+
+* *Priority 1*: Minimal GUI impact, slower deinitialization
+* *Priority 3*: Moderate GUI impact, faster deinitialization
+* *Priority 5+*: Significant GUI impact (not recommended)
+
+**Current Setting:** Priority 1 (lowest impact)
+
+---
+
+== Security Considerations
+
+=== Data Exposure
+
+* USB MSC exposes ALL files in storage partition
+* No file-level access control
+* PC has full read/write access
+
+**Mitigation:**
+* Store sensitive data in separate partition
+* Encrypt sensitive files before storage
+* Implement USB authorization (future enhancement)
+
+=== Filesystem Corruption Risk
+
+* Concurrent access can corrupt FAT32 filesystem
+* No journaling or crash recovery in FAT32
+
+**Mitigation:**
+* Strict filesystem locking via Memory Manager
+* Always check lock state before writing
+* Regular filesystem backups (if critical data)
+
+---
+
+== Related Documentation
+
+* link:MemoryManager.adoc[Memory Manager Documentation] - Storage abstraction and filesystem locking
+* link:DeviceManager.adoc[Device Manager Documentation] - Hardware initialization and I2C/SPI configuration
+* link:SettingsManager.adoc[Settings Manager Documentation] - Persistent settings storage
+
+== References
+
+* https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/usb_device.html[ESP-IDF USB Device Driver]
+* https://github.com/hathach/tinyusb[TinyUSB GitHub Repository]
+* https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/api-reference/peripherals/usb_otg.html[ESP32-S3 USB OTG Documentation]
+* https://www.usb.org/documents[USB Mass Storage Class Specification]
+
+---
+
+**Last Updated:** February 8, 2026 +
+**Maintainer:** Daniel Kampert (DanielKampert@kampis-elektroecke.de) +
+**License:** GNU General Public License v3.0

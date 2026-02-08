@@ -9,6 +9,8 @@ dependencies:
     version: "^1.2.0"
   espressif/esp32-camera:
     version: "^2.1.0"
+  espressif/esp_tinyusb:
+    version: "^2.1.0"
   lvgl/lvgl:
     version: "^9.4.0"
   joltwallet/littlefs:

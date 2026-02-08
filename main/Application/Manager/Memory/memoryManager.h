@@ -26,6 +26,8 @@
 
 #include <esp_err.h>
 #include <esp_event.h>
+#include <wear_levelling.h>
+#include <sdmmc_cmd.h>
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -96,6 +98,27 @@ esp_err_t MemoryManager_GetStorageUsage(MemoryManager_Usage_t *p_Usage);
  */
 esp_err_t MemoryManager_GetCoredumpUsage(MemoryManager_Usage_t *p_Usage);
 
+/** @brief          Lock filesystem for USB access.
+ *                  Prevents application from accessing filesystem while USB is active.
+ *                  Must be called before enabling USB Mass Storage.
+ *  @return         ESP_OK on success
+ *                  ESP_ERR_INVALID_STATE if already locked
+ */
+esp_err_t MemoryManager_LockFilesystem(void);
+
+/** @brief          Unlock filesystem for application access.
+ *                  Allows application to access filesystem again after USB is deactivated.
+ *  @return         ESP_OK on success
+ *                  ESP_ERR_INVALID_STATE if not locked
+ */
+esp_err_t MemoryManager_UnlockFilesystem(void);
+
+/** @brief          Check if filesystem is locked for USB access.
+ *  @return         true if locked (USB active, app must not write)
+ *                  false if unlocked (app can write)
+ */
+bool MemoryManager_IsFilesystemLocked(void);
+
 /** @brief      Erase current storage location completely.
  *  @warning    This will delete all files in the active storage filesystem.
  *  @note       Filesystem will be automatically reformatted after erase.
@@ -113,5 +136,23 @@ esp_err_t MemoryManager_EraseStorage(void);
  *              ESP_FAIL on erase failure
  */
 esp_err_t MemoryManager_EraseCoredump(void);
+
+/** @brief          Get wear leveling handle for internal storage.
+ *  @note           Only valid for internal flash storage (not SD card).
+ *  @param p_Handle Pointer to receive the wear leveling handle
+ *  @return         ESP_OK on success
+ *                  ESP_ERR_INVALID_ARG if p_Handle is NULL
+ *                  ESP_ERR_INVALID_STATE if not using internal storage or not mounted
+ */
+esp_err_t MemoryManager_GetWearLevelingHandle(wl_handle_t *p_Handle);
+
+/** @brief          Get SD card handle.
+ *  @note           Only valid when SD card storage is active.
+ *  @param pp_Card  Pointer to receive the SD card handle pointer
+ *  @return         ESP_OK on success
+ *                  ESP_ERR_INVALID_ARG if pp_Card is NULL
+ *                  ESP_ERR_INVALID_STATE if SD card not mounted
+ */
+esp_err_t MemoryManager_GetSDCardHandle(sdmmc_card_t **pp_Card);
 
 #endif /* MEMORYMANAGER_H_ */

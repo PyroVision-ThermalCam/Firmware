@@ -33,6 +33,9 @@
 
 #include <cstring>
 #include <time.h>
+#include <sys/stat.h>
+#include <errno.h>
+#include <string.h>
 
 #include "guiTask.h"
 #include "Export/ui.h"
@@ -46,8 +49,13 @@
 ESP_EVENT_DEFINE_BASE(GUI_EVENTS);
 
 static GUI_Task_State_t _GUITask_State;
+static QueueHandle_t _ImageSaveQueue = NULL;
+static TaskHandle_t _ImageSaveTaskHandle = NULL;
 
 static const char *TAG = "gui_task";
+
+/* Forward declaration of background image save task */
+static void Task_ImageSave(void *p_Param);
 
 /** @brief
  *  @param p_HandlerArgs    Handler argument
@@ -494,6 +502,7 @@ void Task_GUI(void *p_Parameters)
     esp_task_wdt_add(NULL);
 
     App_Context = reinterpret_cast<App_Context_t *>(p_Parameters);
+    _GUITask_State.p_AppContext = App_Context;  /* Store for later use */
     ESP_LOGD(TAG, "GUI Task started on core %d", xPortGetCoreID());
 
     /* Show splash screen first and wait for all components to become ready before starting the application. */
@@ -923,6 +932,39 @@ esp_err_t GUI_Task_Init(void)
 
         return ESP_ERR_NO_MEM;
     }
+    
+    /* Create image save queue and task */
+    _ImageSaveQueue = xQueueCreate(1, sizeof(App_Lepton_FrameReady_t));
+    if (_ImageSaveQueue == NULL) {
+        ESP_LOGE(TAG, "Failed to create image save queue!");
+        heap_caps_free(_GUITask_State.ThermalCanvasBuffer);
+        heap_caps_free(_GUITask_State.GradientCanvasBuffer);
+        heap_caps_free(_GUITask_State.NetworkRGBBuffer);
+        return ESP_ERR_NO_MEM;
+    }
+    
+    BaseType_t Result = xTaskCreatePinnedToCore(
+        Task_ImageSave,
+        "Task_ImgSave",
+        8192,
+        NULL,
+        CONFIG_GUI_TASK_PRIO - 1,  /* Lower priority than GUI */
+        &_ImageSaveTaskHandle,
+        1
+    );
+    
+    if (Result != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create image save task!");
+
+        vQueueDelete(_ImageSaveQueue);
+        _ImageSaveQueue = NULL;
+
+        heap_caps_free(_GUITask_State.ThermalCanvasBuffer);
+        heap_caps_free(_GUITask_State.GradientCanvasBuffer);
+        heap_caps_free(_GUITask_State.NetworkRGBBuffer);
+
+        return ESP_FAIL;
+    }
 
     /* Initialize buffers with black pixels (RGB565 = 0x0000) */
     memset(_GUITask_State.ThermalCanvasBuffer, 0x00, 240 * 180 * 2);
@@ -946,44 +988,6 @@ esp_err_t GUI_Task_Init(void)
     /* Set the images */
     lv_img_set_src(ui_Image_Thermal, &_GUITask_State.ThermalImageDescriptor);
     lv_img_set_src(ui_Image_Gradient, &_GUITask_State.GradientImageDescriptor);
-
-#ifdef CONFIG_GUI_TOUCH_DEBUG
-    /* Create touch debug visualization overlay on main screen */
-    _GUITask_State.TouchDebugOverlay = lv_obj_create(ui_Main);
-    lv_obj_set_size(_GUITask_State.TouchDebugOverlay, CONFIG_GUI_WIDTH, CONFIG_GUI_HEIGHT);
-    lv_obj_set_pos(_GUITask_State.TouchDebugOverlay, 0, 0);
-    lv_obj_set_style_bg_opa(_GUITask_State.TouchDebugOverlay, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(_GUITask_State.TouchDebugOverlay, 0, 0);
-    lv_obj_remove_flag(_GUITask_State.TouchDebugOverlay, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(_GUITask_State.TouchDebugOverlay, LV_OBJ_FLAG_FLOATING);
-    lv_obj_add_flag(_GUITask_State.TouchDebugOverlay, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_move_to_index(_GUITask_State.TouchDebugOverlay, -1); /* Move to top layer */
-
-    /* Create touch indicator circle */
-    _GUITask_State.TouchDebugCircle = lv_obj_create(_GUITask_State.TouchDebugOverlay);
-    lv_obj_set_size(_GUITask_State.TouchDebugCircle, 20, 20);
-    lv_obj_set_style_radius(_GUITask_State.TouchDebugCircle, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(_GUITask_State.TouchDebugCircle, lv_color_hex(0xFF0000), 0);
-    lv_obj_set_style_bg_opa(_GUITask_State.TouchDebugCircle, LV_OPA_70, 0);
-    lv_obj_set_style_border_color(_GUITask_State.TouchDebugCircle, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_set_style_border_width(_GUITask_State.TouchDebugCircle, 2, 0);
-    lv_obj_add_flag(_GUITask_State.TouchDebugCircle, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(_GUITask_State.TouchDebugCircle, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(_GUITask_State.TouchDebugCircle, LV_OBJ_FLAG_SCROLLABLE);
-
-    /* Create coordinate label */
-    _GUITask_State.TouchDebugLabel = lv_label_create(_GUITask_State.TouchDebugOverlay);
-    lv_obj_set_pos(_GUITask_State.TouchDebugLabel, 5, 5);
-    lv_label_set_text(_GUITask_State.TouchDebugLabel, "Touch Debug");
-    lv_obj_set_style_text_color(_GUITask_State.TouchDebugLabel, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_set_style_bg_color(_GUITask_State.TouchDebugLabel, lv_color_hex(0x000000), 0);
-    lv_obj_set_style_bg_opa(_GUITask_State.TouchDebugLabel, LV_OPA_70, 0);
-    lv_obj_set_style_pad_all(_GUITask_State.TouchDebugLabel, 3, 0);
-    lv_obj_add_flag(_GUITask_State.TouchDebugLabel, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(_GUITask_State.TouchDebugLabel, LV_OBJ_FLAG_CLICKABLE);
-
-    ESP_LOGD(TAG, "Touch debug visualization enabled on ui_Main screen");
-#endif
 
     /* Initialize network frame for server streaming */
     _GUITask_State.NetworkFrame.Mutex = xSemaphoreCreateMutex();
@@ -1052,14 +1056,14 @@ esp_err_t GUI_Task_Start(App_Context_t *p_AppContext)
     ESP_LOGD(TAG, "Starting GUI Task");
 
     ret = xTaskCreatePinnedToCore(
-              Task_GUI,
-              "Task_GUI",
-              CONFIG_GUI_TASK_STACKSIZE,
-              p_AppContext,
-              CONFIG_GUI_TASK_PRIO,
-              &_GUITask_State.TaskHandle,
-              CONFIG_GUI_TASK_CORE
-          );
+            Task_GUI,
+            "Task_GUI",
+            CONFIG_GUI_TASK_STACKSIZE,
+            p_AppContext,
+            CONFIG_GUI_TASK_PRIO,
+            &_GUITask_State.TaskHandle,
+            CONFIG_GUI_TASK_CORE
+        );
 
     if (ret != pdPASS) {
         ESP_LOGE(TAG, "Failed to create GUI task: %d!", ret);
@@ -1084,4 +1088,286 @@ esp_err_t GUI_Task_Stop(void)
 bool GUI_Task_isRunning(void)
 {
     return _GUITask_State.isRunning;
+}
+
+/** @brief Image save task - runs in background to avoid blocking GUI.
+ */
+static void Task_ImageSave(void *p_Param)
+{
+    App_Lepton_FrameReady_t Frame;
+    char FilePath[128];
+    FILE *File = NULL;
+    
+    ESP_LOGI(TAG, "Image save task started");
+    
+    while (true) {
+        /* Wait for save request */
+        if (xQueueReceive(_ImageSaveQueue, &Frame, portMAX_DELAY) != pdTRUE) {
+            continue;
+        }
+        
+        ESP_LOGI(TAG, "=== Background Image Save START ===");
+        
+        /* Check if filesystem is locked (USB active) */
+        if (MemoryManager_IsFilesystemLocked()) {
+            ESP_LOGW(TAG, "Cannot save image - USB mode active!");
+            esp_event_post(GUI_EVENTS, GUI_EVENT_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
+            continue;
+        }
+        
+        /* Validate frame data */
+        if ((Frame.Buffer == NULL) || (Frame.Width == 0) || (Frame.Height == 0)) {
+            ESP_LOGE(TAG, "Invalid frame data!");
+            esp_event_post(GUI_EVENTS, GUI_EVENT_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
+            continue;
+        }
+        
+        const char *p_StoragePath = MemoryManager_GetStoragePath();
+        static uint32_t ImageCounter = 0;
+        snprintf(FilePath, sizeof(FilePath), "%s/IMG_%03u.BMP", p_StoragePath, (unsigned int)(ImageCounter % 1000));
+        ImageCounter++;
+        
+        ESP_LOGI(TAG, "Saving: %s (%dx%d)", FilePath, Frame.Width, Frame.Height);
+        
+        /* Open file */
+        File = fopen(FilePath, "wb");
+        if (File == NULL) {
+            ESP_LOGE(TAG, "Failed to open file: errno=%d (%s)", errno, strerror(errno));
+            esp_event_post(GUI_EVENTS, GUI_EVENT_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
+            continue;
+        }
+        
+        /* BMP file header */
+        uint32_t ImageSize = Frame.Width * Frame.Height * 3;
+        uint32_t FileSize = 54 + ImageSize;
+        uint8_t BMPHeader[54] = {
+            'B', 'M',
+            (uint8_t)(FileSize), (uint8_t)(FileSize >> 8), (uint8_t)(FileSize >> 16), (uint8_t)(FileSize >> 24),
+            0, 0, 0, 0,
+            54, 0, 0, 0,
+            40, 0, 0, 0,
+            (uint8_t)(Frame.Width), (uint8_t)(Frame.Width >> 8), (uint8_t)(Frame.Width >> 16), (uint8_t)(Frame.Width >> 24),
+            (uint8_t)(Frame.Height), (uint8_t)(Frame.Height >> 8), (uint8_t)(Frame.Height >> 16), (uint8_t)(Frame.Height >> 24),
+            1, 0, 24, 0, 0, 0, 0, 0,
+            (uint8_t)(ImageSize), (uint8_t)(ImageSize >> 8), (uint8_t)(ImageSize >> 16), (uint8_t)(ImageSize >> 24),
+            0x13, 0x0B, 0, 0, 0x13, 0x0B, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        };
+        
+        if (fwrite(BMPHeader, 1, 54, File) != 54) {
+            ESP_LOGE(TAG, "Failed to write header");
+            fclose(File);
+            esp_event_post(GUI_EVENTS, GUI_EVENT_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
+            continue;
+        }
+        
+        /* Write pixel data */
+        uint8_t *LineBuffer = (uint8_t *)heap_caps_malloc(Frame.Width * 3, MALLOC_CAP_8BIT);
+        if (LineBuffer == NULL) {
+            ESP_LOGE(TAG, "Failed to allocate line buffer");
+            fclose(File);
+            esp_event_post(GUI_EVENTS, GUI_EVENT_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
+            continue;
+        }
+        
+        for (int32_t y = 0; y < Frame.Height; y++) {
+            uint8_t *SrcLine = Frame.Buffer + (y * Frame.Width * Frame.Channels);
+            for (uint32_t x = 0; x < Frame.Width; x++) {
+                uint32_t dstX = (Frame.Width - 1) - x;
+                LineBuffer[dstX * 3 + 0] = SrcLine[x * Frame.Channels + 2];
+                LineBuffer[dstX * 3 + 1] = SrcLine[x * Frame.Channels + 1];
+                LineBuffer[dstX * 3 + 2] = SrcLine[x * Frame.Channels + 0];
+            }
+            if (fwrite(LineBuffer, 1, Frame.Width * 3, File) != Frame.Width * 3) {
+                ESP_LOGE(TAG, "Write failed at line %d", y);
+                heap_caps_free(LineBuffer);
+                fclose(File);
+                esp_event_post(GUI_EVENTS, GUI_EVENT_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
+                goto next_save;
+            }
+        }
+        
+        heap_caps_free(LineBuffer);
+        fclose(File);
+        
+        ESP_LOGI(TAG, "✓ Image saved: %s (%d bytes)", FilePath, FileSize);
+        esp_event_post(GUI_EVENTS, GUI_EVENT_IMAGE_SAVED, NULL, 0, portMAX_DELAY);
+        
+next_save:
+        continue;
+    }
+}
+
+esp_err_t GUI_SaveThermalImage(void)
+{
+    char FilePath[128];
+    char TimeStr[32];
+    FILE *File = NULL;
+    time_t Now;
+    struct tm TimeInfo;
+    App_Lepton_FrameReady_t Frame;
+
+    /* Check if AppContext is valid */
+    if (_GUITask_State.p_AppContext == NULL) {
+        ESP_LOGE(TAG, "AppContext is NULL!");
+        return ESP_ERR_INVALID_STATE;
+    } else if (_GUITask_State.p_AppContext->Lepton_FrameEventQueue == NULL) {
+        ESP_LOGE(TAG, "Frame queue is NULL!");
+    
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    /* Abort if filesystem is locked (USB active) */
+    if (MemoryManager_IsFilesystemLocked()) {
+        ESP_LOGW(TAG, "Cannot save image - USB mode active!");
+
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    ESP_LOGI(TAG, "Filesystem OK, checking frame queue...");
+
+    /* Try to get latest frame from queue (non-blocking) */
+    if (xQueuePeek(_GUITask_State.p_AppContext->Lepton_FrameEventQueue, &Frame, 0) != pdTRUE) {
+        ESP_LOGW(TAG, "No thermal frame available in queue!");
+        return ESP_ERR_NO_MEM;
+    }
+
+    ESP_LOGI(TAG, "Frame available - Width: %d, Height: %d, Channels: %d, Buffer: %p",
+             Frame.Width, Frame.Height, Frame.Channels, Frame.Buffer);
+
+    /* Validate frame data */
+    if ((Frame.Buffer == NULL) || (Frame.Width == 0) || (Frame.Height == 0)) {
+        ESP_LOGE(TAG, "Invalid frame data! Buffer=%p, W=%d, H=%d", 
+                 Frame.Buffer, Frame.Width, Frame.Height);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    /* Get current time for filename */
+    time(&Now);
+    localtime_r(&Now, &TimeInfo);
+    strftime(TimeStr, sizeof(TimeStr), "%Y%m%d_%H%M%S", &TimeInfo);
+
+    /* Create filename with timestamp */
+    const char *p_StoragePath = MemoryManager_GetStoragePath();
+    ESP_LOGI(TAG, "Storage path: %s", p_StoragePath);
+    
+    snprintf(FilePath, sizeof(FilePath), "%s/THERMAL_%s.BMP", p_StoragePath, TimeStr);
+
+    ESP_LOGI(TAG, "Attempting to save: %s", FilePath);
+    ESP_LOGI(TAG, "  Resolution: %dx%d, Channels: %d", Frame.Width, Frame.Height, Frame.Channels);
+
+    /* Use simple filename format: IMG_XXX.BMP with counter instead of timestamp */
+    ESP_LOGI(TAG, "Using storage path: %s", p_StoragePath);
+    
+    static uint32_t ImageCounter = 0;
+    snprintf(FilePath, sizeof(FilePath), "%s/IMG_%03u.BMP", p_StoragePath, (unsigned int)(ImageCounter % 1000));
+    ImageCounter++;
+
+    /* Open file for writing */
+    ESP_LOGI(TAG, "Opening file: %s", FilePath);
+    File = fopen(FilePath, "wb");
+    if (File == NULL) {
+        int err = errno;
+        ESP_LOGE(TAG, "Failed to open file: %s", FilePath);
+        ESP_LOGE(TAG, "  errno=%d (%s)", err, strerror(err));
+        ESP_LOGE(TAG, "  Check: Is filesystem mounted? Is path correct?");
+        ESP_LOGE(TAG, "  Storage path: %s", p_StoragePath);
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "File opened successfully, writing BMP header...");
+
+    /* BMP file header (14 bytes) */
+    uint32_t ImageSize = Frame.Width * Frame.Height * 3;  /* RGB24 */
+    uint32_t FileSize = 54 + ImageSize;  /* Header + pixel data */
+    uint8_t BMPHeader[54] = {
+        /* BMP Header (14 bytes) */
+        'B', 'M',                           /* Signature */
+        (uint8_t)(FileSize),                /* File size */
+        (uint8_t)(FileSize >> 8),
+        (uint8_t)(FileSize >> 16),
+        (uint8_t)(FileSize >> 24),
+        0, 0, 0, 0,                         /* Reserved */
+        54, 0, 0, 0,                        /* Offset to pixel data */
+        
+        /* DIB Header (40 bytes - BITMAPINFOHEADER) */
+        40, 0, 0, 0,                        /* DIB header size */
+        (uint8_t)(Frame.Width),             /* Width */
+        (uint8_t)(Frame.Width >> 8),
+        (uint8_t)(Frame.Width >> 16),
+        (uint8_t)(Frame.Width >> 24),
+        (uint8_t)(Frame.Height),            /* Height */
+        (uint8_t)(Frame.Height >> 8),
+        (uint8_t)(Frame.Height >> 16),
+        (uint8_t)(Frame.Height >> 24),
+        1, 0,                               /* Color planes */
+        24, 0,                              /* Bits per pixel (RGB24) */
+        0, 0, 0, 0,                         /* Compression (none) */
+        (uint8_t)(ImageSize),               /* Image size */
+        (uint8_t)(ImageSize >> 8),
+        (uint8_t)(ImageSize >> 16),
+        (uint8_t)(ImageSize >> 24),
+        0x13, 0x0B, 0, 0,                   /* Horizontal resolution (2835 pixels/m) */
+        0x13, 0x0B, 0, 0,                   /* Vertical resolution (2835 pixels/m) */
+        0, 0, 0, 0,                         /* Colors in palette */
+        0, 0, 0, 0,                         /* Important colors */
+    };
+
+    /* Write BMP header */
+    size_t HeaderWritten = fwrite(BMPHeader, 1, 54, File);
+    if (HeaderWritten != 54) {
+        ESP_LOGE(TAG, "Failed to write BMP header! Written: %zu/54", HeaderWritten);
+
+        fclose(File);
+
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "Header written, writing pixel data...");
+
+    /* BMP stores pixels bottom-to-top, BGR format */
+    /* Convert RGB to BGR and write line by line from bottom to top */
+    uint8_t *LineBuffer = static_cast<uint8_t *>(heap_caps_malloc(Frame.Width * 3, MALLOC_CAP_8BIT));
+    if (LineBuffer == NULL) {
+        ESP_LOGE(TAG, "Failed to allocate line buffer!");
+
+        fclose(File);
+
+        return ESP_ERR_NO_MEM;
+    }
+
+    /* BMP is bottom-to-top, but we need to flip to correct orientation */
+    for (int32_t y = 0; y < Frame.Height; y++) {
+        uint8_t *SrcLine = Frame.Buffer + (y * Frame.Width * Frame.Channels);
+        
+        /* Convert RGB to BGR and flip horizontally */
+        for (uint32_t x = 0; x < Frame.Width; x++) {
+            uint32_t dstX = (Frame.Width - 1) - x;  /* Flip horizontal */
+            LineBuffer[dstX * 3 + 0] = SrcLine[x * Frame.Channels + 2];  /* B */
+            LineBuffer[dstX * 3 + 1] = SrcLine[x * Frame.Channels + 1];  /* G */
+            LineBuffer[dstX * 3 + 2] = SrcLine[x * Frame.Channels + 0];  /* R */
+        }
+        
+        size_t LineWritten = fwrite(LineBuffer, 1, Frame.Width * 3, File);
+        if (LineWritten != Frame.Width * 3) {
+            ESP_LOGE(TAG, "Failed to write pixel data at line %d! Written: %zu/%d", 
+                     y, LineWritten, Frame.Width * 3);
+            heap_caps_free(LineBuffer);
+            fclose(File);
+            return ESP_FAIL;
+        }
+        
+        /* Reset watchdog every 10 lines to prevent timeout during slow writes */
+        if ((y % 10) == 0) {
+            esp_task_wdt_reset();
+        }
+    }
+
+    heap_caps_free(LineBuffer);
+    fclose(File);
+
+    ESP_LOGI(TAG, "Thermal image saved successfully!");
+    ESP_LOGI(TAG, "  File: %s", FilePath);
+    ESP_LOGI(TAG, "  Size: %d bytes", FileSize);
+
+    return ESP_OK;
 }

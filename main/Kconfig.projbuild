@@ -3,6 +3,14 @@ menu "PyroVision"
         config DEVICE_MANUFACTURER
             string "Device manufacturer"
             default "PyroVision"
+
+        config DEVICE_NAME
+            string "Device name"
+            default "ThermalCam"
+
+        config DEVICE_REVISION
+            string "Device revision"
+            default "1.0"
     endmenu
 
     menu "Settings"

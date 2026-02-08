@@ -64,4 +64,14 @@ bool GUI_Task_isRunning(void);
  */
 void GUI_Toggle_ROI_EditMode(void);
 
+/** @brief          Save current thermal image to storage as BMP file.
+ *  @note           Checks if filesystem is locked (USB active) before writing.
+ *                  Creates filename with timestamp: THERMAL_YYYYMMDD_HHMMSS.BMP
+ *  @return         ESP_OK on success
+ *                  ESP_ERR_INVALID_STATE if filesystem is locked (USB active)
+ *                  ESP_ERR_NO_MEM if no frame available
+ *                  ESP_FAIL if file write failed
+ */
+esp_err_t GUI_SaveThermalImage(void);
+
 #endif /* GUI_TASK_H_ */

@@ -23,8 +23,8 @@
 
 #include <esp_log.h>
 #include <esp_partition.h>
-#include <esp_spiffs.h>
 #include <esp_vfs_fat.h>
+#include <wear_levelling.h>
 
 #include <driver/spi_master.h>
 #include <driver/sdmmc_host.h>
@@ -43,15 +43,19 @@ static const char *TAG = "MemoryManager";
 typedef struct {
     bool isInitialized;
     bool hasSDCard;
+    bool isFilesystemLocked;                /**< True if filesystem is locked for USB access. */
     MemoryManager_Location_t StorageLocation;
     sdmmc_card_t *p_SDCard;
+    wl_handle_t WL_Handle;
 } MemoryManager_State_t;
 
 static MemoryManager_State_t _State = {
     .isInitialized = false,
     .hasSDCard = false,
+    .isFilesystemLocked = false,
     .StorageLocation = MEMORY_LOCATION_INTERNAL,
-    .p_SDCard = NULL
+    .p_SDCard = NULL,
+    .WL_Handle = WL_INVALID_HANDLE
 };
 
 /** @brief          Calculate directory size recursively.
@@ -91,38 +95,71 @@ static size_t calculate_dir_size(const char *p_Path)
     return TotalSize;
 }
 
+/** @brief  Mount internal flash storage as FAT32 with wear leveling.
+ *  @return ESP_OK if mounted successfully
+ */
+static esp_err_t MemoryManager_Mount_Internal_Storage(void)
+{
+    esp_err_t Error;
+    const esp_vfs_fat_mount_config_t MountConfig = {
+        .format_if_mount_failed = true,
+        .max_files = 5,
+        .allocation_unit_size = 4096,
+        .disk_status_check_enable = false
+    };
+    const esp_partition_t *Partition = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
+                                                                ESP_PARTITION_SUBTYPE_DATA_FAT,
+                                                                "storage");
+
+    ESP_LOGD(TAG, "Mounting internal storage with FAT32 and wear leveling...");
+
+    if (Partition == NULL) {
+        ESP_LOGE(TAG, "Storage partition not found!");
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    ESP_LOGD(TAG, "Found storage partition: size=%lu bytes", Partition->size);
+
+    Error = esp_vfs_fat_spiflash_mount_rw_wl("/storage", "storage", &MountConfig, &_State.WL_Handle);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to mount FAT filesystem: %d", Error);
+        return Error;
+    }
+
+    ESP_LOGD(TAG, "Internal storage mounted successfully at /storage");
+    ESP_LOGD(TAG, "Wear leveling handle: %d", _State.WL_Handle);
+
+    return ESP_OK;
+}
+
 /** @brief  Try to mount SD card via SPI.
  *  @return ESP_OK if SD card mounted successfully
  */
-static esp_err_t mount_sd_card(void)
+static esp_err_t MemoryManager_Mount_SD_Card(void)
 {
     esp_err_t Error;
+    sdmmc_host_t Host = SDSPI_HOST_DEFAULT();
+    sdspi_device_config_t SlotConfig = SDSPI_DEVICE_CONFIG_DEFAULT();
     spi_host_device_t SPI_Host = DevicesManager_GetSPIHost();
-
-    ESP_LOGI(TAG, "Attempting to mount SD card via SPI...");
-
-    if (SPIM_IsInitialized(SPI_Host) == false) {
-        ESP_LOGE(TAG, "SPI bus not initialized! Call DevicesManager_Init() first.");
-
-        return ESP_ERR_INVALID_STATE;
-    }
-
-    sdspi_device_config_t slot_config = SDSPI_DEVICE_CONFIG_DEFAULT();
-    slot_config.gpio_cs = static_cast<gpio_num_t>(CONFIG_SD_CARD_PIN_CS);
-    slot_config.host_id = SPI_Host;
-
-    /* FAT filesystem mount configuration */
-    esp_vfs_fat_sdmmc_mount_config_t mount_config = {
+    const esp_vfs_fat_mount_config_t MountConfig = {
         .format_if_mount_failed = false,
         .max_files = 5,
         .allocation_unit_size = 16 * 1024
     };
 
-    sdmmc_host_t host = SDSPI_HOST_DEFAULT();
-    host.slot = SPI_Host;
+    ESP_LOGD(TAG, "Attempting to mount SD card via SPI...");
 
-    Error = esp_vfs_fat_sdspi_mount("/sdcard", &host, &slot_config, &mount_config, &_State.p_SDCard);
-    
+    if (SPIM_IsInitialized(SPI_Host) == false) {
+        ESP_LOGE(TAG, "SPI bus not initialized!");
+
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    SlotConfig.gpio_cs = static_cast<gpio_num_t>(CONFIG_SD_CARD_PIN_CS);
+    SlotConfig.host_id = SPI_Host;
+    Host.slot = SPI_Host;
+
+    Error = esp_vfs_fat_sdspi_mount("/sdcard", &Host, &SlotConfig, &MountConfig, &_State.p_SDCard);
     if (Error != ESP_OK) {
         if (Error == ESP_FAIL) {
             ESP_LOGW(TAG, "Failed to mount SD card filesystem");
@@ -133,28 +170,39 @@ static esp_err_t mount_sd_card(void)
         return Error;
     }
 
-    ESP_LOGI(TAG, "SD card mounted successfully at /sdcard via SPI");
+    ESP_LOGD(TAG, "SD card mounted successfully at /sdcard via SPI");
 
     return ESP_OK;
 }
 
 esp_err_t MemoryManager_Init(void)
 {
+    esp_err_t Error;
+
     if (_State.isInitialized) {
         ESP_LOGW(TAG, "Memory Manager already initialized");
+
         return ESP_OK;
     }
 
-    ESP_LOGI(TAG, "Initializing Memory Manager");
+    ESP_LOGD(TAG, "Initializing Memory Manager");
 
     /* Try to mount SD card first */
-    if (mount_sd_card() == ESP_OK) {
-        ESP_LOGI(TAG, "Using SD card for storage");
+    if (MemoryManager_Mount_SD_Card() == ESP_OK) {
+        ESP_LOGD(TAG, "Using SD card for storage");
 
         _State.hasSDCard = true;
         _State.StorageLocation = MEMORY_LOCATION_SD_CARD;
     } else {
-        ESP_LOGI(TAG, "Using internal flash for storage");
+        ESP_LOGD(TAG, "SD card not available, using internal flash");
+
+        /* Mount internal flash with FAT32 */
+        Error = MemoryManager_Mount_Internal_Storage();
+        if (Error != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to mount internal storage: %d!", Error);
+
+            return Error;
+        }
 
         _State.hasSDCard = false;
         _State.StorageLocation = MEMORY_LOCATION_INTERNAL;
@@ -171,12 +219,15 @@ esp_err_t MemoryManager_Deinit(void)
         return ESP_OK;
     }
 
-    ESP_LOGI(TAG, "Deinitializing Memory Manager");
+    ESP_LOGD(TAG, "Deinitializing Memory Manager");
 
     if (_State.hasSDCard) {
         esp_vfs_fat_sdcard_unmount("/sdcard", _State.p_SDCard);
         _State.p_SDCard = NULL;
         _State.hasSDCard = false;
+    } else if (_State.WL_Handle != WL_INVALID_HANDLE) {
+        esp_vfs_fat_spiflash_unmount_rw_wl("/storage", _State.WL_Handle);
+        _State.WL_Handle = WL_INVALID_HANDLE;
     }
 
     _State.isInitialized = false;
@@ -222,11 +273,41 @@ esp_err_t MemoryManager_GetStorageUsage(MemoryManager_Usage_t *p_Usage)
         if (f_getfree("0:", &fre_clust, &fs) == FR_OK) {
             uint64_t total_sectors = (fs->n_fatent - 2) * fs->csize;
             uint64_t free_sectors = fre_clust * fs->csize;
-            
+
             p_Usage->TotalBytes = total_sectors * fs->ssize;
             p_Usage->FreeBytes = free_sectors * fs->ssize;
             p_Usage->UsedBytes = p_Usage->TotalBytes - p_Usage->FreeBytes;
-            
+
+            if (p_Usage->TotalBytes > 0) {
+                p_Usage->UsedPercent = (uint8_t)((p_Usage->UsedBytes * 100) / p_Usage->TotalBytes);
+            } else {
+                p_Usage->UsedPercent = 0;
+            }
+
+            return ESP_OK;
+        } else {
+            ESP_LOGE(TAG, "Failed to get SD card filesystem info!");
+
+            return ESP_FAIL;
+        }
+    } else {
+        /* Get internal FAT storage usage */
+        FATFS *fs;
+        DWORD fre_clust;
+
+        if (_State.WL_Handle == WL_INVALID_HANDLE) {
+            ESP_LOGE(TAG, "Internal storage not mounted!");
+            return ESP_ERR_INVALID_STATE;
+        }
+
+        if (f_getfree("1:", &fre_clust, &fs) == FR_OK) {
+            uint64_t total_sectors = (fs->n_fatent - 2) * fs->csize;
+            uint64_t free_sectors = fre_clust * fs->csize;
+
+            p_Usage->TotalBytes = total_sectors * fs->ssize;
+            p_Usage->FreeBytes = free_sectors * fs->ssize;
+            p_Usage->UsedBytes = p_Usage->TotalBytes - p_Usage->FreeBytes;
+
             if (p_Usage->TotalBytes > 0) {
                 p_Usage->UsedPercent = (uint8_t)((p_Usage->UsedBytes * 100) / p_Usage->TotalBytes);
             } else {
@@ -235,41 +316,9 @@ esp_err_t MemoryManager_GetStorageUsage(MemoryManager_Usage_t *p_Usage)
             
             return ESP_OK;
         } else {
-            ESP_LOGE(TAG, "Failed to get SD card filesystem info!");
-
+            ESP_LOGE(TAG, "Failed to get internal storage filesystem info!");
             return ESP_FAIL;
         }
-    } else {
-        /* Get internal storage usage */
-        const esp_partition_t *Partition = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
-                                            ESP_PARTITION_SUBTYPE_DATA_SPIFFS,
-                                            "storage");
-
-        if (Partition == NULL) {
-            ESP_LOGE(TAG, "Storage partition not found!");
-
-            return ESP_ERR_NOT_FOUND;
-        }
-
-        p_Usage->TotalBytes = Partition->size;
-
-        /* Try to get used space from SPIFFS */
-        size_t TotalBytes = 0;
-        size_t UsedBytes = 0;
-
-        esp_err_t Error = esp_spiffs_info("storage", &TotalBytes, &UsedBytes);
-        if (Error == ESP_OK) {
-            p_Usage->UsedBytes = UsedBytes;
-            p_Usage->FreeBytes = TotalBytes - UsedBytes;
-            p_Usage->UsedPercent = (uint8_t)((UsedBytes * 100) / TotalBytes);
-        } else {
-            ESP_LOGW(TAG, "Could not get SPIFFS info (not mounted?), returning partition size only");
-            p_Usage->UsedBytes = 0;
-            p_Usage->FreeBytes = p_Usage->TotalBytes;
-            p_Usage->UsedPercent = 0;
-        }
-
-        return ESP_OK;
     }
 }
 
@@ -282,7 +331,6 @@ esp_err_t MemoryManager_GetCoredumpUsage(MemoryManager_Usage_t *p_Usage)
     const esp_partition_t *Partition = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
                                         ESP_PARTITION_SUBTYPE_DATA_COREDUMP,
                                         "coredump");
-
     if (Partition == NULL) {
         ESP_LOGE(TAG, "Coredump partition not found!");
 
@@ -295,7 +343,7 @@ esp_err_t MemoryManager_GetCoredumpUsage(MemoryManager_Usage_t *p_Usage)
     uint32_t Magic = 0;
     esp_err_t Error = esp_partition_read(Partition, 0, &Magic, sizeof(Magic));
 
-    if (Error == ESP_OK && Magic != 0xFFFFFFFF && Magic != 0x00000000) {
+    if ((Error == ESP_OK) && (Magic != 0xFFFFFFFF) && (Magic != 0x00000000)) {
         /* Coredump likely present - assume partition is used */
         p_Usage->UsedBytes = p_Usage->TotalBytes;
         p_Usage->FreeBytes = 0;
@@ -315,7 +363,7 @@ esp_err_t MemoryManager_EraseStorage(void)
     if (_State.StorageLocation == MEMORY_LOCATION_SD_CARD) {
         struct dirent *Entry;
 
-        ESP_LOGI(TAG, "Erasing SD card storage...");
+        ESP_LOGD(TAG, "Erasing SD card storage...");
 
         DIR *Dir = opendir("/sdcard");
         if (Dir == NULL) {
@@ -348,46 +396,35 @@ esp_err_t MemoryManager_EraseStorage(void)
 
         closedir(Dir);
 
-        ESP_LOGI(TAG, "SD card storage erased successfully");
+        ESP_LOGD(TAG, "SD card storage erased successfully");
 
         return ESP_OK;
         
     } else {
-        /* Erase internal flash storage partition */
-        const esp_partition_t *Partition = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
-                                                                    ESP_PARTITION_SUBTYPE_DATA_SPIFFS,
-                                                                    "storage");
+        esp_err_t Error;
+        const esp_vfs_fat_mount_config_t MountConfig = {
+            .format_if_mount_failed = true,
+            .max_files = 5,
+            .allocation_unit_size = 4096,
+            .disk_status_check_enable = false
+        };
 
-        if (Partition == NULL) {
-            ESP_LOGE(TAG, "Storage partition not found!");
+        /* Erase internal FAT storage by unmounting and reformatting */
+        ESP_LOGD(TAG, "Erasing internal storage...");
 
-            return ESP_ERR_NOT_FOUND;
+        /* Unmount current filesystem */
+        if (_State.WL_Handle != WL_INVALID_HANDLE) {
+            esp_vfs_fat_spiflash_unmount_rw_wl("/storage", _State.WL_Handle);
+            _State.WL_Handle = WL_INVALID_HANDLE;
         }
 
-        ESP_LOGI(TAG, "Erasing storage partition (%d bytes)...", Partition->size);
-
-        esp_vfs_spiffs_unregister("storage");
-
-        esp_err_t Error = esp_partition_erase_range(Partition, 0, Partition->size);
+        Error = esp_vfs_fat_spiflash_mount_rw_wl("/storage", "storage", &MountConfig, &_State.WL_Handle);
         if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to erase storage partition: %d!", Error);
+            ESP_LOGE(TAG, "Failed to remount storage: %d!", Error);
             return ESP_FAIL;
         }
 
-        ESP_LOGI(TAG, "Storage partition erased successfully");
-
-        /* Remount and format SPIFFS */
-        esp_vfs_spiffs_conf_t Config = {
-            .base_path = "/storage",
-            .partition_label = "storage",
-            .max_files = 5,
-            .format_if_mount_failed = true
-        };
-
-        Error = esp_vfs_spiffs_register(&Config);
-        if (Error != ESP_OK) {
-            ESP_LOGW(TAG, "Failed to remount storage: %d!", Error);
-        }
+        ESP_LOGD(TAG, "Internal storage erased and reformatted successfully");
 
         return ESP_OK;
     }
@@ -395,6 +432,7 @@ esp_err_t MemoryManager_EraseStorage(void)
 
 esp_err_t MemoryManager_EraseCoredump(void)
 {
+    esp_err_t Error;
     const esp_partition_t *Partition = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
                                                                 ESP_PARTITION_SUBTYPE_DATA_COREDUMP,
                                                                 "coredump");
@@ -404,15 +442,91 @@ esp_err_t MemoryManager_EraseCoredump(void)
         return ESP_ERR_NOT_FOUND;
     }
 
-    ESP_LOGI(TAG, "Erasing coredump partition (%d bytes)...", Partition->size);
+    ESP_LOGD(TAG, "Erasing coredump partition (%d bytes)...", Partition->size);
 
-    esp_err_t Error = esp_partition_erase_range(Partition, 0, Partition->size);
+    Error = esp_partition_erase_range(Partition, 0, Partition->size);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to erase coredump partition: %d!", Error);
         return ESP_FAIL;
     }
 
-    ESP_LOGI(TAG, "Coredump partition erased successfully");
+    ESP_LOGD(TAG, "Coredump partition erased successfully");
 
     return ESP_OK;
+}
+
+esp_err_t MemoryManager_GetWearLevelingHandle(wl_handle_t *p_Handle)
+{
+    if (p_Handle == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (_State.StorageLocation != MEMORY_LOCATION_INTERNAL) {
+        ESP_LOGE(TAG, "Wear leveling only available for internal storage!");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (_State.WL_Handle == WL_INVALID_HANDLE) {
+        ESP_LOGE(TAG, "Internal storage not mounted!");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    *p_Handle = _State.WL_Handle;
+
+    return ESP_OK;
+}
+
+esp_err_t MemoryManager_GetSDCardHandle(sdmmc_card_t **pp_Card)
+{
+    if (pp_Card == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    } else if (_State.StorageLocation != MEMORY_LOCATION_SD_CARD) {
+        ESP_LOGE(TAG, "SD card handle only available when SD card is mounted!");
+
+        return ESP_ERR_INVALID_STATE;
+    } else if (_State.p_SDCard == NULL) {
+        ESP_LOGE(TAG, "SD card not mounted!");
+
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    *pp_Card = _State.p_SDCard;
+
+    return ESP_OK;
+}
+
+esp_err_t MemoryManager_LockFilesystem(void)
+{
+    if (_State.isFilesystemLocked) {
+        ESP_LOGW(TAG, "Filesystem already locked!");
+
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    ESP_LOGD(TAG, "Locking filesystem for USB access");
+    ESP_LOGW(TAG, "  Application MUST NOT write to %s while USB is active!", MemoryManager_GetStoragePath());
+    
+    _State.isFilesystemLocked = true;
+
+    return ESP_OK;
+}
+
+esp_err_t MemoryManager_UnlockFilesystem(void)
+{
+    if (_State.isFilesystemLocked == false) {
+        ESP_LOGW(TAG, "Filesystem not locked!");
+
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    ESP_LOGD(TAG, "Unlocking filesystem - application can write again");
+    
+    _State.isFilesystemLocked = false;
+
+    return ESP_OK;
+}
+
+bool MemoryManager_IsFilesystemLocked(void)
+{
+    return _State.isFilesystemLocked;
 }

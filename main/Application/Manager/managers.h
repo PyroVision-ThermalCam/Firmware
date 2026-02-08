@@ -29,5 +29,6 @@
 #include "Time/timeManager.h"
 #include "Memory/memoryManager.h"
 #include "Settings/settingsManager.h"
+#include "USB/usbManager.h"
 
 #endif /* MANAGERS_H_ */

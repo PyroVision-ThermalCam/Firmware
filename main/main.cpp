@@ -22,12 +22,16 @@
 #include <esp_log.h>
 #include <esp_event.h>
 #include <esp_task_wdt.h>
+#include <wear_levelling.h>
 
 #include <nvs_flash.h>
 
 #include "managers.h"
 #include "Application/Tasks/tasks.h"
 #include "Application/application.h"
+
+/* USB Test Mode - Enable to test USB Mass Storage Device */
+#define USB_TEST_MODE_ENABLED 0  /* Disabled - allows normal app operation */
 
 static App_Context_t _App_Context;
 
@@ -52,6 +56,62 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(SettingsManager_Init());
     ESP_ERROR_CHECK(DevicesTask_Init());
     ESP_ERROR_CHECK(MemoryManager_Init());
+
+#if USB_TEST_MODE_ENABLED
+    /* USB Test Mode - Initialize USB MSC and halt execution */
+    ESP_LOGI(TAG, "=================================================");
+    ESP_LOGI(TAG, " USB TEST MODE ENABLED");
+    ESP_LOGI(TAG, "=================================================");
+    ESP_LOGI(TAG, "");
+    ESP_LOGI(TAG, "The device will expose storage via USB Mass Storage.");
+    ESP_LOGI(TAG, "Normal application will NOT start.");
+    ESP_LOGI(TAG, "");
+    ESP_LOGI(TAG, "To disable test mode:");
+    ESP_LOGI(TAG, "  Set USB_TEST_MODE_ENABLED to 0 in main.cpp");
+    ESP_LOGI(TAG, "");
+
+    /* Get wear leveling handle for internal storage */
+    wl_handle_t WL_Handle;
+    esp_err_t Error = MemoryManager_GetWearLevelingHandle(&WL_Handle);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to get wear leveling handle: %d", Error);
+        ESP_LOGI(TAG, "Continuing with normal operation...");
+    } else {
+        /* Configure USB Manager - storage type is auto-detected */
+        USB_Manager_Config_t USB_Config = {
+            .p_MountPoint = "/storage",
+            .p_VendorID = "PyroVis",
+            .p_ProductID = "ThermalCam",
+            .p_ProductRevision = "1.0",
+        };
+
+        ESP_LOGI(TAG, "Using internal flash storage: %s", MemoryManager_GetStoragePath());
+        ESP_LOGI(TAG, "Wear Leveling Handle: %d", WL_Handle);
+        ESP_LOGI(TAG, "Initializing USB Mass Storage Device...");
+        
+        Error = USBManager_Init(&USB_Config);
+        if (Error != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize USB Manager: %d", Error);
+            ESP_LOGI(TAG, "Continuing with normal operation...");
+        } else {
+            ESP_LOGI(TAG, "");
+            ESP_LOGI(TAG, "✓ USB Mass Storage Device active!");
+            ESP_LOGI(TAG, "✓ Internal flash exposed via USB");
+            ESP_LOGI(TAG, "✓ Connect USB cable to PC");
+            ESP_LOGI(TAG, "✓ Device should appear as removable drive");
+            ESP_LOGI(TAG, "");
+            ESP_LOGI(TAG, "⚠️  WARNING: Filesystem is now under PC control.");
+            ESP_LOGI(TAG, "⚠️  Do NOT reset device without safely ejecting from PC!");
+            ESP_LOGI(TAG, "");
+            ESP_LOGI(TAG, "Entering infinite loop...");
+
+            /* Infinite loop - device stays in USB mode */
+            while (1) {
+                vTaskDelay(pdMS_TO_TICKS(1000));
+            }
+        }
+    }
+#endif
 
     /* Initialize Time Manager (requires RTC from DevicesManager) */
     if (DevicesManager_GetRTCHandle(&RtcHandle) == ESP_OK) {
