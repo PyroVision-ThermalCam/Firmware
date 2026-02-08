@@ -495,7 +495,7 @@ esp_err_t SettingsManager_LoadDefaultsFromJSON(SettingsManager_State_t *p_State)
         .partition_label = "storage",
         .partition = NULL,
 		.format_if_mount_failed = true,
-        .read_only = true,
+        .read_only = false,
         .dont_mount = false,
         .grow_on_mount = false
     };
@@ -519,12 +519,21 @@ esp_err_t SettingsManager_LoadDefaultsFromJSON(SettingsManager_State_t *p_State)
             Error = SettingsManager_Load_JSON(p_State, "/sdcard/SETTIN~1.JSO");
         }
 
-        SettingsManager_Unmount_SD_Card();
-
         if (Error == ESP_OK) {
             ESP_LOGD(TAG, "Settings loaded from SD card");
+            
+            /* Delete the settings file after successful load */
+            if (remove("/sdcard/settings.json") == 0) {
+                ESP_LOGD(TAG, "Deleted settings.json from SD card");
+            } else if (remove("/sdcard/SETTIN~1.JSO") == 0) {
+                ESP_LOGD(TAG, "Deleted SETTIN~1.JSO from SD card");
+            }
+            
+            SettingsManager_Unmount_SD_Card();
             return ESP_OK;
         }
+        
+        SettingsManager_Unmount_SD_Card();
         ESP_LOGW(TAG, "SD card mounted but no valid settings.json found");
     } else {
         ESP_LOGD(TAG, "SD card not available, trying LittleFS");
@@ -534,12 +543,20 @@ esp_err_t SettingsManager_LoadDefaultsFromJSON(SettingsManager_State_t *p_State)
     Error = esp_vfs_littlefs_register(&LittleFS_Config);
     if (Error == ESP_OK) {        
         Error = SettingsManager_Load_JSON(p_State, "/littlefs/settings.json");
-        esp_vfs_littlefs_unregister(LittleFS_Config.partition_label);
         
         if (Error == ESP_OK) {
             ESP_LOGD(TAG, "Settings loaded from LittleFS");
+            
+            /* Delete the settings file after successful load */
+            if (remove("/littlefs/settings.json") == 0) {
+                ESP_LOGD(TAG, "Deleted settings.json from LittleFS");
+            }
+            
+            esp_vfs_littlefs_unregister(LittleFS_Config.partition_label);
             return ESP_OK;
         }
+        
+        esp_vfs_littlefs_unregister(LittleFS_Config.partition_label);
         ESP_LOGW(TAG, "LittleFS mounted but no valid settings.json found");
     } else {
         ESP_LOGW(TAG, "Failed to mount LittleFS: %d!", Error);
