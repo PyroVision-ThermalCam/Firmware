@@ -171,10 +171,10 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUITask_State, lv_indev_read_cb_t 
     ESP_LOGI(TAG, "Configure LCD backlight GPIO...");
     gpio_config_t bk_gpio_config = {
         .pin_bit_mask = 1ULL << CONFIG_LCD_BL,
-        .mode = GPIO_MODE_OUTPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE,
+                             .mode = GPIO_MODE_OUTPUT,
+                             .pull_up_en = GPIO_PULLUP_DISABLE,
+                             .pull_down_en = GPIO_PULLDOWN_DISABLE,
+                             .intr_type = GPIO_INTR_DISABLE,
     };
     ESP_ERROR_CHECK(gpio_config(&bk_gpio_config));
     gpio_set_level(static_cast<gpio_num_t>(CONFIG_LCD_BL), LCD_BK_LIGHT_ON_LEVEL);
@@ -214,7 +214,7 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUITask_State, lv_indev_read_cb_t 
     ESP_ERROR_CHECK(esp_lcd_panel_io_register_event_callbacks(p_GUITask_State->Panel_IO_Handle, &_GUI_Panel_Callbacks,
                                                               p_GUITask_State->Display));
 
-    ESP_LOGI(TAG, "Install ILI9341 panel driver...");                                                  
+    ESP_LOGI(TAG, "Install ILI9341 panel driver...");
     ESP_ERROR_CHECK(esp_lcd_new_panel_ili9341(p_GUITask_State->Panel_IO_Handle, &_GUI_Panel_Config,
                                               &p_GUITask_State->PanelHandle));
     ESP_LOGD(TAG, " ILI9341 panel driver installed");
@@ -263,7 +263,7 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUITask_State, lv_indev_read_cb_t 
 
     ESP_LOGI(TAG, "Initialize GT911 touch controller...");
     esp_err_t TouchError = esp_lcd_touch_new_i2c_gt911(p_GUITask_State->Touch_IO_Handle, &_GUI_Touch_Config,
-                                                        &p_GUITask_State->TouchHandle);
+                                                       &p_GUITask_State->TouchHandle);
     if (TouchError != ESP_OK) {
         ESP_LOGW(TAG, "GT911 touch controller initialization failed (0x%x)", TouchError);
         ESP_LOGW(TAG, "System will continue without touch functionality");

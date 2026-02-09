@@ -69,7 +69,7 @@ static Lepton_Task_State_t _LeptonTask_State;
 
 static const char *TAG = "lepton_task";
 
-/** @brief                  
+/** @brief
  *  @param p_HandlerArgs    Handler argument
  *  @param Base             Event base
  *  @param ID               Event ID
@@ -86,7 +86,7 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
             ESP_LOGD(TAG, "Lepton settings changed: ID=%d", _LeptonTask_State.NewSetting.ID);
             ESP_LOGD(TAG, "Lepton settings changed: Value=%d", _LeptonTask_State.NewSetting.Value);
 
-            if(_LeptonTask_State.NewSetting.ID == SETTINGS_ID_LEPTON_EMISSIVITY) {
+            if (_LeptonTask_State.NewSetting.ID == SETTINGS_ID_LEPTON_EMISSIVITY) {
                 xEventGroupSetBits(_LeptonTask_State.EventGroup, LEPTON_TASK_UPDATE_EMISSIVITY);
             }
 
@@ -95,7 +95,7 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
     }
 }
 
-/** @brief                  
+/** @brief
  *  @param p_HandlerArgs    Handler argument
  *  @param Base             Event base
  *  @param ID               Event ID
@@ -491,7 +491,8 @@ static void Task_Lepton(void *p_Parameters)
         } else if (EventBits & LEPTON_TASK_UPDATE_EMISSIVITY) {
             Lepton_Error_t Error;
 
-            Error = Lepton_SetEmissivity(&_LeptonTask_State.Lepton, static_cast<Lepton_Emissivity_t>(_LeptonTask_State.NewSetting.Value));
+            Error = Lepton_SetEmissivity(&_LeptonTask_State.Lepton,
+                                         static_cast<Lepton_Emissivity_t>(_LeptonTask_State.NewSetting.Value));
             if (Error == LEPTON_ERR_OK) {
                 ESP_LOGD(TAG, "Updated emissivity to %u", _LeptonTask_State.NewSetting.Value);
             } else {

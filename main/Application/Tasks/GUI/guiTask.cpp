@@ -444,14 +444,15 @@ static void Touch_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Data
     esp_lcd_touch_handle_t Touch;
 
     Touch = (esp_lcd_touch_handle_t)lv_indev_get_user_data(p_Indev);
-    
+
     /* Check if touch controller is available */
     if (Touch == NULL) {
         p_Data->state = LV_INDEV_STATE_RELEASED;
         return;
     }
 
-    if ((esp_lcd_touch_read_data(Touch) == ESP_OK) && (esp_lcd_touch_get_data(Touch, Data, &Count, sizeof(Data) / sizeof(Data[0])) == ESP_OK) && (Count > 0)) {
+    if ((esp_lcd_touch_read_data(Touch) == ESP_OK) &&
+        (esp_lcd_touch_get_data(Touch, Data, &Count, sizeof(Data) / sizeof(Data[0])) == ESP_OK) && (Count > 0)) {
         p_Data->point.x = CONFIG_GUI_WIDTH - Data[0].x;
         p_Data->point.y = Data[0].y;
 
@@ -653,7 +654,7 @@ void Task_GUI(void *p_Parameters)
 
                     /* Max Label */
                     if ((x_rot >= SceneLabel_x0[0]) &&
-                        (x_rot < (SceneLabel_x0[0] + SceneLabel_w[0])) && 
+                        (x_rot < (SceneLabel_x0[0] + SceneLabel_w[0])) &&
                         (y >= SceneLabel_y0[0]) &&
                         (y < (SceneLabel_y0[0] + SceneLabel_h[0]))) {
                         SceneLabelIlluminance[0] += static_cast<uint8_t>((0.299f * r) + (0.587f * g) + (0.114f * b));
@@ -662,7 +663,7 @@ void Task_GUI(void *p_Parameters)
 
                     /* Min Label */
                     if ((x_rot >= SceneLabel_x0[1]) &&
-                        (x_rot < (SceneLabel_x0[1] + SceneLabel_w[1])) && 
+                        (x_rot < (SceneLabel_x0[1] + SceneLabel_w[1])) &&
                         (y >= SceneLabel_y0[1]) &&
                         (y < (SceneLabel_y0[1] + SceneLabel_h[1]))) {
                         SceneLabelIlluminance[1] += static_cast<uint8_t>((0.299f * r) + (0.587f * g) + (0.114f * b));
@@ -671,7 +672,7 @@ void Task_GUI(void *p_Parameters)
 
                     /* Mean Label */
                     if ((x_rot >= SceneLabel_x0[2]) &&
-                        (x_rot < (SceneLabel_x0[2] + SceneLabel_w[2])) && 
+                        (x_rot < (SceneLabel_x0[2] + SceneLabel_w[2])) &&
                         (y >= SceneLabel_y0[2]) &&
                         (y < (SceneLabel_y0[2] + SceneLabel_h[2]))) {
                         SceneLabelIlluminance[2] += static_cast<uint8_t>((0.299f * r) + (0.587f * g) + (0.114f * b));
@@ -700,9 +701,12 @@ void Task_GUI(void *p_Parameters)
                 }
             }
 
-            lv_obj_set_style_text_color(ui_Label_Main_Thermal_Scene_Max, (SceneLabelAverageLuminance[0] > 128) ? lv_color_black() : lv_color_white(), LV_PART_MAIN);
-            lv_obj_set_style_text_color(ui_Label_Main_Thermal_Scene_Min, (SceneLabelAverageLuminance[1] > 128) ? lv_color_black() : lv_color_white(), LV_PART_MAIN);
-            lv_obj_set_style_text_color(ui_Label_Main_Thermal_Scene_Mean, (SceneLabelAverageLuminance[2] > 128) ? lv_color_black() : lv_color_white(), LV_PART_MAIN);
+            lv_obj_set_style_text_color(ui_Label_Main_Thermal_Scene_Max,
+                                        (SceneLabelAverageLuminance[0] > 128) ? lv_color_black() : lv_color_white(), LV_PART_MAIN);
+            lv_obj_set_style_text_color(ui_Label_Main_Thermal_Scene_Min,
+                                        (SceneLabelAverageLuminance[1] > 128) ? lv_color_black() : lv_color_white(), LV_PART_MAIN);
+            lv_obj_set_style_text_color(ui_Label_Main_Thermal_Scene_Mean,
+                                        (SceneLabelAverageLuminance[2] > 128) ? lv_color_black() : lv_color_white(), LV_PART_MAIN);
 
             /* Reset watchdog after image processing */
             esp_task_wdt_reset();
@@ -932,7 +936,7 @@ esp_err_t GUI_Task_Init(void)
 
         return ESP_ERR_NO_MEM;
     }
-    
+
     /* Create image save queue and task */
     _ImageSaveQueue = xQueueCreate(1, sizeof(App_Lepton_FrameReady_t));
     if (_ImageSaveQueue == NULL) {
@@ -942,17 +946,17 @@ esp_err_t GUI_Task_Init(void)
         heap_caps_free(_GUITask_State.NetworkRGBBuffer);
         return ESP_ERR_NO_MEM;
     }
-    
+
     BaseType_t Result = xTaskCreatePinnedToCore(
-        Task_ImageSave,
-        "Task_ImgSave",
-        8192,
-        NULL,
-        CONFIG_GUI_TASK_PRIO - 1,  /* Lower priority than GUI */
-        &_ImageSaveTaskHandle,
-        1
-    );
-    
+                            Task_ImageSave,
+                            "Task_ImgSave",
+                            8192,
+                            NULL,
+                            CONFIG_GUI_TASK_PRIO - 1,  /* Lower priority than GUI */
+                            &_ImageSaveTaskHandle,
+                            1
+                        );
+
     if (Result != pdPASS) {
         ESP_LOGE(TAG, "Failed to create image save task!");
 
@@ -1056,14 +1060,14 @@ esp_err_t GUI_Task_Start(App_Context_t *p_AppContext)
     ESP_LOGD(TAG, "Starting GUI Task");
 
     ret = xTaskCreatePinnedToCore(
-            Task_GUI,
-            "Task_GUI",
-            CONFIG_GUI_TASK_STACKSIZE,
-            p_AppContext,
-            CONFIG_GUI_TASK_PRIO,
-            &_GUITask_State.TaskHandle,
-            CONFIG_GUI_TASK_CORE
-        );
+              Task_GUI,
+              "Task_GUI",
+              CONFIG_GUI_TASK_STACKSIZE,
+              p_AppContext,
+              CONFIG_GUI_TASK_PRIO,
+              &_GUITask_State.TaskHandle,
+              CONFIG_GUI_TASK_CORE
+          );
 
     if (ret != pdPASS) {
         ESP_LOGE(TAG, "Failed to create GUI task: %d!", ret);
@@ -1097,38 +1101,38 @@ static void Task_ImageSave(void *p_Param)
     App_Lepton_FrameReady_t Frame;
     char FilePath[128];
     FILE *File = NULL;
-    
+
     ESP_LOGI(TAG, "Image save task started");
-    
+
     while (true) {
         /* Wait for save request */
         if (xQueueReceive(_ImageSaveQueue, &Frame, portMAX_DELAY) != pdTRUE) {
             continue;
         }
-        
+
         ESP_LOGI(TAG, "=== Background Image Save START ===");
-        
+
         /* Check if filesystem is locked (USB active) */
         if (MemoryManager_IsFilesystemLocked()) {
             ESP_LOGW(TAG, "Cannot save image - USB mode active!");
             esp_event_post(GUI_EVENTS, GUI_EVENT_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
             continue;
         }
-        
+
         /* Validate frame data */
         if ((Frame.Buffer == NULL) || (Frame.Width == 0) || (Frame.Height == 0)) {
             ESP_LOGE(TAG, "Invalid frame data!");
             esp_event_post(GUI_EVENTS, GUI_EVENT_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
             continue;
         }
-        
+
         const char *p_StoragePath = MemoryManager_GetStoragePath();
         static uint32_t ImageCounter = 0;
         snprintf(FilePath, sizeof(FilePath), "%s/IMG_%03u.BMP", p_StoragePath, (unsigned int)(ImageCounter % 1000));
         ImageCounter++;
-        
+
         ESP_LOGI(TAG, "Saving: %s (%dx%d)", FilePath, Frame.Width, Frame.Height);
-        
+
         /* Open file */
         File = fopen(FilePath, "wb");
         if (File == NULL) {
@@ -1136,7 +1140,7 @@ static void Task_ImageSave(void *p_Param)
             esp_event_post(GUI_EVENTS, GUI_EVENT_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
             continue;
         }
-        
+
         /* BMP file header */
         uint32_t ImageSize = Frame.Width * Frame.Height * 3;
         uint32_t FileSize = 54 + ImageSize;
@@ -1152,14 +1156,14 @@ static void Task_ImageSave(void *p_Param)
             (uint8_t)(ImageSize), (uint8_t)(ImageSize >> 8), (uint8_t)(ImageSize >> 16), (uint8_t)(ImageSize >> 24),
             0x13, 0x0B, 0, 0, 0x13, 0x0B, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         };
-        
+
         if (fwrite(BMPHeader, 1, 54, File) != 54) {
             ESP_LOGE(TAG, "Failed to write header");
             fclose(File);
             esp_event_post(GUI_EVENTS, GUI_EVENT_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
             continue;
         }
-        
+
         /* Write pixel data */
         uint8_t *LineBuffer = (uint8_t *)heap_caps_malloc(Frame.Width * 3, MALLOC_CAP_8BIT);
         if (LineBuffer == NULL) {
@@ -1168,7 +1172,7 @@ static void Task_ImageSave(void *p_Param)
             esp_event_post(GUI_EVENTS, GUI_EVENT_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
             continue;
         }
-        
+
         for (int32_t y = 0; y < Frame.Height; y++) {
             uint8_t *SrcLine = Frame.Buffer + (y * Frame.Width * Frame.Channels);
             for (uint32_t x = 0; x < Frame.Width; x++) {
@@ -1185,13 +1189,13 @@ static void Task_ImageSave(void *p_Param)
                 goto next_save;
             }
         }
-        
+
         heap_caps_free(LineBuffer);
         fclose(File);
-        
+
         ESP_LOGI(TAG, "✓ Image saved: %s (%d bytes)", FilePath, FileSize);
         esp_event_post(GUI_EVENTS, GUI_EVENT_IMAGE_SAVED, NULL, 0, portMAX_DELAY);
-        
+
 next_save:
         continue;
     }
@@ -1212,7 +1216,7 @@ esp_err_t GUI_SaveThermalImage(void)
         return ESP_ERR_INVALID_STATE;
     } else if (_GUITask_State.p_AppContext->Lepton_FrameEventQueue == NULL) {
         ESP_LOGE(TAG, "Frame queue is NULL!");
-    
+
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -1236,7 +1240,7 @@ esp_err_t GUI_SaveThermalImage(void)
 
     /* Validate frame data */
     if ((Frame.Buffer == NULL) || (Frame.Width == 0) || (Frame.Height == 0)) {
-        ESP_LOGE(TAG, "Invalid frame data! Buffer=%p, W=%d, H=%d", 
+        ESP_LOGE(TAG, "Invalid frame data! Buffer=%p, W=%d, H=%d",
                  Frame.Buffer, Frame.Width, Frame.Height);
         return ESP_ERR_INVALID_ARG;
     }
@@ -1249,7 +1253,7 @@ esp_err_t GUI_SaveThermalImage(void)
     /* Create filename with timestamp */
     const char *p_StoragePath = MemoryManager_GetStoragePath();
     ESP_LOGI(TAG, "Storage path: %s", p_StoragePath);
-    
+
     snprintf(FilePath, sizeof(FilePath), "%s/THERMAL_%s.BMP", p_StoragePath, TimeStr);
 
     ESP_LOGI(TAG, "Attempting to save: %s", FilePath);
@@ -1257,7 +1261,7 @@ esp_err_t GUI_SaveThermalImage(void)
 
     /* Use simple filename format: IMG_XXX.BMP with counter instead of timestamp */
     ESP_LOGI(TAG, "Using storage path: %s", p_StoragePath);
-    
+
     static uint32_t ImageCounter = 0;
     snprintf(FilePath, sizeof(FilePath), "%s/IMG_%03u.BMP", p_StoragePath, (unsigned int)(ImageCounter % 1000));
     ImageCounter++;
@@ -1288,7 +1292,7 @@ esp_err_t GUI_SaveThermalImage(void)
         (uint8_t)(FileSize >> 24),
         0, 0, 0, 0,                         /* Reserved */
         54, 0, 0, 0,                        /* Offset to pixel data */
-        
+
         /* DIB Header (40 bytes - BITMAPINFOHEADER) */
         40, 0, 0, 0,                        /* DIB header size */
         (uint8_t)(Frame.Width),             /* Width */
@@ -1338,7 +1342,7 @@ esp_err_t GUI_SaveThermalImage(void)
     /* BMP is bottom-to-top, but we need to flip to correct orientation */
     for (int32_t y = 0; y < Frame.Height; y++) {
         uint8_t *SrcLine = Frame.Buffer + (y * Frame.Width * Frame.Channels);
-        
+
         /* Convert RGB to BGR and flip horizontally */
         for (uint32_t x = 0; x < Frame.Width; x++) {
             uint32_t dstX = (Frame.Width - 1) - x;  /* Flip horizontal */
@@ -1346,16 +1350,16 @@ esp_err_t GUI_SaveThermalImage(void)
             LineBuffer[dstX * 3 + 1] = SrcLine[x * Frame.Channels + 1];  /* G */
             LineBuffer[dstX * 3 + 2] = SrcLine[x * Frame.Channels + 0];  /* R */
         }
-        
+
         size_t LineWritten = fwrite(LineBuffer, 1, Frame.Width * 3, File);
         if (LineWritten != Frame.Width * 3) {
-            ESP_LOGE(TAG, "Failed to write pixel data at line %d! Written: %zu/%d", 
+            ESP_LOGE(TAG, "Failed to write pixel data at line %d! Written: %zu/%d",
                      y, LineWritten, Frame.Width * 3);
             heap_caps_free(LineBuffer);
             fclose(File);
             return ESP_FAIL;
         }
-        
+
         /* Reset watchdog every 10 lines to prevent timeout during slow writes */
         if ((y % 10) == 0) {
             esp_task_wdt_reset();

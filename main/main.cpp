@@ -88,7 +88,7 @@ extern "C" void app_main(void)
         ESP_LOGI(TAG, "Using internal flash storage: %s", MemoryManager_GetStoragePath());
         ESP_LOGI(TAG, "Wear Leveling Handle: %d", WL_Handle);
         ESP_LOGI(TAG, "Initializing USB Mass Storage Device...");
-        
+
         Error = USBManager_Init(&USB_Config);
         if (Error != ESP_OK) {
             ESP_LOGE(TAG, "Failed to initialize USB Manager: %d", Error);

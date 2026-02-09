@@ -41,7 +41,7 @@ static void on_SNTP_Time_Sync(struct timeval *p_tv)
     esp_event_post(SNTP_EVENTS, SNTP_EVENT_SNTP_SYNCED, p_tv, sizeof(struct timeval), portMAX_DELAY);
 }
 
-esp_err_t SNTP_Init(const char* p_Timezone, const char* p_Server, uint32_t SyncInterval)
+esp_err_t SNTP_Init(const char *p_Timezone, const char *p_Server, uint32_t SyncInterval)
 {
     esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
     esp_sntp_setservername(0, p_Server);
@@ -93,7 +93,7 @@ esp_err_t SNTP_GetTime(uint8_t Retries)
     return ESP_OK;
 }
 
-void SNTP_SetTimezone(const char* p_Timezone)
+void SNTP_SetTimezone(const char *p_Timezone)
 {
     setenv("TZ", p_Timezone, 1);
     tzset();
