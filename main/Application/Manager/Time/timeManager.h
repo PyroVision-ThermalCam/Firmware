@@ -3,7 +3,7 @@
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: Unified time management with SNTP and RTC backup.
+ *  File info: Time Manager definition.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,11 +24,7 @@
 #ifndef TIME_MANAGER_H_
 #define TIME_MANAGER_H_
 
-#include <time.h>
-#include <stdbool.h>
-#include <esp_err.h>
-
-#include "time_types.h"
+#include "timeTypes.h"
 
 /** @brief Time source types.
  */

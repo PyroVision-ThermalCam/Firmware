@@ -34,11 +34,11 @@
 typedef struct {
     bool isInitialized;
     uint8_t JpegQuality;
-} ImageEncoder_State_t;
+} Image_Image_Encoder_State_t;
 
-static ImageEncoder_State_t _Encoder_State;
+static Image_Image_Encoder_State_t _Image_Encoder_State;
 
-static const char *TAG = "image_encoder";
+static const char *TAG = "Image-Encoder";
 
 /** @brief              Get palette lookup table.
  *  @param palette      Palette type.
@@ -106,7 +106,7 @@ static esp_err_t ImageEncoder_EncodeJPEG(const uint8_t *p_RGB, uint16_t Width, u
         return ESP_FAIL;
     }
     ;
-    p_Encoded->Data = (uint8_t *)heap_caps_malloc(Width * Height * 3, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    p_Encoded->Data = static_cast<uint8_t *>(heap_caps_malloc(Width * Height * 3, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     if (p_Encoded->Data == NULL) {
         jpeg_enc_close(encoder);
         ESP_LOGE(TAG, "Failed to allocate JPEG output buffer!");
@@ -135,34 +135,34 @@ static esp_err_t ImageEncoder_EncodeJPEG(const uint8_t *p_RGB, uint16_t Width, u
 
 esp_err_t ImageEncoder_Init(uint8_t Quality)
 {
-    if (_Encoder_State.isInitialized) {
+    if (_Image_Encoder_State.isInitialized) {
         ESP_LOGW(TAG, "Already initialized");
         return ESP_OK;
     }
 
     ESP_LOGD(TAG, "Initializing image encoder, quality=%d", Quality);
 
-    _Encoder_State.JpegQuality = Quality;
-    if (_Encoder_State.JpegQuality < 1) {
-        _Encoder_State.JpegQuality = 1;
+    _Image_Encoder_State.JpegQuality = Quality;
+    if (_Image_Encoder_State.JpegQuality < 1) {
+        _Image_Encoder_State.JpegQuality = 1;
     }
 
-    if (_Encoder_State.JpegQuality > 100) {
-        _Encoder_State.JpegQuality = 100;
+    if (_Image_Encoder_State.JpegQuality > 100) {
+        _Image_Encoder_State.JpegQuality = 100;
     }
 
-    _Encoder_State.isInitialized = true;
+    _Image_Encoder_State.isInitialized = true;
 
     return ESP_OK;
 }
 
 void ImageEncoder_Deinit(void)
 {
-    if (_Encoder_State.isInitialized == false) {
+    if (_Image_Encoder_State.isInitialized == false) {
         return;
     }
 
-    _Encoder_State.isInitialized = false;
+    _Image_Encoder_State.isInitialized = false;
 
     ESP_LOGD(TAG, "Image encoder deinitialized");
 }
@@ -182,7 +182,7 @@ esp_err_t ImageEncoder_Encode(const Network_Thermal_Frame_t *p_Frame,
 
     size_t pixel_count = p_Frame->Width * p_Frame->Height;
 
-    uint8_t *rgb_buffer = (uint8_t *)heap_caps_malloc(pixel_count * 3, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    uint8_t *rgb_buffer = static_cast<uint8_t *>(heap_caps_malloc(pixel_count * 3, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     if (rgb_buffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate RGB buffer!");
         return ESP_ERR_NO_MEM;
@@ -197,7 +197,7 @@ esp_err_t ImageEncoder_Encode(const Network_Thermal_Frame_t *p_Frame,
     switch (Format) {
         case NETWORK_IMAGE_FORMAT_JPEG: {
             Error = ImageEncoder_EncodeJPEG(rgb_buffer, p_Frame->Width, p_Frame->Height,
-                                            _Encoder_State.JpegQuality, p_Encoded);
+                                            _Image_Encoder_State.JpegQuality, p_Encoded);
             break;
         }
         case NETWORK_IMAGE_FORMAT_PNG: {
@@ -239,14 +239,14 @@ void ImageEncoder_Free(Network_Encoded_Image_t *p_Encoded)
 
 void ImageEncoder_SetQuality(uint8_t Quality)
 {
-    _Encoder_State.JpegQuality = Quality;
-    if (_Encoder_State.JpegQuality < 1) {
-        _Encoder_State.JpegQuality = 1;
+    _Image_Encoder_State.JpegQuality = Quality;
+    if (_Image_Encoder_State.JpegQuality < 1) {
+        _Image_Encoder_State.JpegQuality = 1;
     }
 
-    if (_Encoder_State.JpegQuality > 100) {
-        _Encoder_State.JpegQuality = 100;
+    if (_Image_Encoder_State.JpegQuality > 100) {
+        _Image_Encoder_State.JpegQuality = 100;
     }
 
-    ESP_LOGD(TAG, "JPEG quality set to %d", _Encoder_State.JpegQuality);
+    ESP_LOGD(TAG, "JPEG quality set to %d", _Image_Encoder_State.JpegQuality);
 }

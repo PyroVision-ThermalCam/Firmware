@@ -63,7 +63,7 @@ esp_err_t VISAServer_Deinit(void);
 /** @brief  Check if VISA server is running
  *  @return true if running, false otherwise
  */
-bool VISAServer_isRunning(void);
+bool VISAServer_IsRunning(void);
 
 /** @brief  Start VISA server.
  *  @return VISA_OK on success, error code otherwise

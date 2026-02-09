@@ -52,7 +52,7 @@ esp_err_t HTTP_Server_Stop(void);
 /** @brief  Check if the HTTP server is running.
  *  @return true if running
  */
-bool HTTP_Server_isRunning(void);
+bool HTTP_Server_IsRunning(void);
 
 /** @brief          Set thermal frame data for image endpoint.
  *  @param p_Frame  Pointer to thermal frame data.

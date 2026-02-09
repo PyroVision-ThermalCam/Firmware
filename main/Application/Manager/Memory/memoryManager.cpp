@@ -3,7 +3,7 @@
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: Memory management implementation (Flash partitions and SD card).
+ *  File info: Memory Manager implementation.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,31 +38,26 @@
 #include "../Devices/devicesManager.h"
 #include "memoryManager.h"
 
-static const char *TAG = "MemoryManager";
+ESP_EVENT_DEFINE_BASE(MEMORY_EVENTS);
 
 typedef struct {
     bool isInitialized;
     bool hasSDCard;
-    bool isFilesystemLocked;                /**< True if filesystem is locked for USB access. */
+    bool isFilesystemLocked;
     MemoryManager_Location_t StorageLocation;
     sdmmc_card_t *p_SDCard;
     wl_handle_t WL_Handle;
-} MemoryManager_State_t;
+} Memory_Manager_State_t;
 
-static MemoryManager_State_t _State = {
-    .isInitialized = false,
-    .hasSDCard = false,
-    .isFilesystemLocked = false,
-    .StorageLocation = MEMORY_LOCATION_INTERNAL,
-    .p_SDCard = NULL,
-    .WL_Handle = WL_INVALID_HANDLE
-};
+static Memory_Manager_State_t _Memory_Manager_State;
+
+static const char *TAG = "Memory-Manager";
 
 /** @brief          Calculate directory size recursively.
  *  @param p_Path   Path to directory
  *  @return         Total size in bytes
  */
-static size_t calculate_dir_size(const char *p_Path)
+static size_t MemoryManager_Calc_Dir_Size(const char *p_Path)
 {
     size_t TotalSize = 0;
     DIR *Dir = opendir(p_Path);
@@ -73,17 +68,18 @@ static size_t calculate_dir_size(const char *p_Path)
 
     struct dirent *Entry;
     while ((Entry = readdir(Dir)) != NULL) {
-        if (strcmp(Entry->d_name, ".") == 0 || strcmp(Entry->d_name, "..") == 0) {
+        struct stat St;
+        char FullPath[256];
+
+        if ((strcmp(Entry->d_name, ".") == 0) || (strcmp(Entry->d_name, "..") == 0)) {
             continue;
         }
 
-        char FullPath[256];
         snprintf(FullPath, sizeof(FullPath), "%s/%s", p_Path, Entry->d_name);
 
-        struct stat St;
         if (stat(FullPath, &St) == 0) {
             if (S_ISDIR(St.st_mode)) {
-                TotalSize += calculate_dir_size(FullPath);
+                TotalSize += MemoryManager_Calc_Dir_Size(FullPath);
             } else {
                 TotalSize += St.st_size;
             }
@@ -120,14 +116,14 @@ static esp_err_t MemoryManager_Mount_Internal_Storage(void)
 
     ESP_LOGD(TAG, "Found storage partition: size=%lu bytes", Partition->size);
 
-    Error = esp_vfs_fat_spiflash_mount_rw_wl("/storage", "storage", &MountConfig, &_State.WL_Handle);
+    Error = esp_vfs_fat_spiflash_mount_rw_wl("/storage", "storage", &MountConfig, &_Memory_Manager_State.WL_Handle);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to mount FAT filesystem: %d", Error);
         return Error;
     }
 
     ESP_LOGD(TAG, "Internal storage mounted successfully at /storage");
-    ESP_LOGD(TAG, "Wear leveling handle: %d", _State.WL_Handle);
+    ESP_LOGD(TAG, "Wear leveling handle: %d", _Memory_Manager_State.WL_Handle);
 
     return ESP_OK;
 }
@@ -159,7 +155,7 @@ static esp_err_t MemoryManager_Mount_SD_Card(void)
     SlotConfig.host_id = SPI_Host;
     Host.slot = SPI_Host;
 
-    Error = esp_vfs_fat_sdspi_mount("/sdcard", &Host, &SlotConfig, &MountConfig, &_State.p_SDCard);
+    Error = esp_vfs_fat_sdspi_mount("/sdcard", &Host, &SlotConfig, &MountConfig, &_Memory_Manager_State.p_SDCard);
     if (Error != ESP_OK) {
         if (Error == ESP_FAIL) {
             ESP_LOGW(TAG, "Failed to mount SD card filesystem");
@@ -179,7 +175,7 @@ esp_err_t MemoryManager_Init(void)
 {
     esp_err_t Error;
 
-    if (_State.isInitialized) {
+    if (_Memory_Manager_State.isInitialized) {
         ESP_LOGW(TAG, "Memory Manager already initialized");
 
         return ESP_OK;
@@ -187,12 +183,16 @@ esp_err_t MemoryManager_Init(void)
 
     ESP_LOGD(TAG, "Initializing Memory Manager");
 
+    memset(&_Memory_Manager_State, 0, sizeof(Memory_Manager_State_t));
+
     /* Try to mount SD card first */
     if (MemoryManager_Mount_SD_Card() == ESP_OK) {
         ESP_LOGD(TAG, "Using SD card for storage");
 
-        _State.hasSDCard = true;
-        _State.StorageLocation = MEMORY_LOCATION_SD_CARD;
+        _Memory_Manager_State.hasSDCard = true;
+        _Memory_Manager_State.StorageLocation = MEMORY_LOCATION_SD_CARD;
+
+        esp_event_post(MEMORY_EVENTS, MEMORY_EVENT_SD_CARD_MOUNTED, NULL, 0, portMAX_DELAY);
     } else {
         ESP_LOGD(TAG, "SD card not available, using internal flash");
 
@@ -204,50 +204,51 @@ esp_err_t MemoryManager_Init(void)
             return Error;
         }
 
-        _State.hasSDCard = false;
-        _State.StorageLocation = MEMORY_LOCATION_INTERNAL;
+        _Memory_Manager_State.hasSDCard = false;
+        _Memory_Manager_State.StorageLocation = MEMORY_LOCATION_INTERNAL;
+        esp_event_post(MEMORY_EVENTS, MEMORY_EVENT_FLASH_MOUNTED, NULL, 0, portMAX_DELAY);
     }
 
-    _State.isInitialized = true;
+    _Memory_Manager_State.isInitialized = true;
 
     return ESP_OK;
 }
 
 esp_err_t MemoryManager_Deinit(void)
 {
-    if (_State.isInitialized == false) {
+    if (_Memory_Manager_State.isInitialized == false) {
         return ESP_OK;
     }
 
     ESP_LOGD(TAG, "Deinitializing Memory Manager");
 
-    if (_State.hasSDCard) {
-        esp_vfs_fat_sdcard_unmount("/sdcard", _State.p_SDCard);
-        _State.p_SDCard = NULL;
-        _State.hasSDCard = false;
-    } else if (_State.WL_Handle != WL_INVALID_HANDLE) {
-        esp_vfs_fat_spiflash_unmount_rw_wl("/storage", _State.WL_Handle);
-        _State.WL_Handle = WL_INVALID_HANDLE;
+    if (_Memory_Manager_State.hasSDCard) {
+        esp_vfs_fat_sdcard_unmount("/sdcard", _Memory_Manager_State.p_SDCard);
+        _Memory_Manager_State.p_SDCard = NULL;
+        _Memory_Manager_State.hasSDCard = false;
+    } else if (_Memory_Manager_State.WL_Handle != WL_INVALID_HANDLE) {
+        esp_vfs_fat_spiflash_unmount_rw_wl("/storage", _Memory_Manager_State.WL_Handle);
+        _Memory_Manager_State.WL_Handle = WL_INVALID_HANDLE;
     }
 
-    _State.isInitialized = false;
+    _Memory_Manager_State.isInitialized = false;
 
     return ESP_OK;
 }
 
 bool MemoryManager_HasSDCard(void)
 {
-    return _State.hasSDCard;
+    return _Memory_Manager_State.hasSDCard;
 }
 
 MemoryManager_Location_t MemoryManager_GetStorageLocation(void)
 {
-    return _State.StorageLocation;
+    return _Memory_Manager_State.StorageLocation;
 }
 
 const char *MemoryManager_GetStoragePath(void)
 {
-    if (_State.StorageLocation == MEMORY_LOCATION_SD_CARD) {
+    if (_Memory_Manager_State.StorageLocation == MEMORY_LOCATION_SD_CARD) {
         return "/sdcard";
     } else {
         return "/storage";
@@ -260,11 +261,11 @@ esp_err_t MemoryManager_GetStorageUsage(MemoryManager_Usage_t *p_Usage)
         return ESP_ERR_INVALID_ARG;
     }
 
-    if (_State.StorageLocation == MEMORY_LOCATION_SD_CARD) {
+    if (_Memory_Manager_State.StorageLocation == MEMORY_LOCATION_SD_CARD) {
         FATFS *fs;
         DWORD fre_clust;
 
-        if (_State.hasSDCard == false) {
+        if (_Memory_Manager_State.hasSDCard == false) {
             ESP_LOGE(TAG, "SD card not mounted!");
 
             return ESP_ERR_INVALID_STATE;
@@ -295,7 +296,7 @@ esp_err_t MemoryManager_GetStorageUsage(MemoryManager_Usage_t *p_Usage)
         FATFS *fs;
         DWORD fre_clust;
 
-        if (_State.WL_Handle == WL_INVALID_HANDLE) {
+        if (_Memory_Manager_State.WL_Handle == WL_INVALID_HANDLE) {
             ESP_LOGE(TAG, "Internal storage not mounted!");
             return ESP_ERR_INVALID_STATE;
         }
@@ -360,7 +361,7 @@ esp_err_t MemoryManager_GetCoredumpUsage(MemoryManager_Usage_t *p_Usage)
 
 esp_err_t MemoryManager_EraseStorage(void)
 {
-    if (_State.StorageLocation == MEMORY_LOCATION_SD_CARD) {
+    if (_Memory_Manager_State.StorageLocation == MEMORY_LOCATION_SD_CARD) {
         struct dirent *Entry;
 
         ESP_LOGD(TAG, "Erasing SD card storage...");
@@ -413,12 +414,12 @@ esp_err_t MemoryManager_EraseStorage(void)
         ESP_LOGD(TAG, "Erasing internal storage...");
 
         /* Unmount current filesystem */
-        if (_State.WL_Handle != WL_INVALID_HANDLE) {
-            esp_vfs_fat_spiflash_unmount_rw_wl("/storage", _State.WL_Handle);
-            _State.WL_Handle = WL_INVALID_HANDLE;
+        if (_Memory_Manager_State.WL_Handle != WL_INVALID_HANDLE) {
+            esp_vfs_fat_spiflash_unmount_rw_wl("/storage", _Memory_Manager_State.WL_Handle);
+            _Memory_Manager_State.WL_Handle = WL_INVALID_HANDLE;
         }
 
-        Error = esp_vfs_fat_spiflash_mount_rw_wl("/storage", "storage", &MountConfig, &_State.WL_Handle);
+        Error = esp_vfs_fat_spiflash_mount_rw_wl("/storage", "storage", &MountConfig, &_Memory_Manager_State.WL_Handle);
         if (Error != ESP_OK) {
             ESP_LOGE(TAG, "Failed to remount storage: %d!", Error);
             return ESP_FAIL;
@@ -461,17 +462,17 @@ esp_err_t MemoryManager_GetWearLevelingHandle(wl_handle_t *p_Handle)
         return ESP_ERR_INVALID_ARG;
     }
 
-    if (_State.StorageLocation != MEMORY_LOCATION_INTERNAL) {
+    if (_Memory_Manager_State.StorageLocation != MEMORY_LOCATION_INTERNAL) {
         ESP_LOGE(TAG, "Wear leveling only available for internal storage!");
         return ESP_ERR_INVALID_STATE;
     }
 
-    if (_State.WL_Handle == WL_INVALID_HANDLE) {
+    if (_Memory_Manager_State.WL_Handle == WL_INVALID_HANDLE) {
         ESP_LOGE(TAG, "Internal storage not mounted!");
         return ESP_ERR_INVALID_STATE;
     }
 
-    *p_Handle = _State.WL_Handle;
+    *p_Handle = _Memory_Manager_State.WL_Handle;
 
     return ESP_OK;
 }
@@ -480,24 +481,24 @@ esp_err_t MemoryManager_GetSDCardHandle(sdmmc_card_t **pp_Card)
 {
     if (pp_Card == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (_State.StorageLocation != MEMORY_LOCATION_SD_CARD) {
+    } else if (_Memory_Manager_State.StorageLocation != MEMORY_LOCATION_SD_CARD) {
         ESP_LOGE(TAG, "SD card handle only available when SD card is mounted!");
 
         return ESP_ERR_INVALID_STATE;
-    } else if (_State.p_SDCard == NULL) {
+    } else if (_Memory_Manager_State.p_SDCard == NULL) {
         ESP_LOGE(TAG, "SD card not mounted!");
 
         return ESP_ERR_INVALID_STATE;
     }
 
-    *pp_Card = _State.p_SDCard;
+    *pp_Card = _Memory_Manager_State.p_SDCard;
 
     return ESP_OK;
 }
 
 esp_err_t MemoryManager_LockFilesystem(void)
 {
-    if (_State.isFilesystemLocked) {
+    if (_Memory_Manager_State.isFilesystemLocked) {
         ESP_LOGW(TAG, "Filesystem already locked!");
 
         return ESP_ERR_INVALID_STATE;
@@ -506,14 +507,14 @@ esp_err_t MemoryManager_LockFilesystem(void)
     ESP_LOGD(TAG, "Locking filesystem for USB access");
     ESP_LOGW(TAG, "  Application MUST NOT write to %s while USB is active!", MemoryManager_GetStoragePath());
 
-    _State.isFilesystemLocked = true;
+    _Memory_Manager_State.isFilesystemLocked = true;
 
     return ESP_OK;
 }
 
 esp_err_t MemoryManager_UnlockFilesystem(void)
 {
-    if (_State.isFilesystemLocked == false) {
+    if (_Memory_Manager_State.isFilesystemLocked == false) {
         ESP_LOGW(TAG, "Filesystem not locked!");
 
         return ESP_ERR_INVALID_STATE;
@@ -521,12 +522,12 @@ esp_err_t MemoryManager_UnlockFilesystem(void)
 
     ESP_LOGD(TAG, "Unlocking filesystem - application can write again");
 
-    _State.isFilesystemLocked = false;
+    _Memory_Manager_State.isFilesystemLocked = false;
 
     return ESP_OK;
 }
 
 bool MemoryManager_IsFilesystemLocked(void)
 {
-    return _State.isFilesystemLocked;
+    return _Memory_Manager_State.isFilesystemLocked;
 }

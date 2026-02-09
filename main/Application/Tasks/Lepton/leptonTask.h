@@ -3,7 +3,7 @@
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: Lepton camera task for thermal image processing.
+ *  File info: Lepton camera task definition.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,7 +30,6 @@
 #include <stdint.h>
 
 #include "Application/application.h"
-#include "Application/Manager/Devices/devices.h"
 
 /** @brief  Initialize the Lepton task.
  *  @return ESP_OK on success, error code otherwise
@@ -55,6 +54,6 @@ esp_err_t Lepton_Task_Stop(void);
 /** @brief  Check if the Lepton task is currently running
  *  @return true if running, false otherwise
  */
-bool Lepton_Task_isRunning(void);
+bool Lepton_Task_IsRunning(void);
 
 #endif /* LEPTON_TASK_H_ */

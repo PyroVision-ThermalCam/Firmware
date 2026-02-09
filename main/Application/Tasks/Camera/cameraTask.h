@@ -1,9 +1,9 @@
 /*
- * time_types.h
+ * cameraTask.h
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: Time Manager event types and definitions.
+ *  File info: Camera task definition.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,21 +21,38 @@
  * Errors and commissions should be reported to DanielKampert@kampis-elektroecke.de
  */
 
-#ifndef TIME_TYPES_H_
-#define TIME_TYPES_H_
+#ifndef CAMERA_TASK_H_
+#define CAMERA_TASK_H_
 
+#include <esp_err.h>
 #include <esp_event.h>
 
-/** @brief Time Manager events base.
- */
-ESP_EVENT_DECLARE_BASE(TIME_EVENTS);
+#include <stdint.h>
 
-/** @brief Time Manager event IDs.
- */
-typedef enum {
-    TIME_EVENT_SYNCHRONIZED,        /**< Time synchronized from SNTP */
-    TIME_EVENT_SOURCE_CHANGED,      /**< Time source changed (SNTP/RTC/System)
-                                         Data is of type struct tm */
-} Time_Event_ID_t;
+#include "Application/application.h"
 
-#endif /* TIME_TYPES_H_ */
+/** @brief  Initializes the camera task.
+ *  @return ESP_OK on success, error code otherwise
+ */
+esp_err_t Camera_Task_Init(void);
+
+/** @brief Deinitializes the camera task.
+ */
+void Camera_Task_Deinit(void);
+
+/** @brief  Starts the camera task.
+ *  @return ESP_OK on success, error code otherwise
+ */
+esp_err_t Camera_Task_Start(App_Context_t *p_AppContext);
+
+/** @brief  Stops the camera task.
+ *  @return ESP_OK on success, error code otherwise
+ */
+esp_err_t Camera_Task_Stop(void);
+
+/** @brief  Checks if the camera task is running.
+ *  @return false if the task is not running, true if it is running
+ */
+bool Camera_Task_IsRunning(void);
+
+#endif /* CAMERA_TASK_H_ */

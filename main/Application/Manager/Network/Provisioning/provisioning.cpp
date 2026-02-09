@@ -38,12 +38,11 @@
 
 typedef struct {
     bool isInitialized;
-    bool active;
-    bool use_captive_portal;
-    char device_name[32];
-    char pop[32];
-    uint32_t timeout_sec;
-    esp_timer_handle_t timeout_timer;
+    bool isActive;
+    bool usePortal;
+    char Name[32];
+    uint32_t TimeOut;
+    esp_timer_handle_t TimeoutTimer;
     wifi_sta_config_t WiFi_STA_Config;
     bool hasCredentials;
 } Provisioning_State_t;
@@ -55,7 +54,7 @@ static const char *TAG = "Provisioning";
 /** @brief        Timeout timer callback.
  *  @param p_Arg  Timer argument
  */
-static void on_Timeout_Timer_Handler(void *p_Arg)
+static void on_TimeoutTimer_Handler(void *p_Arg)
 {
     ESP_LOGI(TAG, "Provisioning timeout reached");
     esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_PROV_TIMEOUT, NULL, 0, pdMS_TO_TICKS(100));
@@ -102,8 +101,8 @@ static void on_Prov_Event(void *p_Arg, esp_event_base_t EventBase, int32_t Event
 
             ESP_LOGD(TAG, "Provisioning successful");
 
-            if (_Provisioning_State.timeout_timer != NULL) {
-                esp_timer_stop(_Provisioning_State.timeout_timer);
+            if (_Provisioning_State.TimeoutTimer != NULL) {
+                esp_timer_stop(_Provisioning_State.TimeoutTimer);
             }
 
             memset(&Credentials, 0, sizeof(Credentials));
@@ -126,7 +125,7 @@ static void on_Prov_Event(void *p_Arg, esp_event_base_t EventBase, int32_t Event
 
             wifi_prov_mgr_deinit();
 
-            _Provisioning_State.active = false;
+            _Provisioning_State.isActive = false;
 
             break;
         }
@@ -136,62 +135,32 @@ static void on_Prov_Event(void *p_Arg, esp_event_base_t EventBase, int32_t Event
     }
 }
 
-/** @brief               Custom endpoint handler for device info.
- *  @param session_id    Session ID
- *  @param inbuf         Input buffer
- *  @param inlen         Input length
- *  @param outbuf        Output buffer
- *  @param outlen        Output length
- *  @param priv_data     Private data
- *  @return              ESP_OK on success
- */
-static esp_err_t on_Custom_Data_Prov_Handler(uint32_t session_id, const uint8_t *p_InBuf,
-                                             ssize_t inlen, uint8_t **p_OutBuf,
-                                             ssize_t *p_OutLen, void *p_PrivData)
-{
-    if (p_InBuf) {
-        ESP_LOGD(TAG, "Received custom data: %.*s", (int)inlen, (char *)p_InBuf);
-    }
-
-    const char *response = "{\"device\":\"PyroVision\",\"version\":\"1.0\"}";
-    *p_OutLen = strlen(response);
-    *p_OutBuf = (uint8_t *)heap_caps_malloc(*p_OutLen, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-
-    if (*p_OutBuf == NULL) {
-        ESP_LOGE(TAG, "Failed to allocate response buffer!");
-        return ESP_ERR_NO_MEM;
-    }
-
-    memcpy(*p_OutBuf, response, *p_OutLen);
-
-    return ESP_OK;
-}
-
 esp_err_t Provisioning_Init(Network_Provisioning_Config_t *p_Config)
 {
     if (_Provisioning_State.isInitialized) {
         ESP_LOGW(TAG, "Already initialized");
+
         return ESP_OK;
     } else if (p_Config == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
 
     ESP_LOGD(TAG, "Initializing Provisioning Manager");
-    strncpy(_Provisioning_State.device_name, p_Config->Name,
-            sizeof(_Provisioning_State.device_name) - 1);
-    _Provisioning_State.timeout_sec = p_Config->Timeout;
-    _Provisioning_State.use_captive_portal = true;
+    strncpy(_Provisioning_State.Name, p_Config->Name,
+            sizeof(_Provisioning_State.Name) - 1);
+    _Provisioning_State.TimeOut = p_Config->Timeout;
+    _Provisioning_State.usePortal = true;
 
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_PROV_EVENT, ESP_EVENT_ANY_ID, &on_Prov_Event, NULL));
 
     const esp_timer_create_args_t timer_args = {
-        .callback = on_Timeout_Timer_Handler,
+        .callback = on_TimeoutTimer_Handler,
         .arg = NULL,
         .dispatch_method = ESP_TIMER_TASK,
         .name = "prov_timeout",
         .skip_unhandled_events = false
     };
-    ESP_ERROR_CHECK(esp_timer_create(&timer_args, &_Provisioning_State.timeout_timer));
+    ESP_ERROR_CHECK(esp_timer_create(&timer_args, &_Provisioning_State.TimeoutTimer));
 
     _Provisioning_State.isInitialized = true;
 
@@ -212,9 +181,9 @@ void Provisioning_Deinit(void)
 
     wifi_prov_mgr_deinit();
 
-    if (_Provisioning_State.timeout_timer != NULL) {
-        esp_timer_delete(_Provisioning_State.timeout_timer);
-        _Provisioning_State.timeout_timer = NULL;
+    if (_Provisioning_State.TimeoutTimer != NULL) {
+        esp_timer_delete(_Provisioning_State.TimeoutTimer);
+        _Provisioning_State.TimeoutTimer = NULL;
     }
 
     esp_event_handler_unregister(WIFI_PROV_EVENT, ESP_EVENT_ANY_ID, &on_Prov_Event);
@@ -225,174 +194,127 @@ void Provisioning_Deinit(void)
 esp_err_t Provisioning_Start(void)
 {
     esp_err_t Error;
-    wifi_prov_mgr_config_t prov_config;
-    const char *pop = NULL;
-    char service_name[32];
-    uint8_t mac[6];
+    uint8_t MAC[6];
+    wifi_config_t Config;
+    Network_HTTP_Server_Config_t ServerConfig;
 
     if (_Provisioning_State.isInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
-    if (_Provisioning_State.active) {
+    if (_Provisioning_State.isActive) {
         ESP_LOGW(TAG, "Provisioning already active");
+
         return ESP_OK;
     }
 
-    memset(&prov_config, 0, sizeof(prov_config));
+    ESP_LOGI(TAG, "Starting captive portal provisioning");
 
-    ESP_LOGD(TAG, "Starting Provisioning");
+    NetworkManager_GetMAC(MAC);
 
-    if (_Provisioning_State.use_captive_portal) {
-        uint8_t MAC[6];
-        wifi_config_t Config;
-        Network_HTTP_Server_Config_t ServerConfig;
+    /* Create unique SSID */
+    snprintf(reinterpret_cast<char *>(Config.ap.ssid), sizeof(Config.ap.ssid),
+             "%.26s-%02X%02X", _Provisioning_State.Name, MAC[4], MAC[5]);
+    Config.ap.ssid_len = strlen(reinterpret_cast<char *>(Config.ap.ssid));
+    Config.ap.channel = 1;
+    Config.ap.authmode = WIFI_AUTH_OPEN;
+    Config.ap.max_connection = 4;
 
-        ESP_LOGI(TAG, "Using captive portal provisioning");
+    ESP_LOGI(TAG, "Starting SoftAP with SSID: %s", Config.ap.ssid);
 
-        NetworkManager_GetMAC(MAC);
+    /* Set APSTA mode to allow WiFi scanning while AP is active */
+    Error = esp_wifi_set_mode(WIFI_MODE_APSTA);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set APSTA mode: %d!", Error);
 
-        /* Create unique SSID */
-        snprintf((char *)Config.ap.ssid, sizeof(Config.ap.ssid),
-                 "%.26s-%02X%02X", _Provisioning_State.device_name, MAC[4], MAC[5]);
-        Config.ap.ssid_len = strlen((char *)Config.ap.ssid);
-        Config.ap.channel = 1;
-        Config.ap.authmode = WIFI_AUTH_OPEN;
-        Config.ap.max_connection = 4;
+        return Error;
+    }
 
-        ESP_LOGI(TAG, "Starting SoftAP with SSID: %s", Config.ap.ssid);
+    Error = esp_wifi_set_config(WIFI_IF_AP, &Config);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set AP config: %d!", Error);
 
-        /* Set APSTA mode to allow WiFi scanning while AP is active */
-        Error = esp_wifi_set_mode(WIFI_MODE_APSTA);
-        if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to set APSTA mode: %d!", Error);
-            return Error;
-        }
+        return Error;
+    }
 
-        Error = esp_wifi_set_config(WIFI_IF_AP, &Config);
-        if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to set AP config: %d!", Error);
-            return Error;
-        }
+    Error = esp_wifi_start();
+    if ((Error != ESP_OK) && (Error != ESP_ERR_WIFI_STATE)) {
+        ESP_LOGE(TAG, "Failed to start WiFi: %d!", Error);
 
-        Error = esp_wifi_start();
-        if ((Error != ESP_OK) && (Error != ESP_ERR_WIFI_STATE)) {
-            ESP_LOGE(TAG, "Failed to start WiFi: %d!", Error);
-            return Error;
-        }
+        return Error;
+    }
 
-        vTaskDelay(100 / portTICK_PERIOD_MS);
+    vTaskDelay(100 / portTICK_PERIOD_MS);
 
-        /* Start HTTP server with minimal configuration for provisioning */
-        ServerConfig.Port = 80;
-        ServerConfig.MaxClients = 1;  /* Only one client for provisioning */
-        ServerConfig.EnableCORS = true;
-        ServerConfig.API_Key = NULL;
+    /* Start HTTP server with minimal configuration for provisioning */
+    ServerConfig.Port = 80;
+    ServerConfig.MaxClients = 1;  /* Only one client for provisioning */
+    ServerConfig.EnableCORS = true;
+    ServerConfig.API_Key = NULL;
 
-        /* Initialize HTTP server first (without WebSocket) */
-        Error = HTTP_Server_Init(&ServerConfig);
-        if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to init HTTP server: 0x%x!", Error);
+    /* Initialize HTTP server first (without WebSocket) */
+    Error = HTTP_Server_Init(&ServerConfig);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to init HTTP server: 0x%x!", Error);
 
-            esp_wifi_stop();
+        esp_wifi_stop();
 
-            return Error;
-        }
+        return Error;
+    }
 
-        Error = HTTP_Server_Start();
-        if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to start HTTP server: 0x%x!", Error);
+    Error = HTTP_Server_Start();
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to start HTTP server: 0x%x!", Error);
 
-            HTTP_Server_Deinit();
-            esp_wifi_stop();
+        HTTP_Server_Deinit();
+        esp_wifi_stop();
 
-            return Error;
-        }
+        return Error;
+    }
 
-        /* Start DNS server for captive portal */
-        Error = DNS_Server_Start();
-        if (Error != ESP_OK) {
-            ESP_LOGW(TAG, "Failed to start DNS server: %d!", Error);
-            /* Continue anyway, DNS is not critical */
-        }
+    /* Start DNS server for captive portal */
+    Error = DNS_Server_Start();
+    if (Error != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to start DNS server: %d!", Error);
+        /* Continue anyway, DNS is not critical */
+    }
 
-        _Provisioning_State.active = true;
-        esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_PROV_STARTED, NULL, 0, portMAX_DELAY);
+    _Provisioning_State.isActive = true;
+    esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_PROV_STARTED, NULL, 0, portMAX_DELAY);
 
-        /* Start timeout timer */
-        if (_Provisioning_State.timeout_timer != NULL) {
-            esp_timer_start_once(_Provisioning_State.timeout_timer, _Provisioning_State.timeout_sec * 1000000ULL);
-        }
+    /* Start timeout timer */
+    if (_Provisioning_State.TimeoutTimer != NULL) {
+        esp_timer_start_once(_Provisioning_State.TimeoutTimer, _Provisioning_State.TimeOut * 1000000ULL);
+    }
 
-        /* Get and log the actual AP IP address */
-        esp_netif_t *ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
-        if (ap_netif != NULL) {
-            esp_netif_ip_info_t ip_info;
-            if (esp_netif_get_ip_info(ap_netif, &ip_info) == ESP_OK) {
-                ESP_LOGI(TAG, "Captive portal started at http://" IPSTR, IP2STR(&ip_info.ip));
-            } else {
-                ESP_LOGI(TAG, "Captive portal started at http://192.168.4.1");
-            }
+    /* Get and log the actual AP IP address */
+    esp_netif_t *ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+    if (ap_netif != NULL) {
+        esp_netif_ip_info_t ip_info;
+
+        if (esp_netif_get_ip_info(ap_netif, &ip_info) == ESP_OK) {
+            ESP_LOGI(TAG, "Captive portal started at http://" IPSTR, IP2STR(&ip_info.ip));
         } else {
             ESP_LOGI(TAG, "Captive portal started at http://192.168.4.1");
         }
-
-        return ESP_OK;
+    } else {
+        ESP_LOGI(TAG, "Captive portal started at http://192.168.4.1");
     }
-
-    /* Use ESP Provisioning API (original protobuf method) */
-    prov_config.scheme = wifi_prov_scheme_softap;
-    prov_config.scheme_event_handler = WIFI_PROV_EVENT_HANDLER_NONE;
-    prov_config.app_event_handler = WIFI_PROV_EVENT_HANDLER_NONE;
-
-    Error = wifi_prov_mgr_init(prov_config);
-    if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to init Provisioning: %d!", Error);
-
-        return Error;
-    }
-
-    NetworkManager_GetMAC(mac);
-    snprintf(service_name, sizeof(service_name), "%.26s_%02X%02X", _Provisioning_State.device_name, mac[4], mac[5]);
-
-    /* Register custom endpoint */
-    wifi_prov_mgr_endpoint_create("custom-data");
-
-    Error = wifi_prov_mgr_start_provisioning(WIFI_PROV_SECURITY_1,
-                                             pop, service_name, NULL);
-    if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to start provisioning: %d!", Error);
-
-        wifi_prov_mgr_deinit();
-
-        return Error;
-    }
-
-    wifi_prov_mgr_endpoint_register("custom-data", on_Custom_Data_Prov_Handler, NULL);
-    _Provisioning_State.active = true;
-
-    esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_PROV_STARTED, NULL, 0, portMAX_DELAY);
-
-    if (_Provisioning_State.timeout_timer != NULL) {
-        esp_timer_start_once(_Provisioning_State.timeout_timer, _Provisioning_State.timeout_sec * 1000000ULL);
-    }
-
-    ESP_LOGD(TAG, "Provisioning started. Service name: %s", service_name);
 
     return ESP_OK;
 }
 
 esp_err_t Provisioning_Stop(void)
 {
-    if (_Provisioning_State.active == false) {
+    if (_Provisioning_State.isActive == false) {
         return ESP_OK;
     }
 
     ESP_LOGI(TAG, "Stopping Provisioning");
 
-    _Provisioning_State.active = false;
+    _Provisioning_State.isActive = false;
 
-    if (_Provisioning_State.use_captive_portal) {
+    if (_Provisioning_State.usePortal) {
         ESP_LOGD(TAG, "Stopping DNS server");
         DNS_Server_Stop();
 
@@ -410,13 +332,14 @@ esp_err_t Provisioning_Stop(void)
 
         ESP_LOGD(TAG, "Provisioning stopped");
     } else {
-        if (_Provisioning_State.timeout_timer != NULL) {
-            esp_timer_stop(_Provisioning_State.timeout_timer);
+        if (_Provisioning_State.TimeoutTimer != NULL) {
+            esp_timer_stop(_Provisioning_State.TimeoutTimer);
         }
+
         wifi_prov_mgr_stop_provisioning();
     }
 
-    esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_PROV_STOPPED, NULL, 0, pdMS_TO_TICKS(100));
+    esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_PROV_STOPPED, NULL, 0, portMAX_DELAY);
 
     return ESP_OK;
 }
@@ -450,7 +373,7 @@ esp_err_t Provisioning_Reset(void)
     return ESP_OK;
 }
 
-bool Provisioning_isActive(void)
+bool Provisioning_IsActive(void)
 {
-    return _Provisioning_State.active;
+    return _Provisioning_State.isActive;
 }

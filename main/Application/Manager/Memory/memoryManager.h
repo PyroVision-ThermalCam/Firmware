@@ -3,7 +3,7 @@
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: Memory management (Flash partitions and SD card).
+ *  File info: Memory Manager definition.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,17 +24,10 @@
 #ifndef MEMORYMANAGER_H_
 #define MEMORYMANAGER_H_
 
-#include <esp_err.h>
-#include <esp_event.h>
 #include <wear_levelling.h>
 #include <sdmmc_cmd.h>
 
-#include <stdint.h>
-#include <stdbool.h>
-
-/** @brief Settings Manager events base.
- */
-ESP_EVENT_DEFINE_BASE(MEMORY_EVENTS);
+#include "memoryTypes.h"
 
 /** @brief Storage location types.
  */

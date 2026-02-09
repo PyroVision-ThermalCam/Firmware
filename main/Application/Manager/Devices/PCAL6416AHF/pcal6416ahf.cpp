@@ -3,7 +3,7 @@
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: Port Expander driver implementation.
+ *  File info: PCAL6416AHF Port Expander driver implementation.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@
 #include <freertos/task.h>
 #include <freertos/event_groups.h>
 
-#include "portexpander.h"
+#include "pcal6416ahf.h"
 
 #include <sdkconfig.h>
 

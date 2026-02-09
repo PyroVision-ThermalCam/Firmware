@@ -1,9 +1,9 @@
 /*
- * rtc.h
+ * rv8263c8.h
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: RV8263-C8 Real-Time Clock driver header.
+ *  File info: RV8263-C8 Real-Time Clock driver definition.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,14 +21,14 @@
  * Errors and commissions should be reported to DanielKampert@kampis-elektroecke.de
  */
 
-#ifndef RTC_H_
-#define RTC_H_
+#ifndef RV8263C8_H_
+#define RV8263C8_H_
+
+#include <esp_err.h>
 
 #include <stdint.h>
 #include <stdbool.h>
 #include <time.h>
-
-#include <esp_err.h>
 
 #include "../I2C/i2c.h"
 
@@ -57,13 +57,11 @@ typedef enum {
 } RTC_TimerFreq_t;
 
 /** @brief              Initialize the RV8263-C8 RTC.
- *  @param p_Config     Pointer to I2C bus configuration
  *  @param p_Bus_Handle Pointer to I2C bus handle
  *  @param p_Dev_Handle Pointer to store the created device handle
  *  @return             ESP_OK when successful
  */
-esp_err_t RTC_Init(i2c_master_bus_config_t *p_Config, i2c_master_bus_handle_t *p_Bus_Handle,
-                   i2c_master_dev_handle_t *p_Dev_Handle);
+esp_err_t RTC_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_handle_t *p_Dev_Handle);
 
 /** @brief  Deinitialize the RTC driver.
  *  @return ESP_OK when successful
@@ -122,22 +120,10 @@ esp_err_t RTC_StopTimer(void);
  */
 esp_err_t RTC_SoftwareReset(void);
 
-/** @brief          Write a byte to the RAM register.
- *  @param Data     Byte to write
- *  @return         ESP_OK when successful
- */
-esp_err_t RTC_WriteRAM(uint8_t Data);
-
-/** @brief          Read a byte from the RAM register.
- *  @param p_Data   Pointer to store the read byte
- *  @return         ESP_OK when successful
- */
-esp_err_t RTC_ReadRAM(uint8_t *p_Data);
-
 #ifdef DEBUG
 /** @brief  Dump all RTC registers for debugging.
  */
 void RTC_DumpRegisters(void);
 #endif
 
-#endif /* RTC_H_ */
+#endif /* RV8263C8_H_ */

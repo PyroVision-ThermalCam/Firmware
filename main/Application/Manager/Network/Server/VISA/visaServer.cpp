@@ -21,21 +21,20 @@
  * Errors and commissions should be reported to DanielKampert@kampis-elektroecke.de
  */
 
+#include <esp_log.h>
+#include <esp_timer.h>
+
 #include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <esp_log.h>
-#include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/semphr.h>
 
 #include "visaServer.h"
 #include "Private/visaCommands.h"
-
-static const char *TAG = "VISA-Server";
 
 typedef struct {
     int ListenSocket;                   /**< Listening socket */
@@ -46,6 +45,8 @@ typedef struct {
 } VISA_Server_State_t;
 
 static VISA_Server_State_t _VISA_Server_State;
+
+static const char *TAG = "VISA-Server";
 
 /** @brief          Process VISA command and generate response
  *  @param Command  Received command string
@@ -281,7 +282,7 @@ esp_err_t VISAServer_Deinit(void)
     return ESP_OK;
 }
 
-bool VISAServer_isRunning(void)
+bool VISAServer_IsRunning(void)
 {
     return _VISA_Server_State.isRunning;
 }

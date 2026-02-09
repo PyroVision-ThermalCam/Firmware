@@ -567,6 +567,68 @@ xQueueSend(Network_FrameQueue, &Frame, pdMS_TO_TICKS(100));
 
 ---
 
+== Event Handling
+
+The Lepton Task subscribes to events from other system components to receive configuration updates and requests.
+
+=== Subscribed Events
+
+==== Settings Events (`SETTINGS_EVENTS`)
+
+**`SETTINGS_EVENT_LEPTON_CHANGED`:**
+
+Received when Lepton camera settings have been modified (e.g., emissivity).
+
+* **Event Data**: `Settings_Manager_Setting_t *` or NULL
+* **Handler**: `on_Settings_Event_Handler()`
+* **Behavior**: 
+  - If event data is NULL, indicates a bulk settings update without specific change information
+  - If event data is provided, contains `ID` and `Value` of the specific setting changed
+  - Handler checks `ID` field to determine which setting changed (e.g., `SETTINGS_ID_LEPTON_EMISSIVITY`)
+
+*IMPORTANT*: Event handlers MUST check for NULL event data before dereferencing pointers, as bulk setting updates may not include specific change details.
+
+[source,c]
+----
+static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, 
+                                       int32_t ID, void *p_Data)
+{
+    switch (ID) {
+        case SETTINGS_EVENT_LEPTON_CHANGED: {
+            if (p_Data != NULL) {
+                Settings_Manager_Setting_t *p_Setting = 
+                    (Settings_Manager_Setting_t *)p_Data;
+                
+                if (p_Setting->ID == SETTINGS_ID_LEPTON_EMISSIVITY) {
+                    // Apply emissivity change
+                }
+            } else {
+                // Bulk update, reload all settings
+            }
+            break;
+        }
+    }
+}
+----
+
+==== GUI Events (`GUI_EVENTS`)
+
+**`GUI_EVENT_REQUEST_ROI`:**
+
+Requests ROI statistics calculation for a specific region.
+
+* **Event Data**: `App_Settings_ROI_t *` (MUST NOT be NULL)
+* **Response**: Posts `LEPTON_EVENT_ROI_DATA` with calculated statistics
+
+**`GUI_EVENT_REQUEST_PIXEL_TEMPERATURE`:**
+
+Requests temperature at a specific screen position.
+
+* **Event Data**: `App_GUI_Screenposition_t *` (MUST NOT be NULL)
+* **Response**: Posts `LEPTON_EVENT_PIXEL_TEMPERATURE` with temperature value
+
+---
+
 == Future Enhancements
 
 * Multiple colormap support (Iron, Rainbow, Grayscale)

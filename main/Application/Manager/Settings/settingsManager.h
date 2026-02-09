@@ -3,7 +3,7 @@
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: Persistent settings management using NVS storage.
+ *  File info: Settings Manager definition.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,7 +41,11 @@ esp_err_t SettingsManager_Deinit(void);
 
 /** @brief              Load all settings from NVS into the Settings Manager RAM and into the provided structure. This function overwrites all unsaved settings in RAM.
  *  @param p_Settings   Pointer to settings structure to populate
- *  @return             ESP_OK on success, ESP_ERR_NVS_NOT_FOUND if no settings exist
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_NVS_NOT_FOUND if no settings exist
+ *                      ESP_ERR_INVALID_VERSION if the settings version in NVS does not exist or does not match SETTINGS_VERSION
+ *                      ESP_ERR_INVALID_SIZE if the settings blob size in NVS does not match sizeof(App_Settings_t) (old version or corrupted), in which case the settings will be erased and defaults will be used on next load
+ *                      ESP_ERR_* on other failures
  */
 esp_err_t SettingsManager_Load(App_Settings_t *p_Settings);
 

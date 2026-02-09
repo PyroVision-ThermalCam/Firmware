@@ -35,7 +35,7 @@
 
 #include "devicesTask.h"
 #include "Application/application.h"
-#include "Application/Manager/Time/time_types.h"
+#include "Application/Manager/Time/timeTypes.h"
 
 #define DEVICES_TASK_STOP_REQUEST           BIT0
 #define DEVICES_TASK_TIME_SYNCED            BIT1
@@ -52,9 +52,9 @@ typedef struct {
     struct timeval TimeOfDay;
 } Devices_Task_State_t;
 
-static Devices_Task_State_t _DevicesTask_State;
+static Devices_Task_State_t _Devices_Task_State;
 
-static const char *TAG = "devices_task";
+static const char *TAG = "Devices-Task";
 
 /** @brief                  Event handler for GUI events.
  *  @param p_HandlerArgs    Handler argument
@@ -67,7 +67,7 @@ static void on_GUI_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
     ESP_LOGD(TAG, "GUI event received: ID=%d", ID);
 }
 
-/** @brief          Devices task main loop.
+/** @brief              Devices task main loop.
  *  @param p_Parameters Pointer to App_Context_t structure
  */
 static void Task_Devices(void *p_Parameters)
@@ -78,25 +78,25 @@ static void Task_Devices(void *p_Parameters)
 
     ESP_LOGD(TAG, "Devices task started on core %d", xPortGetCoreID());
 
-    while (_DevicesTask_State.isRunning) {
+    while (_Devices_Task_State.isRunning) {
         EventBits_t EventBits;
 
         esp_task_wdt_reset();
 
-        EventBits = xEventGroupGetBits(_DevicesTask_State.EventGroup);
+        EventBits = xEventGroupGetBits(_Devices_Task_State.EventGroup);
         if (EventBits & DEVICES_TASK_STOP_REQUEST) {
             ESP_LOGD(TAG, "Stop request received");
 
-            _DevicesTask_State.isRunning = false;
+            _Devices_Task_State.isRunning = false;
 
-            xEventGroupClearBits(_DevicesTask_State.EventGroup, DEVICES_TASK_STOP_REQUEST);
+            xEventGroupClearBits(_Devices_Task_State.EventGroup, DEVICES_TASK_STOP_REQUEST);
 
             break;
         }
 
         Now = esp_timer_get_time() / 1000;
 
-        if ((Now - _DevicesTask_State.LastBatteryUpdate) >= 1000) {
+        if ((Now - _Devices_Task_State.LastBatteryUpdate) >= 1000) {
             App_Devices_Battery_t BatteryInfo;
 
             ESP_LOGD(TAG, "Updating battery voltage...");
@@ -107,7 +107,7 @@ static void Task_Devices(void *p_Parameters)
                 ESP_LOGE(TAG, "Failed to read battery voltage!");
             }
 
-            _DevicesTask_State.LastBatteryUpdate = esp_timer_get_time() / 1000;
+            _Devices_Task_State.LastBatteryUpdate = esp_timer_get_time() / 1000;
         }
 
         vTaskDelay(10 / portTICK_PERIOD_MS);
@@ -116,48 +116,48 @@ static void Task_Devices(void *p_Parameters)
     ESP_LOGD(TAG, "Devices task shutting down");
     DevicesManager_Deinit();
 
-    _DevicesTask_State.TaskHandle = NULL;
+    _Devices_Task_State.TaskHandle = NULL;
 
     esp_task_wdt_delete(NULL);
     vTaskDelete(NULL);
 }
 
-/** @brief Initialize the devices task.
- *  @return ESP_OK on success, error code otherwise
- */
-esp_err_t DevicesTask_Init(void)
+esp_err_t Devices_Task_Init(void)
 {
     esp_err_t Error;
 
-    if (_DevicesTask_State.isInitialized) {
+    if (_Devices_Task_State.isInitialized) {
         ESP_LOGW(TAG, "Already initialized");
+
         return ESP_OK;
     }
 
     /* Create event group */
-    _DevicesTask_State.EventGroup = xEventGroupCreate();
-    if (_DevicesTask_State.EventGroup == NULL) {
+    _Devices_Task_State.EventGroup = xEventGroupCreate();
+    if (_Devices_Task_State.EventGroup == NULL) {
         ESP_LOGE(TAG, "Failed to create event group!");
+
         return ESP_ERR_NO_MEM;
     }
 
     Error = DevicesManager_Init();
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize Devices Manager: 0x%x!", Error);
+
         return Error;
     }
 
     /* Use the event loop to receive control signals from other tasks */
     esp_event_handler_register(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler, NULL);
 
-    _DevicesTask_State.isInitialized = true;
+    _Devices_Task_State.isInitialized = true;
 
     return ESP_OK;
 }
 
-void DevicesTask_Deinit(void)
+void Devices_Task_Deinit(void)
 {
-    if (_DevicesTask_State.isInitialized == false) {
+    if (_Devices_Task_State.isInitialized == false) {
         return;
     }
 
@@ -165,30 +165,31 @@ void DevicesTask_Deinit(void)
 
     DevicesManager_Deinit();
 
-    if (_DevicesTask_State.EventGroup != NULL) {
-        vEventGroupDelete(_DevicesTask_State.EventGroup);
-        _DevicesTask_State.EventGroup = NULL;
+    if (_Devices_Task_State.EventGroup != NULL) {
+        vEventGroupDelete(_Devices_Task_State.EventGroup);
+        _Devices_Task_State.EventGroup = NULL;
     }
 
-    _DevicesTask_State.isInitialized = false;
+    _Devices_Task_State.isInitialized = false;
 
     return;
 }
 
-esp_err_t DevicesTask_Start(App_Context_t *p_AppContext)
+esp_err_t Devices_Task_Start(App_Context_t *p_AppContext)
 {
     BaseType_t ret;
 
     if (p_AppContext == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (_DevicesTask_State.isInitialized == false) {
+    } else if (_Devices_Task_State.isInitialized == false) {
         return ESP_ERR_INVALID_STATE;
-    } else if (_DevicesTask_State.isRunning) {
+    } else if (_Devices_Task_State.isRunning) {
         ESP_LOGW(TAG, "Task already running");
+
         return ESP_OK;
     }
 
-    _DevicesTask_State.isRunning = true;
+    _Devices_Task_State.isRunning = true;
 
     ESP_LOGD(TAG, "Starting Devices Task");
 
@@ -198,32 +199,33 @@ esp_err_t DevicesTask_Start(App_Context_t *p_AppContext)
               CONFIG_DEVICES_TASK_STACKSIZE,
               p_AppContext,
               CONFIG_DEVICES_TASK_PRIO,
-              &_DevicesTask_State.TaskHandle,
+              &_Devices_Task_State.TaskHandle,
               CONFIG_DEVICES_TASK_CORE
           );
 
     if (ret != pdPASS) {
         ESP_LOGE(TAG, "Failed to create Devices Task: %d!", ret);
+
         return ESP_ERR_NO_MEM;
     }
 
     return ESP_OK;
 }
 
-esp_err_t DevicesTask_Task_Stop(void)
+esp_err_t Devices_Task_Stop(void)
 {
-    if (_DevicesTask_State.isRunning == false) {
+    if (_Devices_Task_State.isRunning == false) {
         return ESP_OK;
     }
 
     ESP_LOGD(TAG, "Stopping Devices Task");
 
-    xEventGroupSetBits(_DevicesTask_State.EventGroup, DEVICES_TASK_STOP_REQUEST);
+    xEventGroupSetBits(_Devices_Task_State.EventGroup, DEVICES_TASK_STOP_REQUEST);
 
     return ESP_OK;
 }
 
-bool DevicesTask_Task_isRunning(void)
+bool Devices_Task_IsRunning(void)
 {
-    return _DevicesTask_State.isRunning;
+    return _Devices_Task_State.isRunning;
 }

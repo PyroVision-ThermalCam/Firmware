@@ -3,7 +3,7 @@
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: Network management implementation.
+ *  File info: Network Manager implementation.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,7 +22,6 @@
  */
 
 #include <esp_log.h>
-#include <esp_event.h>
 #include <esp_wifi.h>
 #include <esp_netif.h>
 #include <esp_mac.h>
@@ -40,7 +39,6 @@
 
 #include "networkManager.h"
 
-/* Define network event base */
 ESP_EVENT_DEFINE_BASE(NETWORK_EVENTS);
 
 #define NVS_NAMESPACE           "wifi_creds"
@@ -64,7 +62,7 @@ typedef struct {
 
 static Network_Manager_State_t _Network_Manager_State;
 
-static const char *TAG = "Network Manager";
+static const char *TAG = "Network-Manager";
 
 /** @brief                  WiFi event handler.
  *  @param p_HandlerArgs    Handler argument
@@ -77,6 +75,7 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
     switch (ID) {
         case WIFI_EVENT_STA_START: {
             ESP_LOGD(TAG, "WiFi STA started");
+
             xEventGroupSetBits(_Network_Manager_State.EventGroup, WIFI_STARTED_BIT);
             esp_wifi_connect();
 
@@ -84,6 +83,7 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
         }
         case WIFI_EVENT_STA_CONNECTED: {
             ESP_LOGD(TAG, "Connected to AP");
+
             _Network_Manager_State.RetryCount = 0;
             esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_WIFI_CONNECTED, NULL, 0, portMAX_DELAY);
 
@@ -215,6 +215,7 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
         }
         case WIFI_EVENT_AP_START: {
             ESP_LOGD(TAG, "WiFi AP started");
+
             _Network_Manager_State.State = NETWORK_STATE_AP_STARTED;
             esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_AP_STARTED, NULL, 0, portMAX_DELAY);
 
@@ -222,6 +223,7 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
         }
         case WIFI_EVENT_AP_STOP: {
             ESP_LOGD(TAG, "WiFi AP stopped");
+
             esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_AP_STOPPED, NULL, 0, portMAX_DELAY);
 
             break;
@@ -229,6 +231,7 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
         case WIFI_EVENT_AP_STACONNECTED: {
             wifi_event_ap_staconnected_t *Event = (wifi_event_ap_staconnected_t *)p_Data;
             Network_Event_STA_Info_t StaInfo;
+
             ESP_LOGD(TAG, "Station " MACSTR " joined, AID=%d", MAC2STR(Event->mac), Event->aid);
             memcpy(StaInfo.MAC, Event->mac, 6);
             esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_AP_STA_CONNECTED, &StaInfo, sizeof(StaInfo), portMAX_DELAY);
@@ -238,6 +241,7 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
         case WIFI_EVENT_AP_STADISCONNECTED: {
             wifi_event_ap_stadisconnected_t *Event = (wifi_event_ap_stadisconnected_t *)p_Data;
             Network_Event_STA_Info_t StaInfo;
+
             ESP_LOGD(TAG, "Station " MACSTR " left, AID=%d", MAC2STR(Event->mac), Event->aid);
             memcpy(StaInfo.MAC, Event->mac, 6);
             esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_AP_STA_DISCONNECTED, &StaInfo, sizeof(StaInfo), portMAX_DELAY);
@@ -279,6 +283,7 @@ static void on_IP_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, 
         }
         case IP_EVENT_STA_LOST_IP: {
             ESP_LOGW(TAG, "Lost IP address");
+
             memset(&_Network_Manager_State.IP_Info, 0, sizeof(esp_netif_ip_info_t));
 
             break;
@@ -304,23 +309,24 @@ esp_err_t NetworkManager_Init(Network_WiFi_STA_Config_t *p_Config)
 
     ESP_LOGD(TAG, "Initializing WiFi Manager");
 
-    /* Initialize TCP/IP stack */
+    memset(&_Network_Manager_State, 0, sizeof(Network_Manager_State_t));
+
     ESP_ERROR_CHECK(esp_netif_init());
 
-    /* Create event group */
     _Network_Manager_State.EventGroup = xEventGroupCreate();
     if (_Network_Manager_State.EventGroup == NULL) {
         ESP_LOGE(TAG, "Failed to create event group!");
+
         return ESP_ERR_NO_MEM;
     }
 
-    /* Copy configuration */
     _Network_Manager_State.STA_Config = p_Config;
 
     /* Create network interfaces */
     _Network_Manager_State.STA_NetIF = esp_netif_create_default_wifi_sta();
     if (_Network_Manager_State.STA_NetIF == NULL) {
         ESP_LOGE(TAG, "Failed to create STA netif!");
+
         vEventGroupDelete(_Network_Manager_State.EventGroup);
         _Network_Manager_State.EventGroup = NULL;
 
@@ -411,7 +417,7 @@ void NetworkManager_Deinit(void)
 esp_err_t NetworkManager_StartSTA(void)
 {
     wifi_config_t WifiConfig;
-    esp_err_t err;
+    esp_err_t Error;
 
     if (_Network_Manager_State.isInitialized == false) {
         return ESP_ERR_INVALID_STATE;
@@ -434,31 +440,34 @@ esp_err_t NetworkManager_StartSTA(void)
             sizeof(WifiConfig.sta.password) - 1);
 
     /* Set STA mode - WiFi might still be in APSTA mode from provisioning */
-    err = esp_wifi_set_mode(WIFI_MODE_STA);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set WiFi mode: %s", esp_err_to_name(err));
-        return err;
+    Error = esp_wifi_set_mode(WIFI_MODE_STA);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set WiFi mode: %d!", Error);
+
+        return Error;
     }
 
-    err = esp_wifi_set_config(WIFI_IF_STA, &WifiConfig);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set WiFi config: %s", esp_err_to_name(err));
-        return err;
+    Error = esp_wifi_set_config(WIFI_IF_STA, &WifiConfig);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set WiFi config: %d!", Error);
+
+        return Error;
     }
 
     /* Start WiFi if not already running */
-    err = esp_wifi_start();
-    if (err != ESP_OK && err != ESP_ERR_WIFI_STATE) {
-        ESP_LOGE(TAG, "Failed to start WiFi: %s", esp_err_to_name(err));
-        return err;
+    Error = esp_wifi_start();
+    if ((Error != ESP_OK) && (Error != ESP_ERR_WIFI_STATE)) {
+        ESP_LOGE(TAG, "Failed to start WiFi: %d!", Error);
+
+        return Error;
     }
 
     ESP_LOGI(TAG, "WiFi started, initiating connection...");
 
     /* Explicitly connect - STA_START event may not fire if WiFi was already running */
-    err = esp_wifi_connect();
-    if (err != ESP_OK && err != ESP_ERR_WIFI_CONN) {
-        ESP_LOGW(TAG, "esp_wifi_connect returned: %s (may be normal if already connecting)", esp_err_to_name(err));
+    Error = esp_wifi_connect();
+    if ((Error != ESP_OK) && (Error != ESP_ERR_WIFI_CONN)) {
+        ESP_LOGW(TAG, "esp_wifi_connect returned: %d!", Error);
     }
 
     _Network_Manager_State.State = NETWORK_STATE_CONNECTING;

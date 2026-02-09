@@ -7,10 +7,16 @@ menu "PyroVision"
         config DEVICE_NAME
             string "Device name"
             default "ThermalCam"
+    endmenu
 
-        config DEVICE_REVISION
-            string "Device revision"
-            default "1.0"
+    menu "USB"
+        config USB_VID
+            hex "USB Vendor ID"
+            default 0x1234
+
+        config USB_PID
+            hex "USB Product ID"
+            default 0x5678
     endmenu
 
     menu "Settings"
@@ -106,6 +112,22 @@ menu "PyroVision"
                 default 12
 
             config LEPTON_TASK_CORE
+                int "Task core"
+                default 1
+        endmenu
+    endmenu
+
+    menu "Camera"
+        menu "Task"
+            config CAMERA_TASK_STACKSIZE
+                int "Stack size"
+                default 8192
+
+            config CAMERA_TASK_PRIO
+                int "Task prio"
+                default 12
+
+            config CAMERA_TASK_CORE
                 int "Task core"
                 default 1
         endmenu

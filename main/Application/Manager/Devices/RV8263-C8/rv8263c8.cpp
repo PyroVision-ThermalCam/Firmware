@@ -1,5 +1,5 @@
 /*
- * rtc.cpp
+ * rv8263c8.cpp
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
@@ -27,7 +27,7 @@
 #include <freertos/task.h>
 #include <freertos/event_groups.h>
 
-#include "rtc.h"
+#include "rv8263c8.h"
 
 #include <sdkconfig.h>
 
@@ -189,11 +189,8 @@ static esp_err_t RTC_WriteRegisters(uint8_t Register, const uint8_t *p_Data, uin
     return I2CM_Write(_RTC_Dev_Handle, Buffer, Length + 1);
 }
 
-esp_err_t RTC_Init(i2c_master_bus_config_t *p_Config, i2c_master_bus_handle_t *p_Bus_Handle,
-                   i2c_master_dev_handle_t *p_Dev_Handle)
+esp_err_t RTC_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_handle_t *p_Dev_Handle)
 {
-    (void)p_Config;
-
     esp_err_t Error;
     uint8_t Control1;
     uint8_t Seconds;
@@ -212,11 +209,13 @@ esp_err_t RTC_Init(i2c_master_bus_config_t *p_Config, i2c_master_bus_handle_t *p
     Error = RTC_ReadRegister(RV8263_REG_SECONDS, &Seconds);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read seconds register: %d", Error);
+
         return Error;
     }
 
     if (Seconds & RV8263_SECONDS_OS) {
         ESP_LOGW(TAG, "Oscillator was stopped - time may be invalid!");
+
         /* Clear OS flag by writing seconds register */
         Error = RTC_WriteRegister(RV8263_REG_SECONDS, Seconds & ~RV8263_SECONDS_OS);
         if (Error != ESP_OK) {
@@ -228,12 +227,14 @@ esp_err_t RTC_Init(i2c_master_bus_config_t *p_Config, i2c_master_bus_handle_t *p
     Error = RTC_ReadRegister(RV8263_REG_CONTROL1, &Control1);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read control register: %d", Error);
+
         return Error;
     }
 
     /* Ensure oscillator is running */
     if (Control1 & RV8263_CTRL1_STOP) {
         ESP_LOGD(TAG, "Starting RTC oscillator...");
+
         Control1 &= ~RV8263_CTRL1_STOP;
         Error = RTC_WriteRegister(RV8263_REG_CONTROL1, Control1);
         if (Error != ESP_OK) {
@@ -254,6 +255,7 @@ esp_err_t RTC_Deinit(void)
         Error = i2c_master_bus_rm_device(*_RTC_Dev_Handle);
         if (Error != ESP_OK) {
             ESP_LOGE(TAG, "Failed to remove I2C device: %d!", Error);
+
             return Error;
         }
 
@@ -276,6 +278,7 @@ esp_err_t RTC_GetTime(struct tm *p_Time)
     Error = RTC_ReadRegisters(RV8263_REG_SECONDS, Buffer, sizeof(Buffer));
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read time: %d!", Error);
+
         return Error;
     }
 
@@ -421,20 +424,6 @@ esp_err_t RTC_SoftwareReset(void)
     ESP_LOGD(TAG, "Performing software reset...");
 
     return RTC_WriteRegister(RV8263_REG_CONTROL1, RV8263_CTRL1_SR);
-}
-
-esp_err_t RTC_WriteRAM(uint8_t Data)
-{
-    return RTC_WriteRegister(RV8263_REG_RAM, Data);
-}
-
-esp_err_t RTC_ReadRAM(uint8_t *p_Data)
-{
-    if (p_Data == NULL) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    return RTC_ReadRegister(RV8263_REG_RAM, p_Data);
 }
 
 #ifdef DEBUG

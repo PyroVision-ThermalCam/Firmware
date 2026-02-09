@@ -3,7 +3,7 @@
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: Network task for WiFi and HTTP server management.
+ *  File info: Network task definition.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -55,6 +55,6 @@ esp_err_t Network_Task_Stop(void);
 /** @brief  Check if the network task is running.
  *  @return true if running, false otherwise
  */
-bool Network_Task_isRunning(void);
+bool Network_Task_IsRunning(void);
 
 #endif /* NETWORK_TASK_H_ */

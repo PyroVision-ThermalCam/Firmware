@@ -1,9 +1,9 @@
 /*
- * dnsServer.h
+ * memoryTypes.h
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: Simple DNS server for captive portal.
+ *  File info: Common type definitions for the Memory Manager component.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,19 +21,29 @@
  * Errors and commissions should be reported to DanielKampert@kampis-elektroecke.de
  */
 
-#ifndef DNS_SERVER_H_
-#define DNS_SERVER_H_
+#ifndef MEMORY_TYPES_H
+#define MEMORY_TYPES_H
 
 #include <esp_err.h>
+#include <esp_event.h>
 
-/** @brief  Start the DNS server for captive portal.
- *          Redirects all DNS queries to the ESP32's IP address.
- *  @return ESP_OK on success
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
+#include <freertos/semphr.h>
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/** @brief Memory Manager events base.
  */
-esp_err_t DNS_Server_Start(void);
+ESP_EVENT_DECLARE_BASE(MEMORY_EVENTS);
 
-/** @brief Stop the DNS server.
+/** @brief Memory Manager event identifiers.
  */
-void DNS_Server_Stop(void);
+enum {
+    MEMORY_EVENT_SD_CARD_MOUNTED,   /**< SD card was successfully mounted and is ready for use. */
+    MEMORY_EVENT_FLASH_MOUNTED      /**< Internal flash storage was mounted and is ready for use. */
+};
 
-#endif /* DNS_SERVER_H_ */
+#endif /* MEMORY_TYPES_H */

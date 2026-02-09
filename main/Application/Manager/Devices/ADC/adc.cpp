@@ -64,7 +64,7 @@ static adc_oneshot_unit_init_cfg_t _ADC_Init_Config = {
     .ulp_mode = ADC_ULP_MODE_DISABLE,
 };
 
-static adc_oneshot_chan_cfg_t ADC_Config = {
+static adc_oneshot_chan_cfg_t _ADC_Config = {
     .atten = static_cast<adc_atten_t>(ADC_ATTEN),
     .bitwidth = ADC_BITWIDTH_DEFAULT,
 };
@@ -76,17 +76,17 @@ esp_err_t ADC_Init(void)
     esp_err_t Error;
 
     ESP_ERROR_CHECK(adc_oneshot_new_unit(&_ADC_Init_Config, &_ADC_Handle));
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(_ADC_Handle, _ADC_Channel, &ADC_Config));
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(_ADC_Handle, _ADC_Channel, &_ADC_Config));
 
     Error = ESP_OK;
     _ADC_Calib_Done = false;
 
     if (_ADC_Calib_Done == false) {
-        ESP_LOGD(TAG, "calibration scheme version is %s", "Curve Fitting");
+        ESP_LOGD(TAG, "Calibration scheme version is %s", "Curve Fitting");
         adc_cali_curve_fitting_config_t CaliConfig = {
             .unit_id = _ADC_Init_Config.unit_id,
             .chan = _ADC_Channel,
-            .atten = ADC_Config.atten,
+            .atten = _ADC_Config.atten,
             .bitwidth = ADC_BITWIDTH_DEFAULT,
         };
 

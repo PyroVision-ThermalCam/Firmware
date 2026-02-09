@@ -3,7 +3,7 @@
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: GUI task implementation.
+ *  File info: GUI task definition.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -56,7 +56,7 @@ esp_err_t GUI_Task_Stop(void);
 /** @brief  Check if the GUI task is running.
  *  @return true if running, false otherwise
  */
-bool GUI_Task_isRunning(void);
+bool GUI_Task_IsRunning(void);
 
 /** @brief Toggle ROI (Region of Interest) edit mode.
  *         When enabled, shows a draggable rectangle overlay on the thermal image

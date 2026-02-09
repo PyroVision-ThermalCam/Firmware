@@ -51,9 +51,9 @@ typedef struct {
     uint32_t StartTime;
 } HTTP_Server_State_t;
 
-static HTTP_Server_State_t _HTTPServer_State;
+static HTTP_Server_State_t _HTTP_Server_State;
 
-static const char *TAG = "http_server";
+static const char *TAG = "HTTP-Server";
 
 /** @brief              Check API key authentication.
  *  @param p_Request    HTTP request handle
@@ -63,7 +63,7 @@ static bool HTTP_Server_CheckAuth(httpd_req_t *p_Request)
 {
     char ApiKey[64] = {0};
 
-    if (_HTTPServer_State.Config.API_Key == NULL) {
+    if (_HTTP_Server_State.Config.API_Key == NULL) {
         return true;
     }
 
@@ -71,7 +71,7 @@ static bool HTTP_Server_CheckAuth(httpd_req_t *p_Request)
         return false;
     }
 
-    return (strcmp(ApiKey, _HTTPServer_State.Config.API_Key) == 0);
+    return (strcmp(ApiKey, _HTTP_Server_State.Config.API_Key) == 0);
 }
 
 /** @brief              Send JSON response.
@@ -98,7 +98,7 @@ static esp_err_t HTTP_Server_SendJSON(httpd_req_t *p_Request, cJSON *p_JSON, int
 
     httpd_resp_set_type(p_Request, "application/json");
 
-    if (_HTTPServer_State.Config.EnableCORS) {
+    if (_HTTP_Server_State.Config.EnableCORS) {
         httpd_resp_set_hdr(p_Request, "Access-Control-Allow-Origin", "*");
     }
 
@@ -168,7 +168,7 @@ static esp_err_t HTTP_Handler_Time(httpd_req_t *p_Request)
 {
     esp_err_t Error;
 
-    _HTTPServer_State.RequestCount++;
+    _HTTP_Server_State.RequestCount++;
 
     if (HTTP_Server_CheckAuth(p_Request) == false) {
         return HTTP_Server_SendError(p_Request, 401, "Unauthorized");
@@ -224,11 +224,11 @@ static esp_err_t HTTP_Handler_Image(httpd_req_t *p_Request)
     Network_ImageFormat_t format = NETWORK_IMAGE_FORMAT_JPEG;
     Server_Palette_t palette = PALETTE_IRON;
 
-    _HTTPServer_State.RequestCount++;
+    _HTTP_Server_State.RequestCount++;
 
     if (HTTP_Server_CheckAuth(p_Request) == false) {
         return HTTP_Server_SendError(p_Request, 401, "Unauthorized");
-    } else if (_HTTPServer_State.ThermalFrame == NULL) {
+    } else if (_HTTP_Server_State.ThermalFrame == NULL) {
         return HTTP_Server_SendError(p_Request, 503, "No thermal data available");
     }
 
@@ -250,13 +250,13 @@ static esp_err_t HTTP_Handler_Image(httpd_req_t *p_Request)
         }
     }
 
-    if (xSemaphoreTake(_HTTPServer_State.ThermalFrame->Mutex, 100 / portTICK_PERIOD_MS) != pdTRUE) {
+    if (xSemaphoreTake(_HTTP_Server_State.ThermalFrame->Mutex, 100 / portTICK_PERIOD_MS) != pdTRUE) {
         return HTTP_Server_SendError(p_Request, 503, "Frame busy");
     }
 
-    Error = ImageEncoder_Encode(_HTTPServer_State.ThermalFrame, format, palette, &encoded);
+    Error = ImageEncoder_Encode(_HTTP_Server_State.ThermalFrame, format, palette, &encoded);
 
-    xSemaphoreGive(_HTTPServer_State.ThermalFrame->Mutex);
+    xSemaphoreGive(_HTTP_Server_State.ThermalFrame->Mutex);
 
     if (Error != ESP_OK) {
         return HTTP_Server_SendError(p_Request, 500, "Image encoding failed");
@@ -275,7 +275,7 @@ static esp_err_t HTTP_Handler_Image(httpd_req_t *p_Request)
             break;
     }
 
-    if (_HTTPServer_State.Config.EnableCORS) {
+    if (_HTTP_Server_State.Config.EnableCORS) {
         httpd_resp_set_hdr(p_Request, "Access-Control-Allow-Origin", "*");
     }
 
@@ -295,7 +295,7 @@ static esp_err_t HTTP_Handler_Telemetry(httpd_req_t *p_Request)
 {
     esp_err_t Error;
 
-    _HTTPServer_State.RequestCount++;
+    _HTTP_Server_State.RequestCount++;
 
     if (HTTP_Server_CheckAuth(p_Request) == false) {
         return HTTP_Server_SendError(p_Request, 401, "Unauthorized");
@@ -307,9 +307,9 @@ static esp_err_t HTTP_Handler_Telemetry(httpd_req_t *p_Request)
     cJSON_AddNumberToObject(json, "uptime_s", uptime);
 
     /* Sensor temperature (from thermal frame if available) */
-    if (_HTTPServer_State.ThermalFrame != NULL) {
+    if (_HTTP_Server_State.ThermalFrame != NULL) {
         // TODO
-        //cJSON_AddNumberToObject(json, "sensor_temp_c", _HTTPServer_State.ThermalFrame->temp_avg);
+        //cJSON_AddNumberToObject(json, "sensor_temp_c", _HTTP_Server_State.ThermalFrame->temp_avg);
     }
 
     cJSON_AddNumberToObject(json, "supply_voltage_v", 0);
@@ -343,7 +343,7 @@ static esp_err_t HTTP_Handler_Update(httpd_req_t *p_Request)
     esp_err_t Error;
     esp_ota_handle_t ota_handle;
 
-    _HTTPServer_State.RequestCount++;
+    _HTTP_Server_State.RequestCount++;
 
     if (HTTP_Server_CheckAuth(p_Request) == false) {
         return HTTP_Server_SendError(p_Request, 401, "Unauthorized");
@@ -559,33 +559,33 @@ esp_err_t HTTP_Server_Init(const Network_HTTP_Server_Config_t *p_Config)
         return ESP_ERR_INVALID_ARG;
     }
 
-    if (_HTTPServer_State.isInitialized) {
+    if (_HTTP_Server_State.isInitialized) {
         ESP_LOGW(TAG, "Already initialized, updating config");
 
-        memcpy(&_HTTPServer_State.Config, p_Config, sizeof(Network_HTTP_Server_Config_t));
+        memcpy(&_HTTP_Server_State.Config, p_Config, sizeof(Network_HTTP_Server_Config_t));
 
         return ESP_OK;
     }
 
     ESP_LOGD(TAG, "Initializing HTTP server");
 
-    memcpy(&_HTTPServer_State.Config, p_Config, sizeof(Network_HTTP_Server_Config_t));
-    _HTTPServer_State.Handle = NULL;
-    _HTTPServer_State.ThermalFrame = NULL;
-    _HTTPServer_State.RequestCount = 0;
-    _HTTPServer_State.isInitialized = true;
+    memcpy(&_HTTP_Server_State.Config, p_Config, sizeof(Network_HTTP_Server_Config_t));
+    _HTTP_Server_State.Handle = NULL;
+    _HTTP_Server_State.ThermalFrame = NULL;
+    _HTTP_Server_State.RequestCount = 0;
+    _HTTP_Server_State.isInitialized = true;
 
     return ESP_OK;
 }
 
 void HTTP_Server_Deinit(void)
 {
-    if (_HTTPServer_State.isInitialized == false) {
+    if (_HTTP_Server_State.isInitialized == false) {
         return;
     }
 
     HTTP_Server_Stop();
-    _HTTPServer_State.isInitialized = false;
+    _HTTP_Server_State.isInitialized = false;
 
     ESP_LOGD(TAG, "HTTP server deinitialized");
 }
@@ -594,15 +594,15 @@ esp_err_t HTTP_Server_Start(void)
 {
     esp_err_t Error;
 
-    if (_HTTPServer_State.isInitialized == false) {
+    if (_HTTP_Server_State.isInitialized == false) {
         return ESP_ERR_INVALID_STATE;
-    } else if (_HTTPServer_State.isRunning) {
+    } else if (_HTTP_Server_State.isRunning) {
         ESP_LOGW(TAG, "Server already running");
         return ESP_OK;
     }
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.server_port = _HTTPServer_State.Config.Port;
+    config.server_port = _HTTP_Server_State.Config.Port;
     config.max_uri_handlers = 12;
 
     /* Use only 2 sockets for provisioning */
@@ -627,30 +627,30 @@ esp_err_t HTTP_Server_Start(void)
 
     ESP_LOGD(TAG, "Starting HTTP server on port %d", config.server_port);
 
-    Error = httpd_start(&_HTTPServer_State.Handle, &config);
+    Error = httpd_start(&_HTTP_Server_State.Handle, &config);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to start HTTP server: %d!", Error);
         return Error;
     }
 
     /* Register URI handlers */
-    httpd_register_uri_handler(_HTTPServer_State.Handle, &_URI_Provision_Root);
-    httpd_register_uri_handler(_HTTPServer_State.Handle, &_URI_Provision_Logo);
-    httpd_register_uri_handler(_HTTPServer_State.Handle, &_URI_Provision_Scan);
-    httpd_register_uri_handler(_HTTPServer_State.Handle, &_URI_Provision_Connect);
-    httpd_register_uri_handler(_HTTPServer_State.Handle, &_URI_CaptivePortal_Generate204);
-    httpd_register_uri_handler(_HTTPServer_State.Handle, &_URI_CaptivePortal_Generate204_NoUnderscore);
-    httpd_register_uri_handler(_HTTPServer_State.Handle, &_URI_Time);
-    httpd_register_uri_handler(_HTTPServer_State.Handle, &_URI_Image);
-    httpd_register_uri_handler(_HTTPServer_State.Handle, &_URI_Telemetry);
-    httpd_register_uri_handler(_HTTPServer_State.Handle, &_URI_Update);
+    httpd_register_uri_handler(_HTTP_Server_State.Handle, &_URI_Provision_Root);
+    httpd_register_uri_handler(_HTTP_Server_State.Handle, &_URI_Provision_Logo);
+    httpd_register_uri_handler(_HTTP_Server_State.Handle, &_URI_Provision_Scan);
+    httpd_register_uri_handler(_HTTP_Server_State.Handle, &_URI_Provision_Connect);
+    httpd_register_uri_handler(_HTTP_Server_State.Handle, &_URI_CaptivePortal_Generate204);
+    httpd_register_uri_handler(_HTTP_Server_State.Handle, &_URI_CaptivePortal_Generate204_NoUnderscore);
+    httpd_register_uri_handler(_HTTP_Server_State.Handle, &_URI_Time);
+    httpd_register_uri_handler(_HTTP_Server_State.Handle, &_URI_Image);
+    httpd_register_uri_handler(_HTTP_Server_State.Handle, &_URI_Telemetry);
+    httpd_register_uri_handler(_HTTP_Server_State.Handle, &_URI_Update);
 
-    if (_HTTPServer_State.Config.EnableCORS) {
-        httpd_register_uri_handler(_HTTPServer_State.Handle, &_URI_Options);
+    if (_HTTP_Server_State.Config.EnableCORS) {
+        httpd_register_uri_handler(_HTTP_Server_State.Handle, &_URI_Options);
     }
 
-    _HTTPServer_State.isRunning = true;
-    _HTTPServer_State.StartTime = esp_timer_get_time() / 1000000;
+    _HTTP_Server_State.isRunning = true;
+    _HTTP_Server_State.StartTime = esp_timer_get_time() / 1000000;
 
     ESP_LOGD(TAG, "HTTP server started");
 
@@ -659,29 +659,29 @@ esp_err_t HTTP_Server_Start(void)
 
 esp_err_t HTTP_Server_Stop(void)
 {
-    if (_HTTPServer_State.isRunning == false) {
+    if (_HTTP_Server_State.isRunning == false) {
         return ESP_OK;
     }
 
     ESP_LOGD(TAG, "Stopping HTTP server");
 
-    _HTTPServer_State.isRunning = false;
-    _HTTPServer_State.Handle = NULL;
+    _HTTP_Server_State.isRunning = false;
+    _HTTP_Server_State.Handle = NULL;
 
     return ESP_OK;
 }
 
-bool HTTP_Server_isRunning(void)
+bool HTTP_Server_IsRunning(void)
 {
-    return _HTTPServer_State.isRunning;
+    return _HTTP_Server_State.isRunning;
 }
 
 void HTTP_Server_SetThermalFrame(Network_Thermal_Frame_t *p_Frame)
 {
-    _HTTPServer_State.ThermalFrame = p_Frame;
+    _HTTP_Server_State.ThermalFrame = p_Frame;
 }
 
 httpd_handle_t HTTP_Server_GetHandle(void)
 {
-    return _HTTPServer_State.Handle;
+    return _HTTP_Server_State.Handle;
 }

@@ -29,7 +29,7 @@
 
 ESP_EVENT_DEFINE_BASE(SNTP_EVENTS);
 
-static const char *TAG = "sntp";
+static const char *TAG = "SNTP";
 
 /** @brief      SNTP time synchronization callback.
  *  @param p_tv Pointer to timeval structure with synchronized time

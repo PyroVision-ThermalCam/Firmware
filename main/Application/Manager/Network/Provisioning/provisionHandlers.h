@@ -21,8 +21,8 @@
  * Errors and commissions should be reported to DanielKampert@kampis-elektroecke.de
  */
 
-#ifndef PROVISIONHANDLERS_H_
-#define PROVISIONHANDLERS_H_
+#ifndef PROVISION_HANDLERS_H_
+#define PROVISION_HANDLERS_H_
 
 #include <esp_http_server.h>
 
@@ -57,4 +57,4 @@ esp_err_t Provision_Handler_Connect(httpd_req_t *p_Request);
  */
 esp_err_t Provision_Handler_CaptivePortal(httpd_req_t *p_Request);
 
-#endif /* PROVISIONHANDLERS_H_ */
+#endif /* PROVISION_HANDLERS_H_ */

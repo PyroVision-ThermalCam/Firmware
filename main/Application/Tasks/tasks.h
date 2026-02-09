@@ -28,5 +28,6 @@
 #include "Network/networkTask.h"
 #include "Devices/devicesTask.h"
 #include "GUI/guiTask.h"
+#include "Camera/cameraTask.h"
 
 #endif /* TASKS_H_ */

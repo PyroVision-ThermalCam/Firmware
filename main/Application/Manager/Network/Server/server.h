@@ -118,9 +118,9 @@ static inline esp_err_t Server_Stop(void)
 /** @brief  Check if the server is running.
  *  @return true if running
  */
-static inline bool Server_isRunning(void)
+static inline bool Server_IsRunning(void)
 {
-    return HTTP_Server_isRunning();
+    return HTTP_Server_IsRunning();
 }
 
 /** @brief          Set the thermal frame data for both HTTP and WebSocket endpoints.

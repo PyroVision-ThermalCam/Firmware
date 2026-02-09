@@ -3,7 +3,7 @@
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: Devices management for the peripheral devices.
+ *  File info: Devices Manager definition.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,12 +24,14 @@
 #ifndef DEVICESMANAGER_H_
 #define DEVICESMANAGER_H_
 
-#include <esp_err.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
 
 #include <time.h>
 #include <stdint.h>
+
+#include "I2C/i2c.h"
+#include "devicesTypes.h"
 
 /** @brief  Initialize the Devices Manager.
  *  @return ESP_OK on success
@@ -70,5 +72,17 @@ esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, uint8_t *p_Percentage
  *  @return         ESP_OK on success
  */
 esp_err_t DevicesManager_GetRTCHandle(i2c_master_dev_handle_t *p_Handle);
+
+/** @brief          Get the current time from the RTC.
+ *  @param p_Time   Pointer to store the time
+ *  @return         ESP_OK when successful
+ */
+esp_err_t DevicesManager_GetTime(struct tm *p_Time);
+
+/** @brief          Set the time on the RTC.
+ *  @param p_Time   Pointer to the time to set
+ *  @return         ESP_OK when successful
+ */
+esp_err_t DevicesManager_SetTime(const struct tm *p_Time);
 
 #endif /* DEVICESMANAGER_H_ */

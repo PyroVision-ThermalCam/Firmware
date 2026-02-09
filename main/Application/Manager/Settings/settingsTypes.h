@@ -1,9 +1,9 @@
 /*
- * settings_types.h
+ * settingsTypes.h
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: Settings Manager event types and definitions.
+ *  File info: Common type definitions for the Settings Manager component.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,17 +24,25 @@
 #ifndef SETTINGS_TYPES_H_
 #define SETTINGS_TYPES_H_
 
+#include <esp_err.h>
+#include <esp_event.h>
+#include <esp_ota_ops.h>
+#include <esp_app_desc.h>
+
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
 
-#include <esp_event.h>
+/** @brief  Version number for the NVS based settings structure.
+ *          NOTE: Migration isnt suppored yet!
+ */
+#define SETTINGS_VERSION                        1
 
 /** @brief Settings Manager events base.
  */
 ESP_EVENT_DECLARE_BASE(SETTINGS_EVENTS);
 
-/** @brief Settings event identifiers.
+/** @brief Settings Manager event identifiers.
  */
 enum {
     SETTINGS_EVENT_LOADED,                      /**< Settings loaded from NVS. */
@@ -47,7 +55,7 @@ enum {
                                                      Data contains SettingsManager_Setting_t. */
     SETTINGS_EVENT_DISPLAY_CHANGED,             /**< Display settings changed.
                                                      Data contains SettingsManager_Setting_t. */
-    SETTINGS_EVENT_HTTP_SERVER_CHANGED,        /**< HTTP server settings changed.
+    SETTINGS_EVENT_HTTP_SERVER_CHANGED,         /**< HTTP server settings changed.
                                                      Data contains SettingsManager_Setting_t. */
     SETTINGS_EVENT_VISA_SERVER_CHANGED,         /**< VISA server settings changed.
                                                      Data contains SettingsManager_Setting_t. */
@@ -97,7 +105,21 @@ typedef struct {
     uint16_t h;                                 /**< Height of the ROI. */
 } App_Settings_ROI_t;
 
-/** @brief Lepton camera settings.
+/** @brief  Device informations.
+ *          NOTE: This structure is not covered by the settings version number because it is not stored in the NVS.
+ */
+typedef struct {
+    char FirmwareVersion[16];                   /**< Firmware version string, null-terminated. */
+    char Manufacturer[32];                      /**< Manufacturer string, null-terminated. */
+    char Name[32];                              /**< Device name string, null-terminated. */
+    char Serial[16];                            /**< Device serial number string, null-terminated. */
+    char SDK[16];                               /**< Firmware SDK version string, null-terminated. */
+    char Commit[32];                            /**< Firmware commit hash string, null-terminated. */
+    esp_app_desc_t Bootloader;                  /**< Bootloader information. */
+} App_Settings_Info_t;
+
+/** @brief  Lepton camera settings.
+ *          NOTE: This structure is covered by the settings version number because it is stored in the NVS.
  */
 typedef struct {
     App_Settings_ROI_t ROI[4];                  /**< Camera ROIs. */
@@ -106,7 +128,8 @@ typedef struct {
     uint8_t CurrentEmissivity;                  /**< Currently selected emissivity value in the range from 0 to 100. */
 } __attribute__((packed)) App_Settings_Lepton_t;
 
-/** @brief WiFi settings.
+/** @brief  WiFi settings.
+ *          NOTE: This structure is covered by the settings version number because it is stored in the NVS.
  */
 typedef struct {
     char SSID[33];                              /**< WiFi SSID. */
@@ -116,29 +139,24 @@ typedef struct {
     uint16_t RetryInterval;                     /**< Interval between connection retries in milliseconds. */
 } __attribute__((packed)) App_Settings_WiFi_t;
 
-/** @brief Provisioning settings.
+/** @brief  Provisioning settings.
+ *          NOTE: This structure is covered by the settings version number because it is stored in the NVS.
  */
 typedef struct {
     char Name[32];                              /**< Device name for provisioning. */
     uint32_t Timeout;                           /**< Provisioning timeout in seconds. */
 } __attribute__((packed)) App_Settings_Provisioning_t;
 
-/** @brief Device informations.
- */
-typedef struct {
-    char FirmwareVersion[16];                   /**< Firmware version string. */
-    char Manufacturer[16];                      /**< Manufacturer string. */
-    uint16_t Serial;                            /**< Device serial number. */
-} __attribute__((packed)) App_Settings_Info_t;
-
-/** @brief Display settings.
+/** @brief  Display settings.
+ *          NOTE: This structure is covered by the settings version number because it is stored in the NVS.
  */
 typedef struct {
     uint8_t Brightness;                         /**< Display brightness (0-100%). */
-    uint16_t Timeout;                           /**< Screen timeout in seconds (0=never). */
+    uint16_t Timeout;                           /**< Screen timeout in seconds (0 = never). */
 } __attribute__((packed)) App_Settings_Display_t;
 
-/** @brief HTTP server settings.
+/** @brief  HTTP server settings.
+ *          NOTE: This structure is covered by the settings version number because it is stored in the NVS.
  */
 typedef struct {
     uint16_t Port;                              /**< HTTP server port. */
@@ -146,13 +164,15 @@ typedef struct {
     uint8_t MaxClients;                         /**< Maximum number of simultaneous clients. */
 } __attribute__((packed)) App_Settings_HTTP_Server_t;
 
-/** @brief VISA server settings.
+/** @brief  VISA server settings.
+ *          NOTE: This structure is covered by the settings version number because it is stored in the NVS.
  */
 typedef struct {
     uint16_t Port;                              /**< VISA server port. */
 } __attribute__((packed)) App_Settings_VISA_Server_t;
 
-/** @brief System settings.
+/** @brief  System settings.
+ *          NOTE: This structure is covered by the settings version number because it is stored in the NVS.
  */
 typedef struct {
     bool SDCard_AutoMount;                      /**< Automatically mount SD card. */
@@ -165,7 +185,7 @@ typedef struct {
 /** @brief Complete application settings structure.
  */
 typedef struct {
-    App_Settings_Info_t Info;                   /**< General device information. */
+    uint32_t Version;                           /**< Settings version number. */
     App_Settings_Lepton_t Lepton;               /**< Lepton camera settings. */
     App_Settings_WiFi_t WiFi;                   /**< WiFi settings. */
     App_Settings_Provisioning_t Provisioning;   /**< Provisioning settings. */
@@ -173,6 +193,6 @@ typedef struct {
     App_Settings_HTTP_Server_t HTTPServer;      /**< HTTP server settings. */
     App_Settings_VISA_Server_t VISAServer;      /**< VISA server settings. */
     App_Settings_System_t System;               /**< System settings. */
-} __attribute__((packed)) App_Settings_t;
+} App_Settings_t;
 
 #endif /* SETTINGS_TYPES_H_ */

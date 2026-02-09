@@ -3,7 +3,7 @@
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: USB Manager for exposing storage as USB Mass Storage Device.
+ *  File info: USB Manager definition.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,8 +23,6 @@
 
 #ifndef USB_MANAGER_H_
 #define USB_MANAGER_H_
-
-#include <esp_err.h>
 
 #include "usbTypes.h"
 

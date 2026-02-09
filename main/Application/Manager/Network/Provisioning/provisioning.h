@@ -62,6 +62,6 @@ esp_err_t Provisioning_Reset(void);
 /** @brief  Check if provisioning is active.
  *  @return true if provisioning is running
  */
-bool Provisioning_isActive(void);
+bool Provisioning_IsActive(void);
 
 #endif /* PROVISIONING_H_ */

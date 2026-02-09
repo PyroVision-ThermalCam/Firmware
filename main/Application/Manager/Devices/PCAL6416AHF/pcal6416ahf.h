@@ -1,9 +1,9 @@
 /*
- * portexpander.h
+ * pcal6416ahf.h
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: GPIO port expander driver interface.
+ *  File info: PCAL6416AHF Port Expander driver definition.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,8 +21,8 @@
  * Errors and commissions should be reported to DanielKampert@kampis-elektroecke.de
  */
 
-#ifndef PORTEXPANDER_H_
-#define PORTEXPANDER_H_
+#ifndef PCAL6416AHF_H_
+#define PCAL6416AHF_H_
 
 #include <esp_err.h>
 
@@ -63,4 +63,4 @@ esp_err_t PortExpander_EnableLED(bool Enable);
  */
 esp_err_t PortExpander_EnableBatteryVoltage(bool Enable);
 
-#endif /* PORTEXPANDER_H_ */
+#endif /* PCAL6416AHF_H_ */

@@ -3,7 +3,7 @@
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: USB Manager type definitions.
+ *  File info: Common type definitions for the USB Manager component.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@
 #ifndef USB_TYPES_H_
 #define USB_TYPES_H_
 
+#include <esp_err.h>
 #include <esp_event.h>
 
 #include <stdint.h>
@@ -44,9 +45,11 @@ typedef enum {
  */
 typedef struct {
     const char *MountPoint;         /**< Mount point of the storage (must match MemoryManager mount point). */
-    const char *VendorID;           /**< USB vendor ID string. */
-    const char *ProductID;          /**< USB product ID string. */
-    const char *ProductRevision;    /**< USB product revision string. */
+    uint16_t VID;                   /**< USB Vendor ID (e.g., 0xCAFE). */
+    uint16_t PID;                   /**< USB Product ID (e.g., 0x4000). */
+    char *Manufacturer;             /**< USB manufacturer string. */
+    char *Product;                  /**< USB product name string. */
+    char *SerialNumber;             /**< USB serial number string. */
 } USB_Manager_Config_t;
 
 #endif /* USB_TYPES_H_ */

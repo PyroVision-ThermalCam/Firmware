@@ -138,16 +138,21 @@ void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32
 
     switch (ID) {
         case SETTINGS_EVENT_LEPTON_CHANGED: {
-            SettingsManager_Setting_t NewSetting;
+            /* Check if specific setting information is provided */
+            if (p_Data != NULL) {
+                SettingsManager_Setting_t NewSetting;
 
-            memcpy(&NewSetting, p_Data, sizeof(SettingsManager_Setting_t));
+                memcpy(&NewSetting, p_Data, sizeof(SettingsManager_Setting_t));
 
-            ESP_LOGD(TAG, "Lepton settings changed: ID=%d", NewSetting.ID);
-            ESP_LOGD(TAG, "Lepton settings changed: Value=%d", NewSetting.Value);
+                ESP_LOGD(TAG, "Lepton settings changed: ID=%d", NewSetting.ID);
+                ESP_LOGD(TAG, "Lepton settings changed: Value=%d", NewSetting.Value);
 
-            if (NewSetting.ID == SETTINGS_ID_LEPTON_EMISSIVITY) {
-                lv_slider_set_value(emissivity_widgets.Slider, NewSetting.Value, LV_ANIM_ON);
-                lv_label_set_text_fmt(emissivity_widgets.Label, "%d", static_cast<int>(NewSetting.Value));
+                if (NewSetting.ID == SETTINGS_ID_LEPTON_EMISSIVITY) {
+                    lv_slider_set_value(emissivity_widgets.Slider, NewSetting.Value, LV_ANIM_ON);
+                    lv_label_set_text_fmt(emissivity_widgets.Label, "%d", static_cast<int>(NewSetting.Value));
+                }
+            } else {
+                ESP_LOGD(TAG, "Lepton settings changed (no specific setting data provided)");
             }
 
             break;
@@ -226,10 +231,12 @@ void on_Flash_ClearCoredump_Callback(lv_event_t *e)
 
 void on_USB_Mode_Switch_Callback(lv_event_t *e)
 {
-    lv_obj_t *switch_obj = static_cast<lv_obj_t *>(lv_event_get_target(e));
     esp_err_t Error;
+    lv_obj_t *switch_obj = static_cast<lv_obj_t *>(lv_event_get_target(e));
 
     if (lv_obj_has_state(switch_obj, LV_STATE_CHECKED)) {
+        App_Settings_Info_t InfoSettings;
+
         ESP_LOGI(TAG, "Enabling USB Mass Storage...");
 
         if (USBManager_IsInitialized()) {
@@ -238,12 +245,16 @@ void on_USB_Mode_Switch_Callback(lv_event_t *e)
             return;
         }
 
+        SettingsManager_GetInfo(&InfoSettings);
+
         /* Configure USB Mass Storage with auto-detected mount point */
-        const USB_Manager_Config_t USB_Config = {
+        USB_Manager_Config_t USB_Config = {
             .MountPoint = MemoryManager_GetStoragePath(),
-            .VendorID = CONFIG_DEVICE_MANUFACTURER,
-            .ProductID = CONFIG_DEVICE_NAME,
-            .ProductRevision = CONFIG_DEVICE_REVISION,
+            .VID = static_cast<uint16_t>(CONFIG_USB_VID),
+            .PID = static_cast<uint16_t>(CONFIG_USB_PID),
+            .Manufacturer = InfoSettings.Manufacturer,
+            .Product = InfoSettings.Name,
+            .SerialNumber = InfoSettings.Serial,
         };
 
         Error = USBManager_Init(&USB_Config);
