@@ -541,10 +541,138 @@ docs/
 
 #### Documentation Update Pattern
 
-1. **Update Code First**: Make your code changes
-2. **Update Documentation**: Modify the relevant `.adoc` file(s)
-3. **Keep in Sync**: Ensure examples, function signatures, and descriptions match the code exactly
-4. **Test Documentation**: Verify that code examples in documentation still compile and work
+**MANDATORY WORKFLOW**: When making ANY code changes that affect public APIs or module behavior, you MUST update the documentation simultaneously.
+
+1. **Identify Affected Documentation**: Use the Module-to-Documentation Mapping table above to find the corresponding `.adoc` file(s)
+2. **Update Code First**: Make your code changes in the source files
+3. **Update Documentation Immediately**: In the SAME session/commit, update the `.adoc` file(s):
+   - Update function signatures if changed
+   - Update parameter descriptions
+   - Update return value documentation
+   - Update code examples to match new behavior
+   - Add new sections for new features
+   - Update diagrams if architecture changed
+4. **Verify Consistency**: Ensure documentation exactly matches the code
+5. **Test Examples**: Verify that code examples in documentation still compile and work
+
+**CRITICAL**: Do NOT defer documentation updates to a later time. Documentation MUST be updated in the same editing session as the code change.
+
+#### Automatic Documentation Update Rules
+
+When you modify code, you MUST automatically update the corresponding AsciiDoc documentation according to these rules:
+
+**1. Function Signature Changes:**
+```cpp
+// If you change this in the header:
+esp_err_t MyModule_DoSomething(uint8_t *p_Data, size_t Size, bool NewParam);
+```
+
+**You MUST update the corresponding `.adoc` file:**
+```asciidoc
+=== MyModule_DoSomething()
+
+[source,c]
+----
+esp_err_t MyModule_DoSomething(uint8_t *p_Data, size_t Size, bool NewParam);
+----
+
+**Parameters:**
+
+* `p_Data` - Pointer to data buffer (must not be NULL)
+* `Size` - Size of data buffer in bytes
+* `NewParam` - [ADD DESCRIPTION OF NEW PARAMETER]
+
+[Rest of documentation...]
+----
+```
+
+**2. Adding New Functions:**
+
+When adding a new public API function, you MUST add a complete documentation section to the appropriate `.adoc` file:
+
+```asciidoc
+=== NewModule_NewFunction()
+
+[source,c]
+----
+esp_err_t NewModule_NewFunction(void);
+----
+
+[Brief description of what the function does]
+
+**Return Values:**
+
+* `ESP_OK` - Success
+* [List all possible return values]
+
+**Thread Safety:** [Describe thread-safety characteristics]
+
+**Example:**
+[source,c]
+----
+[Provide working code example]
+----
+```
+
+**3. Behavior Changes:**
+
+If you change how a function behaves (even without changing the signature), update the description and notes in the `.adoc` file.
+
+**4. New Events or Types:**
+
+When adding new event types, data structures, or enums, document them in the appropriate sections of the `.adoc` file.
+
+#### Documentation Update Checklist
+
+After every code change that affects public APIs, verify:
+
+```
+☐ Identified corresponding .adoc file(s) using Module-to-Documentation Mapping
+☐ Updated function signatures in documentation to match code
+☐ Updated or added parameter descriptions
+☐ Updated or added return value documentation
+☐ Updated code examples to reflect changes
+☐ Added new sections for new functions/features
+☐ Updated architecture diagrams if structure changed
+☐ Verified consistency between code and documentation
+☐ Checked that examples compile and run correctly
+```
+
+#### Common Documentation Scenarios
+
+**Scenario 1: Adding a new parameter to an existing function**
+
+1. Update header file with new parameter + Doxygen documentation
+2. Open corresponding `.adoc` file
+3. Find the function's documentation section
+4. Update the function signature in the `[source,c]` block
+5. Add the new parameter to the "Parameters" list
+6. Update any example code to include the new parameter
+
+**Scenario 2: Adding a completely new module**
+
+1. Create the new module source files
+2. Create a new `.adoc` file in `docs/` (e.g., `docs/NewModule.adoc`)
+3. Use existing module documentation as a template (copy structure from `SettingsManager.adoc` or similar)
+4. Document all public APIs, data structures, and usage examples
+5. Add a link to the new documentation in `docs/index.adoc`
+6. Update the Module-to-Documentation Mapping in this file
+
+**Scenario 3: Changing function behavior without signature change**
+
+1. Modify the function implementation
+2. Open corresponding `.adoc` file
+3. Update the function's description to reflect new behavior
+4. Update notes, warnings, or examples as needed
+5. Add version information if significant change ("*Changed in v1.1.0:* ...")
+
+**Scenario 4: Removing or deprecating a function**
+
+1. Mark function as deprecated in header (if deprecating) or remove (if deleting)
+2. Update `.adoc` file:
+   - If deprecating: Add a "**DEPRECATED**" notice and suggest alternative
+   - If removing: Delete the function's documentation section entirely
+3. Update examples that used the removed function
 
 #### Module-to-Documentation Mapping
 
@@ -552,13 +680,18 @@ docs/
 |--------------|-------------------|
 | `Manager/Settings/` | `SettingsManager.adoc` |
 | `Manager/Network/` | `NetworkManager.adoc` |
+| `Manager/Network/Server/HTTP/` | `HTTPServer.adoc` |
+| `Manager/Network/Server/VISA/` | `VISAServer.adoc` |
+| `Manager/Network/Server/WebSocket/` | `HTTPServer.adoc` (WebSocket section) |
 | `Manager/Devices/` | `DeviceManager.adoc` |
 | `Manager/Time/` | `TimeManager.adoc` |
-| `Manager/SD/` | `SDManager.adoc` |
+| `Manager/Memory/` | `MemoryManager.adoc` |
+| `Manager/USB/` | `USBManager.adoc` |
 | `Tasks/Lepton/` | `LeptonTask.adoc` |
 | `Tasks/GUI/` | `GUITask.adoc` |
 | `Tasks/Network/` | `NetworkTask.adoc` |
-| `Manager/Network/VISA/` | `VISAServer.adoc` |
+| `Tasks/Devices/` | `DevicesTask.adoc` |
+| `main.cpp` (main application) | `index.adoc` (overview section) |
 
 #### Documentation Style Guidelines
 
@@ -651,10 +784,15 @@ Documentation is automatically built and deployed via GitHub Actions workflow (`
 - Check mutex/semaphore release in all paths (including errors)
 
 #### 4. Documentation Synchronization
-- Update function documentation if signatures changed
+- **MANDATORY**: Update corresponding `.adoc` documentation file when changing any public API
+- Use Module-to-Documentation Mapping table to identify which `.adoc` file to update
+- Update function signatures if changed
 - Update parameter descriptions if behavior changed
+- Update return value documentation
 - Verify code examples in documentation still compile
-- Update relevant `.adoc` files in `docs/` directory
+- Add new documentation sections for new functions
+- Update architecture diagrams if module structure changed
+- **Do NOT skip documentation updates** - they must be done in the same session as code changes
 
 **Example validation checklist for each change:**
 ```
@@ -665,7 +803,10 @@ Documentation is automatically built and deployed via GitHub Actions workflow (`
 ☐ All return values and parameters documented
 ☐ Error handling implemented for all ESP-IDF calls
 ☐ Mutex/semaphore properly released in all code paths
-☐ Related documentation (.adoc files) updated
+☐ Related documentation (.adoc files) updated using Module-to-Documentation Mapping
+☐ New functions have complete documentation sections in .adoc files
+☐ Function signatures in .adoc files match code exactly
+☐ Code examples in documentation updated and verified
 ☐ Code formatted with AStyle (scripts/format.py)
 ☐ Run static analysis if available (pio check)
 ```
