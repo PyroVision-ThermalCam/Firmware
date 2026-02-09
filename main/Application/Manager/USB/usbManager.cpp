@@ -101,7 +101,8 @@ esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config)
 
     /* Detect active storage type from MemoryManager */
     MemoryManager_Location_t StorageLocation = MemoryManager_GetStorageLocation();
-    const char *p_StorageTypeName = (StorageLocation == MEMORY_LOCATION_SD_CARD) ? "SD Card (FAT32)" : "Internal Flash (FAT32)";
+    const char *p_StorageTypeName = (StorageLocation == MEMORY_LOCATION_SD_CARD) ? "SD Card (FAT32)" :
+                                    "Internal Flash (FAT32)";
 
     ESP_LOGD(TAG, "Initializing USB Manager...");
     ESP_LOGD(TAG, "  Storage type: %s (auto-detected)", p_StorageTypeName);
@@ -117,7 +118,7 @@ esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config)
 
     /* Only install TinyUSB driver if not already installed */
     ESP_LOGD(TAG, "Initializing TinyUSB...");
-    
+
     const tinyusb_config_t tusb_cfg = TINYUSB_DEFAULT_CONFIG();
 
     Error = tinyusb_driver_install(&tusb_cfg);
@@ -134,7 +135,7 @@ esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config)
     /* Clean up old storage handle if it still exists from previous session */
     if (_State.Storage != NULL) {
         ESP_LOGD(TAG, "Cleaning up old storage handle from previous session...");
-        
+
         Error = tinyusb_msc_delete_storage(_State.Storage);
         if (Error != ESP_OK) {
             ESP_LOGW(TAG, "Failed to delete old storage: %d (continuing anyway)!", Error);
@@ -294,13 +295,13 @@ esp_err_t USBManager_Deinit(void)
 
     /* Create background task to handle the lengthy USB shutdown process */
     BaseType_t Result = xTaskCreate(
-        Task_USB_Deinit,
-        "Task_USB_Deinit",
-        4096,
-        NULL,
-        1,
-        &_State.DeinitTask
-    );
+                            Task_USB_Deinit,
+                            "Task_USB_Deinit",
+                            4096,
+                            NULL,
+                            1,
+                            &_State.DeinitTask
+                        );
 
     if (Result != pdPASS) {
         ESP_LOGE(TAG, "Failed to create USB deinit task!");

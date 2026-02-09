@@ -294,7 +294,7 @@ static esp_err_t SettingsManager_Mount_SD_Card(void)
     esp_err_t Error;
     sdmmc_card_t *card;
     const char mount_point[] = "/sdcard";
-    
+
     ESP_LOGD(TAG, "Initializing SD card");
 
     sdmmc_host_t Host = SDSPI_HOST_DEFAULT();
@@ -332,14 +332,14 @@ static esp_err_t SettingsManager_Mount_SD_Card(void)
         .allocation_unit_size = 16 * 1024
     };
 
-    Error = esp_vfs_fat_sdspi_mount(mount_point, &Host, &Slot, &Mount_Config, &card); 
+    Error = esp_vfs_fat_sdspi_mount(mount_point, &Host, &Slot, &Mount_Config, &card);
     if (Error != ESP_OK) {
         if (Error == ESP_FAIL) {
             ESP_LOGD(TAG, "Failed to mount SD card filesystem!");
         } else {
             ESP_LOGD(TAG, "Failed to mount SD card: 0x%x!", Error);
         }
-        
+
         return Error;
     }
 
@@ -420,7 +420,7 @@ static esp_err_t SettingsManager_Load_JSON(SettingsManager_State_t *p_State, con
     ESP_LOGD(TAG, "File size: %ld bytes", FileSize);
 
     /* Allocate buffer for file content */
-    Buffer = (char*)heap_caps_malloc(FileSize + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    Buffer = (char *)heap_caps_malloc(FileSize + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (Buffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate memory for file buffer!");
 

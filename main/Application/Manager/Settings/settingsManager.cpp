@@ -51,7 +51,8 @@ static SettingsManager_State_t _State;
  *  @param p_ChangedSetting Pointer to structure to receive changed setting ID and value for event data (can be NULL if not needed)
  *  @return                 ESP_OK on success
  */
-static esp_err_t SettingsManager_Update(void* p_Src, void* p_Dst, size_t Size, int EventID, SettingsManager_Setting_t* p_ChangedSetting = NULL)
+static esp_err_t SettingsManager_Update(void *p_Src, void *p_Dst, size_t Size, int EventID,
+                                        SettingsManager_Setting_t *p_ChangedSetting = NULL)
 {
     if (_State.isInitialized == false) {
         return ESP_ERR_INVALID_STATE;
@@ -259,7 +260,7 @@ esp_err_t SettingsManager_Save(void)
     return ESP_OK;
 }
 
-esp_err_t SettingsManager_GetInfo(App_Settings_Info_t* p_Settings)
+esp_err_t SettingsManager_GetInfo(App_Settings_Info_t *p_Settings)
 {
     if ( p_Settings == NULL ) {
         return ESP_ERR_INVALID_ARG;
@@ -274,7 +275,7 @@ esp_err_t SettingsManager_GetInfo(App_Settings_Info_t* p_Settings)
     return ESP_OK;
 }
 
-esp_err_t SettingsManager_GetLepton(App_Settings_Lepton_t* p_Settings)
+esp_err_t SettingsManager_GetLepton(App_Settings_Lepton_t *p_Settings)
 {
     if ( p_Settings == NULL ) {
         return ESP_ERR_INVALID_ARG;
@@ -289,13 +290,13 @@ esp_err_t SettingsManager_GetLepton(App_Settings_Lepton_t* p_Settings)
     return ESP_OK;
 }
 
-esp_err_t SettingsManager_UpdateLepton(App_Settings_Lepton_t* p_Settings, SettingsManager_Setting_t* p_ChangedSetting)
+esp_err_t SettingsManager_UpdateLepton(App_Settings_Lepton_t *p_Settings, SettingsManager_Setting_t *p_ChangedSetting)
 {
     return SettingsManager_Update(p_Settings, &_State.Settings.Lepton, sizeof(App_Settings_Lepton_t),
                                   SETTINGS_EVENT_LEPTON_CHANGED, p_ChangedSetting);
 }
 
-esp_err_t SettingsManager_GetWiFi(App_Settings_WiFi_t* p_Settings)
+esp_err_t SettingsManager_GetWiFi(App_Settings_WiFi_t *p_Settings)
 {
     if ( p_Settings == NULL ) {
         return ESP_ERR_INVALID_ARG;
@@ -310,13 +311,13 @@ esp_err_t SettingsManager_GetWiFi(App_Settings_WiFi_t* p_Settings)
     return ESP_OK;
 }
 
-esp_err_t SettingsManager_UpdateWiFi(App_Settings_WiFi_t* p_Settings)
+esp_err_t SettingsManager_UpdateWiFi(App_Settings_WiFi_t *p_Settings)
 {
     return SettingsManager_Update(p_Settings, &_State.Settings.WiFi, sizeof(App_Settings_WiFi_t),
                                   SETTINGS_EVENT_WIFI_CHANGED);
 }
 
-esp_err_t SettingsManager_GetProvisioning(App_Settings_Provisioning_t* p_Settings)
+esp_err_t SettingsManager_GetProvisioning(App_Settings_Provisioning_t *p_Settings)
 {
     if ( p_Settings == NULL ) {
         return ESP_ERR_INVALID_ARG;
@@ -331,13 +332,13 @@ esp_err_t SettingsManager_GetProvisioning(App_Settings_Provisioning_t* p_Setting
     return ESP_OK;
 }
 
-esp_err_t SettingsManager_UpdateProvisioning(App_Settings_Provisioning_t* p_Settings)
+esp_err_t SettingsManager_UpdateProvisioning(App_Settings_Provisioning_t *p_Settings)
 {
     return SettingsManager_Update(p_Settings, &_State.Settings.Provisioning, sizeof(App_Settings_Provisioning_t),
                                   SETTINGS_EVENT_PROVISIONING_CHANGED);
 }
 
-esp_err_t SettingsManager_GetDisplay(App_Settings_Display_t* p_Settings)
+esp_err_t SettingsManager_GetDisplay(App_Settings_Display_t *p_Settings)
 {
     if ( p_Settings == NULL ) {
         return ESP_ERR_INVALID_ARG;
@@ -352,13 +353,13 @@ esp_err_t SettingsManager_GetDisplay(App_Settings_Display_t* p_Settings)
     return ESP_OK;
 }
 
-esp_err_t SettingsManager_UpdateDisplay(App_Settings_Display_t* p_Settings)
+esp_err_t SettingsManager_UpdateDisplay(App_Settings_Display_t *p_Settings)
 {
     return SettingsManager_Update(p_Settings, &_State.Settings.Display, sizeof(App_Settings_Display_t),
                                   SETTINGS_EVENT_DISPLAY_CHANGED);
 }
 
-esp_err_t SettingsManager_GetHTTPServer(App_Settings_HTTP_Server_t* p_Settings)
+esp_err_t SettingsManager_GetHTTPServer(App_Settings_HTTP_Server_t *p_Settings)
 {
     if ( p_Settings == NULL ) {
         return ESP_ERR_INVALID_ARG;
@@ -373,13 +374,13 @@ esp_err_t SettingsManager_GetHTTPServer(App_Settings_HTTP_Server_t* p_Settings)
     return ESP_OK;
 }
 
-esp_err_t SettingsManager_UpdateHTTPServer(App_Settings_HTTP_Server_t* p_Settings)
+esp_err_t SettingsManager_UpdateHTTPServer(App_Settings_HTTP_Server_t *p_Settings)
 {
     return SettingsManager_Update(p_Settings, &_State.Settings.HTTPServer, sizeof(App_Settings_HTTP_Server_t),
                                   SETTINGS_EVENT_HTTP_SERVER_CHANGED);
 }
 
-esp_err_t SettingsManager_GetVISAServer(App_Settings_VISA_Server_t* p_Settings)
+esp_err_t SettingsManager_GetVISAServer(App_Settings_VISA_Server_t *p_Settings)
 {
     if ( p_Settings == NULL ) {
         return ESP_ERR_INVALID_ARG;
@@ -394,13 +395,13 @@ esp_err_t SettingsManager_GetVISAServer(App_Settings_VISA_Server_t* p_Settings)
     return ESP_OK;
 }
 
-esp_err_t SettingsManager_UpdateVISAServer(App_Settings_VISA_Server_t* p_Settings)
+esp_err_t SettingsManager_UpdateVISAServer(App_Settings_VISA_Server_t *p_Settings)
 {
     return SettingsManager_Update(p_Settings, &_State.Settings.VISAServer, sizeof(App_Settings_VISA_Server_t),
                                   SETTINGS_EVENT_VISA_SERVER_CHANGED);
 }
 
-esp_err_t SettingsManager_GetSystem(App_Settings_System_t* p_Settings)
+esp_err_t SettingsManager_GetSystem(App_Settings_System_t *p_Settings)
 {
     if ( p_Settings == NULL ) {
         return ESP_ERR_INVALID_ARG;
@@ -415,7 +416,7 @@ esp_err_t SettingsManager_GetSystem(App_Settings_System_t* p_Settings)
     return ESP_OK;
 }
 
-esp_err_t SettingsManager_UpdateSystem(App_Settings_System_t* p_Settings)
+esp_err_t SettingsManager_UpdateSystem(App_Settings_System_t *p_Settings)
 {
     return SettingsManager_Update(p_Settings, &_State.Settings.System, sizeof(App_Settings_System_t),
                                   SETTINGS_EVENT_SYSTEM_CHANGED);

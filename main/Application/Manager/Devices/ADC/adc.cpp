@@ -34,23 +34,23 @@
 #include <sdkconfig.h>
 
 #ifdef CONFIG_BATTERY_ADC_1
-    #define ADC_UNIT    ADC_UNIT_1
+#define ADC_UNIT    ADC_UNIT_1
 #elif CONFIG_BATTERY_ADC_2
-    #define ADC_UNIT    ADC_UNIT_2
+#define ADC_UNIT    ADC_UNIT_2
 #else
-    #error "No ADC channel configured for battery measurement"
+#error "No ADC channel configured for battery measurement"
 #endif
 
 #ifdef CONFIG_BATTERY_ADC_ATT_0
-    #define ADC_ATTEN   ADC_ATTEN_DB_0
+#define ADC_ATTEN   ADC_ATTEN_DB_0
 #elif CONFIG_BATTERY_ADC_ATT_2_5
-    #define ADC_ATTEN   ADC_ATTEN_DB_2_5
+#define ADC_ATTEN   ADC_ATTEN_DB_2_5
 #elif CONFIG_BATTERY_ADC_ATT_6
-    #define ADC_ATTEN   ADC_ATTEN_DB_6
+#define ADC_ATTEN   ADC_ATTEN_DB_6
 #elif CONFIG_BATTERY_ADC_ATT_12
-    #define ADC_ATTEN   ADC_ATTEN_DB_12
+#define ADC_ATTEN   ADC_ATTEN_DB_12
 #else
-    #error "No ADC attenuation configured for battery measurement"
+#error "No ADC attenuation configured for battery measurement"
 #endif
 
 static bool _ADC_Calib_Done = false;
@@ -146,7 +146,8 @@ esp_err_t ADC_ReadBattery(int *p_Voltage, uint8_t *p_Percentage)
     } else if (*p_Voltage >= CONFIG_BATTERY_ADC_MAX_MV) {
         *p_Percentage = 100;
     } else {
-        *p_Percentage = (uint8_t)((*p_Voltage - CONFIG_BATTERY_ADC_MIN_MV) * 100 / (CONFIG_BATTERY_ADC_MAX_MV - CONFIG_BATTERY_ADC_MIN_MV));
+        *p_Percentage = (uint8_t)((*p_Voltage - CONFIG_BATTERY_ADC_MIN_MV) * 100 / (CONFIG_BATTERY_ADC_MAX_MV -
+                                                                                    CONFIG_BATTERY_ADC_MIN_MV));
     }
 
     ESP_LOGD(TAG, "ADC%d Channel%d raw data: %d", ADC_UNIT_1, _ADC_Channel, Raw);

@@ -39,27 +39,28 @@
 Slider_Widgets_t brightness_widgets;
 Slider_Widgets_t emissivity_widgets;
 
-static lv_obj_t * flash_storage_used_label = NULL;
-static lv_obj_t * flash_storage_free_label = NULL;
-static lv_obj_t * flash_coredump_used_label = NULL;
-static lv_obj_t * flash_coredump_total_label = NULL;
+static lv_obj_t *flash_storage_used_label = NULL;
+static lv_obj_t *flash_storage_free_label = NULL;
+static lv_obj_t *flash_coredump_used_label = NULL;
+static lv_obj_t *flash_coredump_total_label = NULL;
 
-lv_obj_t * root_page;
-lv_obj_t * cont;
-lv_obj_t * section;
-lv_obj_t * about_Page;
-lv_obj_t * wifi_Page;
-lv_obj_t * display_Page;
-lv_obj_t * lepton_Page;
-lv_obj_t * flash_Page;
-lv_obj_t * usb_Page;
-lv_obj_t * settings_Menu;
-lv_obj_t * emissivity_Dropdown;
-lv_obj_t * wifi_status_label;
-lv_obj_t * usb_mode_switch;
+lv_obj_t *root_page;
+lv_obj_t *cont;
+lv_obj_t *section;
+lv_obj_t *about_Page;
+lv_obj_t *wifi_Page;
+lv_obj_t *display_Page;
+lv_obj_t *lepton_Page;
+lv_obj_t *flash_Page;
+lv_obj_t *usb_Page;
+lv_obj_t *settings_Menu;
+lv_obj_t *emissivity_Dropdown;
+lv_obj_t *wifi_status_label;
+lv_obj_t *usb_mode_switch;
 
-static lv_obj_t * create_menu_container(lv_obj_t * parent) {
-    lv_obj_t * container = lv_obj_create(parent);
+static lv_obj_t *create_menu_container(lv_obj_t *parent)
+{
+    lv_obj_t *container = lv_obj_create(parent);
     lv_obj_clear_flag(container, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_clear_flag(container, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_size(container, LV_PCT(100), LV_SIZE_CONTENT);
@@ -74,8 +75,9 @@ static lv_obj_t * create_menu_container(lv_obj_t * parent) {
     return container;
 }
 
-static lv_obj_t * create_row(lv_obj_t * parent, lv_flex_align_t main_align) {
-    lv_obj_t * row = lv_obj_create(parent);
+static lv_obj_t *create_row(lv_obj_t *parent, lv_flex_align_t main_align)
+{
+    lv_obj_t *row = lv_obj_create(parent);
     lv_obj_clear_flag(row, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_GESTURE_BUBBLE));
     lv_obj_set_size(row, LV_PCT(100), 28);
     lv_obj_set_style_border_width(row, 0, 0);
@@ -90,22 +92,23 @@ static lv_obj_t * create_row(lv_obj_t * parent, lv_flex_align_t main_align) {
     return row;
 }
 
-static lv_obj_t* create_compact_slider(lv_obj_t * parent, const char * label_text, 
-                                         int min_val, int max_val, int init_val, Slider_Widgets_t *widgets) {
+static lv_obj_t *create_compact_slider(lv_obj_t *parent, const char *label_text,
+                                       int min_val, int max_val, int init_val, Slider_Widgets_t *widgets)
+{
     char Buffer[8];
 
-    if(widgets == NULL) {
+    if (widgets == NULL) {
         return NULL;
     }
 
-    lv_obj_t * label_row = create_row(parent, LV_FLEX_ALIGN_START);
-    lv_obj_t * label = lv_label_create(label_row);
+    lv_obj_t *label_row = create_row(parent, LV_FLEX_ALIGN_START);
+    lv_obj_t *label = lv_label_create(label_row);
     lv_label_set_text(label, label_text);
     lv_obj_set_width(label, LV_PCT(50));
     lv_obj_set_style_text_color(label, lv_color_white(), 0);
 
     snprintf(Buffer, sizeof(Buffer), "%i", init_val);
-    lv_obj_t * value_label = lv_label_create(label_row);
+    lv_obj_t *value_label = lv_label_create(label_row);
     lv_label_set_text(value_label, Buffer);
     lv_label_set_long_mode(value_label, LV_LABEL_LONG_CLIP);
     lv_obj_set_width(value_label, 40);
@@ -119,8 +122,8 @@ static lv_obj_t* create_compact_slider(lv_obj_t * parent, const char * label_tex
     lv_obj_clear_flag(value_label, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_margin_left(value_label, 10, 0);
 
-    lv_obj_t * slider_row = create_row(parent, LV_FLEX_ALIGN_CENTER);
-    lv_obj_t * slider = lv_slider_create(slider_row);
+    lv_obj_t *slider_row = create_row(parent, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *slider = lv_slider_create(slider_row);
     lv_obj_clear_flag(slider, LV_OBJ_FLAG_GESTURE_BUBBLE);
 
     widgets->Slider = slider;
@@ -137,10 +140,11 @@ static lv_obj_t* create_compact_slider(lv_obj_t * parent, const char * label_tex
     return slider;
 }
 
-static Menu_Page_Result_t create_menu_page_with_container(lv_obj_t * menu) {
-    lv_obj_t * page = lv_menu_page_create(menu, NULL);
-    lv_obj_t * section = lv_menu_section_create(page);
-    lv_obj_t * container = create_menu_container(section);
+static Menu_Page_Result_t create_menu_page_with_container(lv_obj_t *menu)
+{
+    lv_obj_t *page = lv_menu_page_create(menu, NULL);
+    lv_obj_t *section = lv_menu_section_create(page);
+    lv_obj_t *container = create_menu_container(section);
 
     lv_obj_set_scrollbar_mode(menu, LV_SCROLLBAR_MODE_OFF);
 
@@ -164,10 +168,11 @@ static Menu_Page_Result_t create_menu_page_with_container(lv_obj_t * menu) {
     return {container, page};
 }
 
-static lv_obj_t * create_text(lv_obj_t * parent, const char * txt) {
-    lv_obj_t * label = NULL;
+static lv_obj_t *create_text(lv_obj_t *parent, const char *txt)
+{
+    lv_obj_t *label = NULL;
 
-    lv_obj_t * obj = lv_menu_cont_create(parent);
+    lv_obj_t *obj = lv_menu_cont_create(parent);
     lv_obj_set_style_bg_color(obj, lv_color_hex(0x3A3A3A), LV_STATE_DEFAULT);
     lv_obj_set_style_bg_color(obj, lv_color_hex(0xFF9500), LV_STATE_PRESSED);
     lv_obj_set_style_bg_color(obj, lv_color_hex(0x3A3A3A), LV_STATE_FOCUSED);
@@ -197,7 +202,7 @@ static lv_obj_t * create_text(lv_obj_t * parent, const char * txt) {
     lv_obj_set_style_shadow_opa(obj, 180, LV_STATE_PRESSED);
     lv_obj_set_size(obj, LV_PCT(95), 36);
 
-    if(txt) {
+    if (txt) {
         label = lv_label_create(obj);
         lv_label_set_text(label, txt);
         lv_label_set_long_mode(label, LV_LABEL_LONG_SCROLL_CIRCULAR);
@@ -217,7 +222,7 @@ static lv_obj_t * create_text(lv_obj_t * parent, const char * txt) {
  */
 static void on_menu_page_changed(lv_event_t *e)
 {
-    lv_obj_t *menu_obj = static_cast<lv_obj_t*>(lv_event_get_target(e));
+    lv_obj_t *menu_obj = static_cast<lv_obj_t *>(lv_event_get_target(e));
     lv_obj_t *cur_page = lv_menu_get_cur_main_page(menu_obj);
 
     if (cur_page == NULL) {
@@ -235,15 +240,15 @@ static void on_menu_page_changed(lv_event_t *e)
 /** @brief          Creates the About page.
  *  @param p_Menu   Pointer to the menu object
  */
-static lv_obj_t * ui_Settings_Create_About_Page(lv_obj_t *p_parent)
+static lv_obj_t *ui_Settings_Create_About_Page(lv_obj_t *p_parent)
 {
-    lv_obj_t * cont;
-    lv_obj_t * section;
-    lv_obj_t * about_page;
-    lv_obj_t * about_container;
+    lv_obj_t *cont;
+    lv_obj_t *section;
+    lv_obj_t *about_page;
+    lv_obj_t *about_container;
     Menu_Page_Result_t about_result;
-    lv_obj_t * sub_software_info_page;
-    lv_obj_t * sub_legal_info_page;
+    lv_obj_t *sub_software_info_page;
+    lv_obj_t *sub_legal_info_page;
     char Buffer[64];
 
     about_result = create_menu_page_with_container(p_parent);
@@ -268,7 +273,8 @@ static lv_obj_t * ui_Settings_Create_About_Page(lv_obj_t *p_parent)
     create_text(section, Buffer);
 
     memset(Buffer, 0, sizeof(Buffer));
-    snprintf(Buffer, sizeof(Buffer), "LVGL Version: %d.%d.%d\n", LVGL_VERSION_MAJOR, LVGL_VERSION_MINOR, LVGL_VERSION_PATCH);
+    snprintf(Buffer, sizeof(Buffer), "LVGL Version: %d.%d.%d\n", LVGL_VERSION_MAJOR, LVGL_VERSION_MINOR,
+             LVGL_VERSION_PATCH);
     create_text(section, Buffer);
 
     sub_legal_info_page = lv_menu_page_create(p_parent, NULL);
@@ -277,13 +283,13 @@ static lv_obj_t * ui_Settings_Create_About_Page(lv_obj_t *p_parent)
     lv_obj_set_style_bg_opa(section, 255, 0);
     lv_obj_set_style_pad_all(section, 8, 0);
 
-    lv_obj_t * license_label = lv_label_create(section);
-    lv_label_set_text(license_label, 
-        "(c) 2026 PyroVision Project\n"
-        "Licensed under GNU GPL v3\n"
-        "\n"
-        "This program is free software.\n"
-        "See LICENSE file for details.");
+    lv_obj_t *license_label = lv_label_create(section);
+    lv_label_set_text(license_label,
+                      "(c) 2026 PyroVision Project\n"
+                      "Licensed under GNU GPL v3\n"
+                      "\n"
+                      "This program is free software.\n"
+                      "See LICENSE file for details.");
     lv_obj_set_width(license_label, LV_PCT(95));
     lv_obj_set_style_text_color(license_label, lv_color_white(), 0);
     lv_obj_set_style_text_align(license_label, LV_TEXT_ALIGN_LEFT, 0);
@@ -300,33 +306,33 @@ static lv_obj_t * ui_Settings_Create_About_Page(lv_obj_t *p_parent)
 /** @brief          Creates the WiFi settings page and load it with the values from the settings.
  *  @param p_Menu   Pointer to the menu object
  */
-static lv_obj_t* ui_Settings_Create_WiFi_Page(lv_obj_t *p_Menu)
+static lv_obj_t *ui_Settings_Create_WiFi_Page(lv_obj_t *p_Menu)
 {
     Menu_Page_Result_t WiFiResult = create_menu_page_with_container(p_Menu);
-    lv_obj_t * WiFiContainer = WiFiResult.Container;
-    lv_obj_t * WiFiPage = WiFiResult.Page;
+    lv_obj_t *WiFiContainer = WiFiResult.Container;
+    lv_obj_t *WiFiPage = WiFiResult.Page;
     App_Settings_WiFi_t WiFiSettings;
 
     SettingsManager_GetWiFi(&WiFiSettings);
 
-    lv_obj_t * wifi_row1 = create_row(WiFiContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
-    lv_obj_t * wifi_label = lv_label_create(wifi_row1);
+    lv_obj_t *wifi_row1 = create_row(WiFiContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
+    lv_obj_t *wifi_label = lv_label_create(wifi_row1);
     lv_label_set_text(wifi_label, "Autoconnect");
     lv_obj_set_style_text_color(wifi_label, lv_color_white(), 0);
 
-    lv_obj_t * wifi_switch = lv_switch_create(wifi_row1);
+    lv_obj_t *wifi_switch = lv_switch_create(wifi_row1);
     lv_obj_set_style_bg_color(wifi_switch, lv_color_hex(0x7B3FF0), 0);
     lv_obj_set_style_bg_color(wifi_switch, lv_color_hex(0xFF9500), LV_PART_KNOB);
     lv_obj_add_event_cb(wifi_switch, on_WiFi_Autoconnect_Callback, LV_EVENT_VALUE_CHANGED, NULL);
 
-    if(WiFiSettings.AutoConnect) {
+    if (WiFiSettings.AutoConnect) {
         lv_obj_add_state(wifi_switch, LV_STATE_CHECKED);
     } else {
         lv_obj_remove_state(wifi_switch, LV_STATE_CHECKED);
     }
 
-    lv_obj_t * wifi_row2 = create_row(WiFiContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
-    lv_obj_t * ssid_label = lv_label_create(wifi_row2);
+    lv_obj_t *wifi_row2 = create_row(WiFiContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
+    lv_obj_t *ssid_label = lv_label_create(wifi_row2);
     lv_label_set_text(ssid_label, "Status");
     lv_obj_set_style_text_color(ssid_label, lv_color_white(), 0);
     wifi_status_label = lv_label_create(wifi_row2);
@@ -334,17 +340,17 @@ static lv_obj_t* ui_Settings_Create_WiFi_Page(lv_obj_t *p_Menu)
     lv_obj_set_style_text_color(wifi_status_label, lv_color_hex(0xFF9500), 0);
 
     /* WiFi Connect Button */
-    lv_obj_t * wifi_btn_row = create_row(WiFiContainer, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *wifi_btn_row = create_row(WiFiContainer, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_height(wifi_btn_row, LV_SIZE_CONTENT);
     lv_obj_set_style_pad_top(wifi_btn_row, 12, 0);
     lv_obj_set_style_pad_bottom(wifi_btn_row, 8, 0);
-    lv_obj_t * wifi_connect_btn = lv_btn_create(wifi_btn_row);
+    lv_obj_t *wifi_connect_btn = lv_btn_create(wifi_btn_row);
     lv_obj_set_size(wifi_connect_btn, 140, 36);
     lv_obj_set_style_bg_color(wifi_connect_btn, lv_color_hex(0xFF9500), LV_STATE_DEFAULT);
     lv_obj_set_style_radius(wifi_connect_btn, 6, 0);
     lv_obj_set_style_shadow_width(wifi_connect_btn, 0, 0);
     lv_obj_add_event_cb(wifi_connect_btn, on_WiFi_Connect_Callback, LV_EVENT_CLICKED, NULL);
-    lv_obj_t * wifi_btn_label = lv_label_create(wifi_connect_btn);
+    lv_obj_t *wifi_btn_label = lv_label_create(wifi_connect_btn);
     lv_label_set_text(wifi_btn_label, "Connect WiFi");
     lv_obj_set_style_text_color(wifi_btn_label, lv_color_white(), 0);
     lv_obj_center(wifi_btn_label);
@@ -355,16 +361,17 @@ static lv_obj_t* ui_Settings_Create_WiFi_Page(lv_obj_t *p_Menu)
 /** @brief          Creates the display settings page and load it with the values from the settings.
  *  @param p_Menu   Pointer to the menu object
  */
-static lv_obj_t* ui_Settings_Create_Display_Page(lv_obj_t *p_Menu)
+static lv_obj_t *ui_Settings_Create_Display_Page(lv_obj_t *p_Menu)
 {
     Menu_Page_Result_t DisplayResult = create_menu_page_with_container(p_Menu);
-    lv_obj_t * DisplayContainer = DisplayResult.Container;
-    lv_obj_t * DisplayPage = DisplayResult.Page;
+    lv_obj_t *DisplayContainer = DisplayResult.Container;
+    lv_obj_t *DisplayPage = DisplayResult.Page;
     App_Settings_Display_t DisplaySettings;
 
     SettingsManager_GetDisplay(&DisplaySettings);
 
-    lv_obj_t *brightness_slider = create_compact_slider(DisplayContainer, "Brightness", 0, 100, DisplaySettings.Brightness, &brightness_widgets);
+    lv_obj_t *brightness_slider = create_compact_slider(DisplayContainer, "Brightness", 0, 100, DisplaySettings.Brightness,
+                                                        &brightness_widgets);
 
     lv_obj_add_event_cb(brightness_slider, on_Display_Brightness_Slider_Callback, LV_EVENT_VALUE_CHANGED, NULL);
 
@@ -374,26 +381,27 @@ static lv_obj_t* ui_Settings_Create_Display_Page(lv_obj_t *p_Menu)
 /** @brief          Creates the Lepton settings page and load it with the values from the settings.
  *  @param p_Menu   Pointer to the menu object
  */
-static lv_obj_t* ui_Settings_Create_Lepton_Page(lv_obj_t *p_Menu)
+static lv_obj_t *ui_Settings_Create_Lepton_Page(lv_obj_t *p_Menu)
 {
     std::string Buffer;
     Menu_Page_Result_t LeptonResult = create_menu_page_with_container(p_Menu);
-    lv_obj_t * LeptonContainer = LeptonResult.Container;
-    lv_obj_t * LeptonPage = LeptonResult.Page;
+    lv_obj_t *LeptonContainer = LeptonResult.Container;
+    lv_obj_t *LeptonPage = LeptonResult.Page;
     App_Settings_Lepton_t LeptonSettings;
 
     SettingsManager_GetLepton(&LeptonSettings);
 
-    for(size_t i = 0; i < LeptonSettings.EmissivityCount; i++) {
+    for (size_t i = 0; i < LeptonSettings.EmissivityCount; i++) {
         Buffer += LeptonSettings.EmissivityPresets[i].Description + std::string("\n");
     }
 
-    lv_obj_t *emissivity_slider = create_compact_slider(LeptonContainer, "Emissivity", 0, 100, LeptonSettings.CurrentEmissivity, &emissivity_widgets);
+    lv_obj_t *emissivity_slider = create_compact_slider(LeptonContainer, "Emissivity", 0, 100,
+                                                        LeptonSettings.CurrentEmissivity, &emissivity_widgets);
 
     lv_obj_add_event_cb(emissivity_slider, on_Lepton_Emissivity_Slider_Callback, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(emissivity_slider, on_Lepton_Emissivity_Slider_Callback, LV_EVENT_RELEASED, NULL);
 
-    lv_obj_t * dropdown_row = create_row(LeptonContainer, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *dropdown_row = create_row(LeptonContainer, LV_FLEX_ALIGN_CENTER);
     emissivity_Dropdown = lv_dropdown_create(dropdown_row);
     lv_obj_set_width(emissivity_Dropdown, LV_PCT(95));
     lv_obj_set_style_bg_color(emissivity_Dropdown, lv_color_hex(0x3A3A3A), LV_PART_MAIN);
@@ -415,36 +423,36 @@ static lv_obj_t* ui_Settings_Create_Lepton_Page(lv_obj_t *p_Menu)
 /** @brief          Creates the USB settings page.
  *  @param p_Menu   Pointer to the menu object
  */
-static lv_obj_t* ui_Settings_Create_USB_Page(lv_obj_t *p_Menu)
+static lv_obj_t *ui_Settings_Create_USB_Page(lv_obj_t *p_Menu)
 {
     Menu_Page_Result_t USBResult = create_menu_page_with_container(p_Menu);
-    lv_obj_t * USBContainer = USBResult.Container;
-    lv_obj_t * USBPage = USBResult.Page;
+    lv_obj_t *USBContainer = USBResult.Container;
+    lv_obj_t *USBPage = USBResult.Page;
 
-    lv_obj_t * usb_section_label = lv_label_create(USBContainer);
+    lv_obj_t *usb_section_label = lv_label_create(USBContainer);
     lv_label_set_text(usb_section_label, "USB Mass Storage");
     lv_obj_set_style_text_color(usb_section_label, lv_color_hex(0xFF9500), 0);
     lv_obj_set_style_text_font(usb_section_label, &lv_font_montserrat_14, 0);
     lv_obj_set_style_pad_top(usb_section_label, 0, 0);
     lv_obj_set_style_pad_bottom(usb_section_label, 8, 0);
 
-    lv_obj_t * usb_desc_label = lv_label_create(USBContainer);
+    lv_obj_t *usb_desc_label = lv_label_create(USBContainer);
     lv_label_set_text(usb_desc_label, "Expose storage via USB to PC");
     lv_obj_set_style_text_color(usb_desc_label, lv_color_hex(0xAAAAAA), 0);
     lv_obj_set_style_text_font(usb_desc_label, &lv_font_montserrat_12, 0);
     lv_obj_set_style_pad_bottom(usb_desc_label, 8, 0);
 
-    lv_obj_t * usb_warning_label = lv_label_create(USBContainer);
+    lv_obj_t *usb_warning_label = lv_label_create(USBContainer);
     lv_label_set_text(usb_warning_label, "⚠️  App cannot save while USB is active!");
     lv_obj_set_style_text_color(usb_warning_label, lv_color_hex(0xFF9500), 0);
     lv_obj_set_style_text_font(usb_warning_label, &lv_font_montserrat_10, 0);
     lv_obj_set_style_pad_bottom(usb_warning_label, 12, 0);
 
-    lv_obj_t * usb_switch_row = create_row(USBContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
+    lv_obj_t *usb_switch_row = create_row(USBContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
     lv_obj_set_style_pad_top(usb_switch_row, 4, 0);
     lv_obj_set_style_pad_bottom(usb_switch_row, 4, 0);
 
-    lv_obj_t * usb_mode_label = lv_label_create(usb_switch_row);
+    lv_obj_t *usb_mode_label = lv_label_create(usb_switch_row);
     lv_label_set_text(usb_mode_label, "USB Mode");
     lv_obj_set_style_text_color(usb_mode_label, lv_color_white(), 0);
     lv_obj_set_style_text_font(usb_mode_label, &lv_font_montserrat_14, 0);
@@ -461,42 +469,42 @@ static lv_obj_t* ui_Settings_Create_USB_Page(lv_obj_t *p_Menu)
 /** @brief          Creates the Flash settings page and load it with the values from the settings.
  *  @param p_Menu   Pointer to the menu object
  */
-static lv_obj_t* ui_Settings_Create_Flash_Page(lv_obj_t *p_Menu)
+static lv_obj_t *ui_Settings_Create_Flash_Page(lv_obj_t *p_Menu)
 {
     Menu_Page_Result_t FlashResult = create_menu_page_with_container(p_Menu);
-    lv_obj_t * FlashContainer = FlashResult.Container;
-    lv_obj_t * FlashPage = FlashResult.Page;
+    lv_obj_t *FlashContainer = FlashResult.Container;
+    lv_obj_t *FlashPage = FlashResult.Page;
 
-    lv_obj_t * nvs_section_label = lv_label_create(FlashContainer);
+    lv_obj_t *nvs_section_label = lv_label_create(FlashContainer);
     lv_label_set_text(nvs_section_label, "NVS Settings");
     lv_obj_set_style_text_color(nvs_section_label, lv_color_hex(0xFF9500), 0);
     lv_obj_set_style_text_font(nvs_section_label, &lv_font_montserrat_14, 0);
     lv_obj_set_style_pad_top(nvs_section_label, 0, 0);
     lv_obj_set_style_pad_bottom(nvs_section_label, 8, 0);
 
-    lv_obj_t * nvs_desc_label = lv_label_create(FlashContainer);
+    lv_obj_t *nvs_desc_label = lv_label_create(FlashContainer);
     lv_label_set_text(nvs_desc_label, "Factory reset");
     lv_obj_set_style_text_color(nvs_desc_label, lv_color_hex(0xAAAAAA), 0);
     lv_obj_set_style_text_font(nvs_desc_label, &lv_font_montserrat_12, 0);
     lv_obj_set_style_pad_bottom(nvs_desc_label, 8, 0);
 
-    lv_obj_t * nvs_btn_row = create_row(FlashContainer, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *nvs_btn_row = create_row(FlashContainer, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_height(nvs_btn_row, LV_SIZE_CONTENT);
     lv_obj_set_style_pad_top(nvs_btn_row, 4, 0);
     lv_obj_set_style_pad_bottom(nvs_btn_row, 4, 0);
-    lv_obj_t * nvs_clear_btn = lv_btn_create(nvs_btn_row);
+    lv_obj_t *nvs_clear_btn = lv_btn_create(nvs_btn_row);
     lv_obj_set_size(nvs_clear_btn, 120, 36);
     lv_obj_set_style_bg_color(nvs_clear_btn, lv_color_hex(0xFF3B3B), LV_STATE_DEFAULT);
     lv_obj_set_style_radius(nvs_clear_btn, 6, 0);
     lv_obj_set_style_shadow_width(nvs_clear_btn, 0, 0);
     lv_obj_add_event_cb(nvs_clear_btn, on_Flash_ClearNVS_Callback, LV_EVENT_CLICKED, NULL);
-    lv_obj_t * nvs_btn_label = lv_label_create(nvs_clear_btn);
+    lv_obj_t *nvs_btn_label = lv_label_create(nvs_clear_btn);
     lv_label_set_text(nvs_btn_label, "Reset");
     lv_obj_set_style_text_color(nvs_btn_label, lv_color_white(), 0);
     lv_obj_center(nvs_btn_label);
 
     /* Separator */
-    lv_obj_t * separator1 = lv_obj_create(FlashContainer);
+    lv_obj_t *separator1 = lv_obj_create(FlashContainer);
     lv_obj_set_size(separator1, LV_PCT(100), 1);
     lv_obj_set_style_bg_color(separator1, lv_color_hex(0x505050), 0);
     lv_obj_set_style_border_width(separator1, 0, 0);
@@ -504,46 +512,46 @@ static lv_obj_t* ui_Settings_Create_Flash_Page(lv_obj_t *p_Menu)
     lv_obj_set_style_margin_top(separator1, 12, 0);
     lv_obj_set_style_margin_bottom(separator1, 12, 0);
 
-    lv_obj_t * storage_section_label = lv_label_create(FlashContainer);
+    lv_obj_t *storage_section_label = lv_label_create(FlashContainer);
     lv_label_set_text(storage_section_label, "Storage Partition");
     lv_obj_set_style_text_color(storage_section_label, lv_color_hex(0xFF9500), 0);
     lv_obj_set_style_text_font(storage_section_label, &lv_font_montserrat_14, 0);
     lv_obj_set_style_pad_top(storage_section_label, 0, 0);
     lv_obj_set_style_pad_bottom(storage_section_label, 8, 0);
 
-    lv_obj_t * storage_info_row = create_row(FlashContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
-    lv_obj_t * storage_used_label = lv_label_create(storage_info_row);
+    lv_obj_t *storage_info_row = create_row(FlashContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
+    lv_obj_t *storage_used_label = lv_label_create(storage_info_row);
     lv_label_set_text(storage_used_label, "Used:");
     lv_obj_set_style_text_color(storage_used_label, lv_color_white(), 0);
     flash_storage_used_label = lv_label_create(storage_info_row);
     lv_label_set_text(flash_storage_used_label, "-- KB");
     lv_obj_set_style_text_color(flash_storage_used_label, lv_color_hex(0xB998FF), 0);
 
-    lv_obj_t * storage_free_row = create_row(FlashContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
-    lv_obj_t * storage_free_label = lv_label_create(storage_free_row);
+    lv_obj_t *storage_free_row = create_row(FlashContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
+    lv_obj_t *storage_free_label = lv_label_create(storage_free_row);
     lv_label_set_text(storage_free_label, "Free:");
     lv_obj_set_style_text_color(storage_free_label, lv_color_white(), 0);
     flash_storage_free_label = lv_label_create(storage_free_row);
     lv_label_set_text(flash_storage_free_label, "-- KB");
     lv_obj_set_style_text_color(flash_storage_free_label, lv_color_hex(0xB998FF), 0);
 
-    lv_obj_t * storage_btn_row = create_row(FlashContainer, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *storage_btn_row = create_row(FlashContainer, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_height(storage_btn_row, LV_SIZE_CONTENT);
     lv_obj_set_style_pad_top(storage_btn_row, 8, 0);
     lv_obj_set_style_pad_bottom(storage_btn_row, 8, 0);
-    lv_obj_t * storage_clear_btn = lv_btn_create(storage_btn_row);
+    lv_obj_t *storage_clear_btn = lv_btn_create(storage_btn_row);
     lv_obj_set_size(storage_clear_btn, 120, 36);
     lv_obj_set_style_bg_color(storage_clear_btn, lv_color_hex(0xFF3B3B), LV_STATE_DEFAULT);
     lv_obj_set_style_radius(storage_clear_btn, 6, 0);
     lv_obj_set_style_shadow_width(storage_clear_btn, 0, 0);
     lv_obj_add_event_cb(storage_clear_btn, on_Flash_ClearStorage_Callback, LV_EVENT_CLICKED, NULL);
-    lv_obj_t * storage_btn_label = lv_label_create(storage_clear_btn);
+    lv_obj_t *storage_btn_label = lv_label_create(storage_clear_btn);
     lv_label_set_text(storage_btn_label, "Clear");
     lv_obj_set_style_text_color(storage_btn_label, lv_color_white(), 0);
     lv_obj_center(storage_btn_label);
 
     /* Separator */
-    lv_obj_t * separator2 = lv_obj_create(FlashContainer);
+    lv_obj_t *separator2 = lv_obj_create(FlashContainer);
     lv_obj_set_size(separator2, LV_PCT(100), 1);
     lv_obj_set_style_bg_color(separator2, lv_color_hex(0x505050), 0);
     lv_obj_set_style_border_width(separator2, 0, 0);
@@ -551,40 +559,40 @@ static lv_obj_t* ui_Settings_Create_Flash_Page(lv_obj_t *p_Menu)
     lv_obj_set_style_margin_top(separator2, 12, 0);
     lv_obj_set_style_margin_bottom(separator2, 12, 0);
 
-    lv_obj_t * coredump_section_label = lv_label_create(FlashContainer);
+    lv_obj_t *coredump_section_label = lv_label_create(FlashContainer);
     lv_label_set_text(coredump_section_label, "Coredump Partition");
     lv_obj_set_style_text_color(coredump_section_label, lv_color_hex(0xFF9500), 0);
     lv_obj_set_style_text_font(coredump_section_label, &lv_font_montserrat_14, 0);
     lv_obj_set_style_pad_top(coredump_section_label, 0, 0);
     lv_obj_set_style_pad_bottom(coredump_section_label, 8, 0);
 
-    lv_obj_t * coredump_info_row = create_row(FlashContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
-    lv_obj_t * coredump_used_label = lv_label_create(coredump_info_row);
+    lv_obj_t *coredump_info_row = create_row(FlashContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
+    lv_obj_t *coredump_used_label = lv_label_create(coredump_info_row);
     lv_label_set_text(coredump_used_label, "Used:");
     lv_obj_set_style_text_color(coredump_used_label, lv_color_white(), 0);
     flash_coredump_used_label = lv_label_create(coredump_info_row);
     lv_label_set_text(flash_coredump_used_label, "-- KB");
     lv_obj_set_style_text_color(flash_coredump_used_label, lv_color_hex(0xB998FF), 0);
 
-    lv_obj_t * coredump_total_row = create_row(FlashContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
-    lv_obj_t * coredump_total_label = lv_label_create(coredump_total_row);
+    lv_obj_t *coredump_total_row = create_row(FlashContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
+    lv_obj_t *coredump_total_label = lv_label_create(coredump_total_row);
     lv_label_set_text(coredump_total_label, "Total:");
     lv_obj_set_style_text_color(coredump_total_label, lv_color_white(), 0);
     flash_coredump_total_label = lv_label_create(coredump_total_row);
     lv_label_set_text(flash_coredump_total_label, "-- KB");
     lv_obj_set_style_text_color(flash_coredump_total_label, lv_color_hex(0xB998FF), 0);
 
-    lv_obj_t * coredump_btn_row = create_row(FlashContainer, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *coredump_btn_row = create_row(FlashContainer, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_height(coredump_btn_row, LV_SIZE_CONTENT);
     lv_obj_set_style_pad_top(coredump_btn_row, 8, 0);
     lv_obj_set_style_pad_bottom(coredump_btn_row, 16, 0);
-    lv_obj_t * coredump_clear_btn = lv_btn_create(coredump_btn_row);
+    lv_obj_t *coredump_clear_btn = lv_btn_create(coredump_btn_row);
     lv_obj_set_size(coredump_clear_btn, 120, 36);
     lv_obj_set_style_bg_color(coredump_clear_btn, lv_color_hex(0xFF3B3B), LV_STATE_DEFAULT);
     lv_obj_set_style_radius(coredump_clear_btn, 6, 0);
     lv_obj_set_style_shadow_width(coredump_clear_btn, 0, 0);
     lv_obj_add_event_cb(coredump_clear_btn, on_Flash_ClearCoredump_Callback, LV_EVENT_CLICKED, NULL);
-    lv_obj_t * coredump_btn_label = lv_label_create(coredump_clear_btn);
+    lv_obj_t *coredump_btn_label = lv_label_create(coredump_clear_btn);
     lv_label_set_text(coredump_btn_label, "Clear");
     lv_obj_set_style_text_color(coredump_btn_label, lv_color_white(), 0);
     lv_obj_center(coredump_btn_label);
@@ -656,7 +664,7 @@ void ui_settings_build(lv_obj_t *p_Parent)
 
 void ui_settings_deinit(lv_obj_t *p_Parent)
 {
-    if(ui_Splash) {
+    if (ui_Splash) {
         lv_obj_del(settings_Menu);
         lv_obj_delete(settings_Menu);
 

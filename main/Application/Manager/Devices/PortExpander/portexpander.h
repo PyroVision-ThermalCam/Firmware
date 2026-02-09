@@ -57,7 +57,7 @@ esp_err_t PortExpander_DefaultConfig(void);
  */
 esp_err_t PortExpander_EnableLED(bool Enable);
 
-/** @brief 
+/** @brief
  *  @param Enable   true to enable battery voltage measurement, false to disable it.
  *  @return         ESP_OK on success, error code otherwise
  */

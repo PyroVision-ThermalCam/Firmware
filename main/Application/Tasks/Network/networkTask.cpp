@@ -384,7 +384,7 @@ static void Task_Network(void *p_Parameters)
             xEventGroupClearBits(_NetworkTask_State.EventGroup, NETWORK_TASK_WIFI_CREDENTIALS_UPDATED);
         } else if (EventBits & LEPTON_SPOTMETER_READY) {
             if (Server_isRunning()) {
-                
+
             }
             xEventGroupClearBits(_NetworkTask_State.EventGroup, LEPTON_SPOTMETER_READY);
         }

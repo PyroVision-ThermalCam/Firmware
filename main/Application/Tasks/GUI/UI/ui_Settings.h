@@ -28,12 +28,12 @@
 
 #include <stdint.h>
 
-extern lv_obj_t * wifi_status_label;
+extern lv_obj_t *wifi_status_label;
 
 /** @brief          Builds the settings UI.
  *  @param p_Parent Pointer to the parent object where the settings UI will be attached
  */
-void ui_settings_build(lv_obj_t * p_Parent);
+void ui_settings_build(lv_obj_t *p_Parent);
 
 /** @brief  Updates flash partition usage information in the Flash settings page.
  *          Call this when the Flash settings page becomes visible to show

@@ -48,7 +48,8 @@ typedef enum {
  *  @param SyncInterval SNTP sync interval in seconds
  *  @return             ESP_OK on success
  */
-esp_err_t SNTP_Init(const char* p_Timezone = "CET-1CEST,M3.5.0,M10.5.0/3", const char* p_Server = "pool.ntp.org", uint32_t SyncInterval = 3600);
+esp_err_t SNTP_Init(const char *p_Timezone = "CET-1CEST,M3.5.0,M10.5.0/3", const char *p_Server = "pool.ntp.org",
+                    uint32_t SyncInterval = 3600);
 
 /** @brief  Deinitialize SNTP and event handlers.
  *  @return ESP_OK on success
@@ -64,6 +65,6 @@ esp_err_t SNTP_GetTime(uint8_t Retries);
 /** @brief              Set SNTP timezone.
  *  @param p_Timezone   Timezone string (e.g. "CET-1CEST,M3.5.0,M10.5.0/3")
  */
-void SNTP_SetTimezone(const char* p_Timezone);
+void SNTP_SetTimezone(const char *p_Timezone);
 
 #endif /* SNTP_H_ */

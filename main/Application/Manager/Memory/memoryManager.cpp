@@ -313,7 +313,7 @@ esp_err_t MemoryManager_GetStorageUsage(MemoryManager_Usage_t *p_Usage)
             } else {
                 p_Usage->UsedPercent = 0;
             }
-            
+
             return ESP_OK;
         } else {
             ESP_LOGE(TAG, "Failed to get internal storage filesystem info!");
@@ -325,12 +325,12 @@ esp_err_t MemoryManager_GetStorageUsage(MemoryManager_Usage_t *p_Usage)
 esp_err_t MemoryManager_GetCoredumpUsage(MemoryManager_Usage_t *p_Usage)
 {
     if (p_Usage == NULL) {
-        return ESP_ERR_INVALID_ARG; 
+        return ESP_ERR_INVALID_ARG;
     }
 
     const esp_partition_t *Partition = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
-                                        ESP_PARTITION_SUBTYPE_DATA_COREDUMP,
-                                        "coredump");
+                                                                ESP_PARTITION_SUBTYPE_DATA_COREDUMP,
+                                                                "coredump");
     if (Partition == NULL) {
         ESP_LOGE(TAG, "Coredump partition not found!");
 
@@ -380,7 +380,7 @@ esp_err_t MemoryManager_EraseStorage(void)
             }
 
             snprintf(FilePath, sizeof(FilePath), "/sdcard/%s", Entry->d_name);
-            
+
             struct stat St;
             if (stat(FilePath, &St) == 0) {
                 if (S_ISDIR(St.st_mode)) {
@@ -399,7 +399,7 @@ esp_err_t MemoryManager_EraseStorage(void)
         ESP_LOGD(TAG, "SD card storage erased successfully");
 
         return ESP_OK;
-        
+
     } else {
         esp_err_t Error;
         const esp_vfs_fat_mount_config_t MountConfig = {
@@ -505,7 +505,7 @@ esp_err_t MemoryManager_LockFilesystem(void)
 
     ESP_LOGD(TAG, "Locking filesystem for USB access");
     ESP_LOGW(TAG, "  Application MUST NOT write to %s while USB is active!", MemoryManager_GetStoragePath());
-    
+
     _State.isFilesystemLocked = true;
 
     return ESP_OK;
@@ -520,7 +520,7 @@ esp_err_t MemoryManager_UnlockFilesystem(void)
     }
 
     ESP_LOGD(TAG, "Unlocking filesystem - application can write again");
-    
+
     _State.isFilesystemLocked = false;
 
     return ESP_OK;
