@@ -68,21 +68,21 @@ The Memory Manager follows this priority:
 
 [source]
 ----
-┌─────────────────────────────┐
-│  MemoryManager_Init()       │
-└──────────┬──────────────────┘
-           │
-           ▼
-    ┌──────────────┐
-    │ SD Card      │ YES   ┌──────────────────┐
-    │ Present?     ├──────►│ Use /sdcard      │
-    └──────┬───────┘       │ (SD Card)        │
-           │ NO            └──────────────────┘
-           ▼
-    ┌──────────────────┐
-    │ Use /storage     │
-    │ (Internal Flash) │
-    └──────────────────┘
++-----------------------------+
+|  MemoryManager_Init()       |
++-------------+---------------+
+              |
+              v
+       +--------------+
+       | SD Card      | YES   +------------------+
+       | Present?     +------>| Use /sdcard      |
+       +------+-------+       | (SD Card)        |
+              | NO            +------------------+
+              v
+       +------------------+
+       | Use /storage     |
+       | (Internal Flash) |
+       +------------------+
 ----
 
 === Internal State Management

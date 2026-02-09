@@ -1,0 +1,580 @@
+= PyroVision GUI Task Documentation
+Daniel Kampert <DanielKampert@kampis-elektroecke.de>
+v1.0, 2026-02-09
+:toc: left
+:toclevels: 3
+:sectnums:
+:source-highlighter: coderay
+
+== Overview
+
+The GUI Task is responsible for rendering the user interface using LVGL (Light and Versatile Graphics Library) and managing user interactions with the touch display. It displays thermal camera frames, settings menus, system information, and handles touch input for ROI (Region of Interest) editing and navigation.
+
+=== Key Features
+
+* *LVGL Integration*: Hardware-accelerated graphics rendering
+* *Thermal Image Display*: Real-time display of processed Lepton camera frames
+* *Touch Interface*: Interactive settings and configuration screens
+* *ROI Editor*: Visual overlay for adjusting spotmeter regions
+* *Image Capture*: Save thermal images as BMP files to SD card
+* *Multi-Screen Layout*: Main view, menu, settings, and info screens
+* *Event-Driven UI*: Responsive to settings changes and system events
+
+---
+
+== Architecture
+
+=== Component Structure
+
+[source]
+----
+main/Application/Tasks/GUI/
+├── guiTask.h                # Public API
+├── guiTask.cpp              # Main implementation
+├── Export/                  # Auto-generated from SquareLine Studio
+│   ├── ui.h
+│   ├── ui_events.h
+│   ├── ui_events.cpp
+│   ├── ui_helpers.h
+│   └── screens/
+│       ├── ui_Info.h        # Info screen
+│       ├── ui_Main.h        # Main thermal view
+│       ├── ui_Menu.h        # Settings menu
+│       └── ui_Splash.h      # Boot splash screen
+├── UI/                      # Custom UI components
+│   ├── ui_Settings.h
+│   ├── ui_Settings.cpp
+│   └── Private/
+│       ├── ui_Settings_Events.h
+│       └── ui_Settings_Events.cpp
+└── Private/
+    ├── guiHelper.h
+    └── guiHelper.cpp        # Internal helper functions
+----
+
+=== Task Architecture
+
+The GUI Task runs as a FreeRTOS task with the following characteristics:
+
+* *Task Name*: `"GUITask"`
+* *Priority*: Configurable (typically `tskIDLE_PRIORITY + 2`)
+* *Stack Size*: 16 KB (to accommodate LVGL's stack requirements)
+* *Core Affinity*: Typically pinned to Core 1 (APP CPU)
+
+=== LVGL Integration
+
+The task integrates LVGL with the ESP32-S3's display controller:
+
+* *Display Driver*: ILI9341 SPI LCD (320x240 pixels)
+* *Touch Driver*: GT911 capacitive touch controller
+* *Refresh Rate*: 30 FPS nominal
+* *Double Buffering*: Used for smooth rendering
+* *Tick Handler*: LVGL tick driven by FreeRTOS timer
+
+---
+
+== Public API
+
+=== GUI_Task_Init()
+
+[source,c]
+----
+esp_err_t GUI_Task_Init(void);
+----
+
+Initializes the GUI subsystem including LVGL library, display driver, touch driver, and UI screens.
+
+**Initialization Steps:**
+
+1. Initialize LVGL library
+2. Configure display driver (ILI9341)
+3. Initialize touch input driver (GT911)
+4. Create LVGL display and input device objects
+5. Load UI screens from SquareLine Studio export
+6. Register event handlers for system events
+
+**Return Values:**
+
+* `ESP_OK` - GUI subsystem initialized successfully
+* `ESP_ERR_NO_MEM` - Memory allocation failed
+* `ESP_FAIL` - Display or touch driver initialization failed
+* `ESP_ERR_INVALID_STATE` - Already initialized
+
+**Thread Safety:** Not thread-safe. Must be called once during system initialization.
+
+**Example:**
+[source,c]
+----
+esp_err_t Error = GUI_Task_Init();
+if (Error != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to initialize GUI: %d", Error);
+    return Error;
+}
+----
+
+---
+
+=== GUI_Task_Deinit()
+
+[source,c]
+----
+void GUI_Task_Deinit(void);
+----
+
+Deinitializes the GUI subsystem, freeing all allocated resources.
+
+**Actions:**
+
+* Stops GUI task if running
+* Frees LVGL objects and screens
+* Deinitializes display and touch drivers
+* Releases allocated memory
+
+**Thread Safety:** Not thread-safe. Call only during shutdown.
+
+---
+
+=== GUI_Task_Start()
+
+[source,c]
+----
+esp_err_t GUI_Task_Start(App_Context_t *p_AppContext);
+----
+
+Starts the GUI FreeRTOS task.
+
+**Parameters:**
+
+* `p_AppContext` - Pointer to application context structure (must not be NULL)
+
+**Return Values:**
+
+* `ESP_OK` - Task started successfully
+* `ESP_ERR_INVALID_ARG` - NULL pointer passed
+* `ESP_ERR_INVALID_STATE` - GUI not initialized or already running
+* `ESP_ERR_NO_MEM` - Task creation failed
+
+**Thread Safety:** Thread-safe. Can be called from any task.
+
+**Example:**
+[source,c]
+----
+App_Context_t AppContext;
+esp_err_t Error = GUI_Task_Start(&AppContext);
+if (Error != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to start GUI task: %d", Error);
+}
+----
+
+---
+
+=== GUI_Task_Stop()
+
+[source,c]
+----
+esp_err_t GUI_Task_Stop(void);
+----
+
+Stops the GUI task.
+
+**Return Values:**
+
+* `ESP_OK` - Task stopped successfully
+* `ESP_ERR_INVALID_STATE` - Task not running
+
+**Thread Safety:** Thread-safe. Can be called from any task.
+
+**Note:** This function blocks until the task has fully stopped.
+
+---
+
+=== GUI_Task_isRunning()
+
+[source,c]
+----
+bool GUI_Task_isRunning(void);
+----
+
+Checks if the GUI task is currently active.
+
+**Return Values:**
+
+* `true` - Task is running
+* `false` - Task is not running
+
+**Thread Safety:** Thread-safe.
+
+---
+
+=== GUI_Toggle_ROI_EditMode()
+
+[source,c]
+----
+void GUI_Toggle_ROI_EditMode(void);
+----
+
+Toggles the ROI (Region of Interest) edit mode on the main thermal display.
+
+**Behavior:**
+
+* When enabled: Displays a draggable rectangle overlay representing the spotmeter region
+* User can touch and drag to reposition the ROI
+* Updates are applied to camera spotmeter settings in real-time
+* Visual feedback with colored rectangle
+
+**Thread Safety:** Should be called from GUI context or via event system.
+
+**Example:**
+[source,c]
+----
+// Called from button press event
+GUI_Toggle_ROI_EditMode();
+----
+
+---
+
+=== GUI_SaveThermalImage()
+
+[source,c]
+----
+esp_err_t GUI_SaveThermalImage(void);
+----
+
+Captures the current thermal image and saves it to the SD card as a BMP file.
+
+**File Naming:**
+
+* Format: `THERMAL_YYYYMMDD_HHMMSS.BMP`
+* Example: `THERMAL_20260209_143022.BMP`
+
+**Return Values:**
+
+* `ESP_OK` - Image saved successfully
+* `ESP_ERR_INVALID_STATE` - Filesystem locked (USB MSC active)
+* `ESP_ERR_NO_MEM` - No frame available or memory allocation failed
+* `ESP_FAIL` - File write operation failed
+
+**Thread Safety:** Thread-safe. Can be called from any task.
+
+**Storage Location:** `/sdcard/` (SD card root directory)
+
+**Note:** Function checks if filesystem is locked by USB Mass Storage Class before attempting write.
+
+**Example:**
+[source,c]
+----
+esp_err_t Error = GUI_SaveThermalImage();
+if (Error == ESP_ERR_INVALID_STATE) {
+    ESP_LOGW(TAG, "Cannot save: USB MSC active");
+} else if (Error != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to save image: %d", Error);
+}
+----
+
+---
+
+== Event System
+
+=== GUI Events
+
+The GUI Task posts events to the system event loop:
+
+[source,c]
+----
+ESP_EVENT_DECLARE_BASE(GUI_EVENTS);
+----
+
+**Event Types:**
+
+Currently, the GUI Task primarily *consumes* events rather than posting them:
+
+* `SETTINGS_EVENTS` - Updates UI when settings change
+* `NETWORK_EVENTS` - Updates WiFi status indicators
+* `LEPTON_EVENTS` - Receives frame updates for display
+
+---
+
+== UI Screens
+
+=== 1. Splash Screen (`ui_Splash`)
+
+* Displayed during boot
+* Shows PyroVision logo
+* Duration: 2-3 seconds
+* Transitions to Main screen
+
+=== 2. Main Screen (`ui_Main`)
+
+The primary thermal imaging view:
+
+* *Thermal Image Canvas*: Full-color rendered thermal frame
+* *Spotmeter Temperature*: Large numeric display of spotmeter temp
+* *Min/Max Temperatures*: Scene statistics
+* *ROI Overlay*: Visual spotmeter position indicator
+* *Status Bar*: WiFi, USB, SD card status icons
+* *Menu Button*: Access to settings and configuration
+
+=== 3. Menu Screen (`ui_Menu`)
+
+Navigation to various settings:
+
+* WiFi Configuration
+* Camera Settings
+* Display Settings
+* System Information
+* Return to Main
+
+=== 4. Info Screen (`ui_Info`)
+
+System information display:
+
+* Firmware version
+* Hardware info
+* Memory usage
+* Uptime
+* Network status
+
+=== 5. Settings Screens (`ui_Settings_*`)
+
+Dynamic settings panels (custom implementation):
+
+* WiFi SSID/Password entry
+* Camera ROI configuration
+* AGC settings
+* Emissivity presets
+* Display brightness
+
+---
+
+== Thermal Image Rendering
+
+=== Frame Processing Pipeline
+
+[source]
+----
+┌──────────────────┐
+│ Lepton Task      │
+│ (Raw 14-bit)     │
+└────────┬─────────┘
+         │
+         │ Post frame via queue
+         ↓
+┌──────────────────┐
+│ GUI Task         │
+│ Receive Frame    │
+└────────┬─────────┘
+         │
+         │ Apply colormap
+         ↓
+┌──────────────────┐
+│ RGB565 Conversion│
+│ (320x240 scaled) │
+└────────┬─────────┘
+         │
+         │ LVGL Canvas Update
+         ↓
+┌──────────────────┐
+│ Display (ILI9341)│
+│ SPI DMA Transfer │
+└──────────────────┘
+----
+
+**Frame Format:**
+
+* Input: 14-bit RAW thermal data (80x60 or 160x120 depending on Lepton model)
+* Processing: Apply colormap (Iron, Rainbow, etc.)
+* Output: RGB565 (16-bit color)
+* Scaling: Bilinear interpolation to fit display
+
+**Performance:**
+
+* Target: 8.6 Hz frame rate (Lepton 3.5 native rate)
+* Actual: ~8-10 FPS depending on UI complexity
+* Latency: <100ms from capture to display
+
+---
+
+== ROI (Region of Interest) Editor
+
+=== Interactive ROI Adjustment
+
+The GUI allows visual adjustment of the camera's spotmeter ROI:
+
+**Interaction:**
+
+1. User presses "Edit ROI" button
+2. Colored rectangle overlay appears on thermal image
+3. User touches and drags rectangle to reposition
+4. Release updates camera spotmeter settings
+5. Press "Done" to exit edit mode
+
+**Implementation:**
+
+* LVGL drag event handler
+* Real-time coordinate translation (display → camera pixels)
+* Boundary checking to keep ROI within frame
+* Visual feedback during dragging
+
+**Constraints:**
+
+* Minimum ROI size: 4x4 pixels (camera limitation)
+* ROI must be fully within frame boundaries
+* Only one ROI editable at a time (typically spotmeter)
+
+---
+
+== Image Capture (BMP Export)
+
+=== BMP File Format
+
+Saved thermal images use the following format:
+
+* *Format*: BMP (Windows Bitmap)
+* *Color Depth*: 24-bit RGB
+* *Resolution*: 320x240 pixels (native display resolution)
+* *Compression*: None (uncompressed)
+* *Color Space*: sRGB
+
+**File Structure:**
+
+[source]
+----
+BMP Header (14 bytes)
+DIB Header (40 bytes)
+Pixel Data (320 x 240 x 3 bytes = 230,400 bytes)
+Total: ~230 KB per image
+----
+
+**Memory Considerations:**
+
+* Temporary buffer allocated from PSRAM (if available)
+* Freed immediately after file write
+* SD card must have sufficient space
+
+---
+
+== Dependencies
+
+=== Required Managers
+
+* *Device Manager*: Display and touch controller initialization
+* *Settings Manager*: UI configuration (brightness, theme, etc.)
+* *Memory Manager*: Buffer allocation for frame processing
+* *Time Manager*: Timestamp for saved images
+
+=== Required Tasks
+
+* *Lepton Task*: Provides thermal frames for display
+
+=== Libraries
+
+* *LVGL* (v8.3+): Graphics library
+* *ESP-IDF LCD/Touch*: Display and touch drivers
+* *ESP-IDF VFS/FatFS*: File system for BMP export
+
+---
+
+== Configuration
+
+=== Kconfig Options
+
+The GUI can be configured via menuconfig:
+
+* `GUI_TASK_PRIORITY` - Task priority
+* `GUI_TASK_STACK_SIZE` - Stack size (default: 16384)
+* `GUI_TASK_CORE` - CPU core affinity (0 or 1)
+* `GUI_LVGL_BUFFER_SIZE` - LVGL draw buffer size
+
+=== Compile-Time Configuration
+
+Display and touch driver parameters are configured in Device Manager.
+
+---
+
+== Threading and Synchronization
+
+=== Thread Safety
+
+* **Task-Internal**: GUI operations are thread-safe when called from GUI task context
+* **External Calls**: API functions (`GUI_Task_Start()`, `GUI_SaveThermalImage()`) use mutexes for thread safety
+* **Event Handlers**: GUI event handlers run in event loop context
+
+=== Critical Sections
+
+* Frame buffer access (protected by semaphore)
+* Settings updates (coordinated via event system)
+* File system access (checked for USB lock)
+
+---
+
+== Troubleshooting
+
+=== Common Issues
+
+**Display not updating:**
+
+* Check LVGL tick handler is running
+* Verify SPI bus configuration
+* Ensure display backlight is enabled
+
+**Touch not responding:**
+
+* Verify GT911 I2C address (0x5D or 0x14)
+* Check touch interrupt GPIO configuration
+* Confirm touch calibration
+
+**Frame rate too low:**
+
+* Reduce LVGL animation complexity
+* Enable SPI DMA for display
+* Allocate draw buffers in PSRAM
+
+**Image save fails:**
+
+* Check SD card is mounted
+* Verify filesystem not locked (USB MSC inactive)
+* Ensure sufficient free space on SD card
+
+---
+
+== Performance Optimization
+
+=== Tips for Smooth UI
+
+* Use double buffering for LVGL
+* Enable SPI DMA transfers
+* Minimize LVGL object count on screen
+* Use cached images for static content
+* Pin GUI task to dedicated core
+
+=== Memory Optimization
+
+* Allocate large buffers (frame buffers) in PSRAM
+* Use LVGL built-in image cache
+* Release unused screens from memory
+* Monitor heap fragmentation
+
+---
+
+== Future Enhancements
+
+* Multiple colormap options (Iron, Rainbow, Grayscale)
+* Histogram display
+* Temperature profile graphs
+* Multi-ROI visual editing
+* Touch gestures (pinch-to-zoom)
+* Screen rotation support
+
+---
+
+== Related Documentation
+
+* link:LeptonTask.adoc[Lepton Task Documentation]
+* link:DeviceManager.adoc[Device Manager Documentation]
+* link:SettingsManager.adoc[Settings Manager Documentation]
+* link:MemoryManager.adoc[Memory Manager Documentation]
+
+---
+
+**Last Updated**: February 9, 2026 +
+**Maintainer**: Daniel Kampert (DanielKampert@kampis-elektroecke.de)
