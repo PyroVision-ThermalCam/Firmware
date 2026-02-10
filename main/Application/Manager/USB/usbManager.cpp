@@ -34,6 +34,7 @@
 #include <sys/stat.h>
 
 #include "usbManager.h"
+#include "descriptors.h"
 #include "../Memory/memoryManager.h"
 
 ESP_EVENT_DEFINE_BASE(USB_EVENTS);
@@ -116,20 +117,7 @@ esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config)
     memcpy(&_USB_Manager_State.Config, p_Config, sizeof(USB_Manager_Config_t));
 
     /* Configure the Device Descriptor */
-    _USB_Manager_State.DeviceDescriptor.bLength = sizeof(tusb_desc_device_t);
-    _USB_Manager_State.DeviceDescriptor.bDescriptorType = TUSB_DESC_DEVICE;
-    _USB_Manager_State.DeviceDescriptor.bcdUSB = 0x0200;                            // USB 2.0
-    _USB_Manager_State.DeviceDescriptor.bDeviceClass = 0x00;                        // Defined in interface descriptor
-    _USB_Manager_State.DeviceDescriptor.bDeviceSubClass = 0x00;
-    _USB_Manager_State.DeviceDescriptor.bDeviceProtocol = 0x00;
-    _USB_Manager_State.DeviceDescriptor.bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE;
-    _USB_Manager_State.DeviceDescriptor.idVendor = p_Config->VID;
-    _USB_Manager_State.DeviceDescriptor.idProduct = p_Config->PID;
-    _USB_Manager_State.DeviceDescriptor.bcdDevice = 0x0100;                         // Device release 1.0
-    _USB_Manager_State.DeviceDescriptor.iManufacturer = 0x01;                       // Index of manufacturer string
-    _USB_Manager_State.DeviceDescriptor.iProduct = 0x02;                            // Index of product string
-    _USB_Manager_State.DeviceDescriptor.iSerialNumber = 0x03;                       // Index of serial number string
-    _USB_Manager_State.DeviceDescriptor.bNumConfigurations = 0x01;                  // One configuration
+    memcpy(&_USB_Manager_State.DeviceDescriptor, get_Desc_Device(), sizeof(tusb_desc_device_t));
 
     /* Configure the String Descriptors */
     _USB_Manager_State.StringDescriptors[0] = NULL;                                 // 0: Language (set by TinyUSB)
@@ -138,7 +126,8 @@ esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config)
     _USB_Manager_State.StringDescriptors[3] = p_Config->SerialNumber;               // 3: Serial Number
 
     ESP_LOGD(TAG, "USB Descriptors:");
-    ESP_LOGD(TAG, "  VID:PID = 0x%04X:0x%04X", p_Config->VID, p_Config->PID);
+    ESP_LOGD(TAG, "  VID:PID = 0x%04X:0x%04X", _USB_Manager_State.DeviceDescriptor.idVendor,
+             _USB_Manager_State.DeviceDescriptor.idProduct);
     ESP_LOGD(TAG, "  Manufacturer: %s", p_Config->Manufacturer ? p_Config->Manufacturer : "(null)");
     ESP_LOGD(TAG, "  Product: %s", p_Config->Product ? p_Config->Product : "(null)");
     ESP_LOGD(TAG, "  Serial: %s", p_Config->SerialNumber ? p_Config->SerialNumber : "(null)");

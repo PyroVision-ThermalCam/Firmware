@@ -29,38 +29,37 @@
 #include "../I2C/i2c.h"
 
 /** @brief              Initializes the port expander driver.
- *  @param  p_Config    Pointer to the I2C master bus configuration.
- *  @param  Bus_Handle  Pointer to the I2C master bus handle.
+ *  @param p_Bus_Handle Pointer to I2C bus handle
+ *  @param p_Dev_Handle Pointer to store the created device handle
  *  @return             ESP_OK on success, error code otherwise
  */
-esp_err_t PortExpander_Init(i2c_master_bus_config_t *p_Config, i2c_master_bus_handle_t *Bus_Handle);
+esp_err_t PortExpander_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_handle_t *p_Dev_Handle);
 
-/** @brief  Deinitializes the port expander driver.
- *  @return ESP_OK on success, error code otherwise
+/** @brief              Deinitializes the port expander driver.
+ *  @param p_Dev_Handle Pointer to device handle
+ *  @return             ESP_OK on success, error code otherwise
  */
-esp_err_t PortExpander_Deinit(void);
+esp_err_t PortExpander_Deinit(i2c_master_dev_handle_t *p_Dev_Handle);
 
 #ifdef DEBUG
-/** @brief Dump the content of the registers from the Port Expander.
+/** @brief              Dump the content of the registers from the Port Expander.
+ *  @param p_Dev_Handle Pointer to device handle
  */
-void PortExpander_DumpRegister(void);
+void PortExpander_DumpRegister(i2c_master_dev_handle_t *p_Dev_Handle);
 #endif
 
-/** @brief  Sets the port expander to its default configuration.
- *  @return ESP_OK on success, error code otherwise
+/** @brief              Enables or disables the LED (active high).
+ *  @param p_Dev_Handle Pointer to device handle
+ *  @param Enable       true to enable the LED, false to disable it
+ *  @return             ESP_OK on success, error code otherwise
  */
-esp_err_t PortExpander_DefaultConfig(void);
+esp_err_t PortExpander_EnableLED(i2c_master_dev_handle_t *p_Dev_Handle, bool Enable);
 
-/** @brief          Enables or disables the LED.
- *  @param Enable   true to enable the LED, false to disable it.
- *  @return         ESP_OK on success, error code otherwise
+/** @brief              Enables or disables the battery voltage measurement (active low).
+ *  @param p_Dev_Handle Pointer to device handle
+ *  @param Enable       true to enable battery voltage measurement, false to disable it
+ *  @return             ESP_OK on success, error code otherwise
  */
-esp_err_t PortExpander_EnableLED(bool Enable);
-
-/** @brief
- *  @param Enable   true to enable battery voltage measurement, false to disable it.
- *  @return         ESP_OK on success, error code otherwise
- */
-esp_err_t PortExpander_EnableBatteryVoltage(bool Enable);
+esp_err_t PortExpander_EnableBatteryVoltage(i2c_master_dev_handle_t *p_Dev_Handle, bool Enable);
 
 #endif /* PCAL6416AHF_H_ */

@@ -64,13 +64,13 @@ bool GUI_Task_IsRunning(void);
  */
 void GUI_Toggle_ROI_EditMode(void);
 
-/** @brief          Save current thermal image to storage as BMP file.
- *  @note           Checks if filesystem is locked (USB active) before writing.
- *                  Creates filename with timestamp: THERMAL_YYYYMMDD_HHMMSS.BMP
+/** @brief          Request to save the next thermal image to storage as PNG file.
+ *  @note           Sets a flag that triggers image save on the next frame update.
+ *                  The actual save happens in background task (non-blocking).
+ *                  A message box will be displayed upon completion or error.
+ *                  Saves the scaled 240x180 display image (not the raw 160x120 frame).
  *  @return         ESP_OK on success
  *                  ESP_ERR_INVALID_STATE if filesystem is locked (USB active)
- *                  ESP_ERR_NO_MEM if no frame available
- *                  ESP_FAIL if file write failed
  */
 esp_err_t GUI_SaveThermalImage(void);
 

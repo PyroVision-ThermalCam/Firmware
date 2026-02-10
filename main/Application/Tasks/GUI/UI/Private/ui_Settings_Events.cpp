@@ -250,8 +250,6 @@ void on_USB_Mode_Switch_Callback(lv_event_t *e)
         /* Configure USB Mass Storage with auto-detected mount point */
         USB_Manager_Config_t USB_Config = {
             .MountPoint = MemoryManager_GetStoragePath(),
-            .VID = static_cast<uint16_t>(CONFIG_USB_VID),
-            .PID = static_cast<uint16_t>(CONFIG_USB_PID),
             .Manufacturer = InfoSettings.Manufacturer,
             .Product = InfoSettings.Name,
             .SerialNumber = InfoSettings.Serial,

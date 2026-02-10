@@ -30,9 +30,6 @@
 #include "Application/Tasks/tasks.h"
 #include "Application/application.h"
 
-/* USB Test Mode - Enable to test USB Mass Storage Device */
-#define USB_TEST_MODE_ENABLED 0  /* Disabled - allows normal app operation */
-
 static App_Context_t _App_Context;
 
 static const char *TAG = "main";

@@ -615,7 +615,7 @@ static void WebSocket_BroadcastTask(void *p_Param)
             /* Encode frame ONCE for all clients (assume JPEG format for simplicity) */
             if (xSemaphoreTake(WebSocket_State.ThermalFrame->Mutex, 50 / portTICK_PERIOD_MS) == pdTRUE) {
                 Error = ImageEncoder_Encode(WebSocket_State.ThermalFrame,
-                                                    NETWORK_IMAGE_FORMAT_JPEG, PALETTE_IRON, &Encoded);
+                                            NETWORK_IMAGE_FORMAT_JPEG, PALETTE_IRON, &Encoded);
                 xSemaphoreGive(WebSocket_State.ThermalFrame->Mutex);
 
                 if (Error != ESP_OK) {
@@ -782,13 +782,13 @@ esp_err_t WebSocket_StartTask(void)
     WebSocket_State.isRunning = true;
 
     BaseType_t ret = xTaskCreatePinnedToCore(
-                        WebSocket_BroadcastTask,
-                        "WS_Broadcast",
-                        4096,
-                        NULL,
-                        5,
-                        &WebSocket_State.BroadcastTask,
-                        1
+                         WebSocket_BroadcastTask,
+                         "WS_Broadcast",
+                         4096,
+                         NULL,
+                         5,
+                         &WebSocket_State.BroadcastTask,
+                         1
                      );
 
     if (ret != pdPASS) {

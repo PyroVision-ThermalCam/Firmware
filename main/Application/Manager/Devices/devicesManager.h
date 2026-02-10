@@ -48,15 +48,15 @@ esp_err_t DevicesManager_Deinit(void);
  */
 i2c_master_bus_handle_t DevicesManager_GetI2CBusHandle(void);
 
+/** @brief  Get the touch I2C bus handle.
+ *  @return I2C bus handle or NULL if not initialized
+ */
+i2c_master_bus_handle_t DevicesManager_GetTouchI2CBusHandle(void);
+
 /** @brief  Get the SPI host device identifier.
- *
- *  Returns the SPI host device (SPI3_HOST) that is managed by the Devices Manager.
- *  This host is shared by LCD, Touch controller, and SD card.
- *
- *  @return SPI3_HOST
- *
- *  @note   The SPI bus must be initialized before use (call DevicesManager_Init() first).
- *  @note   Use SPIM_IsInitialized() to check if the bus is ready.
+ *          Returns the SPI host device that is managed by the Devices Manager.
+ *          This host is shared by LCD, Touch controller, and SD card.
+ *  @return SPI host used by the device manager
  */
 spi_host_device_t DevicesManager_GetSPIHost(void);
 

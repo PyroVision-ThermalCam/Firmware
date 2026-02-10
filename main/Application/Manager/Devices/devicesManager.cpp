@@ -28,20 +28,43 @@
 
 #include <string.h>
 
-#include "lepton.h"
 #include "SPI/spi.h"
 #include "ADC/adc.h"
+#include "TMP117/tmp117.h"
 #include "RV8263-C8/rv8263c8.h"
 #include "PCAL6416AHF/pcal6416ahf.h"
-
+#include "PCA9633DP1/pca9633dp1.h"
 #include "devicesManager.h"
+
+#if defined(CONFIG_TOUCH_I2C0_HOST)
+#define TOUCH_I2C_HOST                      I2C_NUM_0
+#elif defined(CONFIG_TOUCH_I2C1_HOST)
+#define TOUCH_I2C_HOST                      I2C_NUM_1
+#else
+#error "No I2C host defined for touch!"
+#endif
+
+#if defined(CONFIG_DEVICES_I2C_I2C0_HOST)
+#define DEVICES_I2C_HOST                    I2C_NUM_0
+#elif defined(CONFIG_DEVICES_I2C_I2C1_HOST)
+#define DEVICES_I2C_HOST                    I2C_NUM_1
+#else
+#error "No I2C host defined for devices!"
+#endif
 
 ESP_EVENT_DEFINE_BASE(DEVICES_EVENTS);
 
-/** @brief Default configuration for the I2C interface (shared by RTC, Port Expander, Lepton, Temperature Sensor and Touch).
+/** @brief
  */
-static i2c_master_bus_config_t _Devices_Manager_I2CM_Config = {
-    .i2c_port = static_cast<i2c_port_t>(CONFIG_DEVICES_I2C_HOST),
+enum {
+    DEVICES_EXPANDER_MAINBOARD = 0,
+    DEVICES_EXPANDER_DISPLAYBOARD,
+};
+
+/** @brief Default configuration for the I2C interface (shared by RTC, Port Expander, Lepton and Temperature Sensor).
+ */
+static i2c_master_bus_config_t _Devices_Manager_Devices_I2CM_Config = {
+    .i2c_port = DEVICES_I2C_HOST,
     .sda_io_num = static_cast<gpio_num_t>(CONFIG_DEVICES_I2C_SDA),
     .scl_io_num = static_cast<gpio_num_t>(CONFIG_DEVICES_I2C_SCL),
     .clk_source = I2C_CLK_SRC_DEFAULT,
@@ -54,9 +77,29 @@ static i2c_master_bus_config_t _Devices_Manager_I2CM_Config = {
     },
 };
 
+/** @brief Default configuration for the I2C interface (shared by Touch).
+ */
+static i2c_master_bus_config_t _Devices_Manager_Touch_I2CM_Config = {
+    .i2c_port = TOUCH_I2C_HOST,
+    .sda_io_num = static_cast<gpio_num_t>(CONFIG_TOUCH_SDA),
+    .scl_io_num = static_cast<gpio_num_t>(CONFIG_TOUCH_SCL),
+    .clk_source = I2C_CLK_SRC_DEFAULT,
+    .glitch_ignore_cnt = 7,
+    .intr_priority = 0,
+    .trans_queue_depth = 0,
+    .flags = {
+        .enable_internal_pullup = true,
+        .allow_pd = false,
+    },
+};
+
+/** @brief 
+ */
+static const spi_host_device_t _Devices_Manager_Periph_SPI = SPI3_HOST;
+
 /** @brief Default configuration for the SPI3 bus (shared by LCD, Touch, SD card).
  */
-static const spi_bus_config_t _Devices_Manager_SPI_Config = {
+static const spi_bus_config_t _Devices_Manager_Periph_SPI_Config = {
     .mosi_io_num = CONFIG_SPI_MOSI,
     .miso_io_num = CONFIG_SPI_MISO,
     .sclk_io_num = CONFIG_SPI_SCLK,
@@ -76,7 +119,9 @@ static const spi_bus_config_t _Devices_Manager_SPI_Config = {
 typedef struct {
     bool initialized;
     i2c_master_dev_handle_t RTC_Handle;
+    i2c_master_dev_handle_t Expander_Handle[2];
     i2c_master_bus_handle_t I2C_Bus_Handle;
+    i2c_master_bus_handle_t Touch_I2C_Bus_Handle;
 } Devices_Manager_State_t;
 
 static Devices_Manager_State_t _Devices_Manager_State;
@@ -95,20 +140,26 @@ esp_err_t DevicesManager_Init(void)
 
     memset(&_Devices_Manager_State, 0, sizeof(Devices_Manager_State_t));
 
-    if (I2CM_Init(&_Devices_Manager_I2CM_Config, &_Devices_Manager_State.I2C_Bus_Handle) != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize I2C!");
+    if (I2CM_Init(&_Devices_Manager_Touch_I2CM_Config, &_Devices_Manager_State.I2C_Bus_Handle) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize Touch I2C!");
 
         return ESP_FAIL;
     }
 
-    if (SPIM_Init(&_Devices_Manager_SPI_Config, SPI3_HOST, SPI_DMA_CH_AUTO) != ESP_OK) {
+    if (I2CM_Init(&_Devices_Manager_Devices_I2CM_Config, &_Devices_Manager_State.I2C_Bus_Handle) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize Peripheral I2C!");
+
+        return ESP_FAIL;
+    }
+
+    if (SPIM_Init(&_Devices_Manager_Periph_SPI_Config, _Devices_Manager_Periph_SPI, SPI_DMA_CH_AUTO) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize SPI3!");
 
         return ESP_FAIL;
     }
 
-    if (PortExpander_Init(&_Devices_Manager_I2CM_Config, &_Devices_Manager_State.I2C_Bus_Handle) != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set default configuration for port expander!");
+    if (PortExpander_Init(&_Devices_Manager_State.I2C_Bus_Handle, &_Devices_Manager_State.Expander_Handle[DEVICES_EXPANDER_MAINBOARD]) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set default configuration for the mainboard port expander!");
 
         return ESP_FAIL;
     }
@@ -119,7 +170,7 @@ esp_err_t DevicesManager_Init(void)
         return ESP_FAIL;
     }
 
-    PortExpander_EnableBatteryVoltage(false);
+    PortExpander_EnableBatteryVoltage(&_Devices_Manager_State.Expander_Handle[DEVICES_EXPANDER_MAINBOARD], false);
 
     _Devices_Manager_State.initialized = true;
 
@@ -132,17 +183,19 @@ esp_err_t DevicesManager_Deinit(void)
 
     if (_Devices_Manager_State.initialized == false) {
         ESP_LOGE(TAG, "Devices Manager not initialized yet!");
+
         return ESP_OK;
     }
 
-    PortExpander_EnableBatteryVoltage(false);
-
     ADC_Deinit();
-    RTC_Deinit();
-    PortExpander_Deinit();
+
+    PortExpander_EnableBatteryVoltage(&_Devices_Manager_State.Expander_Handle[DEVICES_EXPANDER_MAINBOARD], false);
+
+    RTC_Deinit(&_Devices_Manager_State.RTC_Handle);
+    PortExpander_Deinit(&_Devices_Manager_State.Expander_Handle[DEVICES_EXPANDER_MAINBOARD]);
     Error = I2CM_Deinit(_Devices_Manager_State.I2C_Bus_Handle);
 
-    SPIM_Deinit(SPI3_HOST);
+    SPIM_Deinit(_Devices_Manager_Periph_SPI);
 
     _Devices_Manager_State.initialized = false;
 
@@ -160,9 +213,20 @@ i2c_master_bus_handle_t DevicesManager_GetI2CBusHandle(void)
     return _Devices_Manager_State.I2C_Bus_Handle;
 }
 
+i2c_master_bus_handle_t DevicesManager_GetTouchI2CBusHandle(void)
+{
+    if (_Devices_Manager_State.initialized == false) {
+        ESP_LOGE(TAG, "Devices Manager not initialized yet!");
+
+        return NULL;
+    }
+
+    return _Devices_Manager_State.Touch_I2C_Bus_Handle;
+}
+
 spi_host_device_t DevicesManager_GetSPIHost(void)
 {
-    return SPI3_HOST;
+    return _Devices_Manager_Periph_SPI;
 }
 
 esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, uint8_t *p_Percentage)
@@ -177,14 +241,14 @@ esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, uint8_t *p_Percentage
         return ESP_ERR_INVALID_ARG;
     }
 
-    PortExpander_EnableBatteryVoltage(true);
+    PortExpander_EnableBatteryVoltage(&_Devices_Manager_State.Expander_Handle[DEVICES_EXPANDER_MAINBOARD], true);
 
     Error = ADC_ReadBattery(p_Voltage, p_Percentage);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read battery voltage: %d!", Error);
     }
 
-    PortExpander_EnableBatteryVoltage(false);
+    PortExpander_EnableBatteryVoltage(&_Devices_Manager_State.Expander_Handle[DEVICES_EXPANDER_MAINBOARD], false);
 
     return Error;
 }
@@ -195,9 +259,7 @@ esp_err_t DevicesManager_GetRTCHandle(i2c_master_dev_handle_t *p_Handle)
         ESP_LOGE(TAG, "Devices Manager not initialized yet!");
 
         return ESP_ERR_INVALID_STATE;
-    }
-
-    if (p_Handle == NULL) {
+    } else if (p_Handle == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -208,10 +270,10 @@ esp_err_t DevicesManager_GetRTCHandle(i2c_master_dev_handle_t *p_Handle)
 
 esp_err_t DevicesManager_GetTime(struct tm *p_Time)
 {
-    return RTC_GetTime(p_Time);
+    return RTC_GetTime(&_Devices_Manager_State.RTC_Handle, p_Time);
 }
 
 esp_err_t DevicesManager_SetTime(const struct tm *p_Time)
 {
-    return RTC_SetTime(p_Time);
+    return RTC_SetTime(&_Devices_Manager_State.RTC_Handle, p_Time);
 }

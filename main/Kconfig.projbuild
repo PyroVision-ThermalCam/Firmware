@@ -135,10 +135,17 @@ menu "PyroVision"
 
     menu "Devices"
         menu "I2C"
-            config DEVICES_I2C_HOST
-                int "I2C interface"
-                range 0 2
-                default 1
+            choice
+                prompt "Peripheral I2C Bus"
+                default DEVICES_I2C_I2C1_HOST
+                help
+                    Select the I2C Bus for the peripheral components.
+
+                config DEVICES_I2C_I2C0_HOST
+                    bool "I2C0_HOST"
+                config DEVICES_I2C_I2C1_HOST
+                    bool "I2C1_HOST"
+            endchoice
 
             config DEVICES_I2C_SCL
                 int "SCL pin number"
@@ -176,7 +183,7 @@ menu "PyroVision"
                     prompt "Touch I2C Bus"
                     default TOUCH_I2C0_HOST
                     help
-                        Select the SPI Bus the Touch Controller is attached to.
+                        Select the I2C Bus the Touch Controller is attached to.
 
                     config TOUCH_I2C0_HOST
                         bool "I2C0_HOST"

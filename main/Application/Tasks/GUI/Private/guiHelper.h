@@ -91,6 +91,7 @@ typedef struct {
     float SpotTemperature;
     QueueHandle_t ImageSaveQueue;
     Network_Thermal_Frame_t NetworkFrame;
+    bool SaveNextFrameRequested;
 
 #ifdef CONFIG_GUI_TOUCH_DEBUG
     /* Touch debug visualization */

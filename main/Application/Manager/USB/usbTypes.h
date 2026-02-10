@@ -45,8 +45,6 @@ typedef enum {
  */
 typedef struct {
     const char *MountPoint;         /**< Mount point of the storage (must match MemoryManager mount point). */
-    uint16_t VID;                   /**< USB Vendor ID (e.g., 0xCAFE). */
-    uint16_t PID;                   /**< USB Product ID (e.g., 0x4000). */
     char *Manufacturer;             /**< USB manufacturer string. */
     char *Product;                  /**< USB product name string. */
     char *SerialNumber;             /**< USB serial number string. */

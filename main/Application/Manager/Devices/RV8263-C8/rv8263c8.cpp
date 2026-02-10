@@ -100,8 +100,6 @@ static i2c_device_config_t _RTC_I2C_Config = {
     },
 };
 
-static i2c_master_dev_handle_t *_RTC_Dev_Handle = NULL;
-
 static const char *TAG                      = "RTC";
 
 /** @brief      Convert BCD to binary.
@@ -122,60 +120,64 @@ static uint8_t RTC_Bin2BCD(uint8_t Bin)
     return ((Bin / 10) << 4) | (Bin % 10);
 }
 
-/** @brief          Read a single register from the RTC.
- *  @param Register Register address
- *  @param p_Data   Pointer to store the read value
- *  @return         ESP_OK when successful
+/** @brief              Read a single register from the RTC.
+ *  @param Register     Register address
+ *  @param p_Data       Pointer to store the read value
+ *  @param p_Dev_Handle Pointer to store the created device handle
+ *  @return             ESP_OK when successful
  */
-static esp_err_t RTC_ReadRegister(uint8_t Register, uint8_t *p_Data)
+static esp_err_t RTC_ReadRegister(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Register, uint8_t *p_Data)
 {
     esp_err_t Error;
 
-    Error = I2CM_Write(_RTC_Dev_Handle, &Register, 1);
+    Error = I2CM_Write(p_Dev_Handle, &Register, 1);
     if (Error != ESP_OK) {
         return Error;
     }
 
-    return I2CM_Read(_RTC_Dev_Handle, p_Data, 1);
+    return I2CM_Read(p_Dev_Handle, p_Data, 1);
 }
 
-/** @brief          Write a single register to the RTC.
- *  @param Register Register address
- *  @param Data     Data to write
- *  @return         ESP_OK when successful
+/** @brief              Write a single register to the RTC.
+ *  @param Register     Register address
+ *  @param Data         Data to write
+ *  @param p_Dev_Handle Pointer to store the created device handle
+ *  @return             ESP_OK when successful
  */
-static esp_err_t RTC_WriteRegister(uint8_t Register, uint8_t Data)
+static esp_err_t RTC_WriteRegister(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Register, uint8_t Data)
 {
     uint8_t Buffer[2] = {Register, Data};
 
-    return I2CM_Write(_RTC_Dev_Handle, Buffer, sizeof(Buffer));
+    return I2CM_Write(p_Dev_Handle, Buffer, sizeof(Buffer));
 }
 
-/** @brief          Read multiple consecutive registers from the RTC.
- *  @param Register Starting register address
- *  @param p_Data   Pointer to store the read values
- *  @param Length   Number of bytes to read
- *  @return         ESP_OK when successful
+/** @brief              Read multiple consecutive registers from the RTC.
+ *  @param Register     Starting register address
+ *  @param p_Data       Pointer to store the read values
+ *  @param Length       Number of bytes to read
+ *  @param p_Dev_Handle Pointer to store the created device handle
+ *  @return             ESP_OK when successful
  */
-static esp_err_t RTC_ReadRegisters(uint8_t Register, uint8_t *p_Data, uint8_t Length)
+static esp_err_t RTC_ReadRegisters(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Register, uint8_t *p_Data, uint8_t Length)
 {
     esp_err_t Error;
 
-    Error = I2CM_Write(_RTC_Dev_Handle, &Register, 1);
+    Error = I2CM_Write(p_Dev_Handle, &Register, 1);
     if (Error != ESP_OK) {
         return Error;
     }
 
-    return I2CM_Read(_RTC_Dev_Handle, p_Data, Length);
+    return I2CM_Read(p_Dev_Handle, p_Data, Length);
 }
 
-/** @brief          Write multiple consecutive registers to the RTC.
- *  @param Register Starting register address
- *  @param p_Data   Pointer to data to write
- *  @param Length   Number of bytes to write
- *  @return         ESP_OK when successful
+/** @brief              Write multiple consecutive registers to the RTC.
+ *  @param Register     Starting register address
+ *  @param p_Data       Pointer to data to write
+ *  @param Length       Number of bytes to write
+ *  @param p_Dev_Handle Pointer to store the created device handle
+ *  @return             ESP_OK when successful
  */
-static esp_err_t RTC_WriteRegisters(uint8_t Register, const uint8_t *p_Data, uint8_t Length)
+static esp_err_t RTC_WriteRegisters(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Register, const uint8_t *p_Data, uint8_t Length)
 {
     uint8_t Buffer[MAX_RTC_REGS + 1];
 
@@ -186,7 +188,7 @@ static esp_err_t RTC_WriteRegisters(uint8_t Register, const uint8_t *p_Data, uin
     Buffer[0] = Register;
     memcpy(&Buffer[1], p_Data, Length);
 
-    return I2CM_Write(_RTC_Dev_Handle, Buffer, Length + 1);
+    return I2CM_Write(p_Dev_Handle, Buffer, Length + 1);
 }
 
 esp_err_t RTC_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_handle_t *p_Dev_Handle)
@@ -201,12 +203,10 @@ esp_err_t RTC_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_handle_
         return Error;
     }
 
-    _RTC_Dev_Handle = p_Dev_Handle;
-
     ESP_LOGD(TAG, "Initialize RV8263-C8 RTC...");
 
     /* Check oscillator stop flag */
-    Error = RTC_ReadRegister(RV8263_REG_SECONDS, &Seconds);
+    Error = RTC_ReadRegister(p_Dev_Handle, RV8263_REG_SECONDS, &Seconds);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read seconds register: %d", Error);
 
@@ -217,14 +217,14 @@ esp_err_t RTC_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_handle_
         ESP_LOGW(TAG, "Oscillator was stopped - time may be invalid!");
 
         /* Clear OS flag by writing seconds register */
-        Error = RTC_WriteRegister(RV8263_REG_SECONDS, Seconds & ~RV8263_SECONDS_OS);
+        Error = RTC_WriteRegister(p_Dev_Handle, RV8263_REG_SECONDS, Seconds & ~RV8263_SECONDS_OS);
         if (Error != ESP_OK) {
             return Error;
         }
     }
 
     /* Read Control1 register */
-    Error = RTC_ReadRegister(RV8263_REG_CONTROL1, &Control1);
+    Error = RTC_ReadRegister(p_Dev_Handle, RV8263_REG_CONTROL1, &Control1);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read control register: %d", Error);
 
@@ -236,7 +236,7 @@ esp_err_t RTC_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_handle_
         ESP_LOGD(TAG, "Starting RTC oscillator...");
 
         Control1 &= ~RV8263_CTRL1_STOP;
-        Error = RTC_WriteRegister(RV8263_REG_CONTROL1, Control1);
+        Error = RTC_WriteRegister(p_Dev_Handle, RV8263_REG_CONTROL1, Control1);
         if (Error != ESP_OK) {
             return Error;
         }
@@ -247,35 +247,35 @@ esp_err_t RTC_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_handle_
     return ESP_OK;
 }
 
-esp_err_t RTC_Deinit(void)
+esp_err_t RTC_Deinit(i2c_master_dev_handle_t *p_Dev_Handle)
 {
-    if (_RTC_Dev_Handle != NULL) {
+    if (p_Dev_Handle != NULL) {
         esp_err_t Error;
 
-        Error = i2c_master_bus_rm_device(*_RTC_Dev_Handle);
+        Error = i2c_master_bus_rm_device(*p_Dev_Handle);
         if (Error != ESP_OK) {
             ESP_LOGE(TAG, "Failed to remove I2C device: %d!", Error);
 
             return Error;
         }
 
-        _RTC_Dev_Handle = NULL;
+        p_Dev_Handle = NULL;
     }
 
     return ESP_OK;
 }
 
-esp_err_t RTC_GetTime(struct tm *p_Time)
+esp_err_t RTC_GetTime(i2c_master_dev_handle_t *p_Dev_Handle, struct tm *p_Time)
 {
     esp_err_t Error;
     uint8_t Buffer[7];
 
-    if ((p_Time == NULL) || (_RTC_Dev_Handle == NULL)) {
+    if ((p_Time == NULL) || (p_Dev_Handle == NULL)) {
         return ESP_ERR_INVALID_ARG;
     }
 
     /* Read time registers (Seconds to Year) */
-    Error = RTC_ReadRegisters(RV8263_REG_SECONDS, Buffer, sizeof(Buffer));
+    Error = RTC_ReadRegisters(p_Dev_Handle, RV8263_REG_SECONDS, Buffer, sizeof(Buffer));
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read time: %d!", Error);
 
@@ -305,13 +305,13 @@ esp_err_t RTC_GetTime(struct tm *p_Time)
     return ESP_OK;
 }
 
-esp_err_t RTC_SetTime(const struct tm *p_Time)
+esp_err_t RTC_SetTime(i2c_master_dev_handle_t *p_Dev_Handle, const struct tm *p_Time)
 {
     uint8_t Buffer[7];
     int Year;
     int Month;
 
-    if ((p_Time == NULL) || (_RTC_Dev_Handle == NULL)) {
+    if ((p_Time == NULL) || (p_Dev_Handle == NULL)) {
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -346,14 +346,14 @@ esp_err_t RTC_SetTime(const struct tm *p_Time)
              Year, Month, p_Time->tm_mday,
              p_Time->tm_hour, p_Time->tm_min, p_Time->tm_sec);
 
-    return RTC_WriteRegisters(RV8263_REG_SECONDS, Buffer, sizeof(Buffer));
+    return RTC_WriteRegisters(p_Dev_Handle, RV8263_REG_SECONDS, Buffer, sizeof(Buffer));
 }
 
-esp_err_t RTC_SetAlarm(const RTC_Alarm_t *p_Alarm)
+esp_err_t RTC_SetAlarm(i2c_master_dev_handle_t *p_Dev_Handle, const RTC_Alarm_t *p_Alarm)
 {
     uint8_t Buffer[5];
 
-    if ((p_Alarm == NULL) || (_RTC_Dev_Handle == NULL)) {
+    if ((p_Alarm == NULL) || (p_Dev_Handle == NULL)) {
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -364,43 +364,44 @@ esp_err_t RTC_SetAlarm(const RTC_Alarm_t *p_Alarm)
     Buffer[3] = p_Alarm->EnableDay ? RTC_Bin2BCD(p_Alarm->Day) : RV8263_ALARM_AE;
     Buffer[4] = p_Alarm->EnableWeekday ? p_Alarm->Weekday : RV8263_ALARM_AE;
 
-    return RTC_WriteRegisters(RV8263_REG_SECONDS_ALARM, Buffer, sizeof(Buffer));
+    return RTC_WriteRegisters(p_Dev_Handle, RV8263_REG_SECONDS_ALARM, Buffer, sizeof(Buffer));
 }
 
-esp_err_t RTC_EnableAlarmInterrupt(bool Enable)
+esp_err_t RTC_EnableAlarmInterrupt(i2c_master_dev_handle_t *p_Dev_Handle, bool Enable)
 {
-    return I2CM_ModifyRegister(_RTC_Dev_Handle, RV8263_REG_CONTROL2, RV8263_CTRL2_AIE,
+    return I2CM_ModifyRegister(p_Dev_Handle, RV8263_REG_CONTROL2, RV8263_CTRL2_AIE,
                                Enable ? RV8263_CTRL2_AIE : 0);
 }
 
-esp_err_t RTC_ClearAlarmFlag(void)
+esp_err_t RTC_ClearAlarmFlag(i2c_master_dev_handle_t *p_Dev_Handle)
 {
-    return I2CM_ModifyRegister(_RTC_Dev_Handle, RV8263_REG_CONTROL2, RV8263_CTRL2_AF, 0);
+    return I2CM_ModifyRegister(p_Dev_Handle, RV8263_REG_CONTROL2, RV8263_CTRL2_AF, 0);
 }
 
-bool RTC_IsAlarmTriggered(void)
+bool RTC_IsAlarmTriggered(i2c_master_dev_handle_t *p_Dev_Handle)
 {
     uint8_t Control2;
 
-    if (RTC_ReadRegister(RV8263_REG_CONTROL2, &Control2) != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read Control2 register for alarm status");
+    if (RTC_ReadRegister(p_Dev_Handle, RV8263_REG_CONTROL2, &Control2) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to read Control2 register for alarm status!");
+
         return false;
     }
 
     return (Control2 & RV8263_CTRL2_AF) != 0;
 }
 
-esp_err_t RTC_SetTimer(uint8_t Value, RTC_TimerFreq_t Frequency, bool InterruptEnable)
+esp_err_t RTC_SetTimer(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Value, RTC_TimerFreq_t Frequency, bool InterruptEnable)
 {
     esp_err_t Error;
     uint8_t TimerMode;
 
-    if (_RTC_Dev_Handle == NULL) {
+    if (p_Dev_Handle == NULL) {
         return ESP_ERR_INVALID_STATE;
     }
 
     /* Set timer value */
-    Error = RTC_WriteRegister(RV8263_REG_TIMER_VALUE, Value);
+    Error = RTC_WriteRegister(p_Dev_Handle, RV8263_REG_TIMER_VALUE, Value);
     if (Error != ESP_OK) {
         return Error;
     }
@@ -411,30 +412,30 @@ esp_err_t RTC_SetTimer(uint8_t Value, RTC_TimerFreq_t Frequency, bool InterruptE
         TimerMode |= RV8263_TIMER_TIE;
     }
 
-    return RTC_WriteRegister(RV8263_REG_TIMER_MODE, TimerMode);
+    return RTC_WriteRegister(p_Dev_Handle, RV8263_REG_TIMER_MODE, TimerMode);
 }
 
-esp_err_t RTC_StopTimer(void)
+esp_err_t RTC_StopTimer(i2c_master_dev_handle_t *p_Dev_Handle)
 {
-    return RTC_WriteRegister(RV8263_REG_TIMER_MODE, 0);
+    return RTC_WriteRegister(p_Dev_Handle, RV8263_REG_TIMER_MODE, 0);
 }
 
-esp_err_t RTC_SoftwareReset(void)
+esp_err_t RTC_SoftwareReset(i2c_master_dev_handle_t *p_Dev_Handle)
 {
     ESP_LOGD(TAG, "Performing software reset...");
 
-    return RTC_WriteRegister(RV8263_REG_CONTROL1, RV8263_CTRL1_SR);
+    return RTC_WriteRegister(p_Dev_Handle, RV8263_REG_CONTROL1, RV8263_CTRL1_SR);
 }
 
 #ifdef DEBUG
-void RTC_DumpRegisters(void)
+void RTC_DumpRegisters(i2c_master_dev_handle_t *p_Dev_Handle)
 {
     uint8_t Data;
 
     ESP_LOGI(TAG, "Register dump:");
 
     for (uint8_t i = 0x00; i <= 0x11; i++) {
-        if (RTC_ReadRegister(i, &Data) == ESP_OK) {
+        if (RTC_ReadRegister(p_Dev_Handle, i, &Data) == ESP_OK) {
             ESP_LOGI(TAG, "    Register 0x%02X: 0x%02X", i, Data);
         }
     }

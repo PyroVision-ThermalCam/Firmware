@@ -63,67 +63,78 @@ typedef enum {
  */
 esp_err_t RTC_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_handle_t *p_Dev_Handle);
 
-/** @brief  Deinitialize the RTC driver.
- *  @return ESP_OK when successful
+/** @brief              Deinitialize the RTC driver.
+ *  @param p_Dev_Handle Pointer to device handle
+ *  @return             ESP_OK when successful
  */
-esp_err_t RTC_Deinit(void);
+esp_err_t RTC_Deinit(i2c_master_dev_handle_t *p_Dev_Handle);
 
-/** @brief          Get the current time from the RTC.
- *  @param p_Time   Pointer to store the time
- *  @return         ESP_OK when successful
+/** @brief              Get the current time from the RTC.
+ *  @param p_Dev_Handle Pointer to device handle
+ *  @param p_Time       Pointer to store the time
+ *  @return             ESP_OK when successful
  */
-esp_err_t RTC_GetTime(struct tm *p_Time);
+esp_err_t RTC_GetTime(i2c_master_dev_handle_t *p_Dev_Handle, struct tm *p_Time);
 
-/** @brief          Set the time on the RTC.
- *  @param p_Time   Pointer to the time to set
- *  @return         ESP_OK when successful
+/** @brief              Set the time on the RTC.
+ *  @param p_Dev_Handle Pointer to device handle
+ *  @param p_Time       Pointer to the time to set
+ *  @return             ESP_OK when successful
  */
-esp_err_t RTC_SetTime(const struct tm *p_Time);
+esp_err_t RTC_SetTime(i2c_master_dev_handle_t *p_Dev_Handle, const struct tm *p_Time);
 
-/** @brief          Configure the alarm.
- *  @param p_Alarm  Pointer to alarm configuration
- *  @return         ESP_OK when successful
+/** @brief              Configure the alarm.
+ *  @param p_Dev_Handle Pointer to device handle
+ *  @param p_Alarm      Pointer to alarm configuration
+ *  @return             ESP_OK when successful
  */
-esp_err_t RTC_SetAlarm(const RTC_Alarm_t *p_Alarm);
+esp_err_t RTC_SetAlarm(i2c_master_dev_handle_t *p_Dev_Handle, const RTC_Alarm_t *p_Alarm);
 
-/** @brief          Enable or disable the alarm interrupt.
- *  @param Enable   true to enable, false to disable
- *  @return         ESP_OK when successful
+/** @brief              Enable or disable the alarm interrupt.
+ *  @param p_Dev_Handle Pointer to device handle
+ *  @param Enable       true to enable, false to disable
+ *  @return             ESP_OK when successful
  */
-esp_err_t RTC_EnableAlarmInterrupt(bool Enable);
+esp_err_t RTC_EnableAlarmInterrupt(i2c_master_dev_handle_t *p_Dev_Handle, bool Enable);
 
-/** @brief  Clear the alarm flag.
- *  @return ESP_OK when successful
+/** @brief              Clear the alarm flag.
+ *  @param p_Dev_Handle Pointer to device handle
+ *  @return             ESP_OK when successful
  */
-esp_err_t RTC_ClearAlarmFlag(void);
+esp_err_t RTC_ClearAlarmFlag(i2c_master_dev_handle_t *p_Dev_Handle);
 
-/** @brief  Check if the alarm has been triggered.
- *  @return true if alarm flag is set
+/** @brief              Check if the alarm has been triggered.
+ *  @param p_Dev_Handle Pointer to device handle
+ *  @return             true if alarm is triggered, false otherwise
  */
-bool RTC_IsAlarmTriggered(void);
+bool RTC_IsAlarmTriggered(i2c_master_dev_handle_t *p_Dev_Handle);
 
 /** @brief                  Configure and start the countdown timer.
+ *  @param p_Dev_Handle     Pointer to device handle
  *  @param Value            Timer countdown value (0-255)
  *  @param Frequency        Timer clock frequency
  *  @param InterruptEnable  Enable timer interrupt
  *  @return                 ESP_OK when successful
  */
-esp_err_t RTC_SetTimer(uint8_t Value, RTC_TimerFreq_t Frequency, bool InterruptEnable);
+esp_err_t RTC_SetTimer(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Value, RTC_TimerFreq_t Frequency, bool InterruptEnable);
 
-/** @brief  Stop the countdown timer.
- *  @return ESP_OK when successful
+/** @brief              Stop the countdown timer.
+ *  @param p_Dev_Handle Pointer to device handle
+ *  @return             ESP_OK when successful
  */
-esp_err_t RTC_StopTimer(void);
+esp_err_t RTC_StopTimer(i2c_master_dev_handle_t *p_Dev_Handle);
 
-/** @brief  Perform a software reset of the RTC.
- *  @return ESP_OK when successful
+/** @brief              Perform a software reset of the RTC.
+ *  @param p_Dev_Handle Pointer to device handle
+ *  @return             ESP_OK when successful
  */
-esp_err_t RTC_SoftwareReset(void);
+esp_err_t RTC_SoftwareReset(i2c_master_dev_handle_t *p_Dev_Handle);
 
 #ifdef DEBUG
-/** @brief  Dump all RTC registers for debugging.
+/** @brief              Dump all RTC registers for debugging.
+ *  @param p_Dev_Handle Pointer to device handle
  */
-void RTC_DumpRegisters(void);
+void RTC_DumpRegisters(i2c_master_dev_handle_t *p_Dev_Handle);
 #endif
 
 #endif /* RV8263C8_H_ */

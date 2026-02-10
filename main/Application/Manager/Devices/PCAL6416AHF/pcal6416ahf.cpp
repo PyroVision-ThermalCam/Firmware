@@ -175,24 +175,24 @@ static i2c_device_config_t _Expander_I2C_Config = {
     },
 };
 
-static i2c_master_dev_handle_t _Expander_Dev_Handle;
-
 static const char *TAG                      = "PortExpander";
 
-/** @brief          Set the pin level of the pins of a given port.
- *  @param Port     Target port
- *  @param Mask     Pin mask
- *  @param Level    Pin level
- *  @return         ESP_OK when successful
- *                  ESP_ERR_INVALID_ARG when an invalid argument is passed into the function
- *                  ESP_ERR_INVALID_STATE when the I2C interface isn´t initialized
+/** @brief              Set the pin level of the pins of a given port.
+ *  @param p_Dev_Handle Pointer to device handle
+ *  @param Port         Target port
+ *  @param Mask         Pin mask
+ *  @param Level        Pin level
+ *  @return             ESP_OK when successful
+ *                      ESP_ERR_INVALID_ARG when an invalid argument is passed into the function
+ *                      ESP_ERR_INVALID_STATE when the I2C interface isn´t initialized
  */
-static esp_err_t PortExpander_SetPinLevel(PortDefinition_t Port, uint8_t Mask, uint8_t Level)
+static esp_err_t PortExpander_SetPinLevel(i2c_master_dev_handle_t *p_Dev_Handle, PortDefinition_t Port, uint8_t Mask, uint8_t Level)
 {
-    return I2CM_ModifyRegister(&_Expander_Dev_Handle, PORT_EXPANDER_REG_OUTPUT0 + static_cast<uint8_t>(Port), Mask, Level);
+    return I2CM_ModifyRegister(p_Dev_Handle, PORT_EXPANDER_REG_OUTPUT0 + static_cast<uint8_t>(Port), Mask, Level);
 }
 
 /** @brief              Enable the interrupts for given pins.
+ *  @param p_Dev_Handle Pointer to device handle
  *  @param Port         Target port
  *  @param Mask         Pin mask
  *  @param EnableMask   Interrupt enable mask
@@ -200,78 +200,79 @@ static esp_err_t PortExpander_SetPinLevel(PortDefinition_t Port, uint8_t Mask, u
  *                      ESP_ERR_INVALID_ARG when an invalid argument is passed into the function
  *                      ESP_ERR_INVALID_STATE when the I2C interface isn´t initialized
  */
-static esp_err_t PortExpander_SetInterruptMask(PortDefinition_t Port, uint8_t Mask, uint8_t EnableMask)
+static esp_err_t PortExpander_SetInterruptMask(i2c_master_dev_handle_t *p_Dev_Handle, PortDefinition_t Port, uint8_t Mask, uint8_t EnableMask)
 {
-    return I2CM_ModifyRegister(&_Expander_Dev_Handle, PORT_EXPANDER_REG_INT_MASK0 + static_cast<uint8_t>(Port), Mask,
+    return I2CM_ModifyRegister(p_Dev_Handle, PORT_EXPANDER_REG_INT_MASK0 + static_cast<uint8_t>(Port), Mask,
                                ~EnableMask);
 }
 
 #ifdef DEBUG
-void PortExpander_DumpRegister(void)
+void PortExpander_DumpRegister(i2c_master_dev_handle_t *p_Dev_Handle)
 {
     uint8_t Data;
 
     ESP_LOGI(TAG, "Register dump:");
 
     for (uint8_t i = 0x00; i < 0x08; i++) {
-        I2CM_Write(&_Expander_Dev_Handle, &i, sizeof(i));
-        I2CM_Read(&_Expander_Dev_Handle, &Data, sizeof(Data));
+        I2CM_Write(p_Dev_Handle, &i, sizeof(i));
+        I2CM_Read(p_Dev_Handle, &Data, sizeof(Data));
         ESP_LOGI(TAG, "    Register 0x%X: 0x%X", i, Data);
     }
 
     for (uint8_t i = 0x40; i < 0x4F; i++) {
-        I2CM_Write(&_Expander_Dev_Handle, &i, sizeof(i));
-        I2CM_Read(&_Expander_Dev_Handle, &Data, sizeof(Data));
+        I2CM_Write(p_Dev_Handle, &i, sizeof(i));
+        I2CM_Read(p_Dev_Handle, &Data, sizeof(Data));
         ESP_LOGI(TAG, "    Register 0x%X: 0x%X", i, Data);
     }
 }
 #endif
 
-esp_err_t PortExpander_Init(i2c_master_bus_config_t *p_Config, i2c_master_bus_handle_t *Bus_Handle)
+esp_err_t PortExpander_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_handle_t *p_Dev_Handle)
 {
     esp_err_t Error;
 
-    Error = i2c_master_bus_add_device(*Bus_Handle, &_Expander_I2C_Config, &_Expander_Dev_Handle);
+    Error = i2c_master_bus_add_device(*p_Bus_Handle, &_Expander_I2C_Config, p_Dev_Handle);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to add I2C device: %d!", Error);
+
         return Error;
     }
 
     ESP_LOGI(TAG, "Configure Port Expander...");
 
-    return I2CM_Write(&_Expander_Dev_Handle, DefaultPortConfiguration, sizeof(DefaultPortConfiguration)) ||
-           I2CM_Write(&_Expander_Dev_Handle, DefaultPinConfiguration, sizeof(DefaultPinConfiguration)) ||
-           I2CM_Write(&_Expander_Dev_Handle, DefaultPullConfig, sizeof(DefaultPullConfig)) ||
-           I2CM_Write(&_Expander_Dev_Handle, DefaultLatchConfig, sizeof(DefaultLatchConfig)) ||
-           I2CM_Write(&_Expander_Dev_Handle, DefaultPolarityConfig, sizeof(DefaultPolarityConfig));
+    return I2CM_Write(p_Dev_Handle, DefaultPortConfiguration, sizeof(DefaultPortConfiguration)) ||
+           I2CM_Write(p_Dev_Handle, DefaultPinConfiguration, sizeof(DefaultPinConfiguration)) ||
+           I2CM_Write(p_Dev_Handle, DefaultPullConfig, sizeof(DefaultPullConfig)) ||
+           I2CM_Write(p_Dev_Handle, DefaultLatchConfig, sizeof(DefaultLatchConfig)) ||
+           I2CM_Write(p_Dev_Handle, DefaultPolarityConfig, sizeof(DefaultPolarityConfig));
 }
 
-esp_err_t PortExpander_Deinit(void)
+esp_err_t PortExpander_Deinit(i2c_master_dev_handle_t *p_Dev_Handle)
 {
-    if (_Expander_Dev_Handle != NULL) {
-        esp_err_t Error = i2c_master_bus_rm_device(_Expander_Dev_Handle);
+    if (*p_Dev_Handle != NULL) {
+        esp_err_t Error = i2c_master_bus_rm_device(*p_Dev_Handle);
         if (Error != ESP_OK) {
             ESP_LOGE(TAG, "Failed to remove I2C device: %d!", Error);
             return Error;
         }
 
-        _Expander_Dev_Handle = NULL;
+        *p_Dev_Handle = NULL;
     }
 
     return ESP_OK;
 }
 
-esp_err_t PortExpander_EnableCamera(bool Enable)
+esp_err_t PortExpander_EnableCamera(i2c_master_dev_handle_t *p_Dev_Handle, bool Enable)
 {
-    return PortExpander_SetPinLevel(PORT_0, (0x01 << PIN_CAMERA), (!Enable << PIN_CAMERA));
+    return PortExpander_SetPinLevel(p_Dev_Handle, PORT_0, (0x01 << PIN_CAMERA), (!Enable << PIN_CAMERA));
 }
 
-esp_err_t PortExpander_EnableLED(bool Enable)
+esp_err_t PortExpander_EnableLED(i2c_master_dev_handle_t *p_Dev_Handle, bool Enable)
 {
-    return PortExpander_SetPinLevel(PORT_0, (0x01 << PIN_LED), (Enable << PIN_LED));
+    return PortExpander_SetPinLevel(p_Dev_Handle, PORT_0, (0x01 << PIN_LED), (Enable << PIN_LED));
 }
 
-esp_err_t PortExpander_EnableBatteryVoltage(bool Enable)
+esp_err_t PortExpander_EnableBatteryVoltage(i2c_master_dev_handle_t *p_Dev_Handle, bool Enable)
 {
-    return PortExpander_SetPinLevel(PORT_0, (0x01 << PIN_BATTERY_VOLTAGE_ENABLE), (!Enable << PIN_BATTERY_VOLTAGE_ENABLE));
+    return PortExpander_SetPinLevel(p_Dev_Handle, PORT_0, (0x01 << PIN_BATTERY_VOLTAGE_ENABLE), (!Enable << PIN_BATTERY_VOLTAGE_ENABLE));
 }

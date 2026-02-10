@@ -28,14 +28,6 @@
 #include "Application/application.h"
 #include "../Export/ui.h"
 
-#if defined(CONFIG_TOUCH_I2C0_HOST)
-#define TOUCH_I2C_HOST                      I2C_NUM_0
-#elif defined(CONFIG_TOUCH_I2C1_HOST)
-#define TOUCH_I2C_HOST                      I2C_NUM_1
-#else
-#error "No I2C host defined for Touch!"
-#endif
-
 #if defined(CONFIG_LCD_SPI2_HOST)
 #define LCD_SPI_HOST                        SPI2_HOST
 #elif defined(CONFIG_LCD_SPI3_HOST)
@@ -82,20 +74,6 @@ static const esp_lcd_panel_io_spi_config_t _GUI_Panel_IO_Config = {
         .sio_mode = 0,
         .lsb_first = 0,
         .cs_high_active = 0
-    },
-};
-
-static const i2c_master_bus_config_t _GUI_Touch_I2C_Config = {
-    .i2c_port = TOUCH_I2C_HOST,
-    .sda_io_num = static_cast<gpio_num_t>(CONFIG_TOUCH_SDA),
-    .scl_io_num = static_cast<gpio_num_t>(CONFIG_TOUCH_SCL),
-    .clk_source = I2C_CLK_SRC_DEFAULT,
-    .glitch_ignore_cnt = 7,
-    .intr_priority = 0,
-    .trans_queue_depth = 0,
-    .flags = {
-        .enable_internal_pullup = true,
-        .allow_pd = false,
     },
 };
 
@@ -188,7 +166,7 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t
 
     ESP_LOGI(TAG, "Create I2C bus for touch controller...");
 
-    i2c_new_master_bus(&_GUI_Touch_I2C_Config, &p_GUI_Task_State->Touch_Bus_Handle);
+    p_GUI_Task_State->Touch_Bus_Handle = DevicesManager_GetTouchI2CBusHandle();
 
     ESP_LOGI(TAG, "Create panel IO...");
     ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(static_cast<esp_lcd_spi_bus_handle_t>(LCD_SPI_HOST), &_GUI_Panel_IO_Config,
