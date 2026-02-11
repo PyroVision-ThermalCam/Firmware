@@ -31,6 +31,7 @@
 #include <ctype.h>
 
 #include "visaCommands.h"
+#include "visaRemoteCommands.h"
 
 #include "sdkconfig.h"
 
@@ -453,13 +454,35 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
             if (is_query) {
                 return VISA_CMD_SYST_VERS(Response, MaxLen);
             }
+        } else if ((token_count >= 2) && (strcasecmp(tokens[1], "TIME") == 0)) {
+            if (is_query) {
+                return VISA_Cmd_GetTime(Response, MaxLen);
+            } else {
+                return VISA_Cmd_SetTime(tokens, token_count, Response, MaxLen);
+            }
+        } else if ((token_count >= 2) && (strcasecmp(tokens[1], "LOCK") == 0)) {
+            if (is_query) {
+                return VISA_Cmd_GetLockState(Response, MaxLen);
+            } else {
+                return VISA_Cmd_SetLockState(tokens, token_count, Response, MaxLen);
+            }
         }
     }
     /* Device-Specific Commands - SENSe */
     else if ((strcasecmp(tokens[0], "SENS") == 0) || (strcasecmp(tokens[0], "SENSe") == 0)) {
         if ((token_count >= 2) && (strcasecmp(tokens[1], "TEMP") == 0 || strcasecmp(tokens[1], "TEMPerature") == 0)) {
             if (is_query) {
-                return VISA_CMD_SENS_TEMP(Response, MaxLen);
+                return VISA_Cmd_GetTemperature(Response, MaxLen);
+            }
+        } else if ((token_count >= 2) && (strcasecmp(tokens[1], "BATT") == 0 || strcasecmp(tokens[1], "BATTery") == 0)) {
+            if ((token_count >= 3) && (strcasecmp(tokens[2], "VOLT") == 0 || strcasecmp(tokens[2], "VOLTage") == 0)) {
+                if (is_query) {
+                    return VISA_Cmd_GetBatteryVoltage(Response, MaxLen);
+                }
+            } else if ((token_count >= 3) && (strcasecmp(tokens[2], "SOC") == 0)) {
+                if (is_query) {
+                    return VISA_Cmd_GetStateOfCharge(Response, MaxLen);
+                }
             }
         } else if ((token_count >= 2) && (strcasecmp(tokens[1], "IMG") == 0 || strcasecmp(tokens[1], "IMAGE") == 0)) {
             if ((token_count >= 3) && (strcasecmp(tokens[2], "CAPT") == 0 || strcasecmp(tokens[2], "CAPTure") == 0)) {
@@ -469,9 +492,35 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
                     return VISA_CMD_SENS_IMG_DATA(Response, MaxLen);
                 }
             } else if ((token_count >= 3) && (strcasecmp(tokens[2], "FORM") == 0 || strcasecmp(tokens[2], "FORMat") == 0)) {
-                return VISA_CMD_SENS_IMG_FORM(tokens, token_count, Response, MaxLen);
+                if (is_query) {
+                    return VISA_Cmd_GetImageFormat(Response, MaxLen);
+                } else {
+                    return VISA_Cmd_SetImageFormat(tokens, token_count, Response, MaxLen);
+                }
             } else if ((token_count >= 3) && (strcasecmp(tokens[2], "PAL") == 0 || strcasecmp(tokens[2], "PALette") == 0)) {
                 return VISA_CMD_SENS_IMG_PAL(tokens, token_count, Response, MaxLen);
+            } else if ((token_count >= 3) && (strcasecmp(tokens[2], "LEP") == 0 || strcasecmp(tokens[2], "LEPton") == 0)) {
+                if ((token_count >= 4) && (strcasecmp(tokens[3], "EMIS") == 0 || strcasecmp(tokens[3], "EMISsivity") == 0)) {
+                    if (is_query) {
+                        return VISA_Cmd_GetLeptonEmissivity(Response, MaxLen);
+                    } else {
+                        return VISA_Cmd_SetLeptonEmissivity(tokens, token_count, Response, MaxLen);
+                    }
+                } else if ((token_count >= 4) && (strcasecmp(tokens[3], "STAT") == 0 || strcasecmp(tokens[3], "STATistics") == 0)) {
+                    if (is_query) {
+                        return VISA_Cmd_GetLeptonStats(Response, MaxLen);
+                    }
+                } else if ((token_count >= 4) && (strcasecmp(tokens[3], "ROI") == 0)) {
+                    if (is_query) {
+                        return VISA_Cmd_GetLeptonROI(Response, MaxLen);
+                    } else {
+                        return VISA_Cmd_SetLeptonROI(tokens, token_count, Response, MaxLen);
+                    }
+                } else if ((token_count >= 4) && (strcasecmp(tokens[3], "SPOT") == 0 || strcasecmp(tokens[3], "SPOTmeter") == 0)) {
+                    if (is_query) {
+                        return VISA_Cmd_GetLeptonSpotmeter(Response, MaxLen);
+                    }
+                }
             }
         }
     }
@@ -479,10 +528,38 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
     else if ((strcasecmp(tokens[0], "DISP") == 0) || (strcasecmp(tokens[0], "DISPlay") == 0)) {
         if ((token_count >= 2) && (strcasecmp(tokens[1], "LED") == 0)) {
             if ((token_count >= 3) && (strcasecmp(tokens[2], "STAT") == 0 || strcasecmp(tokens[2], "STATe") == 0)) {
-                return VISA_CMD_DISP_LED_STAT(tokens, token_count, Response, MaxLen);
+                return VISA_Cmd_SetStatusLED(tokens, token_count, Response, MaxLen);
             } else if ((token_count >= 3) && (strcasecmp(tokens[2], "BRIG") == 0 || strcasecmp(tokens[2], "BRIGhtness") == 0)) {
                 return VISA_CMD_DISP_LED_BRIG(tokens, token_count, Response, MaxLen);
             }
+        } else if ((token_count >= 2) && (strcasecmp(tokens[1], "FLASH") == 0)) {
+            if ((token_count >= 3) && (strcasecmp(tokens[2], "POW") == 0 || strcasecmp(tokens[2], "POWer") == 0)) {
+                if (is_query) {
+                    return VISA_Cmd_GetFlashPower(Response, MaxLen);
+                } else {
+                    return VISA_Cmd_SetFlashPower(tokens, token_count, Response, MaxLen);
+                }
+            } else if ((token_count >= 3) && (strcasecmp(tokens[2], "STAT") == 0 || strcasecmp(tokens[2], "STATe") == 0)) {
+                if (is_query) {
+                    return VISA_Cmd_GetFlashState(Response, MaxLen);
+                } else {
+                    return VISA_Cmd_SetFlashState(tokens, token_count, Response, MaxLen);
+                }
+            }
+        } else if ((token_count >= 2) && (strcasecmp(tokens[1], "MBOX") == 0 || strcasecmp(tokens[1], "MessageBOX") == 0)) {
+            return VISA_Cmd_DisplayMessageBox(tokens, token_count, Response, MaxLen);
+        }
+    }
+    /* Device-Specific Commands - MEMory */
+    else if ((strcasecmp(tokens[0], "MEM") == 0) || (strcasecmp(tokens[0], "MEMory") == 0)) {
+        if ((token_count >= 2) && (strcasecmp(tokens[1], "SD") == 0)) {
+            if ((token_count >= 3) && (strcasecmp(tokens[2], "STAT") == 0 || strcasecmp(tokens[2], "STATe") == 0)) {
+                if (is_query) {
+                    return VISA_Cmd_GetSDCardState(Response, MaxLen);
+                }
+            }
+        } else if ((token_count >= 2) && (strcasecmp(tokens[1], "FORM") == 0 || strcasecmp(tokens[1], "FORMat") == 0)) {
+            return VISA_Cmd_FormatMemory(Response, MaxLen);
         }
     }
 

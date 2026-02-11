@@ -364,10 +364,10 @@ esp_err_t SettingsManager_GetWiFi(App_Settings_WiFi_t *p_Settings)
     return ESP_OK;
 }
 
-esp_err_t SettingsManager_UpdateWiFi(App_Settings_WiFi_t *p_Settings)
+esp_err_t SettingsManager_UpdateWiFi(App_Settings_WiFi_t *p_Settings, SettingsManager_Setting_t *p_ChangedSetting)
 {
     return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.WiFi, sizeof(App_Settings_WiFi_t),
-                                  SETTINGS_EVENT_WIFI_CHANGED);
+                                  SETTINGS_EVENT_WIFI_CHANGED, p_ChangedSetting);
 }
 
 esp_err_t SettingsManager_GetProvisioning(App_Settings_Provisioning_t *p_Settings)
@@ -385,11 +385,11 @@ esp_err_t SettingsManager_GetProvisioning(App_Settings_Provisioning_t *p_Setting
     return ESP_OK;
 }
 
-esp_err_t SettingsManager_UpdateProvisioning(App_Settings_Provisioning_t *p_Settings)
+esp_err_t SettingsManager_UpdateProvisioning(App_Settings_Provisioning_t *p_Settings, SettingsManager_Setting_t *p_ChangedSetting)
 {
     return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.Provisioning,
                                   sizeof(App_Settings_Provisioning_t),
-                                  SETTINGS_EVENT_PROVISIONING_CHANGED);
+                                  SETTINGS_EVENT_PROVISIONING_CHANGED, p_ChangedSetting);
 }
 
 esp_err_t SettingsManager_GetDisplay(App_Settings_Display_t *p_Settings)
@@ -407,10 +407,10 @@ esp_err_t SettingsManager_GetDisplay(App_Settings_Display_t *p_Settings)
     return ESP_OK;
 }
 
-esp_err_t SettingsManager_UpdateDisplay(App_Settings_Display_t *p_Settings)
+esp_err_t SettingsManager_UpdateDisplay(App_Settings_Display_t *p_Settings, SettingsManager_Setting_t *p_ChangedSetting)
 {
     return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.Display, sizeof(App_Settings_Display_t),
-                                  SETTINGS_EVENT_DISPLAY_CHANGED);
+                                  SETTINGS_EVENT_DISPLAY_CHANGED, p_ChangedSetting);
 }
 
 esp_err_t SettingsManager_GetHTTPServer(App_Settings_HTTP_Server_t *p_Settings)
@@ -428,11 +428,11 @@ esp_err_t SettingsManager_GetHTTPServer(App_Settings_HTTP_Server_t *p_Settings)
     return ESP_OK;
 }
 
-esp_err_t SettingsManager_UpdateHTTPServer(App_Settings_HTTP_Server_t *p_Settings)
+esp_err_t SettingsManager_UpdateHTTPServer(App_Settings_HTTP_Server_t *p_Settings, SettingsManager_Setting_t *p_ChangedSetting)
 {
     return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.HTTPServer,
                                   sizeof(App_Settings_HTTP_Server_t),
-                                  SETTINGS_EVENT_HTTP_SERVER_CHANGED);
+                                  SETTINGS_EVENT_HTTP_SERVER_CHANGED, p_ChangedSetting);
 }
 
 esp_err_t SettingsManager_GetVISAServer(App_Settings_VISA_Server_t *p_Settings)
@@ -450,11 +450,11 @@ esp_err_t SettingsManager_GetVISAServer(App_Settings_VISA_Server_t *p_Settings)
     return ESP_OK;
 }
 
-esp_err_t SettingsManager_UpdateVISAServer(App_Settings_VISA_Server_t *p_Settings)
+esp_err_t SettingsManager_UpdateVISAServer(App_Settings_VISA_Server_t *p_Settings, SettingsManager_Setting_t *p_ChangedSetting)
 {
     return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.VISAServer,
                                   sizeof(App_Settings_VISA_Server_t),
-                                  SETTINGS_EVENT_VISA_SERVER_CHANGED);
+                                  SETTINGS_EVENT_VISA_SERVER_CHANGED, p_ChangedSetting);
 }
 
 esp_err_t SettingsManager_GetSystem(App_Settings_System_t *p_Settings)
@@ -472,10 +472,10 @@ esp_err_t SettingsManager_GetSystem(App_Settings_System_t *p_Settings)
     return ESP_OK;
 }
 
-esp_err_t SettingsManager_UpdateSystem(App_Settings_System_t *p_Settings)
+esp_err_t SettingsManager_UpdateSystem(App_Settings_System_t *p_Settings, SettingsManager_Setting_t *p_ChangedSetting)
 {
     return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.System, sizeof(App_Settings_System_t),
-                                  SETTINGS_EVENT_SYSTEM_CHANGED);
+                                  SETTINGS_EVENT_SYSTEM_CHANGED, p_ChangedSetting);
 }
 
 esp_err_t SettingsManager_ResetToDefaults(void)

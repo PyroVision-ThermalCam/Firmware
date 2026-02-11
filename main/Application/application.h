@@ -43,7 +43,7 @@ enum {
     LEPTON_EVENT_RESPONSE_FPA_AUX_TEMP,         /**< FPA and AUX temperatures are ready.
                                                      Data is transmitted in a App_Lepton_Temperatures_t structure. */
     LEPTON_EVENT_RESPONSE_SPOTMETER,            /**< Spotmeter data is ready.
-                                                     Data is transmitted in a App_Lepton_Spotmeter_t structure. */
+                                                     Data is transmitted in a App_Lepton_Spotmeter_t structure with temperature value Celsius. */
     LEPTON_EVENT_RESPONSE_UPTIME,               /**< Uptime data is ready.
                                                      Data is transmitted as a uint32_t representing uptime in milliseconds. */
     LEPTON_EVENT_RESPONSE_PIXEL_TEMPERATURE,    /**< Pixel temperature data is ready.

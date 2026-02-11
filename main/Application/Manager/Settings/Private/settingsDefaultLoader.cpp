@@ -69,7 +69,7 @@ void SettingsManager_InitDefaultLeptonROIs(App_Settings_t *p_Settings)
 void SettingsManager_InitDefaultLeptonEmissivityPresets(App_Settings_t *p_Settings)
 {
     /* No emissiviy values available */
-    p_Settings->Lepton.EmissivityCount = 1;
+    p_Settings->Lepton.EmissivityPresetsCount = 1;
     p_Settings->Lepton.EmissivityPresets[0].Value = 1.0f;
     strncpy(p_Settings->Lepton.EmissivityPresets[0].Description, "Unknown",
             sizeof(p_Settings->Lepton.EmissivityPresets[0].Description));
@@ -135,6 +135,7 @@ void SettingsManager_InitDefaultSystem(App_Settings_t *p_Settings)
     }
 
     p_Settings->System.SDCard_AutoMount = true;
+    p_Settings->System.ImageFormat = IMAGE_FORMAT_JPEG;
     strncpy(p_Settings->System.Timezone, SETTINGS_SYSTEM_DEFAULT_TIMEZONE, sizeof(p_Settings->System.Timezone));
     strncpy(p_Settings->System.NTPServer, SETTINGS_SYSTEM_DEFAULT_NTP_SERVER, sizeof(p_Settings->System.NTPServer));
 }

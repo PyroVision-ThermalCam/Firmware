@@ -391,7 +391,7 @@ static lv_obj_t *ui_Settings_Create_Lepton_Page(lv_obj_t *p_Menu)
 
     SettingsManager_GetLepton(&LeptonSettings);
 
-    for (size_t i = 0; i < LeptonSettings.EmissivityCount; i++) {
+    for (size_t i = 0; i < LeptonSettings.EmissivityPresetsCount; i++) {
         Buffer += LeptonSettings.EmissivityPresets[i].Description + std::string("\n");
     }
 

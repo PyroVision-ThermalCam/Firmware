@@ -29,6 +29,7 @@
 
 #include "websocket.h"
 #include "../ImageEncoder/imageEncoder.h"
+#include "Private/websocketRemoteHandlers.h"
 
 /** @brief WebSocket client state.
  */
@@ -143,7 +144,7 @@ static void WebSocket_RemoveClient(int FD)
  *  @param p_Data   Data JSON object (will not be freed, can be NULL)
  *  @return         ESP_OK on success
  */
-static esp_err_t WebSocket_SendJSON(int FD, const char *p_Cmd, cJSON *p_Data)
+esp_err_t WebSocket_SendJSON(int FD, const char *p_Cmd, cJSON *p_Data)
 {
     esp_err_t Error;
     char *JSON;
@@ -330,7 +331,9 @@ static void WebSocket_ProcessMessage(WS_Client_t *p_Client, const char *p_Data, 
 
     if (cJSON_IsString(cmd) == false) {
         ESP_LOGW(TAG, "Invalid message format from fd=%d", p_Client->fd);
+
         cJSON_Delete(json);
+
         return;
     }
 
@@ -344,6 +347,48 @@ static void WebSocket_ProcessMessage(WS_Client_t *p_Client, const char *p_Data, 
         WebSocket_HandleTelemetrySubscribe(p_Client, data);
     } else if (strcmp(cmd_str, "unsubscribe") == 0) {
         WebSocket_HandleTelemetryUnsubscribe(p_Client);
+    }
+    /* Remote Control Commands */
+    else if (strcmp(cmd_str, "get_temperature") == 0) {
+        WebSocket_Handle_GetTemperature(p_Client->fd, data);
+    } else if (strcmp(cmd_str, "get_time") == 0) {
+        WebSocket_Handle_GetTime(p_Client->fd, data);
+    } else if (strcmp(cmd_str, "set_time") == 0) {
+        WebSocket_Handle_SetTime(p_Client->fd, data);
+    } else if (strcmp(cmd_str, "get_battery") == 0) {
+        WebSocket_Handle_GetBattery(p_Client->fd, data);
+    } else if (strcmp(cmd_str, "get_lepton_emissivity") == 0) {
+        WebSocket_Handle_GetLeptonEmissivity(p_Client->fd, data);
+    } else if (strcmp(cmd_str, "set_lepton_emissivity") == 0) {
+        WebSocket_Handle_SetLeptonEmissivity(p_Client->fd, data);
+    } else if (strcmp(cmd_str, "get_lepton_stats") == 0) {
+        WebSocket_Handle_GetLeptonStats(p_Client->fd, data);
+    } else if (strcmp(cmd_str, "get_lepton_roi") == 0) {
+        WebSocket_Handle_GetLeptonROI(p_Client->fd, data);
+    } else if (strcmp(cmd_str, "set_lepton_roi") == 0) {
+        WebSocket_Handle_SetLeptonROI(p_Client->fd, data);
+    } else if (strcmp(cmd_str, "get_lepton_spotmeter") == 0) {
+        WebSocket_Handle_GetLeptonSpotmeter(p_Client->fd, data);
+    } else if (strcmp(cmd_str, "get_flash") == 0) {
+        WebSocket_Handle_GetFlash(p_Client->fd, data);
+    } else if (strcmp(cmd_str, "set_flash") == 0) {
+        WebSocket_Handle_SetFlash(p_Client->fd, data);
+    } else if (strcmp(cmd_str, "get_image_format") == 0) {
+        WebSocket_Handle_GetImageFormat(p_Client->fd, data);
+    } else if (strcmp(cmd_str, "set_image_format") == 0) {
+        WebSocket_Handle_SetImageFormat(p_Client->fd, data);
+    } else if (strcmp(cmd_str, "set_status_led") == 0) {
+        WebSocket_Handle_SetStatusLED(p_Client->fd, data);
+    } else if (strcmp(cmd_str, "get_sd_state") == 0) {
+        WebSocket_Handle_GetSDState(p_Client->fd, data);
+    } else if (strcmp(cmd_str, "format_memory") == 0) {
+        WebSocket_Handle_FormatMemory(p_Client->fd, data);
+    } else if (strcmp(cmd_str, "display_message") == 0) {
+        WebSocket_Handle_DisplayMessage(p_Client->fd, data);
+    } else if (strcmp(cmd_str, "get_lock") == 0) {
+        WebSocket_Handle_GetLock(p_Client->fd, data);
+    } else if (strcmp(cmd_str, "set_lock") == 0) {
+        WebSocket_Handle_SetLock(p_Client->fd, data);
     } else {
         ESP_LOGW(TAG, "Unknown command from fd=%d: %s", p_Client->fd, cmd_str);
     }

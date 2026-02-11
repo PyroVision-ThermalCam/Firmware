@@ -70,7 +70,7 @@ The settings are divided into the following categories:
 typedef struct {
     App_Settings_ROI_t ROI[4];                      // Camera ROIs
     App_Settings_Emissivity_t EmissivityPresets[128]; // Emissivity presets
-    size_t EmissivityCount;                         // Number of presets
+    size_t EmissivityPresetsCount;                    // Number of presets
 } App_Settings_Lepton_t;
 ----
 

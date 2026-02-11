@@ -35,6 +35,7 @@
 #include "managers.h"
 #include "networkTask.h"
 #include "Application/Tasks/GUI/guiTask.h"
+#include "Application/Manager/Network/Server/RemoteControl/remoteControl.h"
 
 #define NETWORK_TASK_STOP_REQUEST               BIT0
 #define NETWORK_TASK_BROADCAST_FRAME            BIT1
@@ -388,7 +389,14 @@ static void Task_Network(void *p_Parameters)
             xEventGroupClearBits(_Network_Task_State.EventGroup, NETWORK_TASK_WIFI_CREDENTIALS_UPDATED);
         } else if (EventBits & LEPTON_SPOTMETER_READY) {
             if (Server_IsRunning()) {
-                // TODO Update Spotmeter in the Server
+                esp_err_t Error;
+                
+                Error = RemoteControl_UpdateSpotmeter(_Network_Task_State.ROIResult.Min,
+                                                     _Network_Task_State.ROIResult.Max,
+                                                     _Network_Task_State.ROIResult.Average);
+                if (Error != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed to update spotmeter in server: 0x%x", Error);
+                }
             }
 
             xEventGroupClearBits(_Network_Task_State.EventGroup, LEPTON_SPOTMETER_READY);

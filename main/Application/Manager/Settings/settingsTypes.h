@@ -70,6 +70,7 @@ enum {
  */
 enum {
     SETTINGS_ID_LEPTON_EMISSIVITY,              /**< Emissivity setting changed. Data contains uint8_t with new emissivity value. */
+    SETTINGS_ID_IMAGE_FORMAT,                   /**< Image format setting changed. Data contains App_Settings_Image_Format_t. */
 };
 
 /** @brief GUI ROI types.
@@ -80,6 +81,14 @@ typedef enum {
     ROI_TYPE_AGC,                               /**< AGC ROI. */
     ROI_TYPE_VIDEO_FOCUS,                       /**< Video focus ROI. */
 } App_Settings_ROI_Type_t;
+
+/** @brief Image format types.
+ */
+typedef enum {
+    IMAGE_FORMAT_PNG = 0,                       /**< PNG format. */
+    IMAGE_FORMAT_RAW = 1,                       /**< Raw format. */
+    IMAGE_FORMAT_JPEG = 2,                      /**< JPEG format. */
+} App_Settings_Image_Format_t;
 
 /** @brief Structure to hold the modified settings value.
  */
@@ -124,7 +133,7 @@ typedef struct {
 typedef struct {
     App_Settings_ROI_t ROI[4];                  /**< Camera ROIs. */
     App_Settings_Emissivity_t EmissivityPresets[128];   /**< Array of emissivity presets. */
-    size_t EmissivityCount;                     /**< Number of emissivity presets. */
+    size_t EmissivityPresetsCount;                     /**< Number of emissivity presets. */
     uint8_t CurrentEmissivity;                  /**< Currently selected emissivity value in the range from 0 to 100. */
 } __attribute__((packed)) App_Settings_Lepton_t;
 
@@ -179,7 +188,8 @@ typedef struct {
     char Timezone[32];                          /**< Timezone string (e.g., "CET-1CEST,M3.5.0,M10.5.0/3"). */
     char NTPServer[32];                         /**< NTP server address. */
     char DeviceName[32];                        /**< Device name. */
-    uint8_t Reserved[100];                      /**< Reserved for future use. */
+    App_Settings_Image_Format_t ImageFormat;    /**< Image format for captures (PNG, RAW, JPEG). */
+    uint8_t Reserved[99];                       /**< Reserved for future use. */
 } __attribute__((packed)) App_Settings_System_t;
 
 /** @brief Complete application settings structure.

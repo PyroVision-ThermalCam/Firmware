@@ -52,11 +52,11 @@ static void SettingsManager_LoadLepton(Settings_Manager_State_t *p_State, const 
     if (lepton != NULL) {
         emissivity_array = cJSON_GetObjectItem(lepton, "emissivity");
         if (cJSON_IsArray(emissivity_array)) {
-            p_State->Settings.Lepton.EmissivityCount = cJSON_GetArraySize(emissivity_array);
+            p_State->Settings.Lepton.EmissivityPresetsCount = cJSON_GetArraySize(emissivity_array);
 
-            ESP_LOGD(TAG, "Found %d emissivity presets in JSON", p_State->Settings.Lepton.EmissivityCount);
+            ESP_LOGD(TAG, "Found %d emissivity presets in JSON", p_State->Settings.Lepton.EmissivityPresetsCount);
 
-            for (uint32_t i = 0; i < p_State->Settings.Lepton.EmissivityCount; i++) {
+            for (uint32_t i = 0; i < p_State->Settings.Lepton.EmissivityPresetsCount; i++) {
                 cJSON *preset = cJSON_GetArrayItem(emissivity_array, i);
                 cJSON *name = cJSON_GetObjectItem(preset, "name");
                 cJSON *value = cJSON_GetObjectItem(preset, "value");
@@ -224,6 +224,21 @@ static void SettingsManager_LoadSystem(Settings_Manager_State_t *p_State, const 
         } else {
             strncpy(p_State->Settings.System.DeviceName, SETTINGS_SYSTEM_DEFAULT_DEVICENAME,
                     sizeof(p_State->Settings.System.DeviceName));
+        }
+
+        cJSON *imageFormat = cJSON_GetObjectItem(system, "imageFormat");
+        if (cJSON_IsString(imageFormat)) {
+            if (strcmp(imageFormat->valuestring, "PNG") == 0) {
+                p_State->Settings.System.ImageFormat = IMAGE_FORMAT_PNG;
+            } else if (strcmp(imageFormat->valuestring, "RAW") == 0) {
+                p_State->Settings.System.ImageFormat = IMAGE_FORMAT_RAW;
+            } else if (strcmp(imageFormat->valuestring, "JPEG") == 0) {
+                p_State->Settings.System.ImageFormat = IMAGE_FORMAT_JPEG;
+            } else {
+                p_State->Settings.System.ImageFormat = IMAGE_FORMAT_JPEG;  /* Default to JPEG */
+            }
+        } else {
+            p_State->Settings.System.ImageFormat = IMAGE_FORMAT_JPEG;  /* Default to JPEG */
         }
     } else {
         SettingsManager_InitDefaultSystem(&p_State->Settings);
