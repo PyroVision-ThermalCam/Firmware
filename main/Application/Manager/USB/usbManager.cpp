@@ -39,15 +39,12 @@
 
 ESP_EVENT_DEFINE_BASE(USB_EVENTS);
 
-static const char *TAG = "USB-Manager";
-
 /** @brief USB Manager internal state.
  */
 typedef struct {
     bool isInitialized;                     /**< Initialization state. */
     bool isDeinitializing;                  /**< Deinitialization in progress. */
     bool isUSBMounted;                      /**< USB host has mounted device. */
-    USB_Manager_Config_t Config;            /**< Current configuration. */
     tinyusb_msc_storage_handle_t Storage;   /**< Storage handle. */
     TaskHandle_t DeinitTask;                /**< Deinit task handle. */
     tusb_desc_device_t DeviceDescriptor;    /**< Custom device descriptor. */
@@ -56,9 +53,13 @@ typedef struct {
 
 static USB_Manager_State_t _USB_Manager_State;
 
+static const char *TAG = "USB-Manager";
+
 esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config)
 {
     esp_err_t Error;
+    MemoryManager_Location_t StorageLocation;
+    tinyusb_config_t USB_Config = TINYUSB_DEFAULT_CONFIG();
 
     if (p_Config == NULL) {
         ESP_LOGE(TAG, "Invalid configuration pointer!");
@@ -76,9 +77,11 @@ esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config)
 
     /* Wait for any pending deinitialization to complete */
     if (_USB_Manager_State.isDeinitializing) {
+        uint8_t WaitCount;
+
         ESP_LOGD(TAG, "Waiting for previous deinit to complete...");
 
-        uint8_t WaitCount = 0;
+        WaitCount = 0;
         while ((_USB_Manager_State.isDeinitializing) && (WaitCount < 100)) {
             vTaskDelay(100 / portTICK_PERIOD_MS);
             WaitCount++;
@@ -97,14 +100,13 @@ esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config)
     }
 
     /* Detect active storage type from MemoryManager */
-    MemoryManager_Location_t StorageLocation = MemoryManager_GetStorageLocation();
+    StorageLocation = MemoryManager_GetStorageLocation();
     const char *p_StorageTypeName = (StorageLocation == MEMORY_LOCATION_SD_CARD) ? "SD Card (FAT32)" :
                                     "Internal Flash (FAT32)";
 
-    ESP_LOGD(TAG, "Initializing USB Manager...");
-
     memset(&_USB_Manager_State, 0, sizeof(USB_Manager_State_t));
 
+    ESP_LOGD(TAG, "Initializing USB Manager...");
     ESP_LOGD(TAG, "  Storage type: %s (auto-detected)", p_StorageTypeName);
     ESP_LOGD(TAG, "  Mount point: %s", p_Config->MountPoint);
 
@@ -114,33 +116,27 @@ esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config)
         ESP_LOGW(TAG, "Failed to lock filesystem: %d!", Error);
     }
 
-    memcpy(&_USB_Manager_State.Config, p_Config, sizeof(USB_Manager_Config_t));
-
     /* Configure the Device Descriptor */
     memcpy(&_USB_Manager_State.DeviceDescriptor, get_Desc_Device(), sizeof(tusb_desc_device_t));
 
-    /* Configure the String Descriptors */
-    _USB_Manager_State.StringDescriptors[0] = NULL;                                 // 0: Language (set by TinyUSB)
-    _USB_Manager_State.StringDescriptors[1] = p_Config->Manufacturer;               // 1: Manufacturer
-    _USB_Manager_State.StringDescriptors[2] = p_Config->Product;                    // 2: Product
-    _USB_Manager_State.StringDescriptors[3] = p_Config->SerialNumber;               // 3: Serial Number
+    _USB_Manager_State.StringDescriptors[0] = "";                                       // 0: Empty string (Language handled by TinyUSB)
+    _USB_Manager_State.StringDescriptors[1] = p_Config->Manufacturer;                   // 1: Manufacturer
+    _USB_Manager_State.StringDescriptors[2] = p_Config->Product;                        // 2: Product
+    _USB_Manager_State.StringDescriptors[3] = p_Config->SerialNumber;                   // 3: Serial Number
 
     ESP_LOGD(TAG, "USB Descriptors:");
     ESP_LOGD(TAG, "  VID:PID = 0x%04X:0x%04X", _USB_Manager_State.DeviceDescriptor.idVendor,
              _USB_Manager_State.DeviceDescriptor.idProduct);
-    ESP_LOGD(TAG, "  Manufacturer: %s", p_Config->Manufacturer ? p_Config->Manufacturer : "(null)");
-    ESP_LOGD(TAG, "  Product: %s", p_Config->Product ? p_Config->Product : "(null)");
-    ESP_LOGD(TAG, "  Serial: %s", p_Config->SerialNumber ? p_Config->SerialNumber : "(null)");
-
-    ESP_LOGD(TAG, "Initializing TinyUSB...");
-
-    tinyusb_config_t USB_Config = TINYUSB_DEFAULT_CONFIG();
+    ESP_LOGD(TAG, "  Manufacturer: %s", _USB_Manager_State.StringDescriptors[1]);
+    ESP_LOGD(TAG, "  Product: %s", _USB_Manager_State.StringDescriptors[2]);
+    ESP_LOGD(TAG, "  Serial: %s", _USB_Manager_State.StringDescriptors[3]);
 
     /* Override with custom descriptors */
     USB_Config.descriptor.device = &_USB_Manager_State.DeviceDescriptor;
     USB_Config.descriptor.string = _USB_Manager_State.StringDescriptors;
-    USB_Config.descriptor.string_count = 4;
+    USB_Config.descriptor.string_count = sizeof(_USB_Manager_State.StringDescriptors) / sizeof(_USB_Manager_State.StringDescriptors[0]);
 
+    ESP_LOGD(TAG, "Initializing TinyUSB...");
     Error = tinyusb_driver_install(&USB_Config);
     if (Error != ESP_OK) {
         if (Error == ESP_ERR_INVALID_STATE) {
@@ -169,8 +165,8 @@ esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config)
     /* Initialize MSC storage based on detected storage location */
     if (StorageLocation == MEMORY_LOCATION_SD_CARD) {
         sdmmc_card_t *p_Card = NULL;
+        tinyusb_msc_storage_config_t Storage_Config;
 
-        /* Configure SD card MSC */
         ESP_LOGD(TAG, "Configuring SD Card MSC...");
 
         /* Get SD card handle from MemoryManager */
@@ -183,7 +179,6 @@ esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config)
 
         ESP_LOGD(TAG, "Using SD card from MemoryManager");
 
-        tinyusb_msc_storage_config_t Storage_Config;
         memset(&Storage_Config, 0, sizeof(tinyusb_msc_storage_config_t));
         Storage_Config.medium.card = p_Card;
 
@@ -195,6 +190,7 @@ esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config)
         }
     } else if (StorageLocation == MEMORY_LOCATION_INTERNAL) {
         wl_handle_t WL_Handle;
+        tinyusb_msc_storage_config_t Storage_Config;
 
         /* Configure SPI flash (FAT32 with Wear Leveling) MSC */
         ESP_LOGD(TAG, "Configuring internal flash MSC...");
@@ -209,7 +205,6 @@ esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config)
 
         ESP_LOGD(TAG, "Using existing wear leveling handle: %d", WL_Handle);
 
-        tinyusb_msc_storage_config_t Storage_Config;
         memset(&Storage_Config, 0, sizeof(tinyusb_msc_storage_config_t));
         Storage_Config.medium.wl_handle = WL_Handle;
 

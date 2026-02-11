@@ -165,23 +165,23 @@ esp_err_t SettingsManager_Init(void)
     }
 
     /* Load the settings from the NVS */
-    Error = SettingsManager_Load(&_Settings_Manager_State.Settings);
+    Error = SettingsManager_LoadFromNVS(&_Settings_Manager_State.Settings);
     if (Error != ESP_OK) {
-        ESP_LOGI(TAG, "No settings found, using factory defaults");
+        ESP_LOGI(TAG, "No settings found, using JSON config defaults");
 
         /* Try to load default settings from JSON first (on first boot) */
-        if (SettingsManager_LoadDefaultsFromJSON(&_Settings_Manager_State) != ESP_OK) {
+        if (SettingsManager_LoadFromJSON(&_Settings_Manager_State, "/storage/settings.json") != ESP_OK) {
             ESP_LOGW(TAG, "Failed to load default settings from JSON, using built-in defaults");
 
             /* Use built-in defaults */
-            SettingsManager_InitDefaults(&_Settings_Manager_State);
+            SettingsManager_LoadFromDefaults(&_Settings_Manager_State);
         }
 
         /* Save the default settings to NVS */
         SettingsManager_Save();
 
         /* Load the JSON presets into the settings structure */
-        SettingsManager_Load(&_Settings_Manager_State.Settings);
+        SettingsManager_LoadFromNVS(&_Settings_Manager_State.Settings);
     }
 
     ESP_LOGI(TAG, "Settings Manager initialized");
@@ -208,10 +208,11 @@ esp_err_t SettingsManager_Deinit(void)
     return ESP_OK;
 }
 
-esp_err_t SettingsManager_Load(App_Settings_t *p_Settings)
+esp_err_t SettingsManager_LoadFromNVS(App_Settings_t *p_Settings)
 {
     esp_err_t Error;
     size_t RequiredSize;
+    uint8_t ConfigValid;
 
     if (_Settings_Manager_State.isInitialized == false) {
         return ESP_ERR_INVALID_STATE;
@@ -221,22 +222,32 @@ esp_err_t SettingsManager_Load(App_Settings_t *p_Settings)
 
     xSemaphoreTake(_Settings_Manager_State.Mutex, portMAX_DELAY);
 
+    /* Check if the config is valid */
+    Error = nvs_get_u8(_Settings_Manager_State.NVS_Handle, "config_valid", &ConfigValid);
+    if ((Error != ESP_OK) || (ConfigValid != 1)) {
+        ESP_LOGE(TAG, "Failed to read config_valid flag: %d!", Error);
+
+        Error = ESP_ERR_NVS_INVALID_STATE;
+
+        goto SettingsManager_LoadFromNVS_Exit;
+    }
+
     /* Get the settings version from NVS. Continue loading if the version numbers match. */
     Error = nvs_get_u32(_Settings_Manager_State.NVS_Handle, "version", &p_Settings->Version);
-    if ((Error == ESP_OK) && (p_Settings->Version == SETTINGS_VERSION)) {
+    if ((Error != ESP_OK) && (p_Settings->Version == SETTINGS_VERSION)) {
         Error = nvs_get_blob(_Settings_Manager_State.NVS_Handle, "settings", NULL, &RequiredSize);
         if (Error == ESP_ERR_NVS_NOT_FOUND) {
             ESP_LOGW(TAG, "Settings not found in NVS!");
 
             Error = ESP_ERR_NVS_NOT_FOUND;
 
-            goto SettingsManager_Load_Exit;
+            goto SettingsManager_LoadFromNVS_Exit;
         } else if (Error != ESP_OK) {
             ESP_LOGE(TAG, "Failed to get settings size: %d!", Error);
 
             xSemaphoreGive(_Settings_Manager_State.Mutex);
 
-            goto SettingsManager_Load_Exit;
+            goto SettingsManager_LoadFromNVS_Exit;
         }
 
         if (RequiredSize != sizeof(App_Settings_t)) {
@@ -249,14 +260,14 @@ esp_err_t SettingsManager_Load(App_Settings_t *p_Settings)
 
             Error = ESP_ERR_INVALID_SIZE;
 
-            goto SettingsManager_Load_Exit;
+            goto SettingsManager_LoadFromNVS_Exit;
         }
 
         Error = nvs_get_blob(_Settings_Manager_State.NVS_Handle, "settings", &_Settings_Manager_State.Settings, &RequiredSize);
         if (Error != ESP_OK) {
             ESP_LOGE(TAG, "Failed to read settings: %d!", Error);
 
-            goto SettingsManager_Load_Exit;
+            goto SettingsManager_LoadFromNVS_Exit;
         }
 
         memcpy(p_Settings, &_Settings_Manager_State.Settings, sizeof(App_Settings_t));
@@ -267,13 +278,13 @@ esp_err_t SettingsManager_Load(App_Settings_t *p_Settings)
     }
     /* We reach this case when we can no read a settings version because it does not exist or does not match */
     else {
-        ESP_LOGI(TAG, "Settings version mismatch or not found in NVS (expected %u, got %u), erasing and using defaults",
+        ESP_LOGI(TAG, "Settings version mismatch or not found in NVS (expected %u, got %u)",
                  SETTINGS_VERSION, p_Settings->Version);
 
         Error = ESP_ERR_INVALID_VERSION;
     }
 
-SettingsManager_Load_Exit:
+SettingsManager_LoadFromNVS_Exit:
     xSemaphoreGive(_Settings_Manager_State.Mutex);
 
     return Error;
@@ -293,15 +304,23 @@ esp_err_t SettingsManager_Save(void)
                          sizeof(App_Settings_t));
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to write settings: %d!", Error);
-        xSemaphoreGive(_Settings_Manager_State.Mutex);
-        return Error;
+
+        goto SettingsManager_Save_Error;
+    }
+
+    /* Mark config as valid */
+    Error = nvs_set_u8(_Settings_Manager_State.NVS_Handle, "config_valid", true);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set config_valid flag: %d!", Error);
+
+        goto SettingsManager_Save_Error;
     }
 
     Error = nvs_commit(_Settings_Manager_State.NVS_Handle);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to commit settings: %d!", Error);
-        xSemaphoreGive(_Settings_Manager_State.Mutex);
-        return Error;
+
+        goto SettingsManager_Save_Error;
     }
 
     xSemaphoreGive(_Settings_Manager_State.Mutex);
@@ -311,6 +330,39 @@ esp_err_t SettingsManager_Save(void)
     esp_event_post(SETTINGS_EVENTS, SETTINGS_EVENT_SAVED, NULL, 0, portMAX_DELAY);
 
     return ESP_OK;
+
+SettingsManager_Save_Error:
+    xSemaphoreGive(_Settings_Manager_State.Mutex);
+
+    ESP_LOGE(TAG, "Failed to save settings to NVS: %d!", Error);
+
+    return Error;
+}
+
+esp_err_t SettingsManager_Reset(void)
+{
+    esp_err_t Error;
+
+    if (_Settings_Manager_State.isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    /* Mark the config as invalid */
+    Error = nvs_set_u8(_Settings_Manager_State.NVS_Handle, "config_valid", true);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set config_valid flag: %d!", Error);
+
+        return Error;
+    }
+
+    Error = nvs_commit(_Settings_Manager_State.NVS_Handle);
+    if(Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to commit settings reset: %d!", Error);
+
+        return Error;
+    }
+
+    esp_restart();
 }
 
 esp_err_t SettingsManager_GetInfo(App_Settings_Info_t *p_Settings)
@@ -508,10 +560,10 @@ esp_err_t SettingsManager_ResetToDefaults(void)
         return Error;
     }
 
-    /* Reset config_loaded flag to allow reloading default config */
-    Error = nvs_set_u8(_Settings_Manager_State.NVS_Handle, "config_loaded", false);
+    /* Reset config_valid flag to allow reloading default config */
+    Error = nvs_set_u8(_Settings_Manager_State.NVS_Handle, "config_valid", false);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set config_loaded flag: %d!", Error);
+        ESP_LOGE(TAG, "Failed to set config_valid flag: %d!", Error);
 
         xSemaphoreGive(_Settings_Manager_State.Mutex);
 

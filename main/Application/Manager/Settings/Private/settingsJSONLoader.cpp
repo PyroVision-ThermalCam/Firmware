@@ -301,12 +301,7 @@ static void SettingsManager_LoadVISAServer(Settings_Manager_State_t *p_State, co
     }
 }
 
-/** @brief          Load and parse JSON settings from file.
- *  @param p_State  Settings state structure
- *  @param filepath Full path to JSON file
- *  @return         ESP_OK on success
- */
-static esp_err_t SettingsManager_Load_JSON(Settings_Manager_State_t *p_State, const char *p_FilePath)
+esp_err_t SettingsManager_LoadFromJSON(Settings_Manager_State_t *p_State, const char *p_FilePath)
 {
     FILE *File = NULL;
     char *Buffer = NULL;
@@ -315,7 +310,7 @@ static esp_err_t SettingsManager_Load_JSON(Settings_Manager_State_t *p_State, co
     cJSON *JSON = NULL;
     esp_err_t Error;
 
-    ESP_LOGD(TAG, "Loading settings from: %s", p_FilePath);
+    ESP_LOGD(TAG, "Loading JSON settings from: %s", p_FilePath);
 
     /* Check if file exists */
     struct stat st;
@@ -386,7 +381,7 @@ static esp_err_t SettingsManager_Load_JSON(Settings_Manager_State_t *p_State, co
         return ESP_FAIL;
     }
 
-    ESP_LOGD(TAG, "JSON parsed successfully from %s", p_FilePath);
+    ESP_LOGI(TAG, "JSON parsed successfully from %s", p_FilePath);
 
     /* Check the version number of the JSON and the version from the firmware. Skip the loading if the version in the JSON is older or invalid. */
     cJSON *version = cJSON_GetObjectItem(JSON, "version");
@@ -434,50 +429,4 @@ SettingsManager_Load_JSON_Exit:
     cJSON_Delete(JSON);
 
     return Error;
-}
-
-esp_err_t SettingsManager_LoadDefaultsFromJSON(Settings_Manager_State_t *p_State)
-{
-    uint8_t ConfigLoaded = 0;
-    esp_err_t Error;
-
-    Error = nvs_get_u8(p_State->NVS_Handle, "config_loaded", &ConfigLoaded);
-    if ((Error == ESP_OK) && (ConfigLoaded == true)) {
-        ESP_LOGD(TAG, "Default config already loaded, skipping");
-        return ESP_OK;
-    }
-
-    ESP_LOGI(TAG, "Loading settings from /storage (managed by MemoryManager)");
-
-    /* Try to load from /storage - MemoryManager decides if this is SD card or internal flash */
-    Error = SettingsManager_Load_JSON(p_State, "/storage/settings.json");
-    if (Error == ESP_OK) {
-        ESP_LOGI(TAG, "Settings loaded from /storage/settings.json");
-
-        /* Do NOT delete the file - user should be able to edit it via USB or by placing it on SD card */
-        return ESP_OK;
-    }
-
-    ESP_LOGW(TAG, "No settings.json found on /storage, falling back to built-in defaults");
-
-    /* Fallback to built-in defaults */
-    ESP_LOGW(TAG, "Using built-in default settings");
-    SettingsManager_InitDefaults(p_State);
-
-    /* Mark config as loaded */
-    Error = nvs_set_u8(p_State->NVS_Handle, "config_loaded", true);
-    if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set config_loaded flag: %d!", Error);
-        return Error;
-    }
-
-    Error = nvs_commit(p_State->NVS_Handle);
-    if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to commit config_loaded flag: %d!", Error);
-        return Error;
-    }
-
-    ESP_LOGD(TAG, "Default config loaded and marked as valid");
-
-    return ESP_OK;
 }

@@ -55,7 +55,7 @@ typedef struct {
 * *Namespace*: `"pyrovision"`
 * *Blob Key*: `"settings"` - Contains the complete `App_Settings_t` structure
 * *Version Key*: Reserved for future migrations
-* *Config Loaded Flag*: `"config_loaded"` - Indicates whether JSON defaults have been loaded
+* *Config valid Flag*: `"config_valid"` - Indicates a valid configuration in the NVS
 
 == Data Structures
 
@@ -402,7 +402,7 @@ esp_err_t SettingsManager_ResetToDefaults(void);
 *Process*:
 
 1. Deletes the `"settings"` key from NVS
-2. Resets `"config_loaded"` flag (allows reloading JSON defaults)
+2. Resets `"config_valid"` flag (allows reloading JSON defaults)
 3. Executes `esp_restart()`
 
 *Return Value*:
@@ -582,7 +582,7 @@ void configure_device_initial(void)
 
 1. *JSON Config* (`data/default_settings.json`)
    * Loaded on first boot
-   * Flag `"config_loaded"` prevents reloading
+   * Flag `"config_valid"` prevents reloading of the configuration into the Flash memory
    * Flexible and easy to customize without recompilation
    
 2. *Hardcoded Defaults* (in `settingsDefaultLoader.cpp`)
@@ -635,7 +635,7 @@ void configure_device_initial(void)
 
 1. Edit `data/default_settings.json`
 2. Flash firmware
-3. Perform factory reset or manually reset `config_loaded` flag
+3. Perform factory reset or manually reset `config_valid` flag
 
 ==== Option 2: Change Hardcoded Defaults
 
@@ -699,7 +699,7 @@ SettingsManager_Save();  // <-- Don't forget!
 
 *Symptom*: JSON defaults are ignored
 
-*Cause*: `config_loaded` flag is set
+*Cause*: `config_valid` flag is set
 
 *Solution*:
 [source,cpp]
@@ -707,7 +707,7 @@ SettingsManager_Save();  // <-- Don't forget!
 // Manually reset flag
 nvs_handle_t handle;
 nvs_open("pyrovision", NVS_READWRITE, &handle);
-nvs_set_u8(handle, "config_loaded", 0);
+nvs_set_u8(handle, "config_valid", 0);
 nvs_commit(handle);
 nvs_close(handle);
 esp_restart();

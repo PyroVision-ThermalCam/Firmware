@@ -77,20 +77,6 @@ void SettingsManager_InitDefaultLeptonEmissivityPresets(App_Settings_t *p_Settin
     p_Settings->Lepton.CurrentEmissivity = SETTINGS_DEFAULT_LEPTON_EMISSIVITY;
 }
 
-void SettingsManager_InitDefaults(Settings_Manager_State_t *p_State)
-{
-    memset(&p_State->Settings, 0, sizeof(App_Settings_t));
-
-    p_State->Settings.Version = SETTINGS_VERSION;
-    SettingsManager_InitDefaultDisplay(&p_State->Settings);
-    SettingsManager_InitDefaultProvisioning(&p_State->Settings);
-    SettingsManager_InitDefaultWiFi(&p_State->Settings);
-    SettingsManager_InitDefaultSystem(&p_State->Settings);
-    SettingsManager_InitDefaultLepton(&p_State->Settings);
-    SettingsManager_InitDefaultHTTPServer(&p_State->Settings);
-    SettingsManager_InitDefaultVISAServer(&p_State->Settings);
-}
-
 void SettingsManager_InitDefaultDisplay(App_Settings_t *p_Settings)
 {
     ESP_LOGW(TAG, "Loading default Display settings");
@@ -162,4 +148,18 @@ void SettingsManager_InitDefaultVISAServer(App_Settings_t *p_Settings)
     ESP_LOGW(TAG, "Loading default VISA Server settings");
 
     p_Settings->VISAServer.Port = SETTINGS_DEFAULT_VISA_PORT;
+}
+
+void SettingsManager_LoadFromDefaults(Settings_Manager_State_t *p_State)
+{
+    memset(&p_State->Settings, 0, sizeof(App_Settings_t));
+
+    p_State->Settings.Version = SETTINGS_VERSION;
+    SettingsManager_InitDefaultDisplay(&p_State->Settings);
+    SettingsManager_InitDefaultProvisioning(&p_State->Settings);
+    SettingsManager_InitDefaultWiFi(&p_State->Settings);
+    SettingsManager_InitDefaultSystem(&p_State->Settings);
+    SettingsManager_InitDefaultLepton(&p_State->Settings);
+    SettingsManager_InitDefaultHTTPServer(&p_State->Settings);
+    SettingsManager_InitDefaultVISAServer(&p_State->Settings);
 }

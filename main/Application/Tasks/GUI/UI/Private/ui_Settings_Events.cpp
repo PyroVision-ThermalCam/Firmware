@@ -27,6 +27,8 @@
 
 #include "ui_Settings_Events.h"
 
+static USB_Manager_Config_t USB_Config;
+
 static const char *TAG = "ui_Settings_Events";
 
 void on_Lepton_Emissivity_Slider_Callback(lv_event_t *e)
@@ -248,7 +250,7 @@ void on_USB_Mode_Switch_Callback(lv_event_t *e)
         SettingsManager_GetInfo(&InfoSettings);
 
         /* Configure USB Mass Storage with auto-detected mount point */
-        USB_Manager_Config_t USB_Config = {
+        USB_Config = {
             .MountPoint = MemoryManager_GetStoragePath(),
             .Manufacturer = InfoSettings.Manufacturer,
             .Product = InfoSettings.Name,

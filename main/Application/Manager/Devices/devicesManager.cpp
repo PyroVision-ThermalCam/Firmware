@@ -140,7 +140,7 @@ esp_err_t DevicesManager_Init(void)
 
     memset(&_Devices_Manager_State, 0, sizeof(Devices_Manager_State_t));
 
-    if (I2CM_Init(&_Devices_Manager_Touch_I2CM_Config, &_Devices_Manager_State.I2C_Bus_Handle) != ESP_OK) {
+    if (I2CM_Init(&_Devices_Manager_Touch_I2CM_Config, &_Devices_Manager_State.Touch_I2C_Bus_Handle) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize Touch I2C!");
 
         return ESP_FAIL;

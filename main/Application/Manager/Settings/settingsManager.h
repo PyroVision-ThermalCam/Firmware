@@ -63,12 +63,13 @@ esp_err_t SettingsManager_Deinit(void);
  *  @param p_Settings   Pointer to settings structure to populate
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if p_Settings is NULL
+ *                      ESP_ERR_NVS_INVALID_STATE if config_valid flag is missing or false
  *                      ESP_ERR_NVS_NOT_FOUND if no settings exist in NVS
  *                      ESP_ERR_INVALID_VERSION if version mismatch
  *                      ESP_ERR_INVALID_SIZE if size mismatch (corrupted)
  *                      ESP_FAIL on other NVS errors
  */
-esp_err_t SettingsManager_Load(App_Settings_t *p_Settings);
+esp_err_t SettingsManager_LoadFromNVS(App_Settings_t *p_Settings);
 
 /** @brief          Save all RAM settings to NVS.
  *                  Writes current settings from RAM to non-volatile storage. Changes
@@ -82,6 +83,15 @@ esp_err_t SettingsManager_Load(App_Settings_t *p_Settings);
  *                  ESP_FAIL if NVS write fails
  */
 esp_err_t SettingsManager_Save(void);
+
+/** @brief          Reset settings in NVS to factory defaults.
+ *                  Marks the config as invalid in NVS and triggers a reboot, causing defaults to be loaded on next init.
+ *  @return         ESP_OK on success
+ *                  ESP_ERR_INVALID_STATE if not initialized
+ *                  ESP_ERR_NVS_NOT_ENOUGH_SPACE if NVS is full
+ *                  ESP_FAIL if NVS write fails
+ */
+esp_err_t SettingsManager_Reset(void);
 
 /** @brief              Get the device information from the Settings Manager RAM.
  *  @param p_Settings   Pointer to Info structure to populate

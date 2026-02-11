@@ -280,8 +280,8 @@ esp_err_t SettingsManager_SetWiFi(const char *p_SSID, const char *p_Pass);
 
 **Example:**
 ```cpp
-/* Reset config_loaded flag to allow reloading default config */
-Error = nvs_set_u8(_State.NVS_Handle, "config_loaded", false);
+/* Reset config_valid flag to allow reloading default config */
+Error = nvs_set_u8(_State.NVS_Handle, "config_valid", false);
 ```
 
 ### Structure Documentation

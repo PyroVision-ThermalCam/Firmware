@@ -70,13 +70,19 @@ typedef struct {
     SemaphoreHandle_t Mutex;
 } Settings_Manager_State_t;
 
-/** @brief          Initialize the settings presets from the NVS by using a config JSON file.
- *  @param p_State  Pointer to the Settings Manager state structure
- *  @return         ESP_OK on succes
- *                  ESP_ERR_INVALID_VERSION if the version in the JSON is older or invalid
- *                  ESP_ERR_* on failure
+
+/** @brief          Load and parse JSON settings from file into RAM settings structure.
+ *                  If the file is missing or invalid, returns an error and leaves settings unchanged.
+ *  @param p_State  Settings state structure
+ *  @param filepath Full path to JSON file
+ *  @return         ESP_OK on success
  */
-esp_err_t SettingsManager_LoadDefaultsFromJSON(Settings_Manager_State_t *p_State);
+esp_err_t SettingsManager_LoadFromJSON(Settings_Manager_State_t *p_State, const char *p_FilePath);
+
+/** @brief          Load factory default settings into RAM settings structure. This is used when no valid settings are found in NVS or JSON config.
+ *  @param p_State  Pointer to Settings Manager state structure
+ */
+void SettingsManager_LoadFromDefaults(Settings_Manager_State_t *p_State);
 
 /** @brief              Initialize Lepton ROIs with factory defaults.
  *  @param p_Settings   Pointer to settings structure
@@ -87,11 +93,6 @@ void SettingsManager_InitDefaultLeptonROIs(App_Settings_t *p_Settings);
  *  @param p_Settings   Pointer to settings structure
  */
 void SettingsManager_InitDefaultLeptonEmissivityPresets(App_Settings_t *p_Settings);
-
-/** @brief          Initialize settings with factory defaults.
- *  @param p_State  Pointer to Settings Manager state structure
- */
-void SettingsManager_InitDefaults(Settings_Manager_State_t *p_State);
 
 /** @brief              Initialize Display settings with factory defaults.
  *  @param p_Settings   Pointer to settings structure
