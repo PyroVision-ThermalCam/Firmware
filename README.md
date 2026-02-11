@@ -10,6 +10,7 @@
   - [Table of Contents](#table-of-contents)
   - [License](#license)
   - [Color palette](#color-palette)
+  - [VISA and HTTP / WebSocket interface](#visa-and-http--websocket-interface)
   - [Maintainer](#maintainer)
 
 ## License
@@ -30,6 +31,10 @@ See [LICENSE](LICENSE) for full text.
 | Light Purple       | #B998FF | Accent color                  |
 | Light Red/Orange   | #FF6F3C | Accent color                  |
 | Dark Gray/Black    | #1E1E1E | Background color              |
+
+## VISA and HTTP / WebSocket interface
+
+The camera can use a VISA and / or HTTP / Websocket interface for communication. Please read the [documentation](Remote-Control.md) for additional informations about it.
 
 ## Maintainer
 
