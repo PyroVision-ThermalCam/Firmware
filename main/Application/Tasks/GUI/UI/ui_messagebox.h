@@ -1,5 +1,5 @@
 /*
- * ui_settings.h
+ * ui_messagebox.h
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
@@ -21,27 +21,22 @@
  * Errors and commissions should be reported to DanielKampert@kampis-elektroecke.de
  */
 
-#ifndef UI_SETTINGS_H_
-#define UI_SETTINGS_H_
+#ifndef UI_MESSAGEBOX_H_
+#define UI_MESSAGEBOX_H_
 
 #include <lvgl.h>
 
 #include <stdint.h>
 
-extern lv_obj_t *ui_settings_wifi_status_label;
-extern lv_obj_t *ui_settings_wifi_connect_btn;
-
-/** @brief          Initializes the settings UI.
- *  @param p_Parent Pointer to the parent object where the settings UI will be attached
+/** @brief                  Show a message box with the specified title and auto-close it after a delay.
+ *  @param p_Title          Title to show in the message box
+ *  @param AutoCloseDelay   Time in seconds after which the message box should auto-close (default: 1 second)
  */
-void ui_settings_init(lv_obj_t *p_Parent);
+void MessageBox_Show(const char *p_Title, uint32_t AutoCloseDelay = 1);
 
-/** @brief  Updates flash partition usage information in the Flash settings page.
- *          Call this when the Flash settings page becomes visible to show
- *          current storage and coredump partition usage.
- *  @note   This function queries the FlashManager for current partition usage
- *          and updates the UI labels accordingly.
+/** @brief          Show a message box indicating the result of a thermal image save operation.
+ *  @param Error    ESP_OK if the image was saved successfully, or an error code if it failed
  */
-void ui_settings_update_flash_usage(void);
+void MessageBox_ImageSaveError(esp_err_t Error);
 
-#endif /* UI_SETTINGS_H_ */
+#endif /* UI_MESSAGEBOX_H_ */

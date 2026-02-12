@@ -44,6 +44,8 @@
 #include "Application/Manager/Network/Server/server.h"
 #include "Private/guiHelper.h"
 #include "Private/guiImageSave.h"
+#include "UI/ui_messagebox.h"
+#include "UI/ui_settings.h"
 
 #include "lepton.h"
 
@@ -68,6 +70,7 @@ static void on_GUI_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
             ESP_LOGI(TAG, "Thermal image saved successfully");
 
             /* Show success message box */
+            // TODO: Move to Messagebox module
             lv_obj_t *msgbox = lv_msgbox_create(NULL);
             lv_msgbox_add_title(msgbox, "Image Saved");
             lv_msgbox_add_text(msgbox, "Thermal image saved successfully!");
@@ -79,6 +82,7 @@ static void on_GUI_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
             ESP_LOGE(TAG, "Thermal image save failed");
 
             /* Show error message box */
+            // TODO: Move to Messagebox module
             lv_obj_t *msgbox = lv_msgbox_create(NULL);
             lv_msgbox_add_title(msgbox, "Save Failed");
             lv_msgbox_add_text(msgbox, "Failed to save thermal image!\\nCheck storage or USB mode.");
@@ -313,7 +317,7 @@ static void on_Lepton_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, 
 static void GUI_Update_Info(void)
 {
     uint8_t MAC[6];
-    char Buffer[19];
+    char Buffer[32];
 
     esp_efuse_mac_get_default(MAC);
     snprintf(Buffer, sizeof(Buffer), "%02X:%02X:%02X:%02X:%02X:%02X", MAC[0], MAC[1], MAC[2], MAC[3], MAC[4], MAC[5]);
@@ -447,7 +451,7 @@ static void GUI_Update_ROI(App_Settings_ROI_t ROI)
 static void UI_Canvas_AddTempGradient(void)
 {
     /* Generate gradient pixel by pixel */
-    uint16_t *buffer = reinterpret_cast<uint16_t *>(_GUI_Task_State.GradientCanvasBuffer);
+    uint16_t *Buffer = reinterpret_cast<uint16_t *>(_GUI_Task_State.GradientCanvasBuffer);
 
     for (uint32_t y = 0; y < _GUI_Task_State.GradientImageDescriptor.header.h; y++) {
         uint32_t index;
@@ -470,7 +474,7 @@ static void UI_Canvas_AddTempGradient(void)
 
         /* Fill entire row with same color */
         for (uint32_t x = 0; x < _GUI_Task_State.GradientImageDescriptor.header.w; x++) {
-            buffer[y * _GUI_Task_State.GradientImageDescriptor.header.w + x] = (r5 << 11) | (g6 << 5) | b5;
+            Buffer[y * _GUI_Task_State.GradientImageDescriptor.header.w + x] = (r5 << 11) | (g6 << 5) | b5;
         }
     }
 }
@@ -495,10 +499,11 @@ static void Touch_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Data
     }
 
     if ((esp_lcd_touch_read_data(Touch) == ESP_OK) &&
-        (esp_lcd_touch_get_data(Touch, Data, &Count, sizeof(Data) / sizeof(Data[0])) == ESP_OK) && (Count > 0)) {
+        (esp_lcd_touch_get_data(Touch, Data, &Count, sizeof(Data) / sizeof(Data[0])) == ESP_OK) &&
+        (Count > 0)
+       ) {
         p_Data->point.x = CONFIG_GUI_WIDTH - Data[0].x;
         p_Data->point.y = Data[0].y;
-
         p_Data->state = LV_INDEV_STATE_PRESSED;
 
         ESP_LOGD(TAG, "Raw: (%d, %d)", Data[0].x, Data[0].y);
@@ -512,10 +517,10 @@ static void Touch_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Data
         }
 
         if (_GUI_Task_State.TouchDebugLabel != NULL) {
-            char buf[64];
+            char Buffer[64];
 
-            snprintf(buf, sizeof(buf), "Raw: %u,%u\nMap: %li,%li", Data[0].x, Data[0].y, p_Data->point.x, p_Data->point.y);
-            lv_label_set_text(_GUI_Task_State.TouchDebugLabel, buf);
+            snprintf(Buffer, sizeof(Buffer), "Raw: %u,%u\nMap: %li,%li", Data[0].x, Data[0].y, p_Data->point.x, p_Data->point.y);
+            lv_label_set_text(_GUI_Task_State.TouchDebugLabel, Buffer);
             lv_obj_clear_flag(_GUI_Task_State.TouchDebugLabel, LV_OBJ_FLAG_HIDDEN);
         }
 #endif
@@ -540,6 +545,7 @@ static void Touch_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Data
  */
 void Task_GUI(void *p_Parameters)
 {
+    uint32_t Timeout;
     App_Context_t *App_Context;
     App_Settings_Lepton_t LeptonSettings;
 
@@ -553,6 +559,7 @@ void Task_GUI(void *p_Parameters)
     /* Initialization process: */
     /*  - Loading the settings */
     /*  - Waiting for the Lepton */
+    Timeout = 0;
     do {
         EventBits_t EventBits;
 
@@ -570,7 +577,11 @@ void Task_GUI(void *p_Parameters)
             xEventGroupClearBits(_GUI_Task_State.EventGroup, LEPTON_CAMERA_ERROR);
         }
 
-        // TODO: Add timeout
+        if(Timeout >= 30000) {
+            esp_event_post(GUI_EVENTS, GUI_EVENT_INIT_ERROR, NULL, 0, portMAX_DELAY);
+
+            break;
+        }
 
         lv_timer_handler();
         vTaskDelay(100 / portTICK_PERIOD_MS);
@@ -601,8 +612,8 @@ void Task_GUI(void *p_Parameters)
         /* Check for new thermal frame */
         if (xQueueReceive(App_Context->Lepton_FrameEventQueue, &LeptonFrame, 0) == pdTRUE) {
             uint8_t *Dst;
-            uint32_t Image_Width;
-            uint32_t Image_Height;
+            uint32_t ImageWidth;
+            uint32_t ImageHeight;
             char Buffer[16];
 
             /* Variables for Illuminance values for the scene label.
@@ -637,25 +648,25 @@ void Task_GUI(void *p_Parameters)
 
             /* Scale from source (160x120) to destination (240x180) using bilinear interpolation */
             Dst = _GUI_Task_State.ThermalCanvasBuffer;
-            Image_Width = lv_obj_get_width(ui_Image_Thermal);
-            Image_Height = lv_obj_get_height(ui_Image_Thermal);
+            ImageWidth = lv_obj_get_width(ui_Image_Thermal);
+            ImageHeight = lv_obj_get_height(ui_Image_Thermal);
 
             /* Skip if image widget not properly initialized yet */
-            if ((Image_Width == 0) || (Image_Height == 0)) {
-                ESP_LOGW(TAG, "Image widget not ready yet (size: %ux%u), skipping frame", Image_Width, Image_Height);
+            if ((ImageWidth == 0) || (ImageHeight == 0)) {
+                ESP_LOGW(TAG, "Image widget not ready yet (size: %ux%u), skipping frame", ImageWidth, ImageHeight);
 
                 continue;
             }
 
-            for (uint32_t y = 0; y < Image_Height; y++) {
-                uint32_t src_y_fixed = y * ((LeptonFrame.Height - 1) << 16) / Image_Height;
+            for (uint32_t y = 0; y < ImageHeight; y++) {
+                uint32_t src_y_fixed = y * ((LeptonFrame.Height - 1) << 16) / ImageHeight;
                 uint32_t y0 = src_y_fixed >> 16;
                 uint32_t y1 = ((y0 + 1) < LeptonFrame.Height) ? (y0 + 1) : y0;
                 uint32_t y_frac = (src_y_fixed >> 8) & 0xFF; /* 8-bit fractional part */
                 uint32_t y_inv = 256 - y_frac;
 
-                for (uint32_t x = 0; x < Image_Width; x++) {
-                    uint32_t src_x_fixed = x * ((LeptonFrame.Width - 1) << 16) / Image_Width;
+                for (uint32_t x = 0; x < ImageWidth; x++) {
+                    uint32_t src_x_fixed = x * ((LeptonFrame.Width - 1) << 16) / ImageWidth;
                     uint32_t x0 = src_x_fixed >> 16;
                     uint32_t x1 = ((x0 + 1) < LeptonFrame.Width) ? (x0 + 1) : x0;
                     uint32_t x_frac = (src_x_fixed >> 8) & 0xFF; /* 8-bit fractional part */
@@ -694,7 +705,7 @@ void Task_GUI(void *p_Parameters)
                      * - x_rot = Image_Width - 1 - x (X axis is inverted due to rotation)
                      * - y is used directly (Y axis matches label position directly)
                      */
-                    uint32_t x_rot = Image_Width - 1 - x;
+                    uint32_t x_rot = ImageWidth - 1 - x;
 
                     /* Max Label */
                     if ((x_rot >= SceneLabel_x0[0]) &&
@@ -723,7 +734,7 @@ void Task_GUI(void *p_Parameters)
                         SceneLabelCount[2]++;
                     }
 
-                    uint32_t dst_idx = (y * Image_Width) + x;
+                    uint32_t dst_idx = (y * ImageWidth) + x;
 
                     /* Convert to RGB565 - LVGL handles swapping with RGB565_SWAPPED */
                     uint16_t rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
@@ -768,7 +779,7 @@ void Task_GUI(void *p_Parameters)
             /* Trigger LVGL to redraw the image */
             lv_obj_invalidate(ui_Image_Thermal);
             ESP_LOGD(TAG, "Updated thermal image display (src: %ux%u -> dst: %ux%u)", LeptonFrame.Width, LeptonFrame.Height,
-                     Image_Width, Image_Height);
+                     ImageWidth, ImageHeight);
 
             /* Save frame if requested */
             if (_GUI_Task_State.SaveNextFrameRequested) {
@@ -777,8 +788,8 @@ void Task_GUI(void *p_Parameters)
                 /* Prepare frame data for save task (using scaled RGB565 buffer) */
                 App_Lepton_FrameReady_t SaveFrame;
                 SaveFrame.Buffer = _GUI_Task_State.ThermalCanvasBuffer;  /* Use scaled display buffer */
-                SaveFrame.Width = Image_Width;
-                SaveFrame.Height = Image_Height;
+                SaveFrame.Width = ImageWidth;
+                SaveFrame.Height = ImageHeight;
                 SaveFrame.Channels = 2;  /* RGB565 = 2 bytes per pixel */
                 SaveFrame.Min = LeptonFrame.Min;
                 SaveFrame.Max = LeptonFrame.Max;
@@ -797,7 +808,7 @@ void Task_GUI(void *p_Parameters)
                     /* Convert scaled RGB565 buffer to RGB888 for network transmission */
                     uint8_t *rgb888_dst = _GUI_Task_State.NetworkRGBBuffer;
 
-                    for (uint32_t i = 0; i < (Image_Width * Image_Height); i++) {
+                    for (uint32_t i = 0; i < (ImageWidth * ImageHeight); i++) {
                         /* Read RGB565 value (little endian) */
                         uint16_t rgb565 = Dst[(i * 2) + 0] | (Dst[(i * 2) + 1] << 8);
 
@@ -813,8 +824,8 @@ void Task_GUI(void *p_Parameters)
                     }
 
                     _GUI_Task_State.NetworkFrame.Buffer = _GUI_Task_State.NetworkRGBBuffer;
-                    _GUI_Task_State.NetworkFrame.Width = Image_Width;
-                    _GUI_Task_State.NetworkFrame.Height = Image_Height;
+                    _GUI_Task_State.NetworkFrame.Width = ImageWidth;
+                    _GUI_Task_State.NetworkFrame.Height = ImageHeight;
                     _GUI_Task_State.NetworkFrame.Timestamp = esp_timer_get_time() / 1000;
 
                     xSemaphoreGive(_GUI_Task_State.NetworkFrame.Mutex);
@@ -863,25 +874,31 @@ void Task_GUI(void *p_Parameters)
             xEventGroupClearBits(_GUI_Task_State.EventGroup, BATTERY_CHARGING_STATUS_READY);
         } else if (EventBits & WIFI_CONNECTION_STATE_CHANGED) {
             if (_GUI_Task_State.WiFiConnected) {
-                char Buffer[16];
+                char Buffer[32];
 
-                snprintf(Buffer, sizeof(Buffer), "%lu.%lu.%lu.%lu",
+                memset(Buffer, 0, sizeof(Buffer));
+                snprintf(Buffer, sizeof(Buffer), "IP: %lu.%lu.%lu.%lu",
                          (_GUI_Task_State.IP_Info.IP >> 0) & 0xFF,
                          (_GUI_Task_State.IP_Info.IP >> 8) & 0xFF,
                          (_GUI_Task_State.IP_Info.IP >> 16) & 0xFF,
                          (_GUI_Task_State.IP_Info.IP >> 24) & 0xFF);
 
-                lv_label_set_text(ui_Label_Info_IP, Buffer);
+                /* Skip "IP: " prefix for label */
+                lv_label_set_text(ui_Label_Info_IP, &Buffer[4]);
+                lv_label_set_text(ui_settings_wifi_status_label, &Buffer[4]);
                 lv_obj_set_style_text_color(ui_Image_Main_WiFi, lv_color_hex(0x00FF00), LV_PART_MAIN);
 
-                // TODO: Disable WiFi buttons in the menu
-                //lv_obj_remove_flag(ui_Button_Main_WiFi, LV_OBJ_FLAG_CLICKABLE);
+                MessageBox_Show(Buffer);
+
+                /* Disable WiFi buttons in the settings menu */
+                lv_obj_remove_flag(ui_settings_wifi_connect_btn, LV_OBJ_FLAG_CLICKABLE);
             } else {
                 lv_label_set_text(ui_Label_Info_IP, "Not connected");
+                lv_label_set_text(ui_settings_wifi_status_label, "Not connected");
                 lv_obj_set_style_text_color(ui_Image_Main_WiFi, lv_color_hex(0xFF0000), LV_PART_MAIN);
 
-                // TODO: Disable WiFi buttons in the menu
-                //lv_obj_add_flag(ui_Button_Main_WiFi, LV_OBJ_FLAG_CLICKABLE);
+                /* Disable WiFi buttons in the settings menu */
+                lv_obj_add_flag(ui_settings_wifi_connect_btn, LV_OBJ_FLAG_CLICKABLE);
             }
 
             xEventGroupClearBits(_GUI_Task_State.EventGroup, WIFI_CONNECTION_STATE_CHANGED);
@@ -935,17 +952,18 @@ void Task_GUI(void *p_Parameters)
             xEventGroupClearBits(_GUI_Task_State.EventGroup, LEPTON_PIXEL_TEMPERATURE_READY);
         } else if (EventBits & LEPTON_SCENE_STATISTICS_READY) {
             char Buffer[16];
+            float Temp;
 
-            float temp_max_celsius = _GUI_Task_State.ROIResult.Max;
-            snprintf(Buffer, sizeof(Buffer), "%.1f °C", temp_max_celsius);
+            Temp = _GUI_Task_State.ROIResult.Max;
+            snprintf(Buffer, sizeof(Buffer), "%.1f °C", Temp);
             lv_label_set_text(ui_Label_Main_Thermal_Scene_Max, Buffer);
 
-            float temp_min_celsius = _GUI_Task_State.ROIResult.Min;
-            snprintf(Buffer, sizeof(Buffer), "%.1f °C", temp_min_celsius);
+            Temp = _GUI_Task_State.ROIResult.Min;
+            snprintf(Buffer, sizeof(Buffer), "%.1f °C", Temp);
             lv_label_set_text(ui_Label_Main_Thermal_Scene_Min, Buffer);
 
-            float temp_mean_celsius = _GUI_Task_State.ROIResult.Mean ;
-            snprintf(Buffer, sizeof(Buffer), "%.1f °C", temp_mean_celsius);
+            Temp = _GUI_Task_State.ROIResult.Mean ;
+            snprintf(Buffer, sizeof(Buffer), "%.1f °C", Temp);
             lv_label_set_text(ui_Label_Main_Thermal_Scene_Mean, Buffer);
 
             xEventGroupClearBits(_GUI_Task_State.EventGroup, LEPTON_SCENE_STATISTICS_READY);

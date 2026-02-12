@@ -234,7 +234,7 @@ esp_err_t SettingsManager_LoadFromNVS(App_Settings_t *p_Settings)
 
     /* Get the settings version from NVS. Continue loading if the version numbers match. */
     Error = nvs_get_u32(_Settings_Manager_State.NVS_Handle, "version", &p_Settings->Version);
-    if ((Error != ESP_OK) && (p_Settings->Version == SETTINGS_VERSION)) {
+    if ((Error == ESP_OK) && (p_Settings->Version == SETTINGS_VERSION)) {
         Error = nvs_get_blob(_Settings_Manager_State.NVS_Handle, "settings", NULL, &RequiredSize);
         if (Error == ESP_ERR_NVS_NOT_FOUND) {
             ESP_LOGW(TAG, "Settings not found in NVS!");
@@ -300,6 +300,14 @@ esp_err_t SettingsManager_Save(void)
 
     xSemaphoreTake(_Settings_Manager_State.Mutex, portMAX_DELAY);
 
+    /* Save the version number first */
+    Error = nvs_set_u32(_Settings_Manager_State.NVS_Handle, "version", _Settings_Manager_State.Settings.Version);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to write version: %d!", Error);
+
+        goto SettingsManager_Save_Error;
+    }
+
     Error = nvs_set_blob(_Settings_Manager_State.NVS_Handle, "settings", &_Settings_Manager_State.Settings,
                          sizeof(App_Settings_t));
     if (Error != ESP_OK) {
@@ -325,7 +333,7 @@ esp_err_t SettingsManager_Save(void)
 
     xSemaphoreGive(_Settings_Manager_State.Mutex);
 
-    ESP_LOGI(TAG, "Settings saved to NVS");
+    ESP_LOGI(TAG, "Settings saved to NVS (version %u)", _Settings_Manager_State.Settings.Version);
 
     esp_event_post(SETTINGS_EVENTS, SETTINGS_EVENT_SAVED, NULL, 0, portMAX_DELAY);
 
@@ -337,32 +345,6 @@ SettingsManager_Save_Error:
     ESP_LOGE(TAG, "Failed to save settings to NVS: %d!", Error);
 
     return Error;
-}
-
-esp_err_t SettingsManager_Reset(void)
-{
-    esp_err_t Error;
-
-    if (_Settings_Manager_State.isInitialized == false) {
-        return ESP_ERR_INVALID_STATE;
-    }
-
-    /* Mark the config as invalid */
-    Error = nvs_set_u8(_Settings_Manager_State.NVS_Handle, "config_valid", true);
-    if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set config_valid flag: %d!", Error);
-
-        return Error;
-    }
-
-    Error = nvs_commit(_Settings_Manager_State.NVS_Handle);
-    if(Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to commit settings reset: %d!", Error);
-
-        return Error;
-    }
-
-    esp_restart();
 }
 
 esp_err_t SettingsManager_GetInfo(App_Settings_Info_t *p_Settings)

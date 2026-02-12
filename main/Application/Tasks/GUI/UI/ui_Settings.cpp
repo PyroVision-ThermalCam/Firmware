@@ -1,5 +1,5 @@
 /*
- * ui_Settings.cpp
+ * ui_settings.cpp
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
@@ -29,12 +29,9 @@
 #include "../Export/ui.h"
 #include "../Export/screens/ui_Menu.h"
 
-#include "ui_Settings.h"
-#include "Private/ui_Settings_Events.h"
-#include "../../../Manager/Settings/settingsManager.h"
-#include "../../../Manager/Memory/memoryManager.h"
-#include "../../../Manager/Network/Server/server.h"
-#include "../../../Manager/USB/usbManager.h"
+#include "ui_settings.h"
+#include "ui_settings_events.h"
+#include "managers.h"
 
 Slider_Widgets_t brightness_widgets;
 Slider_Widgets_t emissivity_widgets;
@@ -43,8 +40,8 @@ static lv_obj_t *flash_storage_used_label = NULL;
 static lv_obj_t *flash_storage_free_label = NULL;
 static lv_obj_t *flash_coredump_used_label = NULL;
 static lv_obj_t *flash_coredump_total_label = NULL;
+static lv_obj_t *root_page;
 
-lv_obj_t *root_page;
 lv_obj_t *cont;
 lv_obj_t *section;
 lv_obj_t *about_Page;
@@ -52,13 +49,37 @@ lv_obj_t *wifi_Page;
 lv_obj_t *display_Page;
 lv_obj_t *lepton_Page;
 lv_obj_t *flash_Page;
-lv_obj_t *usb_Page;
 lv_obj_t *settings_Menu;
 lv_obj_t *emissivity_Dropdown;
-lv_obj_t *wifi_status_label;
+lv_obj_t *usb_Page;
 lv_obj_t *usb_mode_switch;
+lv_obj_t *ui_settings_wifi_status_label;
+lv_obj_t *ui_settings_wifi_connect_btn;
 
-static lv_obj_t *create_menu_container(lv_obj_t *parent)
+/** @brief      Event handler for menu page changes to control Save button visibility.
+ *  @note       Hides Save button when USB or Flash settings are active because
+ *              filesystem is locked during USB mode and Flash operations don't
+ *              require explicit saving.
+ *  @param e    Pointer to the event
+ */
+static void on_Menu_PageChanged(lv_event_t *e)
+{
+    lv_obj_t *menu_obj = static_cast<lv_obj_t *>(lv_event_get_target(e));
+    lv_obj_t *cur_page = lv_menu_get_cur_main_page(menu_obj);
+
+    if (cur_page == NULL) {
+        return;
+    }
+
+    /* Hide Save button on USB and Flash pages */
+    if ((cur_page == usb_Page) || (cur_page == flash_Page)) {
+        lv_obj_add_flag(ui_Button_Menu_Save, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_remove_flag(ui_Button_Menu_Save, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+static lv_obj_t *ui_Settings_Create_Menu_Container(lv_obj_t *parent)
 {
     lv_obj_t *container = lv_obj_create(parent);
     lv_obj_clear_flag(container, LV_OBJ_FLAG_CLICKABLE);
@@ -75,7 +96,7 @@ static lv_obj_t *create_menu_container(lv_obj_t *parent)
     return container;
 }
 
-static lv_obj_t *create_row(lv_obj_t *parent, lv_flex_align_t main_align)
+static lv_obj_t *ui_Settings_Create_Row(lv_obj_t *parent, lv_flex_align_t main_align)
 {
     lv_obj_t *row = lv_obj_create(parent);
     lv_obj_clear_flag(row, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_GESTURE_BUBBLE));
@@ -92,7 +113,7 @@ static lv_obj_t *create_row(lv_obj_t *parent, lv_flex_align_t main_align)
     return row;
 }
 
-static lv_obj_t *create_compact_slider(lv_obj_t *parent, const char *label_text,
+static lv_obj_t *ui_Settings_Create_Compact_Slider(lv_obj_t *parent, const char *label_text,
                                        int min_val, int max_val, int init_val, Slider_Widgets_t *widgets)
 {
     char Buffer[8];
@@ -101,7 +122,7 @@ static lv_obj_t *create_compact_slider(lv_obj_t *parent, const char *label_text,
         return NULL;
     }
 
-    lv_obj_t *label_row = create_row(parent, LV_FLEX_ALIGN_START);
+    lv_obj_t *label_row = ui_Settings_Create_Row(parent, LV_FLEX_ALIGN_START);
     lv_obj_t *label = lv_label_create(label_row);
     lv_label_set_text(label, label_text);
     lv_obj_set_width(label, LV_PCT(50));
@@ -122,7 +143,7 @@ static lv_obj_t *create_compact_slider(lv_obj_t *parent, const char *label_text,
     lv_obj_clear_flag(value_label, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_margin_left(value_label, 10, 0);
 
-    lv_obj_t *slider_row = create_row(parent, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *slider_row = ui_Settings_Create_Row(parent, LV_FLEX_ALIGN_CENTER);
     lv_obj_t *slider = lv_slider_create(slider_row);
     lv_obj_clear_flag(slider, LV_OBJ_FLAG_GESTURE_BUBBLE);
 
@@ -140,11 +161,11 @@ static lv_obj_t *create_compact_slider(lv_obj_t *parent, const char *label_text,
     return slider;
 }
 
-static Menu_Page_Result_t create_menu_page_with_container(lv_obj_t *menu)
+static Menu_Page_Result_t ui_Settings_Create_Menu_Page_With_Container(lv_obj_t *menu)
 {
     lv_obj_t *page = lv_menu_page_create(menu, NULL);
     lv_obj_t *section = lv_menu_section_create(page);
-    lv_obj_t *container = create_menu_container(section);
+    lv_obj_t *container = ui_Settings_Create_Menu_Container(section);
 
     lv_obj_set_scrollbar_mode(menu, LV_SCROLLBAR_MODE_OFF);
 
@@ -168,7 +189,7 @@ static Menu_Page_Result_t create_menu_page_with_container(lv_obj_t *menu)
     return {container, page};
 }
 
-static lv_obj_t *create_text(lv_obj_t *parent, const char *txt)
+static lv_obj_t *ui_Settings_Create_Text(lv_obj_t *parent, const char *txt)
 {
     lv_obj_t *label = NULL;
 
@@ -214,29 +235,6 @@ static lv_obj_t *create_text(lv_obj_t *parent, const char *txt)
     return obj;
 }
 
-/** @brief      Event handler for menu page changes to control Save button visibility.
- *  @note       Hides Save button when USB or Flash settings are active because
- *              filesystem is locked during USB mode and Flash operations don't
- *              require explicit saving.
- *  @param e    Pointer to the event
- */
-static void on_menu_page_changed(lv_event_t *e)
-{
-    lv_obj_t *menu_obj = static_cast<lv_obj_t *>(lv_event_get_target(e));
-    lv_obj_t *cur_page = lv_menu_get_cur_main_page(menu_obj);
-
-    if (cur_page == NULL) {
-        return;
-    }
-
-    /* Hide Save button on USB and Flash pages */
-    if ((cur_page == usb_Page) || (cur_page == flash_Page)) {
-        lv_obj_add_flag(ui_Button_Menu_Save, LV_OBJ_FLAG_HIDDEN);
-    } else {
-        lv_obj_remove_flag(ui_Button_Menu_Save, LV_OBJ_FLAG_HIDDEN);
-    }
-}
-
 /** @brief          Creates the About page.
  *  @param p_Menu   Pointer to the menu object
  */
@@ -251,7 +249,7 @@ static lv_obj_t *ui_Settings_Create_About_Page(lv_obj_t *p_parent)
     lv_obj_t *sub_legal_info_page;
     char Buffer[64];
 
-    about_result = create_menu_page_with_container(p_parent);
+    about_result = ui_Settings_Create_Menu_Page_With_Container(p_parent);
     about_container = about_result.Container;
     about_page = about_result.Page;
 
@@ -262,20 +260,20 @@ static lv_obj_t *ui_Settings_Create_About_Page(lv_obj_t *p_parent)
     lv_obj_set_style_bg_color(section, lv_color_hex(0x1E1E1E), 0);
     lv_obj_set_style_bg_opa(section, 255, 0);
     lv_obj_set_style_pad_all(section, 8, 0);
-    create_text(section, "PyroVision Firmware");
+    ui_Settings_Create_Text(section, "PyroVision Firmware");
 
     memset(Buffer, 0, sizeof(Buffer));
     snprintf(Buffer, sizeof(Buffer), "Version %u.%u.%u", 1, 0, 0);
-    create_text(section, Buffer);
+    ui_Settings_Create_Text(section, Buffer);
 
     memset(Buffer, 0, sizeof(Buffer));
     snprintf(Buffer, sizeof(Buffer), "Platform: %s", CONFIG_IDF_TARGET);
-    create_text(section, Buffer);
+    ui_Settings_Create_Text(section, Buffer);
 
     memset(Buffer, 0, sizeof(Buffer));
     snprintf(Buffer, sizeof(Buffer), "LVGL Version: %d.%d.%d\n", LVGL_VERSION_MAJOR, LVGL_VERSION_MINOR,
              LVGL_VERSION_PATCH);
-    create_text(section, Buffer);
+    ui_Settings_Create_Text(section, Buffer);
 
     sub_legal_info_page = lv_menu_page_create(p_parent, NULL);
     section = lv_menu_section_create(sub_legal_info_page);
@@ -295,9 +293,9 @@ static lv_obj_t *ui_Settings_Create_About_Page(lv_obj_t *p_parent)
     lv_obj_set_style_text_align(license_label, LV_TEXT_ALIGN_LEFT, 0);
     lv_label_set_long_mode(license_label, LV_LABEL_LONG_WRAP);
 
-    cont = create_text(about_container, "Software information");
+    cont = ui_Settings_Create_Text(about_container, "Software information");
     lv_menu_set_load_page_event(p_parent, cont, sub_software_info_page);
-    cont = create_text(about_container, "Legal information");
+    cont = ui_Settings_Create_Text(about_container, "Legal information");
     lv_menu_set_load_page_event(p_parent, cont, sub_legal_info_page);
 
     return about_page;
@@ -308,14 +306,14 @@ static lv_obj_t *ui_Settings_Create_About_Page(lv_obj_t *p_parent)
  */
 static lv_obj_t *ui_Settings_Create_WiFi_Page(lv_obj_t *p_Menu)
 {
-    Menu_Page_Result_t WiFiResult = create_menu_page_with_container(p_Menu);
+    Menu_Page_Result_t WiFiResult = ui_Settings_Create_Menu_Page_With_Container(p_Menu);
     lv_obj_t *WiFiContainer = WiFiResult.Container;
     lv_obj_t *WiFiPage = WiFiResult.Page;
     App_Settings_WiFi_t WiFiSettings;
 
     SettingsManager_GetWiFi(&WiFiSettings);
 
-    lv_obj_t *wifi_row1 = create_row(WiFiContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
+    lv_obj_t *wifi_row1 = ui_Settings_Create_Row(WiFiContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
     lv_obj_t *wifi_label = lv_label_create(wifi_row1);
     lv_label_set_text(wifi_label, "Autoconnect");
     lv_obj_set_style_text_color(wifi_label, lv_color_white(), 0);
@@ -331,26 +329,26 @@ static lv_obj_t *ui_Settings_Create_WiFi_Page(lv_obj_t *p_Menu)
         lv_obj_remove_state(wifi_switch, LV_STATE_CHECKED);
     }
 
-    lv_obj_t *wifi_row2 = create_row(WiFiContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
+    lv_obj_t *wifi_row2 = ui_Settings_Create_Row(WiFiContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
     lv_obj_t *ssid_label = lv_label_create(wifi_row2);
     lv_label_set_text(ssid_label, "Status");
     lv_obj_set_style_text_color(ssid_label, lv_color_white(), 0);
-    wifi_status_label = lv_label_create(wifi_row2);
-    lv_label_set_text(wifi_status_label, "Offline");
-    lv_obj_set_style_text_color(wifi_status_label, lv_color_hex(0xFF9500), 0);
+    ui_settings_wifi_status_label = lv_label_create(wifi_row2);
+    lv_label_set_text(ui_settings_wifi_status_label, "Offline");
+    lv_obj_set_style_text_color(ui_settings_wifi_status_label, lv_color_hex(0xFF9500), 0);
 
     /* WiFi Connect Button */
-    lv_obj_t *wifi_btn_row = create_row(WiFiContainer, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *wifi_btn_row = ui_Settings_Create_Row(WiFiContainer, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_height(wifi_btn_row, LV_SIZE_CONTENT);
     lv_obj_set_style_pad_top(wifi_btn_row, 12, 0);
     lv_obj_set_style_pad_bottom(wifi_btn_row, 8, 0);
-    lv_obj_t *wifi_connect_btn = lv_btn_create(wifi_btn_row);
-    lv_obj_set_size(wifi_connect_btn, 140, 36);
-    lv_obj_set_style_bg_color(wifi_connect_btn, lv_color_hex(0xFF9500), LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(wifi_connect_btn, 6, 0);
-    lv_obj_set_style_shadow_width(wifi_connect_btn, 0, 0);
-    lv_obj_add_event_cb(wifi_connect_btn, on_WiFi_Connect_Callback, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *wifi_btn_label = lv_label_create(wifi_connect_btn);
+    ui_settings_wifi_connect_btn = lv_btn_create(wifi_btn_row);
+    lv_obj_set_size(ui_settings_wifi_connect_btn, 140, 36);
+    lv_obj_set_style_bg_color(ui_settings_wifi_connect_btn, lv_color_hex(0xFF9500), LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(ui_settings_wifi_connect_btn, 6, 0);
+    lv_obj_set_style_shadow_width(ui_settings_wifi_connect_btn, 0, 0);
+    lv_obj_add_event_cb(ui_settings_wifi_connect_btn, on_WiFi_Connect_Callback, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *wifi_btn_label = lv_label_create(ui_settings_wifi_connect_btn);
     lv_label_set_text(wifi_btn_label, "Connect WiFi");
     lv_obj_set_style_text_color(wifi_btn_label, lv_color_white(), 0);
     lv_obj_center(wifi_btn_label);
@@ -363,14 +361,14 @@ static lv_obj_t *ui_Settings_Create_WiFi_Page(lv_obj_t *p_Menu)
  */
 static lv_obj_t *ui_Settings_Create_Display_Page(lv_obj_t *p_Menu)
 {
-    Menu_Page_Result_t DisplayResult = create_menu_page_with_container(p_Menu);
+    Menu_Page_Result_t DisplayResult = ui_Settings_Create_Menu_Page_With_Container(p_Menu);
     lv_obj_t *DisplayContainer = DisplayResult.Container;
     lv_obj_t *DisplayPage = DisplayResult.Page;
     App_Settings_Display_t DisplaySettings;
 
     SettingsManager_GetDisplay(&DisplaySettings);
 
-    lv_obj_t *brightness_slider = create_compact_slider(DisplayContainer, "Brightness", 0, 100, DisplaySettings.Brightness,
+    lv_obj_t *brightness_slider = ui_Settings_Create_Compact_Slider(DisplayContainer, "Brightness", 0, 100, DisplaySettings.Brightness,
                                                         &brightness_widgets);
 
     lv_obj_add_event_cb(brightness_slider, on_Display_Brightness_Slider_Callback, LV_EVENT_VALUE_CHANGED, NULL);
@@ -384,7 +382,7 @@ static lv_obj_t *ui_Settings_Create_Display_Page(lv_obj_t *p_Menu)
 static lv_obj_t *ui_Settings_Create_Lepton_Page(lv_obj_t *p_Menu)
 {
     std::string Buffer;
-    Menu_Page_Result_t LeptonResult = create_menu_page_with_container(p_Menu);
+    Menu_Page_Result_t LeptonResult = ui_Settings_Create_Menu_Page_With_Container(p_Menu);
     lv_obj_t *LeptonContainer = LeptonResult.Container;
     lv_obj_t *LeptonPage = LeptonResult.Page;
     App_Settings_Lepton_t LeptonSettings;
@@ -395,13 +393,13 @@ static lv_obj_t *ui_Settings_Create_Lepton_Page(lv_obj_t *p_Menu)
         Buffer += LeptonSettings.EmissivityPresets[i].Description + std::string("\n");
     }
 
-    lv_obj_t *emissivity_slider = create_compact_slider(LeptonContainer, "Emissivity", 0, 100,
+    lv_obj_t *emissivity_slider = ui_Settings_Create_Compact_Slider(LeptonContainer, "Emissivity", 0, 100,
                                                         LeptonSettings.CurrentEmissivity, &emissivity_widgets);
 
     lv_obj_add_event_cb(emissivity_slider, on_Lepton_Emissivity_Slider_Callback, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(emissivity_slider, on_Lepton_Emissivity_Slider_Callback, LV_EVENT_RELEASED, NULL);
 
-    lv_obj_t *dropdown_row = create_row(LeptonContainer, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *dropdown_row = ui_Settings_Create_Row(LeptonContainer, LV_FLEX_ALIGN_CENTER);
     emissivity_Dropdown = lv_dropdown_create(dropdown_row);
     lv_obj_set_width(emissivity_Dropdown, LV_PCT(95));
     lv_obj_set_style_bg_color(emissivity_Dropdown, lv_color_hex(0x3A3A3A), LV_PART_MAIN);
@@ -425,7 +423,7 @@ static lv_obj_t *ui_Settings_Create_Lepton_Page(lv_obj_t *p_Menu)
  */
 static lv_obj_t *ui_Settings_Create_USB_Page(lv_obj_t *p_Menu)
 {
-    Menu_Page_Result_t USBResult = create_menu_page_with_container(p_Menu);
+    Menu_Page_Result_t USBResult = ui_Settings_Create_Menu_Page_With_Container(p_Menu);
     lv_obj_t *USBContainer = USBResult.Container;
     lv_obj_t *USBPage = USBResult.Page;
 
@@ -443,12 +441,12 @@ static lv_obj_t *ui_Settings_Create_USB_Page(lv_obj_t *p_Menu)
     lv_obj_set_style_pad_bottom(usb_desc_label, 8, 0);
 
     lv_obj_t *usb_warning_label = lv_label_create(USBContainer);
-    lv_label_set_text(usb_warning_label, "⚠️  App cannot save while USB is active!");
+    lv_label_set_text(usb_warning_label, "  App cannot save while USB is active!");
     lv_obj_set_style_text_color(usb_warning_label, lv_color_hex(0xFF9500), 0);
     lv_obj_set_style_text_font(usb_warning_label, &lv_font_montserrat_10, 0);
     lv_obj_set_style_pad_bottom(usb_warning_label, 12, 0);
 
-    lv_obj_t *usb_switch_row = create_row(USBContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
+    lv_obj_t *usb_switch_row = ui_Settings_Create_Row(USBContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
     lv_obj_set_style_pad_top(usb_switch_row, 4, 0);
     lv_obj_set_style_pad_bottom(usb_switch_row, 4, 0);
 
@@ -471,7 +469,7 @@ static lv_obj_t *ui_Settings_Create_USB_Page(lv_obj_t *p_Menu)
  */
 static lv_obj_t *ui_Settings_Create_Flash_Page(lv_obj_t *p_Menu)
 {
-    Menu_Page_Result_t FlashResult = create_menu_page_with_container(p_Menu);
+    Menu_Page_Result_t FlashResult = ui_Settings_Create_Menu_Page_With_Container(p_Menu);
     lv_obj_t *FlashContainer = FlashResult.Container;
     lv_obj_t *FlashPage = FlashResult.Page;
 
@@ -488,7 +486,7 @@ static lv_obj_t *ui_Settings_Create_Flash_Page(lv_obj_t *p_Menu)
     lv_obj_set_style_text_font(nvs_desc_label, &lv_font_montserrat_12, 0);
     lv_obj_set_style_pad_bottom(nvs_desc_label, 8, 0);
 
-    lv_obj_t *nvs_btn_row = create_row(FlashContainer, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *nvs_btn_row = ui_Settings_Create_Row(FlashContainer, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_height(nvs_btn_row, LV_SIZE_CONTENT);
     lv_obj_set_style_pad_top(nvs_btn_row, 4, 0);
     lv_obj_set_style_pad_bottom(nvs_btn_row, 4, 0);
@@ -519,7 +517,7 @@ static lv_obj_t *ui_Settings_Create_Flash_Page(lv_obj_t *p_Menu)
     lv_obj_set_style_pad_top(storage_section_label, 0, 0);
     lv_obj_set_style_pad_bottom(storage_section_label, 8, 0);
 
-    lv_obj_t *storage_info_row = create_row(FlashContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
+    lv_obj_t *storage_info_row = ui_Settings_Create_Row(FlashContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
     lv_obj_t *storage_used_label = lv_label_create(storage_info_row);
     lv_label_set_text(storage_used_label, "Used:");
     lv_obj_set_style_text_color(storage_used_label, lv_color_white(), 0);
@@ -527,7 +525,7 @@ static lv_obj_t *ui_Settings_Create_Flash_Page(lv_obj_t *p_Menu)
     lv_label_set_text(flash_storage_used_label, "-- KB");
     lv_obj_set_style_text_color(flash_storage_used_label, lv_color_hex(0xB998FF), 0);
 
-    lv_obj_t *storage_free_row = create_row(FlashContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
+    lv_obj_t *storage_free_row = ui_Settings_Create_Row(FlashContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
     lv_obj_t *storage_free_label = lv_label_create(storage_free_row);
     lv_label_set_text(storage_free_label, "Free:");
     lv_obj_set_style_text_color(storage_free_label, lv_color_white(), 0);
@@ -535,7 +533,7 @@ static lv_obj_t *ui_Settings_Create_Flash_Page(lv_obj_t *p_Menu)
     lv_label_set_text(flash_storage_free_label, "-- KB");
     lv_obj_set_style_text_color(flash_storage_free_label, lv_color_hex(0xB998FF), 0);
 
-    lv_obj_t *storage_btn_row = create_row(FlashContainer, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *storage_btn_row = ui_Settings_Create_Row(FlashContainer, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_height(storage_btn_row, LV_SIZE_CONTENT);
     lv_obj_set_style_pad_top(storage_btn_row, 8, 0);
     lv_obj_set_style_pad_bottom(storage_btn_row, 8, 0);
@@ -566,7 +564,7 @@ static lv_obj_t *ui_Settings_Create_Flash_Page(lv_obj_t *p_Menu)
     lv_obj_set_style_pad_top(coredump_section_label, 0, 0);
     lv_obj_set_style_pad_bottom(coredump_section_label, 8, 0);
 
-    lv_obj_t *coredump_info_row = create_row(FlashContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
+    lv_obj_t *coredump_info_row = ui_Settings_Create_Row(FlashContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
     lv_obj_t *coredump_used_label = lv_label_create(coredump_info_row);
     lv_label_set_text(coredump_used_label, "Used:");
     lv_obj_set_style_text_color(coredump_used_label, lv_color_white(), 0);
@@ -574,7 +572,7 @@ static lv_obj_t *ui_Settings_Create_Flash_Page(lv_obj_t *p_Menu)
     lv_label_set_text(flash_coredump_used_label, "-- KB");
     lv_obj_set_style_text_color(flash_coredump_used_label, lv_color_hex(0xB998FF), 0);
 
-    lv_obj_t *coredump_total_row = create_row(FlashContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
+    lv_obj_t *coredump_total_row = ui_Settings_Create_Row(FlashContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
     lv_obj_t *coredump_total_label = lv_label_create(coredump_total_row);
     lv_label_set_text(coredump_total_label, "Total:");
     lv_obj_set_style_text_color(coredump_total_label, lv_color_white(), 0);
@@ -582,7 +580,7 @@ static lv_obj_t *ui_Settings_Create_Flash_Page(lv_obj_t *p_Menu)
     lv_label_set_text(flash_coredump_total_label, "-- KB");
     lv_obj_set_style_text_color(flash_coredump_total_label, lv_color_hex(0xB998FF), 0);
 
-    lv_obj_t *coredump_btn_row = create_row(FlashContainer, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *coredump_btn_row = ui_Settings_Create_Row(FlashContainer, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_height(coredump_btn_row, LV_SIZE_CONTENT);
     lv_obj_set_style_pad_top(coredump_btn_row, 8, 0);
     lv_obj_set_style_pad_bottom(coredump_btn_row, 16, 0);
@@ -600,7 +598,7 @@ static lv_obj_t *ui_Settings_Create_Flash_Page(lv_obj_t *p_Menu)
     return FlashPage;
 }
 
-void ui_settings_build(lv_obj_t *p_Parent)
+void ui_settings_init(lv_obj_t *p_Parent)
 {
     settings_Menu = lv_menu_create(p_Parent);
 
@@ -626,16 +624,16 @@ void ui_settings_build(lv_obj_t *p_Parent)
     lv_obj_set_style_bg_opa(section, 0, 0);
     lv_obj_set_style_pad_all(section, 8, 0);
 
-    cont = create_text(section, "WiFi");
+    cont = ui_Settings_Create_Text(section, "WiFi");
     lv_menu_set_load_page_event(settings_Menu, cont, wifi_Page);
 
-    cont = create_text(section, "Display");
+    cont = ui_Settings_Create_Text(section, "Display");
     lv_menu_set_load_page_event(settings_Menu, cont, display_Page);
 
-    cont = create_text(section, "Lepton");
+    cont = ui_Settings_Create_Text(section, "Lepton");
     lv_menu_set_load_page_event(settings_Menu, cont, lepton_Page);
 
-    cont = create_text(section, "Flash");
+    cont = ui_Settings_Create_Text(section, "Flash");
     lv_menu_set_load_page_event(settings_Menu, cont, flash_Page);
     lv_obj_add_event_cb(cont, [](lv_event_t *e) {
         if (lv_event_get_code(e) == LV_EVENT_CLICKED) {
@@ -643,16 +641,16 @@ void ui_settings_build(lv_obj_t *p_Parent)
         }
     }, LV_EVENT_CLICKED, NULL);
 
-    cont = create_text(section, "USB");
+    cont = ui_Settings_Create_Text(section, "USB");
     lv_menu_set_load_page_event(settings_Menu, cont, usb_Page);
 
-    cont = create_text(section, "About");
+    cont = ui_Settings_Create_Text(section, "About");
     lv_menu_set_load_page_event(settings_Menu, cont, about_Page);
 
     lv_menu_set_sidebar_page(settings_Menu, root_page);
 
     /* Register event handler for menu page changes to control Save button visibility */
-    lv_obj_add_event_cb(settings_Menu, on_menu_page_changed, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_add_event_cb(settings_Menu, on_Menu_PageChanged, LV_EVENT_VALUE_CHANGED, NULL);
 
     /* Initially check current page (root page doesn't need Save button hidden) */
     lv_obj_remove_flag(ui_Button_Menu_Save, LV_OBJ_FLAG_HIDDEN);
@@ -676,10 +674,11 @@ void ui_settings_deinit(lv_obj_t *p_Parent)
 
 void ui_settings_update_flash_usage(void)
 {
+    esp_err_t Error;
     MemoryManager_Usage_t Usage;
 
     if ((flash_storage_used_label != NULL) && (flash_storage_free_label != NULL)) {
-        esp_err_t Error = MemoryManager_GetStorageUsage(&Usage);
+        Error = MemoryManager_GetStorageUsage(&Usage);
         if (Error == ESP_OK) {
             if (Usage.TotalBytes >= (1024 * 1024)) {
                 lv_label_set_text_fmt(flash_storage_used_label, "%.2f MB", Usage.UsedBytes / (1024.0f * 1024.0f));
@@ -695,7 +694,7 @@ void ui_settings_update_flash_usage(void)
     }
 
     if ((flash_coredump_used_label != NULL) && (flash_coredump_total_label != NULL)) {
-        esp_err_t Error = MemoryManager_GetCoredumpUsage(&Usage);
+        Error = MemoryManager_GetCoredumpUsage(&Usage);
         if (Error == ESP_OK) {
             lv_label_set_text_fmt(flash_coredump_used_label, "%u KB", Usage.UsedBytes / 1024);
             lv_label_set_text_fmt(flash_coredump_total_label, "%u KB", Usage.TotalBytes / 1024);

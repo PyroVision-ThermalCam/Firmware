@@ -84,15 +84,6 @@ esp_err_t SettingsManager_LoadFromNVS(App_Settings_t *p_Settings);
  */
 esp_err_t SettingsManager_Save(void);
 
-/** @brief          Reset settings in NVS to factory defaults.
- *                  Marks the config as invalid in NVS and triggers a reboot, causing defaults to be loaded on next init.
- *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_STATE if not initialized
- *                  ESP_ERR_NVS_NOT_ENOUGH_SPACE if NVS is full
- *                  ESP_FAIL if NVS write fails
- */
-esp_err_t SettingsManager_Reset(void);
-
 /** @brief              Get the device information from the Settings Manager RAM.
  *  @param p_Settings   Pointer to Info structure to populate
  *  @return             ESP_OK on success, ESP_ERR_* on failure

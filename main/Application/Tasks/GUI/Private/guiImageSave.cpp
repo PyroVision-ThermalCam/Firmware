@@ -78,7 +78,9 @@ void Task_ImageSave(void *p_Param)
         FILE *PNGFile = fopen(FilePath, "wb");
         if (PNGFile == NULL) {
             ESP_LOGE(TAG, "Failed to open file for writing: %s", FilePath);
+
             esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
+
             continue;
         }
 
@@ -86,17 +88,21 @@ void Task_ImageSave(void *p_Param)
         png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
         if (png_ptr == NULL) {
             ESP_LOGE(TAG, "Failed to create PNG write struct!");
+
             fclose(PNGFile);
             esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
+
             continue;
         }
 
         png_infop info_ptr = png_create_info_struct(png_ptr);
         if (info_ptr == NULL) {
             ESP_LOGE(TAG, "Failed to create PNG info struct!");
+
             png_destroy_write_struct(&png_ptr, NULL);
             fclose(PNGFile);
             esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
+
             continue;
         }
 
@@ -104,19 +110,23 @@ void Task_ImageSave(void *p_Param)
         uint8_t *LineBuffer = static_cast<uint8_t *>(heap_caps_malloc(Frame.Width * 3, MALLOC_CAP_SPIRAM));
         if (LineBuffer == NULL) {
             ESP_LOGE(TAG, "Failed to allocate line buffer!");
+
             png_destroy_write_struct(&png_ptr, &info_ptr);
             fclose(PNGFile);
             esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
+
             continue;
         }
 
         /* Set error handling */
         if (setjmp(png_jmpbuf(png_ptr))) {
             ESP_LOGE(TAG, "PNG encoding error!");
+
             heap_caps_free(LineBuffer);
             png_destroy_write_struct(&png_ptr, &info_ptr);
             fclose(PNGFile);
             esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
+
             continue;
         }
 

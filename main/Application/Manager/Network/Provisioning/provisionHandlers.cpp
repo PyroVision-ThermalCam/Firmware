@@ -123,9 +123,14 @@ esp_err_t Provision_Handler_Scan(httpd_req_t *p_Request)
 {
     wifi_scan_config_t ScanConfig;
     uint16_t APCount = 0;
+    uint16_t MaxAPCount = 50; /* Increased from default 20 to support more networks */
     esp_err_t Error;
 
     memset(&ScanConfig, 0, sizeof(ScanConfig));
+    ScanConfig.show_hidden = true;  /* Also scan for hidden networks */
+    ScanConfig.scan_type = WIFI_SCAN_TYPE_ACTIVE; /* Active scan for better detection */
+    ScanConfig.scan_time.active.min = 120; /* Minimum scan time per channel (ms) */
+    ScanConfig.scan_time.active.max = 150; /* Maximum scan time per channel (ms) */
 
     /* Start async scan */
     Error = esp_wifi_scan_start(&ScanConfig, false);
@@ -140,8 +145,8 @@ esp_err_t Provision_Handler_Scan(httpd_req_t *p_Request)
         return Provision_Handler_Send_JSON_Response(p_Request, Response, 200);
     }
 
-    /* Wait for scan to complete (max 10 seconds) */
-    for (uint8_t i = 0; i < 100; i++) {
+    /* Wait for scan to complete (max 15 seconds for thorough scan) */
+    for (uint8_t i = 0; i < 150; i++) {
         vTaskDelay(100 / portTICK_PERIOD_MS);
         if (esp_wifi_scan_get_ap_num(&APCount) == ESP_OK) {
             break;
@@ -151,9 +156,19 @@ esp_err_t Provision_Handler_Scan(httpd_req_t *p_Request)
     if (APCount == 0) {
         cJSON *Response;
 
+        ESP_LOGI(TAG, "No networks found in scan");
+
         Response = cJSON_CreateObject();
         cJSON_AddArrayToObject(Response, "networks");
         return Provision_Handler_Send_JSON_Response(p_Request, Response, 200);
+    }
+
+    ESP_LOGI(TAG, "Found %d networks", APCount);
+
+    /* Limit to maximum to prevent memory issues */
+    if (APCount > MaxAPCount) {
+        ESP_LOGW(TAG, "Found %d networks, limiting to %d", APCount, MaxAPCount);
+        APCount = MaxAPCount;
     }
 
     wifi_ap_record_t *APList = (wifi_ap_record_t *)malloc(sizeof(wifi_ap_record_t) * APCount);

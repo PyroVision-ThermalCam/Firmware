@@ -172,15 +172,22 @@
         </div>
         <div class="content">
             <div id="status" class="status"></div>
-            
+
             <form id="wifiForm">
                 <div class="form-group">
-                    <label for="ssid">WiFi-Netzwerk</label>
-                    <select id="ssid" name="ssid" required>
+                    <label for="ssid">WiFi-Netzwerk aus Liste wählen</label>
+                    <select id="ssid" name="ssid">
                         <option value="">Netzwerk wird gesucht...</option>
                     </select>
                 </div>
-                
+
+                <div class="form-group">
+                    <label for="ssidInput">Oder SSID manuell eingeben</label>
+                    <input type="text" id="ssidInput" name="ssidInput" 
+                           placeholder="SSID manuell eingeben" 
+                           maxlength="32">
+                </div>
+
                 <div class="form-group">
                     <label for="password">Passwort</label>
                     <div class="password-wrapper">
@@ -190,7 +197,7 @@
                                 onclick="togglePasswordVisibility()">👁️</button>
                     </div>
                 </div>
-                
+
                 <button type="submit" id="submitBtn">
                     <span id="btnText">Verbinden</span>
                     <span id="btnSpinner" class="spinner hidden"></span>
@@ -202,16 +209,31 @@
     <script>
         const form = document.getElementById('wifiForm');
         const ssidSelect = document.getElementById('ssid');
+        const ssidInput = document.getElementById('ssidInput');
         const passwordInput = document.getElementById('password');
         const submitBtn = document.getElementById('submitBtn');
         const btnText = document.getElementById('btnText');
         const btnSpinner = document.getElementById('btnSpinner');
         const statusDiv = document.getElementById('status');
 
+        /* When a network is selected from dropdown, fill the text input */
+        ssidSelect.addEventListener('change', function() {
+            if (this.value) {
+                ssidInput.value = this.value;
+            }
+        });
+
+        /* When text input changes, clear dropdown selection if manual entry */
+        ssidInput.addEventListener('input', function() {
+            if (this.value && ssidSelect.value !== this.value) {
+                ssidSelect.value = "";
+            }
+        });
+
         function togglePasswordVisibility() {
             const passwordInput = document.getElementById('password');
             const toggleBtn = document.getElementById('togglePassword');
-            
+
             if (passwordInput.type === 'password') {
                 passwordInput.type = 'text';
                 toggleBtn.textContent = '🙈';
@@ -238,9 +260,9 @@
             try {
                 const response = await fetch('/api/v1/provision/scan');
                 const data = await response.json();
-                
+
                 ssidSelect.innerHTML = '<option value="">Wähle ein Netzwerk...</option>';
-                
+
                 if (data.networks && data.networks.length > 0) {
                     data.networks.forEach(network => {
                         const option = document.createElement('option');
@@ -250,30 +272,31 @@
                     });
                     showStatus(`${data.networks.length} Netzwerke gefunden`, 'info');
                 } else {
-                    showStatus('Keine Netzwerke gefunden', 'error');
+                    showStatus('Keine Netzwerke gefunden - SSID kann manuell eingegeben werden', 'info');
                 }
             } catch (error) {
                 console.error('Network scan failed:', error);
-                showStatus('Netzwerksuche fehlgeschlagen', 'error');
+                showStatus('Netzwerksuche fehlgeschlagen - SSID kann manuell eingegeben werden', 'info');
             }
         }
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const ssid = ssidSelect.value;
+            /* Prefer dropdown selection, fallback to manual input */
+            let ssid = ssidSelect.value || ssidInput.value.trim();
             const password = passwordInput.value;
             
             if (!ssid) {
-                showStatus('Bitte wähle ein Netzwerk', 'error');
+                showStatus('Bitte wähle ein Netzwerk oder gib eine SSID ein', 'error');
                 return;
             }
-            
+
             submitBtn.disabled = true;
             btnText.classList.add('hidden');
             btnSpinner.classList.remove('hidden');
             showStatus('Verbinde mit ' + ssid + '...', 'info');
-            
+
             try {
                 const response = await fetch('/api/v1/provision', {
                     method: 'POST',
@@ -282,9 +305,9 @@
                     },
                     body: JSON.stringify({ ssid, password })
                 });
-                
+
                 const result = await response.json();
-                
+
                 if (response.ok) {
                     showStatus('✅ Verbindung erfolgreich! PyroVision startet neu...', 'success');
                     setTimeout(() => {
@@ -307,7 +330,7 @@
 
         // Load networks on page load
         loadNetworks();
-        
+
         // Refresh networks every 10 seconds
         setInterval(loadNetworks, 10000);
     </script>

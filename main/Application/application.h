@@ -67,6 +67,7 @@ enum {
  */
 enum {
     GUI_EVENT_INIT_DONE,                        /**< GUI task initialization done. */
+    GUI_EVENT_INIT_ERROR,                       /**< GUI task initialization error occurred. */
     GUI_EVENT_APP_STARTED,                      /**< Application has started. */
     GUI_EVENT_REQUEST_ROI,                      /**< Update the ROI rectangle on the GUI.
                                                      Data is transmitted in a App_Settings_ROI_t structure. */

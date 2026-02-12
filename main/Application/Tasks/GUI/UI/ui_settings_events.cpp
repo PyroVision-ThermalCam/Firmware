@@ -25,11 +25,11 @@
 
 #include "managers.h"
 
-#include "ui_Settings_Events.h"
+#include "ui_settings_events.h"
 
 static USB_Manager_Config_t USB_Config;
 
-static const char *TAG = "ui_Settings_Events";
+static const char *TAG = "ui_settings_events";
 
 void on_Lepton_Emissivity_Slider_Callback(lv_event_t *e)
 {
