@@ -24,7 +24,8 @@
 #include <esp_log.h>
 #include <esp_timer.h>
 
-#include <string.h>
+#include <string>
+#include <cstring>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -34,10 +35,21 @@
 #include <freertos/semphr.h>
 
 #include "visaServer.h"
+#include "Settings/settingsManager.h"
 #include "Private/visaCommands.h"
+
+/** @brief Maximum command length.
+ */
+#define VISA_MAX_COMMAND_LENGTH             256
+
+/** @brief Maximum response length.
+ */
+#define VISA_MAX_RESPONSE_LENGTH            1024
 
 typedef struct {
     int ListenSocket;                   /**< Listening socket */
+    uint16_t Port;                      /**< Server port */
+    uint16_t Timeout;                   /**< Socket timeout in milliseconds */
     TaskHandle_t ServerTask;            /**< Server task handle */
     bool isRunning;                     /**< Server running flag */
     bool isInitialized;                 /**< Initialization flag */
@@ -56,7 +68,8 @@ static const char *TAG = "VISA-Server";
  */
 static int VISA_ProcessCommand(const char *Command, char *Response, size_t MaxLen)
 {
-    char cmd_buffer[VISA_MAX_COMMAND_LENGTH];
+    size_t Length;
+    std::string Buffer(Command);
 
     if ((Command == NULL) || (Response == NULL)) {
         return VISA_ERR_INVALID_ARG;
@@ -65,15 +78,12 @@ static int VISA_ProcessCommand(const char *Command, char *Response, size_t MaxLe
     ESP_LOGD(TAG, "Processing command: %s", Command);
 
     /* Remove trailing newline/carriage return */
-    strncpy(cmd_buffer, Command, sizeof(cmd_buffer) - 1);
-    cmd_buffer[sizeof(cmd_buffer) - 1] = '\0';
-
-    size_t len = strlen(cmd_buffer);
-    while ((len > 0) && ((cmd_buffer[len - 1] == '\n') || (cmd_buffer[len - 1] == '\r'))) {
-        cmd_buffer[--len] = '\0';
+    Length = Buffer.size();
+    while ((Length > 0) && ((Buffer[Length - 1] == '\n') || (Buffer[Length - 1] == '\r'))) {
+        Buffer.resize(--Length);
     }
 
-    return VISACommands_Execute(cmd_buffer, Response, MaxLen);
+    return VISACommands_Execute(Buffer.c_str(), Response, MaxLen);
 }
 
 /** @brief              Handle client connection.
@@ -81,26 +91,25 @@ static int VISA_ProcessCommand(const char *Command, char *Response, size_t MaxLe
  */
 static void VISA_HandleClient(int ClientSocket)
 {
-    char rx_buffer[VISA_MAX_COMMAND_LENGTH];
-    char tx_buffer[VISA_MAX_RESPONSE_LENGTH];
-    struct timeval timeout;
+    char RxBuffer[VISA_MAX_COMMAND_LENGTH];
+    char TxBuffer[VISA_MAX_RESPONSE_LENGTH];
+    struct timeval Timeout;
 
-    timeout.tv_sec = VISA_SOCKET_TIMEOUT_MS / 1000;
-    timeout.tv_usec = (VISA_SOCKET_TIMEOUT_MS % 1000) * 1000;
+    Timeout.tv_sec = _VISA_Server_State.Timeout / 1000;
+    Timeout.tv_usec = (_VISA_Server_State.Timeout % 1000) * 1000;
 
-    setsockopt(ClientSocket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-    setsockopt(ClientSocket, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+    setsockopt(ClientSocket, SOL_SOCKET, SO_RCVTIMEO, &Timeout, sizeof(Timeout));
+    setsockopt(ClientSocket, SOL_SOCKET, SO_SNDTIMEO, &Timeout, sizeof(Timeout));
 
     ESP_LOGI(TAG, "Client connected");
 
     while (_VISA_Server_State.isRunning) {
-        int len;
+        int Length;
 
-        memset(rx_buffer, 0, sizeof(rx_buffer));
+        memset(RxBuffer, 0, sizeof(RxBuffer));
 
-        len = recv(ClientSocket, rx_buffer, sizeof(rx_buffer) - 1, 0);
-
-        if (len < 0) {
+        Length = recv(ClientSocket, RxBuffer, sizeof(RxBuffer) - 1, 0);
+        if (Length < 0) {
             if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
                 /* Timeout, continue */
                 continue;
@@ -109,40 +118,42 @@ static void VISA_HandleClient(int ClientSocket)
             ESP_LOGE(TAG, "recv failed: errno %d!", errno);
 
             break;
-        } else if (len == 0) {
+        } else if (Length == 0) {
             ESP_LOGI(TAG, "Client disconnected");
 
             break;
         }
 
-        rx_buffer[len] = '\0';
-        ESP_LOGD(TAG, "Received: %s", rx_buffer);
+        RxBuffer[Length] = '\0';
+        ESP_LOGD(TAG, "Received: %s", RxBuffer);
+
+        memset(TxBuffer, 0, sizeof(TxBuffer));
 
         /* Process command */
-        memset(tx_buffer, 0, sizeof(tx_buffer));
-        int response_len = VISA_ProcessCommand(rx_buffer, tx_buffer, sizeof(tx_buffer));
-
-        if (response_len > 0) {
-            int sent;
+        Length = VISA_ProcessCommand(RxBuffer, TxBuffer, sizeof(TxBuffer));
+        if (Length > 0) {
+            int Sent;
 
             /* Send response */
-            sent = send(ClientSocket, tx_buffer, response_len, 0);
-            if (sent < 0) {
+            Sent = send(ClientSocket, TxBuffer, Length, 0);
+            if (Sent < 0) {
                 ESP_LOGE(TAG, "send failed: %d!", errno);
 
                 break;
             }
 
-            ESP_LOGD(TAG, "Sent %d bytes", sent);
-        } else if (response_len < 0) {
+            ESP_LOGD(TAG, "Sent %d bytes", Sent);
+        } else if (Length < 0) {
             /* Error response */
-            snprintf(tx_buffer, sizeof(tx_buffer), "ERROR: %d\n", response_len);
-            send(ClientSocket, tx_buffer, strlen(tx_buffer), 0);
+            std::string ErrorStr = "ERROR: " + std::to_string(Length) + "\n";
+            send(ClientSocket, ErrorStr.c_str(), ErrorStr.size(), 0);
         }
     }
 
     close(ClientSocket);
     ESP_LOGI(TAG, "Client connection closed");
+
+    esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_VISA_CLIENT_DISCONNECTED, NULL, 0, portMAX_DELAY);
 }
 
 /** @brief          VISA server task.
@@ -152,11 +163,11 @@ static void VISA_ServerTask(void *p_Args)
 {
     int opt = 1;
     int Error;
-    struct sockaddr_in dest_addr;
+    struct sockaddr_in Addr;
 
-    dest_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    dest_addr.sin_family = AF_INET;
-    dest_addr.sin_port = htons(VISA_SERVER_PORT);
+    Addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    Addr.sin_family = AF_INET;
+    Addr.sin_port = htons(_VISA_Server_State.Port);
 
     _VISA_Server_State.ListenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
     if (_VISA_Server_State.ListenSocket < 0) {
@@ -170,7 +181,7 @@ static void VISA_ServerTask(void *p_Args)
 
     setsockopt(_VISA_Server_State.ListenSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
-    Error = bind(_VISA_Server_State.ListenSocket, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+    Error = bind(_VISA_Server_State.ListenSocket, (struct sockaddr *)&Addr, sizeof(Addr));
     if (Error != 0) {
         ESP_LOGE(TAG, "Socket unable to bind: %d!", errno);
 
@@ -181,7 +192,7 @@ static void VISA_ServerTask(void *p_Args)
         return;
     }
 
-    Error = listen(_VISA_Server_State.ListenSocket, VISA_MAX_CLIENTS);
+    Error = listen(_VISA_Server_State.ListenSocket, CONFIG_NETWORK_VISA_MAX_CLIENTS);
     if (Error != 0) {
         ESP_LOGE(TAG, "Error occurred during listen: %d!", errno);
 
@@ -192,16 +203,15 @@ static void VISA_ServerTask(void *p_Args)
         return;
     }
 
-    ESP_LOGI(TAG, "VISA server listening on port %d", VISA_SERVER_PORT);
+    ESP_LOGI(TAG, "VISA server listening on port %d", _VISA_Server_State.Port);
 
     while (_VISA_Server_State.isRunning) {
         struct sockaddr_in source_addr;
-        socklen_t addr_len = sizeof(source_addr);
+        socklen_t Length = sizeof(source_addr);
         int Socket;
-        char addr_str[16];
+        std::string addr_str(16, '\0');
 
-        Socket = accept(_VISA_Server_State.ListenSocket, (struct sockaddr *)&source_addr, &addr_len);
-
+        Socket = accept(_VISA_Server_State.ListenSocket, (struct sockaddr *)&source_addr, &Length);
         if (Socket < 0) {
             if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
                 continue;
@@ -212,8 +222,11 @@ static void VISA_ServerTask(void *p_Args)
             break;
         }
 
-        inet_ntop(AF_INET, &source_addr.sin_addr, addr_str, sizeof(addr_str));
-        ESP_LOGI(TAG, "Client connected from %s:%d", addr_str, ntohs(source_addr.sin_port));
+        inet_ntop(AF_INET, &source_addr.sin_addr, &addr_str[0], addr_str.size());
+        addr_str.resize(strlen(addr_str.c_str()));
+        ESP_LOGI(TAG, "Client connected from %s:%d", addr_str.c_str(), ntohs(source_addr.sin_port));
+
+        esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_VISA_CLIENT_CONNECTED, NULL, 0, portMAX_DELAY);
 
         VISA_HandleClient(Socket);
     }
@@ -223,23 +236,31 @@ static void VISA_ServerTask(void *p_Args)
     _VISA_Server_State.isRunning = false;
 
     ESP_LOGI(TAG, "VISA server stopped");
+
     vTaskDelete(NULL);
 }
 
-esp_err_t VISAServer_Init(const Network_VISA_Server_Config_t *p_Config)
+esp_err_t VISAServer_Init(void)
 {
     esp_err_t Error;
+    Settings_VISA_Server_t Config;
 
     if (_VISA_Server_State.isInitialized) {
         ESP_LOGW(TAG, "Already initialized");
+
         return ESP_OK;
     }
 
+    SettingsManager_GetVISAServer(&Config);
+
     memset(&_VISA_Server_State, 0, sizeof(_VISA_Server_State));
+    _VISA_Server_State.Port = Config.Port;
+    _VISA_Server_State.Timeout = Config.Timeout;
 
     _VISA_Server_State.Mutex = xSemaphoreCreateMutex();
     if (_VISA_Server_State.Mutex == NULL) {
         ESP_LOGE(TAG, "Failed to create mutex!");
+
         return ESP_ERR_NO_MEM;
     }
 
@@ -255,7 +276,7 @@ esp_err_t VISAServer_Init(const Network_VISA_Server_Config_t *p_Config)
     _VISA_Server_State.ListenSocket = -1;
     _VISA_Server_State.isInitialized = true;
 
-    ESP_LOGI(TAG, "VISA server initialized");
+    ESP_LOGD(TAG, "VISA server initialized");
 
     return ESP_OK;
 }
@@ -267,7 +288,6 @@ esp_err_t VISAServer_Deinit(void)
     }
 
     VISAServer_Stop();
-
     VISACommands_Deinit();
 
     if (_VISA_Server_State.Mutex != NULL) {
@@ -277,7 +297,7 @@ esp_err_t VISAServer_Deinit(void)
 
     _VISA_Server_State.isInitialized = false;
 
-    ESP_LOGI(TAG, "VISA server deinitialized");
+    ESP_LOGD(TAG, "VISA server deinitialized");
 
     return ESP_OK;
 }
@@ -291,11 +311,11 @@ esp_err_t VISAServer_Start(void)
 {
     if (_VISA_Server_State.isInitialized == false) {
         ESP_LOGE(TAG, "Not initialized!");
-        return ESP_ERR_INVALID_STATE;
-    }
 
-    if (_VISA_Server_State.isRunning) {
+        return ESP_ERR_INVALID_STATE;
+    } else if (_VISA_Server_State.isRunning) {
         ESP_LOGW(TAG, "Already running");
+    
         return ESP_OK;
     }
 
@@ -314,6 +334,7 @@ esp_err_t VISAServer_Start(void)
 
     if (result != pdPASS) {
         ESP_LOGE(TAG, "Failed to create server task!");
+
         _VISA_Server_State.isRunning = false;
         xSemaphoreGive(_VISA_Server_State.Mutex);
 
@@ -322,7 +343,7 @@ esp_err_t VISAServer_Start(void)
 
     xSemaphoreGive(_VISA_Server_State.Mutex);
 
-    ESP_LOGI(TAG, "VISA server started");
+    ESP_LOGD(TAG, "VISA server started");
 
     return ESP_OK;
 }
@@ -343,15 +364,9 @@ esp_err_t VISAServer_Stop(void)
         _VISA_Server_State.ListenSocket = -1;
     }
 
-    /* Wait for task to terminate */
-    if (_VISA_Server_State.ServerTask != NULL) {
-        vTaskDelay(pdMS_TO_TICKS(100));
-        _VISA_Server_State.ServerTask = NULL;
-    }
-
     xSemaphoreGive(_VISA_Server_State.Mutex);
 
-    ESP_LOGI(TAG, "VISA server stopped");
+    ESP_LOGD(TAG, "VISA server stopped");
 
     return ESP_OK;
 }

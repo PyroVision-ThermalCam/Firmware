@@ -90,7 +90,7 @@
 
 #define MAX_RTC_REGS 64
 
-static i2c_device_config_t _RTC_I2C_Config = {
+static i2c_device_config_t _Device_I2C_Config = {
     .dev_addr_length = I2C_ADDR_BIT_LEN_7,
     .device_address = ADDR_RV8263C8,
     .scl_speed_hz = 400000,
@@ -199,9 +199,10 @@ esp_err_t RTC_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_handle_
     uint8_t Control1;
     uint8_t Seconds;
 
-    Error = i2c_master_bus_add_device(*p_Bus_Handle, &_RTC_I2C_Config, p_Dev_Handle);
+    Error = i2c_master_bus_add_device(*p_Bus_Handle, &_Device_I2C_Config, p_Dev_Handle);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to add I2C device: %d", Error);
+        ESP_LOGE(TAG, "Failed to add I2C device: %d!", Error);
+
         return Error;
     }
 
@@ -210,7 +211,7 @@ esp_err_t RTC_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_handle_
     /* Check oscillator stop flag */
     Error = RTC_ReadRegister(p_Dev_Handle, RV8263_REG_SECONDS, &Seconds);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read seconds register: %d", Error);
+        ESP_LOGE(TAG, "Failed to read seconds register: %d!", Error);
 
         return Error;
     }
@@ -228,7 +229,7 @@ esp_err_t RTC_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_handle_
     /* Read Control1 register */
     Error = RTC_ReadRegister(p_Dev_Handle, RV8263_REG_CONTROL1, &Control1);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read control register: %d", Error);
+        ESP_LOGE(TAG, "Failed to read control register: %d!", Error);
 
         return Error;
     }
@@ -238,6 +239,7 @@ esp_err_t RTC_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_handle_
         ESP_LOGD(TAG, "Starting RTC oscillator...");
 
         Control1 &= ~RV8263_CTRL1_STOP;
+
         Error = RTC_WriteRegister(p_Dev_Handle, RV8263_REG_CONTROL1, Control1);
         if (Error != ESP_OK) {
             return Error;

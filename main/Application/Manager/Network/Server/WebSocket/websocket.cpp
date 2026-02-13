@@ -25,6 +25,7 @@
 #include <esp_timer.h>
 #include <cJSON.h>
 
+#include <string>
 #include <cstring>
 
 #include "websocket.h"
@@ -38,7 +39,7 @@ typedef struct {
     bool active;
     bool stream_enabled;
     bool telemetry_enabled;
-    Network_ImageFormat_t stream_format;
+    Settings_Image_Format_t stream_format;
     uint8_t stream_fps;
     uint32_t telemetry_interval_ms;
     uint32_t last_telemetry_time;
@@ -49,7 +50,6 @@ typedef struct {
     bool isInitialized;
     bool isRunning;
     httpd_handle_t ServerHandle;
-    Network_HTTP_Server_Config_t Config;
     WS_Client_t Clients[CONFIG_NETWORK_WEBSOCKET_CLIENTS];
     uint8_t ClientCount;
     Network_Thermal_Frame_t *ThermalFrame;
@@ -95,7 +95,7 @@ static WS_Client_t *WebSocket_AddClient(int FD)
             WebSocket_State.Clients[i].active = true;
             WebSocket_State.Clients[i].stream_enabled = false;
             WebSocket_State.Clients[i].telemetry_enabled = false;
-            WebSocket_State.Clients[i].stream_format = NETWORK_IMAGE_FORMAT_JPEG;
+            WebSocket_State.Clients[i].stream_format = IMAGE_FORMAT_JPEG;
             WebSocket_State.Clients[i].stream_fps = 8;
             WebSocket_State.Clients[i].telemetry_interval_ms = 1000;
             WebSocket_State.Clients[i].last_telemetry_time = 0;
@@ -171,7 +171,7 @@ esp_err_t WebSocket_SendJSON(int FD, const char *p_Cmd, cJSON *p_Data)
     }
 
     Frame.payload = (uint8_t *)JSON;
-    Frame.len = strlen(JSON);
+    Frame.len = std::string(JSON).size();
 
     Error = httpd_ws_send_frame_async(WebSocket_State.ServerHandle, FD, &Frame);
 
@@ -242,7 +242,7 @@ static void WebSocket_HandleStart(WS_Client_t *p_Client, cJSON *p_Data)
     }
 
     /* Always use JPEG format for simplicity and efficiency */
-    p_Client->stream_format = NETWORK_IMAGE_FORMAT_JPEG;
+    p_Client->stream_format = IMAGE_FORMAT_JPEG;
     p_Client->stream_enabled = true;
     p_Client->last_frame_time = 0;
 
@@ -338,59 +338,59 @@ static void WebSocket_ProcessMessage(WS_Client_t *p_Client, const char *p_Data, 
     }
 
     /* Handle commands */
-    const char *cmd_str = cmd->valuestring;
-    if (strcmp(cmd_str, "start") == 0) {
+    std::string cmd_str(cmd->valuestring);
+    if (cmd_str == "start") {
         WebSocket_HandleStart(p_Client, data);
-    } else if (strcmp(cmd_str, "stop") == 0) {
+    } else if (cmd_str == "stop") {
         WebSocket_HandleStop(p_Client);
-    } else if (strcmp(cmd_str, "subscribe") == 0) {
+    } else if (cmd_str == "subscribe") {
         WebSocket_HandleTelemetrySubscribe(p_Client, data);
-    } else if (strcmp(cmd_str, "unsubscribe") == 0) {
+    } else if (cmd_str == "unsubscribe") {
         WebSocket_HandleTelemetryUnsubscribe(p_Client);
     }
     /* Remote Control Commands */
-    else if (strcmp(cmd_str, "get_temperature") == 0) {
+    else if (cmd_str == "get_temperature") {
         WebSocket_Handle_GetTemperature(p_Client->fd, data);
-    } else if (strcmp(cmd_str, "get_time") == 0) {
+    } else if (cmd_str == "get_time") {
         WebSocket_Handle_GetTime(p_Client->fd, data);
-    } else if (strcmp(cmd_str, "set_time") == 0) {
+    } else if (cmd_str == "set_time") {
         WebSocket_Handle_SetTime(p_Client->fd, data);
-    } else if (strcmp(cmd_str, "get_battery") == 0) {
+    } else if (cmd_str == "get_battery") {
         WebSocket_Handle_GetBattery(p_Client->fd, data);
-    } else if (strcmp(cmd_str, "get_lepton_emissivity") == 0) {
+    } else if (cmd_str == "get_lepton_emissivity") {
         WebSocket_Handle_GetLeptonEmissivity(p_Client->fd, data);
-    } else if (strcmp(cmd_str, "set_lepton_emissivity") == 0) {
+    } else if (cmd_str == "set_lepton_emissivity") {
         WebSocket_Handle_SetLeptonEmissivity(p_Client->fd, data);
-    } else if (strcmp(cmd_str, "get_lepton_stats") == 0) {
+    } else if (cmd_str == "get_lepton_stats") {
         WebSocket_Handle_GetLeptonStats(p_Client->fd, data);
-    } else if (strcmp(cmd_str, "get_lepton_roi") == 0) {
+    } else if (cmd_str == "get_lepton_roi") {
         WebSocket_Handle_GetLeptonROI(p_Client->fd, data);
-    } else if (strcmp(cmd_str, "set_lepton_roi") == 0) {
+    } else if (cmd_str == "set_lepton_roi") {
         WebSocket_Handle_SetLeptonROI(p_Client->fd, data);
-    } else if (strcmp(cmd_str, "get_lepton_spotmeter") == 0) {
+    } else if (cmd_str == "get_lepton_spotmeter") {
         WebSocket_Handle_GetLeptonSpotmeter(p_Client->fd, data);
-    } else if (strcmp(cmd_str, "get_flash") == 0) {
+    } else if (cmd_str == "get_flash") {
         WebSocket_Handle_GetFlash(p_Client->fd, data);
-    } else if (strcmp(cmd_str, "set_flash") == 0) {
+    } else if (cmd_str == "set_flash") {
         WebSocket_Handle_SetFlash(p_Client->fd, data);
-    } else if (strcmp(cmd_str, "get_image_format") == 0) {
+    } else if (cmd_str == "get_image_format") {
         WebSocket_Handle_GetImageFormat(p_Client->fd, data);
-    } else if (strcmp(cmd_str, "set_image_format") == 0) {
+    } else if (cmd_str == "set_image_format") {
         WebSocket_Handle_SetImageFormat(p_Client->fd, data);
-    } else if (strcmp(cmd_str, "set_status_led") == 0) {
+    } else if (cmd_str == "set_status_led") {
         WebSocket_Handle_SetStatusLED(p_Client->fd, data);
-    } else if (strcmp(cmd_str, "get_sd_state") == 0) {
+    } else if (cmd_str == "get_sd_state") {
         WebSocket_Handle_GetSDState(p_Client->fd, data);
-    } else if (strcmp(cmd_str, "format_memory") == 0) {
+    } else if (cmd_str == "format_memory") {
         WebSocket_Handle_FormatMemory(p_Client->fd, data);
-    } else if (strcmp(cmd_str, "display_message") == 0) {
+    } else if (cmd_str == "display_message") {
         WebSocket_Handle_DisplayMessage(p_Client->fd, data);
-    } else if (strcmp(cmd_str, "get_lock") == 0) {
+    } else if (cmd_str == "get_lock") {
         WebSocket_Handle_GetLock(p_Client->fd, data);
-    } else if (strcmp(cmd_str, "set_lock") == 0) {
+    } else if (cmd_str == "set_lock") {
         WebSocket_Handle_SetLock(p_Client->fd, data);
     } else {
-        ESP_LOGW(TAG, "Unknown command from fd=%d: %s", p_Client->fd, cmd_str);
+        ESP_LOGW(TAG, "Unknown command from fd=%d: %s", p_Client->fd, cmd_str.c_str());
     }
 
     cJSON_Delete(json);
@@ -527,12 +527,8 @@ static const httpd_uri_t _URI_WebSocket = {
     .supported_subprotocol = NULL,
 };
 
-esp_err_t WebSocket_Init(const Network_HTTP_Server_Config_t *p_Config)
+esp_err_t WebSocket_Init(void)
 {
-    if (p_Config == NULL) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
     if (WebSocket_State.isInitialized) {
         ESP_LOGW(TAG, "Already initialized");
 
@@ -541,7 +537,6 @@ esp_err_t WebSocket_Init(const Network_HTTP_Server_Config_t *p_Config)
 
     ESP_LOGI(TAG, "Initializing WebSocket handler");
 
-    memcpy(&WebSocket_State.Config, p_Config, sizeof(Network_HTTP_Server_Config_t));
     memset(WebSocket_State.Clients, 0, sizeof(WebSocket_State.Clients));
     WebSocket_State.ClientCount = 0;
     WebSocket_State.ThermalFrame = NULL;
@@ -660,7 +655,7 @@ static void WebSocket_BroadcastTask(void *p_Param)
             /* Encode frame ONCE for all clients (assume JPEG format for simplicity) */
             if (xSemaphoreTake(WebSocket_State.ThermalFrame->Mutex, 50 / portTICK_PERIOD_MS) == pdTRUE) {
                 Error = ImageEncoder_Encode(WebSocket_State.ThermalFrame,
-                                            NETWORK_IMAGE_FORMAT_JPEG, PALETTE_IRON, &Encoded);
+                                            IMAGE_FORMAT_JPEG, PALETTE_IRON, &Encoded);
                 xSemaphoreGive(WebSocket_State.ThermalFrame->Mutex);
 
                 if (Error != ESP_OK) {

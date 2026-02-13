@@ -30,7 +30,7 @@ static const char *TAG = "ui_messagenbox";
 
 static void MessageBox_on_Close(lv_timer_t *p_Timer)
 {
-    lv_obj_t *Box = (lv_obj_t *)lv_timer_get_user_data(p_Timer);
+    lv_obj_t *Box = static_cast<lv_obj_t *>(lv_timer_get_user_data(p_Timer));
 
     lv_msgbox_close(Box);
 }

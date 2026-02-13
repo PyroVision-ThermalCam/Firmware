@@ -165,7 +165,7 @@ static uint8_t DefaultPinConfiguration[] = {
     0x00,
 };
 
-static i2c_device_config_t _Expander_I2C_Config = {
+static i2c_device_config_t _Device_I2C_Config = {
     .dev_addr_length = I2C_ADDR_BIT_LEN_7,
     .device_address = ADDR_PCAL6416AHF,
     .scl_speed_hz = 400000,
@@ -212,7 +212,7 @@ esp_err_t PortExpander_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_de
 {
     esp_err_t Error;
 
-    Error = i2c_master_bus_add_device(*p_Bus_Handle, &_Expander_I2C_Config, p_Dev_Handle);
+    Error = i2c_master_bus_add_device(*p_Bus_Handle, &_Device_I2C_Config, p_Dev_Handle);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to add I2C device: %d!", Error);
 
@@ -234,6 +234,7 @@ esp_err_t PortExpander_Deinit(i2c_master_dev_handle_t *p_Dev_Handle)
         esp_err_t Error = i2c_master_bus_rm_device(*p_Dev_Handle);
         if (Error != ESP_OK) {
             ESP_LOGE(TAG, "Failed to remove I2C device: %d!", Error);
+
             return Error;
         }
 

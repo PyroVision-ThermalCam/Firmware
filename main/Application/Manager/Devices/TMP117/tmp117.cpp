@@ -68,6 +68,16 @@ static const char *TAG = "TMP117";
  */
 #define TMP117_RESOLUTION                   0.0078125f
 
+static i2c_device_config_t _Device_I2C_Config = {
+    .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+    .device_address = TMP117_I2C_ADDR,
+    .scl_speed_hz = 400000,
+    .scl_wait_us = 0,
+    .flags = {
+        .disable_ack_check = 0,
+    },
+};
+
 /** @brief              Write a 16-bit register to TMP117.
  *  @param p_Dev_Handle Device handle
  *  @param RegAddr      Register address
@@ -79,10 +89,10 @@ static esp_err_t TMP117_Write_Register(i2c_master_dev_handle_t *p_Dev_Handle, ui
     uint8_t Buffer[3];
 
     Buffer[0] = RegAddr;
-    Buffer[1] = (uint8_t)((Value >> 8) & 0xFF);
-    Buffer[2] = (uint8_t)(Value & 0xFF);
+    Buffer[1] = static_cast<uint8_t>((Value >> 8) & 0xFF);
+    Buffer[2] = static_cast<uint8_t>(Value & 0xFF);
 
-    return i2c_master_transmit(*p_Dev_Handle, Buffer, sizeof(Buffer), pdMS_TO_TICKS(1000));
+    return I2CM_Write(p_Dev_Handle, Buffer, sizeof(Buffer));
 }
 
 /** @brief              Read a 16-bit register from TMP117.
@@ -96,12 +106,17 @@ static esp_err_t TMP117_Read_Register(i2c_master_dev_handle_t *p_Dev_Handle, uin
     uint8_t Buffer[2];
     esp_err_t Error;
 
-    Error = i2c_master_transmit_receive(*p_Dev_Handle, &RegAddr, 1, Buffer, sizeof(Buffer), pdMS_TO_TICKS(1000));
+    Error = I2CM_Write(p_Dev_Handle, &RegAddr, 1);
     if (Error != ESP_OK) {
         return Error;
     }
 
-    *p_Value = ((uint16_t)Buffer[0] << 8) | Buffer[1];
+    Error = I2CM_Read(p_Dev_Handle, Buffer, sizeof(Buffer));
+    if (Error != ESP_OK) {
+        return Error;
+    }
+
+    *p_Value = (static_cast<uint16_t>(Buffer[0]) << 8) | static_cast<uint16_t>(Buffer[1]);
 
     return ESP_OK;
 }
@@ -115,14 +130,7 @@ esp_err_t TMP117_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_hand
         return ESP_ERR_INVALID_ARG;
     }
 
-    /* Create I2C device handle */
-    i2c_device_config_t DevConfig = {
-        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-        .device_address = TMP117_I2C_ADDR,
-        .scl_speed_hz = 400000,
-    };
-
-    Error = i2c_master_bus_add_device(*p_Bus_Handle, &DevConfig, p_Dev_Handle);
+    Error = i2c_master_bus_add_device(*p_Bus_Handle, &_Device_I2C_Config, p_Dev_Handle);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to add I2C device: %d!", Error);
 
@@ -170,11 +178,13 @@ esp_err_t TMP117_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_hand
 
 esp_err_t TMP117_Deinit(i2c_master_dev_handle_t *p_Dev_Handle)
 {
+    esp_err_t Error;
+
     if ((p_Dev_Handle == NULL) || (*p_Dev_Handle == NULL)) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    esp_err_t Error = i2c_master_bus_rm_device(*p_Dev_Handle);
+    Error = i2c_master_bus_rm_device(*p_Dev_Handle);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to remove I2C device: %d!", Error);
 
@@ -207,9 +217,9 @@ esp_err_t TMP117_Configure(i2c_master_dev_handle_t *p_Dev_Handle, const TMP117_C
     ConfigReg &= ~(TMP117_CFG_MOD_MASK | TMP117_CFG_CONV_MASK | TMP117_CFG_AVG_MASK);
 
     /* Set new configuration */
-    ConfigReg |= ((uint16_t)p_Config->Mode << TMP117_CFG_MOD_SHIFT) & TMP117_CFG_MOD_MASK;
-    ConfigReg |= ((uint16_t)p_Config->Cycle << TMP117_CFG_CONV_SHIFT) & TMP117_CFG_CONV_MASK;
-    ConfigReg |= ((uint16_t)p_Config->Averaging << TMP117_CFG_AVG_SHIFT) & TMP117_CFG_AVG_MASK;
+    ConfigReg |= ((static_cast<uint16_t>(p_Config->Mode) << TMP117_CFG_MOD_SHIFT) & TMP117_CFG_MOD_MASK);
+    ConfigReg |= ((static_cast<uint16_t>(p_Config->Cycle) << TMP117_CFG_CONV_SHIFT) & TMP117_CFG_CONV_MASK);
+    ConfigReg |= ((static_cast<uint16_t>(p_Config->Averaging) << TMP117_CFG_AVG_SHIFT) & TMP117_CFG_AVG_MASK);
 
     /* Write configuration */
     Error = TMP117_Write_Register(p_Dev_Handle, TMP117_REG_CONFIGURATION, ConfigReg);
@@ -258,6 +268,7 @@ esp_err_t TMP117_TriggerOneShot(i2c_master_dev_handle_t *p_Dev_Handle)
 {
     uint16_t ConfigReg;
     esp_err_t Error;
+    uint8_t CurrentMode;
 
     if (p_Dev_Handle == NULL) {
         return ESP_ERR_INVALID_ARG;
@@ -272,7 +283,7 @@ esp_err_t TMP117_TriggerOneShot(i2c_master_dev_handle_t *p_Dev_Handle)
     }
 
     /* Check if in one-shot mode */
-    uint8_t CurrentMode = static_cast<uint8_t>((ConfigReg & TMP117_CFG_MOD_MASK) >> TMP117_CFG_MOD_SHIFT);
+    CurrentMode = static_cast<uint8_t>((ConfigReg & TMP117_CFG_MOD_MASK) >> TMP117_CFG_MOD_SHIFT);
     if (CurrentMode != TMP117_MODE_ONE_SHOT) {
         ESP_LOGE(TAG, "Device not in one-shot mode (current mode: %d)!", CurrentMode);
 

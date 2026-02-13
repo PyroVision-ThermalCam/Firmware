@@ -27,6 +27,7 @@
 #include <esp_err.h>
 
 #include "../../networkTypes.h"
+#include "Settings/settingsTypes.h"
 
 /** @brief          Initialize the image encoder.
  *  @param Quality  JPEG quality (1-100)
@@ -46,7 +47,7 @@ void ImageEncoder_Deinit(void);
  *  @return             ESP_OK on success
  */
 esp_err_t ImageEncoder_Encode(const Network_Thermal_Frame_t *p_Frame,
-                              Network_ImageFormat_t Format,
+                              Settings_Image_Format_t Format,
                               Server_Palette_t Palette,
                               Network_Encoded_Image_t *p_Encoded);
 

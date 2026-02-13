@@ -336,11 +336,11 @@ static void GUI_Update_Info(void)
  *  @param w    Width of the ROI
  *  @param h    Height of the ROI
  */
-static void GUI_Update_ROI(App_Settings_ROI_t ROI)
+static void GUI_Update_ROI(Settings_ROI_t ROI)
 {
     int32_t DisplayWidth;
     int32_t DisplayHeight;
-    App_Settings_Lepton_t SettingsLepton;
+    Settings_Lepton_t SettingsLepton;
 
     if ((ROI.x + ROI.w) > 160) {
         ROI.w = 160 - ROI.x;
@@ -426,7 +426,7 @@ static void GUI_Update_ROI(App_Settings_ROI_t ROI)
     }
 
     /* Copy the new ROI in the existing settings structure */
-    memcpy(&SettingsLepton.ROI[ROI.Type], &ROI, sizeof(App_Settings_ROI_t));
+    memcpy(&SettingsLepton.ROI[ROI.Type], &ROI, sizeof(Settings_ROI_t));
 
     /* Save the new ROI to NVS */
     SettingsManager_UpdateLepton(&SettingsLepton);
@@ -441,7 +441,7 @@ static void GUI_Update_ROI(App_Settings_ROI_t ROI)
         .h = (uint16_t)ROI.h
     };
 
-    esp_event_post(GUI_EVENTS, GUI_EVENT_REQUEST_ROI, &SettingsLepton.ROI[ROI.Type], sizeof(App_Settings_ROI_t),
+    esp_event_post(GUI_EVENTS, GUI_EVENT_REQUEST_ROI, &SettingsLepton.ROI[ROI.Type], sizeof(Settings_ROI_t),
                    portMAX_DELAY);
 }
 
@@ -547,7 +547,7 @@ void Task_GUI(void *p_Parameters)
 {
     uint32_t Timeout;
     App_Context_t *App_Context;
-    App_Settings_Lepton_t LeptonSettings;
+    Settings_Lepton_t LeptonSettings;
 
     esp_task_wdt_add(NULL);
 
@@ -585,6 +585,7 @@ void Task_GUI(void *p_Parameters)
 
         lv_timer_handler();
         vTaskDelay(100 / portTICK_PERIOD_MS);
+        Timeout += 100;
     } while (lv_bar_get_value(ui_SplashScreen_LoadingBar) < lv_bar_get_max_value(ui_SplashScreen_LoadingBar));
 
     lv_disp_load_scr(ui_Main);
@@ -659,6 +660,11 @@ void Task_GUI(void *p_Parameters)
             }
 
             for (uint32_t y = 0; y < ImageHeight; y++) {
+                /* Reset watchdog every 20 rows to prevent timeout during image processing */
+                if ((y % 20) == 0) {
+                    esp_task_wdt_reset();
+                }
+
                 uint32_t src_y_fixed = y * ((LeptonFrame.Height - 1) << 16) / ImageHeight;
                 uint32_t y0 = src_y_fixed >> 16;
                 uint32_t y1 = ((y0 + 1) < LeptonFrame.Height) ? (y0 + 1) : y0;
@@ -783,10 +789,11 @@ void Task_GUI(void *p_Parameters)
 
             /* Save frame if requested */
             if (_GUI_Task_State.SaveNextFrameRequested) {
+                App_Lepton_FrameReady_t SaveFrame;
+
                 _GUI_Task_State.SaveNextFrameRequested = false;
 
                 /* Prepare frame data for save task (using scaled RGB565 buffer) */
-                App_Lepton_FrameReady_t SaveFrame;
                 SaveFrame.Buffer = _GUI_Task_State.ThermalCanvasBuffer;  /* Use scaled display buffer */
                 SaveFrame.Width = ImageWidth;
                 SaveFrame.Height = ImageHeight;
@@ -807,6 +814,9 @@ void Task_GUI(void *p_Parameters)
                 if (xSemaphoreTake(_GUI_Task_State.NetworkFrame.Mutex, 0) == pdTRUE) {
                     /* Convert scaled RGB565 buffer to RGB888 for network transmission */
                     uint8_t *rgb888_dst = _GUI_Task_State.NetworkRGBBuffer;
+
+                    /* Reset watchdog before RGB conversion */
+                    esp_task_wdt_reset();
 
                     for (uint32_t i = 0; i < (ImageWidth * ImageHeight); i++) {
                         /* Read RGB565 value (little endian) */
@@ -829,6 +839,9 @@ void Task_GUI(void *p_Parameters)
                     _GUI_Task_State.NetworkFrame.Timestamp = esp_timer_get_time() / 1000;
 
                     xSemaphoreGive(_GUI_Task_State.NetworkFrame.Mutex);
+
+                    /* Reset watchdog after RGB conversion */
+                    esp_task_wdt_reset();
                 }
 
                 Server_NotifyClients();
@@ -888,7 +901,7 @@ void Task_GUI(void *p_Parameters)
                 lv_label_set_text(ui_settings_wifi_status_label, &Buffer[4]);
                 lv_obj_set_style_text_color(ui_Image_Main_WiFi, lv_color_hex(0x00FF00), LV_PART_MAIN);
 
-                MessageBox_Show(Buffer);
+                MessageBox_Show(Buffer, 5);
 
                 /* Disable WiFi buttons in the settings menu */
                 lv_obj_remove_flag(ui_settings_wifi_connect_btn, LV_OBJ_FLAG_CLICKABLE);
@@ -1098,7 +1111,6 @@ esp_err_t GUI_Task_Init(void)
         return ESP_ERR_NO_MEM;
     }
 
-    /* Use the event loop to receive control signals from other tasks */
     esp_event_handler_register(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler, NULL);
     esp_event_handler_register(DEVICE_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Event_Handler, NULL);
     esp_event_handler_register(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler, NULL);

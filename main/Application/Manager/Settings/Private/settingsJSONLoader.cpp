@@ -234,11 +234,26 @@ static void SettingsManager_LoadSystem(Settings_Manager_State_t *p_State, const 
                 p_State->Settings.System.ImageFormat = IMAGE_FORMAT_RAW;
             } else if (strcmp(imageFormat->valuestring, "JPEG") == 0) {
                 p_State->Settings.System.ImageFormat = IMAGE_FORMAT_JPEG;
+            } else if (strcmp(imageFormat->valuestring, "BITMAP") == 0 || strcmp(imageFormat->valuestring, "BMP") == 0) {
+                p_State->Settings.System.ImageFormat = IMAGE_FORMAT_BITMAP;
             } else {
                 p_State->Settings.System.ImageFormat = IMAGE_FORMAT_JPEG;  /* Default to JPEG */
             }
         } else {
             p_State->Settings.System.ImageFormat = IMAGE_FORMAT_JPEG;  /* Default to JPEG */
+        }
+
+        cJSON *jpegQuality = cJSON_GetObjectItem(system, "jpegQuality");
+        if (cJSON_IsNumber(jpegQuality)) {
+            p_State->Settings.System.JpegQuality = static_cast<uint8_t>(jpegQuality->valueint);
+            /* Clamp to valid range 1-100 */
+            if (p_State->Settings.System.JpegQuality < 1) {
+                p_State->Settings.System.JpegQuality = 1;
+            } else if (p_State->Settings.System.JpegQuality > 100) {
+                p_State->Settings.System.JpegQuality = 100;
+            }
+        } else {
+            p_State->Settings.System.JpegQuality = 80;  /* Default to 80 */
         }
     } else {
         SettingsManager_InitDefaultSystem(&p_State->Settings);
@@ -275,6 +290,20 @@ static void SettingsManager_LoadHTTPServer(Settings_Manager_State_t *p_State, co
         } else {
             p_State->Settings.HTTPServer.MaxClients = SETTINGS_DEFAULT_HTTP_MAX_CLIENTS;
         }
+
+        cJSON *useCORS = cJSON_GetObjectItem(http_server, "enable-cors");
+        if (cJSON_IsBool(useCORS)) {
+            p_State->Settings.HTTPServer.useCORS = cJSON_IsTrue(useCORS);
+        } else {
+            p_State->Settings.HTTPServer.useCORS = SETTINGS_DEFAULT_HTTP_ENABLE_CORS;
+        }
+
+        cJSON *apiKey = cJSON_GetObjectItem(http_server, "api-key");
+        if (cJSON_IsString(apiKey)) {
+            strncpy(p_State->Settings.HTTPServer.APIKey, apiKey->valuestring, sizeof(p_State->Settings.HTTPServer.APIKey));
+        } else {
+            strncpy(p_State->Settings.HTTPServer.APIKey, SETTINGS_DEFAULT_HTTP_API_KEY, sizeof(p_State->Settings.HTTPServer.APIKey));
+        }
     } else {
         SettingsManager_InitDefaultHTTPServer(&p_State->Settings);
     }
@@ -296,8 +325,43 @@ static void SettingsManager_LoadVISAServer(Settings_Manager_State_t *p_State, co
         } else {
             p_State->Settings.VISAServer.Port = SETTINGS_DEFAULT_VISA_PORT;
         }
+
+        cJSON *timeout = cJSON_GetObjectItem(visa_server, "timeout");
+        if (cJSON_IsNumber(timeout)) {
+            p_State->Settings.VISAServer.Timeout = static_cast<uint16_t>(timeout->valueint);
+        } else {
+            p_State->Settings.VISAServer.Timeout = SETTINGS_DEFAULT_VISA_TIMEOUT_MS;
+        }
     } else {
         SettingsManager_InitDefaultVISAServer(&p_State->Settings);
+    }
+}
+
+/** @brief          Load the LED flash settings from the JSON object and apply them to the Settings Manager state. If a setting is missing or invalid, the default value is used.
+ *  @param p_State  The Settings Manager state structure to update with the loaded settings
+ *  @param p_JSON   The cJSON object representing the root of the settings JSON document
+ */
+static void SettingsManager_LoadLEDFlash(Settings_Manager_State_t *p_State, const cJSON *p_JSON)
+{
+    cJSON *led_flash = NULL;
+
+    led_flash = cJSON_GetObjectItem(p_JSON, "led-flash");
+    if (led_flash != NULL) {
+        cJSON *enable = cJSON_GetObjectItem(led_flash, "enable");
+        if (cJSON_IsBool(enable)) {
+            p_State->Settings.LEDFlash.Enable = cJSON_IsTrue(enable);
+        } else {
+            p_State->Settings.LEDFlash.Enable = SETTINGS_DEFAULT_LED_FLASH_ENABLE;
+        }
+
+        cJSON *power = cJSON_GetObjectItem(led_flash, "power");
+        if (cJSON_IsNumber(power)) {
+            p_State->Settings.LEDFlash.Power = static_cast<uint8_t>(power->valueint);
+        } else {
+            p_State->Settings.LEDFlash.Power = SETTINGS_DEFAULT_LED_FLASH_POWER;
+        }
+    } else {
+        SettingsManager_InitDefaultLEDFlash(&p_State->Settings);
     }
 }
 
@@ -424,6 +488,9 @@ esp_err_t SettingsManager_LoadFromJSON(Settings_Manager_State_t *p_State, const 
 
     /* Extract VISA Server settings */
     SettingsManager_LoadVISAServer(p_State, JSON);
+
+    /* Extract LED flash settings */
+    SettingsManager_LoadLEDFlash(p_State, JSON);
 
 SettingsManager_Load_JSON_Exit:
     cJSON_Delete(JSON);

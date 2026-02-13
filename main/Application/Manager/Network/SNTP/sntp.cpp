@@ -26,6 +26,7 @@
 #include <esp_event.h>
 
 #include "sntp.h"
+#include "Settings/settingsManager.h"
 
 ESP_EVENT_DEFINE_BASE(SNTP_EVENTS);
 
@@ -82,6 +83,7 @@ esp_err_t SNTP_GetTime(uint8_t Retries)
 
     if (Retry == Retries) {
         ESP_LOGW(TAG, "Failed to synchronize time!");
+
         return ESP_FAIL;
     }
 
@@ -95,8 +97,19 @@ esp_err_t SNTP_GetTime(uint8_t Retries)
 
 void SNTP_SetTimezone(const char *p_Timezone)
 {
+    Settings_System_t SystemSettings;
+    SettingsManager_ChangeNotification_t Changed;
+
     setenv("TZ", p_Timezone, 1);
     tzset();
 
-    esp_event_post(SNTP_EVENTS, SNTP_EVENT_TZ_CHANGED, p_Timezone, strlen(p_Timezone) + 1, portMAX_DELAY);
+    SettingsManager_GetSystem(&SystemSettings);
+
+    memset(SystemSettings.Timezone, '\0', sizeof(SystemSettings.Timezone));
+    memcpy(&SystemSettings.Timezone, p_Timezone, strlen(p_Timezone) + 1);
+
+    Changed.ID = SETTINGS_ID_SNTP_TIMEZONE;
+    Changed.Value = 0;
+    SettingsManager_UpdateSystem(&SystemSettings, &Changed);
+    SettingsManager_Save();
 }

@@ -679,7 +679,7 @@ Network_WiFi_Credentials_t creds = {
 NetworkManager_SetCredentials(&creds);
 
 // Save to NVS via Settings Manager
-App_Settings_WiFi_t wifi_settings;
+Settings_WiFi_t wifi_settings;
 SettingsManager_GetWiFi(&wifi_settings);
 memcpy(&wifi_settings.Credentials, &creds, sizeof(creds));
 SettingsManager_UpdateWiFi(&wifi_settings);
@@ -761,7 +761,7 @@ ESP_LOGI(TAG, "Connected stations: %d", num_stations);
 void init_network(void)
 {
     // Load WiFi settings from Settings Manager
-    App_Settings_WiFi_t wifi_settings;
+    Settings_WiFi_t wifi_settings;
     SettingsManager_GetWiFi(&wifi_settings);
     
     // Prepare network configuration
@@ -912,7 +912,7 @@ void start_web_interface(void)
     }
     
     // Load server settings
-    App_Settings_HTTP_Server_t http_settings;
+    Settings_HTTP_Server_t http_settings;
     SettingsManager_GetHTTPServer(&http_settings);
     
     // Configure server

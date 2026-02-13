@@ -55,7 +55,6 @@ typedef struct {
     esp_netif_t *STA_NetIF;
     esp_netif_t *AP_NetIF;
     EventGroupHandle_t EventGroup;
-    Network_WiFi_STA_Config_t *STA_Config;
     uint8_t RetryCount;
     esp_netif_ip_info_t IP_Info;
 } Network_Manager_State_t;
@@ -91,6 +90,9 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
         }
         case WIFI_EVENT_STA_DISCONNECTED: {
             wifi_event_sta_disconnected_t *Event = (wifi_event_sta_disconnected_t *)p_Data;
+            Settings_WiFi_t WiFiSettings;
+
+            SettingsManager_GetWiFi(&WiFiSettings);
 
             /* Decode disconnect reason for better debugging */
             const char *ReasonStr = "Unknown";
@@ -188,20 +190,14 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
 
             ESP_LOGW(TAG, "Disconnected from AP, reason: %d (%s)", Event->reason, ReasonStr);
 
-            /* Special handling for "No AP found" */
-            if (Event->reason == WIFI_REASON_NO_AP_FOUND) {
-                ESP_LOGW(TAG, "AP '%s' not found - check SSID spelling, signal strength, or if AP is on 2.4GHz band",
-                         _Network_Manager_State.STA_Config->Credentials.SSID);
-            }
-
             _Network_Manager_State.State = NETWORK_STATE_DISCONNECTED;
             esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_WIFI_DISCONNECTED, p_Data, sizeof(wifi_event_sta_disconnected_t),
                            portMAX_DELAY);
 
-            if (_Network_Manager_State.RetryCount < _Network_Manager_State.STA_Config->MaxRetries) {
-                ESP_LOGD(TAG, "Retry %d/%d", _Network_Manager_State.RetryCount++, _Network_Manager_State.STA_Config->MaxRetries);
+            if (_Network_Manager_State.RetryCount < WiFiSettings.MaxRetries) {
+                ESP_LOGD(TAG, "Retry %d/%d", _Network_Manager_State.RetryCount++, WiFiSettings.MaxRetries);
 
-                vTaskDelay(_Network_Manager_State.STA_Config->RetryInterval / portTICK_PERIOD_MS);
+                vTaskDelay(WiFiSettings.RetryInterval / portTICK_PERIOD_MS);
                 esp_wifi_connect();
                 _Network_Manager_State.State = NETWORK_STATE_CONNECTING;
             } else {
@@ -294,17 +290,13 @@ static void on_IP_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, 
     }
 }
 
-esp_err_t NetworkManager_Init(Network_WiFi_STA_Config_t *p_Config)
+esp_err_t NetworkManager_Init(void)
 {
     esp_err_t Error;
 
     if (_Network_Manager_State.isInitialized) {
         ESP_LOGW(TAG, "Already initialized");
         return ESP_OK;
-    }
-
-    if (p_Config == NULL) {
-        return ESP_ERR_INVALID_ARG;
     }
 
     ESP_LOGD(TAG, "Initializing WiFi Manager");
@@ -319,8 +311,6 @@ esp_err_t NetworkManager_Init(Network_WiFi_STA_Config_t *p_Config)
 
         return ESP_ERR_NO_MEM;
     }
-
-    _Network_Manager_State.STA_Config = p_Config;
 
     /* Create network interfaces */
     _Network_Manager_State.STA_NetIF = esp_netif_create_default_wifi_sta();
@@ -416,8 +406,9 @@ void NetworkManager_Deinit(void)
 
 esp_err_t NetworkManager_StartSTA(void)
 {
-    wifi_config_t WifiConfig;
     esp_err_t Error;
+    wifi_config_t WifiConfig;
+    Settings_WiFi_t WiFiSettings;
 
     if (_Network_Manager_State.isInitialized == false) {
         return ESP_ERR_INVALID_STATE;
@@ -427,16 +418,18 @@ esp_err_t NetworkManager_StartSTA(void)
 
     xEventGroupClearBits(_Network_Manager_State.EventGroup, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT);
 
+    SettingsManager_GetWiFi(&WiFiSettings);
+
     ESP_LOGI(TAG, "Starting WiFi in STA mode");
-    ESP_LOGI(TAG, "Connecting to SSID: %s", _Network_Manager_State.STA_Config->Credentials.SSID);
+    ESP_LOGI(TAG, "Connecting to SSID: %s", WiFiSettings.SSID);
 
     memset(&WifiConfig, 0, sizeof(wifi_config_t));
     WifiConfig.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
     WifiConfig.sta.pmf_cfg.capable = true;
     WifiConfig.sta.pmf_cfg.required = false;
-    strncpy((char *)WifiConfig.sta.ssid, _Network_Manager_State.STA_Config->Credentials.SSID,
+    strncpy(reinterpret_cast<char *>(WifiConfig.sta.ssid), WiFiSettings.SSID,
             sizeof(WifiConfig.sta.ssid) - 1);
-    strncpy((char *)WifiConfig.sta.password, _Network_Manager_State.STA_Config->Credentials.Password,
+    strncpy(reinterpret_cast<char *>(WifiConfig.sta.password), WiFiSettings.Password,
             sizeof(WifiConfig.sta.password) - 1);
 
     /* Set STA mode - WiFi might still be in APSTA mode from provisioning */
@@ -477,19 +470,21 @@ esp_err_t NetworkManager_StartSTA(void)
     return ESP_OK;
 }
 
-esp_err_t NetworkManager_StartServer(Network_Server_Config_t *p_Config)
+esp_err_t NetworkManager_StartServer(void)
 {
     esp_err_t Error;
 
-    Error = Server_Init(p_Config);
+    Error = Server_Init();
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize server: %d!", Error);
+
         return Error;
     }
 
     Error = Server_Start();
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to start server: %d!", Error);
+
         return Error;
     }
 
@@ -509,45 +504,6 @@ esp_err_t NetworkManager_Stop(void)
     _Network_Manager_State.State = NETWORK_STATE_IDLE;
 
     return ESP_OK;
-}
-
-esp_err_t NetworkManager_ConnectWiFi(const char *p_SSID, const char *p_Password)
-{
-    if (_Network_Manager_State.isInitialized == false) {
-        return ESP_ERR_INVALID_STATE;
-    }
-
-    if (p_SSID != NULL) {
-        strncpy(_Network_Manager_State.STA_Config->Credentials.SSID, p_SSID,
-                sizeof(_Network_Manager_State.STA_Config->Credentials.SSID) - 1);
-    }
-
-    if (p_Password != NULL) {
-        strncpy(_Network_Manager_State.STA_Config->Credentials.Password, p_Password,
-                sizeof(_Network_Manager_State.STA_Config->Credentials.Password) - 1);
-    }
-
-    /* Restart the WiFi connection with the new credentials */
-    NetworkManager_Stop();
-    NetworkManager_StartSTA();
-
-    /* Wait for connection */
-    EventBits_t Bits = xEventGroupWaitBits(_Network_Manager_State.EventGroup,
-                                           WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
-                                           pdFALSE,
-                                           pdFALSE,
-                                           30000 / portTICK_PERIOD_MS);
-
-    if (Bits & WIFI_CONNECTED_BIT) {
-        ESP_LOGD(TAG, "Connected to SSID: %s!", _Network_Manager_State.STA_Config->Credentials.SSID);
-        return ESP_OK;
-    } else if (Bits & WIFI_FAIL_BIT) {
-        ESP_LOGE(TAG, "Failed to connect to SSID: %s!", _Network_Manager_State.STA_Config->Credentials.SSID);
-        return ESP_FAIL;
-    } else {
-        ESP_LOGE(TAG, "Connection timeout!");
-        return ESP_ERR_TIMEOUT;
-    }
 }
 
 esp_err_t NetworkManager_DisconnectWiFi(void)
@@ -604,27 +560,6 @@ esp_err_t NetworkManager_GetMAC(uint8_t *p_MAC)
     }
 
     return esp_wifi_get_mac(WIFI_IF_STA, p_MAC);
-}
-
-esp_err_t NetworkManager_SetCredentials(Network_WiFi_Credentials_t *p_Credentials)
-{
-    if (p_Credentials == NULL) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    strncpy(_Network_Manager_State.STA_Config->Credentials.SSID, p_Credentials->SSID,
-            sizeof(_Network_Manager_State.STA_Config->Credentials.SSID) - 1);
-    if (strlen(p_Credentials->Password) != 0) {
-        strncpy(_Network_Manager_State.STA_Config->Credentials.Password, p_Credentials->Password,
-                sizeof(_Network_Manager_State.STA_Config->Credentials.Password) - 1);
-    } else {
-        _Network_Manager_State.STA_Config->Credentials.Password[0] = '\0';
-    }
-
-    esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_CREDENTIALS_UPDATED, &_Network_Manager_State.STA_Config->Credentials,
-                   sizeof(Network_WiFi_Credentials_t), portMAX_DELAY);
-
-    return ESP_OK;
 }
 
 uint8_t NetworkManager_GetConnectedStations(void)

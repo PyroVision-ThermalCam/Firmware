@@ -83,8 +83,9 @@ static void TimeManager_SNTP_Sync_Callback(struct timeval *tv)
 
         Error = DevicesManager_SetTime(&Timeinfo);
         if (Error == ESP_OK) {
-            _TimeManager_State.lastRTC_Backup = Now;
             ESP_LOGD(TAG, "Time backed up to RTC");
+
+            _TimeManager_State.lastRTC_Backup = Now;
         } else {
             ESP_LOGW(TAG, "Failed to backup time to RTC: %d!", Error);
         }
@@ -138,6 +139,7 @@ esp_err_t TimeManager_Init(void *p_RTC_Handle)
 
     if (_TimeManager_State.isInitialized) {
         ESP_LOGW(TAG, "Already initialized");
+
         return ESP_OK;
     }
 
@@ -342,10 +344,12 @@ esp_err_t TimeManager_ForceSync(void)
 {
     if (_TimeManager_State.hasNetwork == false) {
         ESP_LOGW(TAG, "Cannot force sync: no network connection");
+
         return ESP_ERR_INVALID_STATE;
     }
 
     ESP_LOGD(TAG, "Forcing SNTP synchronization");
+
     esp_sntp_restart();
 
     return ESP_OK;

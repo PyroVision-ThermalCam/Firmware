@@ -36,13 +36,19 @@
 
 #include "../settingsTypes.h"
 
+#define SETTINGS_DEFAULT_LED_FLASH_ENABLE       true
+#define SETTINGS_DEFAULT_LED_FLASH_POWER        100
+
 #define SETTINGS_DEFAULT_LEPTON_EMISSIVITY      100
 
 #define SETTINGS_DEFAULT_VISA_PORT              5025
+#define SETTINGS_DEFAULT_VISA_TIMEOUT_MS        5000
 
 #define SETTINGS_DEFAULT_HTTP_PORT              80
 #define SETTINGS_DEFAULT_WS_PING_INTERVAL       30
 #define SETTINGS_DEFAULT_HTTP_MAX_CLIENTS       4
+#define SETTINGS_DEFAULT_HTTP_ENABLE_CORS       false
+#define SETTINGS_DEFAULT_HTTP_API_KEY           ""
 
 #define SETTINGS_SYSTEM_DEFAULT_DEVICENAME      "PyroVision-Device"
 #define SETTINGS_SYSTEM_DEFAULT_TIMEZONE        "CET-1CEST,M3.5.0,M10.5.0/3"
@@ -65,8 +71,8 @@
 typedef struct {
     bool isInitialized;
     nvs_handle_t NVS_Handle;
-    App_Settings_t Settings;
-    App_Settings_Info_t Info;
+    Settings_t Settings;
+    Settings_Info_t Info;
     SemaphoreHandle_t Mutex;
 } Settings_Manager_State_t;
 
@@ -87,46 +93,51 @@ void SettingsManager_LoadFromDefaults(Settings_Manager_State_t *p_State);
 /** @brief              Initialize Lepton ROIs with factory defaults.
  *  @param p_Settings   Pointer to settings structure
  */
-void SettingsManager_InitDefaultLeptonROIs(App_Settings_t *p_Settings);
+void SettingsManager_InitDefaultLeptonROIs(Settings_t *p_Settings);
 
 /** @brief              Initialize Lepton emissivity presets with factory defaults.
  *  @param p_Settings   Pointer to settings structure
  */
-void SettingsManager_InitDefaultLeptonEmissivityPresets(App_Settings_t *p_Settings);
+void SettingsManager_InitDefaultLeptonEmissivityPresets(Settings_t *p_Settings);
 
 /** @brief              Initialize Display settings with factory defaults.
  *  @param p_Settings   Pointer to settings structure
  */
-void SettingsManager_InitDefaultDisplay(App_Settings_t *p_Settings);
+void SettingsManager_InitDefaultDisplay(Settings_t *p_Settings);
 
 /** @brief              Initialize Provisioning settings with factory defaults.
  *  @param p_Settings   Pointer to settings structure
  */
-void SettingsManager_InitDefaultProvisioning(App_Settings_t *p_Settings);
+void SettingsManager_InitDefaultProvisioning(Settings_t *p_Settings);
 
 /** @brief              Initialize WiFi settings with factory defaults.
  *  @param p_Settings   Pointer to settings structure
  */
-void SettingsManager_InitDefaultWiFi(App_Settings_t *p_Settings);
+void SettingsManager_InitDefaultWiFi(Settings_t *p_Settings);
 
 /** @brief              Initialize System settings with factory defaults.
  *  @param p_Settings   Pointer to settings structure
  */
-void SettingsManager_InitDefaultSystem(App_Settings_t *p_Settings);
+void SettingsManager_InitDefaultSystem(Settings_t *p_Settings);
 
 /** @brief              Initialize Lepton settings with factory defaults.
  *  @param p_Settings   Pointer to settings structure
  */
-void SettingsManager_InitDefaultLepton(App_Settings_t *p_Settings);
+void SettingsManager_InitDefaultLepton(Settings_t *p_Settings);
 
 /** @brief              Initialize HTTP server settings with factory defaults.
  *  @param p_Settings   Pointer to settings structure
  */
-void SettingsManager_InitDefaultHTTPServer(App_Settings_t *p_Settings);
+void SettingsManager_InitDefaultHTTPServer(Settings_t *p_Settings);
 
 /** @brief              Initialize VISA server settings with factory defaults.
  *  @param p_Settings   Pointer to settings structure
  */
-void SettingsManager_InitDefaultVISAServer(App_Settings_t *p_Settings);
+void SettingsManager_InitDefaultVISAServer(Settings_t *p_Settings);
+
+/** @brief              Initialize LED flash settings with factory defaults.
+ *  @param p_Settings   Pointer to settings structure
+ */
+void SettingsManager_InitDefaultLEDFlash(Settings_t *p_Settings);
 
 #endif /* SETTINGS_LOADER_H_ */

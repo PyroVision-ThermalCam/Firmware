@@ -61,9 +61,9 @@ typedef struct {
     Lepton_FrameBuffer_t RawFrame;
     Lepton_Conf_t LeptonConf;
     Lepton_t Lepton;
-    App_Settings_ROI_t ROI;
+    Settings_ROI_t ROI;
     App_GUI_Screenposition_t ScreenPosition;
-    SettingsManager_Setting_t NewSetting;
+    SettingsManager_ChangeNotification_t NewSetting;
 } Lepton_Task_State_t;
 
 static Lepton_Task_State_t _Lepton_Task_State;
@@ -83,7 +83,7 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
     switch (ID) {
         case SETTINGS_EVENT_LEPTON_CHANGED: {
             if (p_Data != NULL) {
-                memcpy(&_Lepton_Task_State.NewSetting, p_Data, sizeof(SettingsManager_Setting_t));
+                memcpy(&_Lepton_Task_State.NewSetting, p_Data, sizeof(SettingsManager_ChangeNotification_t));
 
                 ESP_LOGD(TAG, "Lepton settings changed: ID=%d", _Lepton_Task_State.NewSetting.ID);
                 ESP_LOGD(TAG, "Lepton settings changed: Value=%d", _Lepton_Task_State.NewSetting.Value);
@@ -120,7 +120,7 @@ static void on_GUI_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
         }
         case GUI_EVENT_REQUEST_ROI: {
             if (p_Data != NULL) {
-                memcpy(&_Lepton_Task_State.ROI, p_Data, sizeof(App_Settings_ROI_t));
+                memcpy(&_Lepton_Task_State.ROI, p_Data, sizeof(Settings_ROI_t));
 
                 xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_ROI_REQUEST);
             } else {
@@ -171,7 +171,7 @@ static void on_GUI_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
  */
 static void Lepton_LoadSettings(void)
 {
-    App_Settings_Lepton_t LeptonSettings;
+    Settings_Lepton_t LeptonSettings;
 
     SettingsManager_GetLepton(&LeptonSettings);
 
@@ -257,6 +257,7 @@ static void Task_Lepton(void *p_Parameters)
 
     if (Lepton_StartCapture(&_Lepton_Task_State.Lepton, _Lepton_Task_State.RawFrameQueue) != LEPTON_ERR_OK) {
         ESP_LOGE(TAG, "Can not start image capturing!");
+
         esp_event_post(LEPTON_EVENTS, LEPTON_EVENT_CAMERA_ERROR, NULL, 0, portMAX_DELAY);
 
         /* Critical error - cannot continue without capture task */

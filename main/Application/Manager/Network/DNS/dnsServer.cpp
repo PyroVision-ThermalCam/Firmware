@@ -74,7 +74,9 @@ static void DNS_Server_Task(void *p_Arg)
     AP_NetIF = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
     if (AP_NetIF == NULL) {
         ESP_LOGE(TAG, "Failed to get AP netif!");
+
         vTaskDelete(NULL);
+
         return;
     }
 
@@ -87,6 +89,8 @@ static void DNS_Server_Task(void *p_Arg)
     while (_DNS_Server_State.isRunning) {
         DNS_Header_t *Header;
         int Length;
+        uint16_t *AnswerPtr;
+        uint8_t *ResponsePtr;
 
         esp_task_wdt_reset();
 
@@ -108,20 +112,19 @@ static void DNS_Server_Task(void *p_Arg)
             continue;
         }
 
-        Header = (DNS_Header_t *)Buffer;
-
+        Header = reinterpret_cast<DNS_Header_t *>(Buffer);
         Header->Flags = htons(0x8180);
         Header->ANCount = Header->QDCount;
         Header->NSCount = 0;
         Header->ARCount = 0;
 
-        uint8_t *ResponsePtr = Buffer + sizeof(DNS_Header_t);
+        ResponsePtr = Buffer + sizeof(DNS_Header_t);
         while (ResponsePtr < (Buffer + Length) && (*ResponsePtr != 0)) {
             ResponsePtr += *ResponsePtr + 1;
         }
         ResponsePtr += 5;
 
-        uint16_t *AnswerPtr = (uint16_t *)ResponsePtr;
+        AnswerPtr = reinterpret_cast<uint16_t *>(ResponsePtr);
         *AnswerPtr++ = htons(0xC00C);   /* Name pointer to question */
         *AnswerPtr++ = htons(0x0001);   /* Type A */
         *AnswerPtr++ = htons(0x0001);   /* Class IN */
@@ -130,7 +133,7 @@ static void DNS_Server_Task(void *p_Arg)
         *AnswerPtr++ = htons(0x0004);   /* Data length */
 
         memcpy(AnswerPtr, &IP_Info.ip.addr, sizeof(IP_Info.ip.addr));
-        ResponsePtr = (uint8_t *)AnswerPtr + sizeof(IP_Info.ip.addr);
+        ResponsePtr = reinterpret_cast<uint8_t *>(AnswerPtr) + sizeof(IP_Info.ip.addr);
 
         sendto(_DNS_Server_State.Socket, Buffer, ResponsePtr - Buffer, 0,
                (struct sockaddr *)&ClientAddr, ClientAddrLen);

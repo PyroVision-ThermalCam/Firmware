@@ -35,6 +35,7 @@
 #include "../Server/server.h"
 #include "../DNS/dnsServer.h"
 #include "provisioning.h"
+#include "Settings/settingsManager.h"
 
 typedef struct {
     bool isInitialized;
@@ -97,7 +98,7 @@ static void on_Prov_Event(void *p_Arg, esp_event_base_t EventBase, int32_t Event
             break;
         }
         case WIFI_PROV_CRED_SUCCESS: {
-            Network_WiFi_Credentials_t Credentials;
+            Settings_WiFi_t WiFiSettings;
 
             ESP_LOGD(TAG, "Provisioning successful");
 
@@ -105,18 +106,18 @@ static void on_Prov_Event(void *p_Arg, esp_event_base_t EventBase, int32_t Event
                 esp_timer_stop(_Provisioning_State.TimeoutTimer);
             }
 
-            memset(&Credentials, 0, sizeof(Credentials));
-
             /* Copy SSID and password from saved configuration */
             if (_Provisioning_State.hasCredentials) {
-                strncpy(Credentials.SSID, (const char *)_Provisioning_State.WiFi_STA_Config.ssid, sizeof(Credentials.SSID) - 1);
-                strncpy(Credentials.Password, (const char *)_Provisioning_State.WiFi_STA_Config.password,
-                        sizeof(Credentials.Password) - 1);
+                SettingsManager_GetWiFi(&WiFiSettings);
+
+                strncpy(WiFiSettings.SSID, (const char *)_Provisioning_State.WiFi_STA_Config.ssid, sizeof(WiFiSettings.SSID) - 1);
+                strncpy(WiFiSettings.Password, (const char *)_Provisioning_State.WiFi_STA_Config.password,
+                        sizeof(WiFiSettings.Password) - 1);
+                
+                SettingsManager_UpdateWiFi(&WiFiSettings);
             } else {
                 ESP_LOGE(TAG, "No WiFi credentials available!");
             }
-
-            NetworkManager_SetCredentials(&Credentials);
 
             break;
         }
@@ -135,20 +136,22 @@ static void on_Prov_Event(void *p_Arg, esp_event_base_t EventBase, int32_t Event
     }
 }
 
-esp_err_t Provisioning_Init(Network_Provisioning_Config_t *p_Config)
+esp_err_t Provisioning_Init(void)
 {
+    Settings_Provisioning_t ProvisioningSettings;
+
     if (_Provisioning_State.isInitialized) {
         ESP_LOGW(TAG, "Already initialized");
 
         return ESP_OK;
-    } else if (p_Config == NULL) {
-        return ESP_ERR_INVALID_ARG;
     }
 
+    SettingsManager_GetProvisioning(&ProvisioningSettings);
+
     ESP_LOGD(TAG, "Initializing Provisioning Manager");
-    strncpy(_Provisioning_State.Name, p_Config->Name,
+    strncpy(_Provisioning_State.Name, ProvisioningSettings.Name,
             sizeof(_Provisioning_State.Name) - 1);
-    _Provisioning_State.TimeOut = p_Config->Timeout;
+    _Provisioning_State.TimeOut = ProvisioningSettings.Timeout;
     _Provisioning_State.usePortal = true;
 
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_PROV_EVENT, ESP_EVENT_ANY_ID, &on_Prov_Event, NULL));
@@ -250,7 +253,7 @@ esp_err_t Provisioning_Start(void)
     ServerConfig.Port = 80;
     ServerConfig.MaxClients = 1;  /* Only one client for provisioning */
     ServerConfig.EnableCORS = true;
-    ServerConfig.API_Key = NULL;
+    memset(ServerConfig.API_Key, '\0', sizeof(ServerConfig.API_Key));
 
     /* Initialize HTTP server first (without WebSocket) */
     Error = HTTP_Server_Init(&ServerConfig);

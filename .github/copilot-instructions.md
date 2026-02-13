@@ -66,7 +66,7 @@ esp_err_t MyFunction(uint8_t *p_Buffer, size_t Size)
 
 #### Types
 - **Structs/Enums**: `ModuleName_Description_t` with `_t` suffix
-  - Examples: `App_Settings_t`, `Network_State_t`, `App_Settings_WiFi_t`
+  - Examples: `Settings_t`, `Network_State_t`, `Settings_WiFi_t`
 - **Enums**: Use descriptive prefix for values
   - Example: `SETTINGS_EVENT_LOADED`, `NETWORK_EVENT_WIFI_CONNECTED`
 
@@ -293,7 +293,7 @@ typedef struct {
     uint16_t Port;              /**< HTTP server port. */
     uint16_t WSPingIntervalSec; /**< WebSocket ping interval in seconds. */
     uint8_t MaxClients;         /**< Maximum number of simultaneous clients. */
-} App_Settings_HTTP_Server_t;
+} Settings_HTTP_Server_t;
 ```
 
 ### Enum Documentation
@@ -305,7 +305,7 @@ enum {
     SETTINGS_EVENT_LOADED,      /**< Settings loaded from NVS. */
     SETTINGS_EVENT_SAVED,       /**< Settings saved to NVS. */
     SETTINGS_EVENT_WIFI_CHANGED,/**< WiFi settings changed.
-                                     Data contains App_Settings_WiFi_t. */
+                                     Data contains Settings_WiFi_t. */
 };
 ```
 

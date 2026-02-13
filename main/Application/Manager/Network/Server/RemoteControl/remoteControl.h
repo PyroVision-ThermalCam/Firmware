@@ -25,31 +25,19 @@
 #define REMOTE_CONTROL_H_
 
 #include <esp_err.h>
+
 #include <cJSON.h>
 #include <stdint.h>
 #include <stdbool.h>
 
-/** @brief LED color enumeration.
- */
-typedef enum {
-    REMOTE_LED_RED = 0,         /**< Red LED. */
-    REMOTE_LED_GREEN = 1,       /**< Green LED. */
-    REMOTE_LED_BLUE = 2,        /**< Blue LED. */
-} Remote_LED_Color_t;
+#include "../../networkTypes.h"
+#include "Settings/settingsTypes.h"
 
-/** @brief Image format enumeration.
- */
-typedef enum {
-    REMOTE_IMAGE_FORMAT_PNG = 0,    /**< PNG format. */
-    REMOTE_IMAGE_FORMAT_RAW = 1,    /**< Raw format. */
-    REMOTE_IMAGE_FORMAT_JPEG = 2,   /**< JPEG format. */
-} Remote_Image_Format_t;
-
-/** @brief              Get temperature from TMP117 sensor.
- *  @param p_Temperature Pointer to store temperature value in Celsius
- *  @return             ESP_OK on success
- *                      ESP_ERR_INVALID_ARG if p_Temperature is NULL
- *                      ESP_ERR_INVALID_STATE if sensor not initialized
+/** @brief                  Get temperature from TMP117 sensor.
+ *  @param p_Temperature    Pointer to store temperature value in Celsius
+ *  @return                 ESP_OK on success
+ *                          ESP_ERR_INVALID_ARG if p_Temperature is NULL
+ *                          ESP_ERR_INVALID_STATE if sensor not initialized
  */
 esp_err_t RemoteControl_GetTemperature(float *p_Temperature);
 
@@ -70,12 +58,12 @@ esp_err_t RemoteControl_GetTime(char *p_TimeStr, size_t MaxLen);
 esp_err_t RemoteControl_SetTime(const char *p_TimeStr);
 
 /** @brief              Get battery voltage.
- *  @param p_Voltage    Pointer to store voltage value in volts
+ *  @param p_Voltage    Pointer to store voltage value in millivolts
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if p_Voltage is NULL
  *                      ESP_ERR_NOT_SUPPORTED if battery monitoring not available
  */
-esp_err_t RemoteControl_GetBatteryVoltage(float *p_Voltage);
+esp_err_t RemoteControl_GetBatteryVoltage(int *p_Voltage);
 
 /** @brief              Get battery state of charge.
  *  @param p_SOC        Pointer to store SOC value in percent (0-100)
@@ -94,7 +82,7 @@ esp_err_t RemoteControl_GetStateOfCharge(uint8_t *p_SOC);
  *                      ESP_ERR_NO_MEM if allocation fails
  *                      ESP_ERR_NOT_FOUND if camera not available
  */
-esp_err_t RemoteControl_GetOV5640Image(uint8_t **pp_Buffer, size_t *p_Size, Remote_Image_Format_t Format);
+esp_err_t RemoteControl_GetOV5640Image(uint8_t **pp_Buffer, size_t *p_Size, Settings_Image_Format_t Format);
 
 /** @brief              Get Lepton thermal camera image.
  *  @param pp_Buffer    Pointer to store image buffer pointer (caller must free)
@@ -105,10 +93,10 @@ esp_err_t RemoteControl_GetOV5640Image(uint8_t **pp_Buffer, size_t *p_Size, Remo
  *                      ESP_ERR_NO_MEM if allocation fails
  *                      ESP_ERR_NOT_FOUND if camera not available
  */
-esp_err_t RemoteControl_GetLeptonImage(uint8_t **pp_Buffer, size_t *p_Size, Remote_Image_Format_t Format);
+esp_err_t RemoteControl_GetLeptonImage(uint8_t **pp_Buffer, size_t *p_Size, Settings_Image_Format_t Format);
 
 /** @brief              Get Lepton camera emissivity.
- *  @param p_Emissivity Pointer to store emissivity value (0-100)
+ *  @param p_Emissivity Pointer to store emissivity value
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if p_Emissivity is NULL
  */
@@ -162,12 +150,13 @@ esp_err_t RemoteControl_GetLeptonSpotmeter(cJSON *p_JSON);
  */
 esp_err_t RemoteControl_UpdateSpotmeter(float Min, float Max, float Mean);
 
-/** @brief              Get flash power level.
- *  @param p_Power      Pointer to store power level (0-100)
+/** @brief              Get flash configuration.
+ *  @param p_Enabled    Pointer to store flash enabled state
+ *  @param p_Power      Pointer to store flash power level (0-100)
  *  @return             ESP_OK on success
- *                      ESP_ERR_INVALID_ARG if p_Power is NULL
+ *                      ESP_ERR_INVALID_ARG if pointers are NULL
  */
-esp_err_t RemoteControl_GetFlashPower(uint8_t *p_Power);
+esp_err_t RemoteControl_GetFlashConfig(bool *p_Enabled, uint8_t *p_Power);
 
 /** @brief              Set flash power level.
  *  @param Power        Power level (0-100)
@@ -176,32 +165,25 @@ esp_err_t RemoteControl_GetFlashPower(uint8_t *p_Power);
  */
 esp_err_t RemoteControl_SetFlashPower(uint8_t Power);
 
-/** @brief              Get flash state.
- *  @param p_Enabled    Pointer to store flash state
- *  @return             ESP_OK on success
- *                      ESP_ERR_INVALID_ARG if p_Enabled is NULL
- */
-esp_err_t RemoteControl_GetFlashState(bool *p_Enabled);
-
 /** @brief              Set flash state.
  *  @param Enabled      Flash enabled state
  *  @return             ESP_OK on success
  */
 esp_err_t RemoteControl_SetFlashState(bool Enabled);
 
-/** @brief              Get current image format.
+/** @brief              Get image format.
  *  @param p_Format     Pointer to store image format
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if p_Format is NULL
  */
-esp_err_t RemoteControl_GetImageFormat(Remote_Image_Format_t *p_Format);
+esp_err_t RemoteControl_GetImageFormat(Settings_Image_Format_t *p_Format);
 
 /** @brief              Set image format.
  *  @param Format       Image format
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if format invalid
  */
-esp_err_t RemoteControl_SetImageFormat(Remote_Image_Format_t Format);
+esp_err_t RemoteControl_SetImageFormat(Settings_Image_Format_t Format);
 
 /** @brief              Set status LED color and brightness.
  *  @param Color        LED color

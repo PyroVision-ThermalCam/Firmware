@@ -35,6 +35,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "Settings/settingsTypes.h"
+
 /** @brief Network Manager events base.
  */
 ESP_EVENT_DECLARE_BASE(NETWORK_EVENTS);
@@ -60,14 +62,6 @@ typedef enum {
     NETWORK_PROV_BOTH,
 } Network_ProvMethod_t;
 
-/** @brief Image format for encoding.
- */
-typedef enum {
-    NETWORK_IMAGE_FORMAT_JPEG = 0,
-    NETWORK_IMAGE_FORMAT_PNG,
-    NETWORK_IMAGE_FORMAT_RAW,
-} Network_ImageFormat_t;
-
 /** @brief Network event types (used as event IDs in NETWORK_EVENTS base).
  */
 typedef enum {
@@ -75,8 +69,12 @@ typedef enum {
     NETWORK_EVENT_WIFI_DISCONNECTED,
     NETWORK_EVENT_WIFI_GOT_IP,                  /**< The device got an IP address
                                                      Data is of type Network_IP_Info_t */
-    NETWORK_EVENT_CREDENTIALS_UPDATED,          /**< New WiFi credentials have been set
-                                                     Data is of ... */
+    NETWORK_EVENT_VISA_CLIENT_CONNECTED,        /**< A client connected to the VISA server */
+    NETWORK_EVENT_VISA_CLIENT_DISCONNECTED,     /**< A client disconnected from the VISA server */
+    NETWORK_EVENT_REMOTE_LOCK_SET,              /**< Set the remote lock state.
+                                                     Data is of type bool. */
+    NETWORK_EVENT_REMOTE_DISPLAY_MESSAGE,       /**< Remote display message changed.
+                                                     Data is of type Remote_Display_Message_t. */
     NETWORK_EVENT_AP_STARTED,
     NETWORK_EVENT_AP_STOPPED,
     NETWORK_EVENT_AP_STA_CONNECTED,
@@ -128,6 +126,20 @@ typedef enum {
     WS_MSG_TYPE_RESPONSE,
 } Server_WS_Message_Type_t;
 
+/** @brief Remote control display message structure.
+ */
+typedef struct {
+    char Message[128];                    /**< Message to display on the device */
+} Remote_Display_Message_t;
+
+/** @brief LED color enumeration.
+ */
+typedef enum {
+    REMOTE_LED_RED = 0,         /**< Red LED. */
+    REMOTE_LED_GREEN = 1,       /**< Green LED. */
+    REMOTE_LED_BLUE = 2,        /**< Blue LED. */
+} Remote_LED_Color_t;
+
 /** @brief Thermal frame data structure.
  */
 typedef struct {
@@ -148,7 +160,7 @@ typedef struct {
 typedef struct {
     uint8_t *Data;                      /**< Encoded image data */
     size_t Size;                        /**< Size of encoded data */
-    Network_ImageFormat_t Format;       /**< Image format */
+    Settings_Image_Format_t Format;     /**< Image format */
     uint16_t Width;                     /**< Image width */
     uint16_t Height;                    /**< Image height */
 } Network_Encoded_Image_t;
@@ -167,28 +179,6 @@ typedef struct {
     uint8_t MAC[6];
 } Network_Event_STA_Info_t;
 
-/** @brief WiFi credentials.
- */
-typedef struct {
-    char SSID[33];                          /**< WiFi SSID (null-terminated, max 32 chars). */
-    char Password[65];                      /**< WiFi password (null-terminated, max 64 chars). */
-} Network_WiFi_Credentials_t;
-
-/** @brief WiFi provisioning configuration.
- */
-typedef struct {
-    char Name[32];                          /**< Product name (null-terminated, max 31 chars). */
-    uint32_t Timeout;
-} Network_Provisioning_Config_t;
-
-/** @brief WiFi station configuration.
- */
-typedef struct {
-    Network_WiFi_Credentials_t Credentials;
-    uint8_t MaxRetries;
-    uint16_t RetryInterval;
-} Network_WiFi_STA_Config_t;
-
 /** @brief HTTP Server configuration.
  */
 typedef struct {
@@ -196,20 +186,7 @@ typedef struct {
     uint8_t MaxClients;
     uint16_t WSPingIntervalSec;
     bool EnableCORS;
-    const char *API_Key;
+    char API_Key[64];
 } Network_HTTP_Server_Config_t;
-
-/** @brief VISA Server configuration.
- */
-typedef struct {
-    uint16_t Port;
-} Network_VISA_Server_Config_t;
-
-/** @brief Server configuration.
- */
-typedef struct {
-    Network_HTTP_Server_Config_t HTTP_Server;
-    Network_VISA_Server_Config_t VISA_Server;
-} Network_Server_Config_t;
 
 #endif /* NETWORK_TYPES_H_ */

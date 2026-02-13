@@ -50,8 +50,11 @@ typedef struct {
 
 extern Slider_Widgets_t brightness_widgets;
 extern Slider_Widgets_t emissivity_widgets;
+extern Slider_Widgets_t jpeg_quality_widgets;
 
 extern lv_obj_t *usb_mode_switch;
+extern lv_obj_t *image_format_dropdown;
+extern lv_obj_t *jpeg_quality_row;
 
 /** @brief      Display brightness slider event callback to update value label.
  *  @param e    Pointer to the event object
@@ -97,6 +100,16 @@ void on_Flash_ClearCoredump_Callback(lv_event_t *e);
  *  @param e    Pointer to the event object
  */
 void on_USB_Mode_Switch_Callback(lv_event_t *e);
+
+/** @brief      Image format dropdown callback to change image format setting.
+ *  @param e    Pointer to the event object
+ */
+void on_Image_Format_Dropdown_Callback(lv_event_t *e);
+
+/** @brief      JPEG quality slider callback to update quality setting.
+ *  @param e    Pointer to the event object
+ */
+void on_Image_JpegQuality_Slider_Callback(lv_event_t *e);
 
 /** @brief                  Network event handler which is used to handle network-related events such as WiFi connection changes.
  *                          This can be used to update the UI or internal state based on network events.

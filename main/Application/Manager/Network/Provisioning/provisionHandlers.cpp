@@ -160,6 +160,7 @@ esp_err_t Provision_Handler_Scan(httpd_req_t *p_Request)
 
         Response = cJSON_CreateObject();
         cJSON_AddArrayToObject(Response, "networks");
+
         return Provision_Handler_Send_JSON_Response(p_Request, Response, 200);
     }
 
@@ -168,12 +169,14 @@ esp_err_t Provision_Handler_Scan(httpd_req_t *p_Request)
     /* Limit to maximum to prevent memory issues */
     if (APCount > MaxAPCount) {
         ESP_LOGW(TAG, "Found %d networks, limiting to %d", APCount, MaxAPCount);
+
         APCount = MaxAPCount;
     }
 
     wifi_ap_record_t *APList = (wifi_ap_record_t *)malloc(sizeof(wifi_ap_record_t) * APCount);
     if (APList == NULL) {
         httpd_resp_send_500(p_Request);
+
         return ESP_ERR_NO_MEM;
     }
 
@@ -207,17 +210,19 @@ esp_err_t Provision_Handler_Connect(httpd_req_t *p_Request)
     cJSON *Response = NULL;
     esp_err_t Error = ESP_OK;
     int Received;
-    Network_WiFi_Credentials_t Credentials;
-
+    Settings_WiFi_t WiFiSettings;
     int ContentLen = p_Request->content_len;
+
     if (ContentLen > 512) {
         httpd_resp_send_err(p_Request, HTTPD_400_BAD_REQUEST, "Request too large");
+
         return ESP_FAIL;
     }
 
     Buffer = (char *)heap_caps_malloc(ContentLen + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (Buffer == NULL) {
         httpd_resp_send_500(p_Request);
+
         return ESP_ERR_NO_MEM;
     }
 
@@ -225,6 +230,7 @@ esp_err_t Provision_Handler_Connect(httpd_req_t *p_Request)
     if (Received <= 0) {
         free(Buffer);
         httpd_resp_send_err(p_Request, HTTPD_400_BAD_REQUEST, "Failed to read request");
+
         return ESP_FAIL;
     }
 
@@ -235,6 +241,7 @@ esp_err_t Provision_Handler_Connect(httpd_req_t *p_Request)
 
     if (JSON == NULL) {
         httpd_resp_send_err(p_Request, HTTPD_400_BAD_REQUEST, "Invalid JSON");
+
         return ESP_FAIL;
     }
 
@@ -244,6 +251,7 @@ esp_err_t Provision_Handler_Connect(httpd_req_t *p_Request)
     if ((cJSON_IsString(SSID_JSON) == false) || (cJSON_IsString(Password_JSON) == false)) {
         cJSON_Delete(JSON);
         httpd_resp_send_err(p_Request, HTTPD_400_BAD_REQUEST, "Missing ssid or password");
+
         return ESP_FAIL;
     }
 
@@ -252,46 +260,32 @@ esp_err_t Provision_Handler_Connect(httpd_req_t *p_Request)
 
     ESP_LOGI(TAG, "Provisioning request: SSID=%s", SSID);
 
-    strncpy(Credentials.SSID, SSID, sizeof(Credentials.SSID) - 1);
-    strncpy(Credentials.Password, Password, sizeof(Credentials.Password) - 1);
-
-    Error = NetworkManager_SetCredentials(&Credentials);
-
     Response = cJSON_CreateObject();
 
+    SettingsManager_GetWiFi(&WiFiSettings);
+
+    strncpy(WiFiSettings.SSID, SSID, sizeof(WiFiSettings.SSID) - 1);
+    strncpy(WiFiSettings.Password, Password, sizeof(WiFiSettings.Password) - 1);
+
+    SettingsManager_UpdateWiFi(&WiFiSettings);
+
+    Error = SettingsManager_Save();
     if (Error == ESP_OK) {
-        App_Settings_WiFi_t WiFiSettings;
-        esp_err_t SaveError;
+        ESP_LOGI(TAG, "WiFi credentials saved to NVS");
 
-        SettingsManager_GetWiFi(&WiFiSettings);
+        cJSON_AddBoolToObject(Response, "success", true);
+        cJSON_AddStringToObject(Response, "message", "Credentials saved, connecting to WiFi...");
 
-        strncpy(WiFiSettings.SSID, SSID, sizeof(WiFiSettings.SSID) - 1);
-        strncpy(WiFiSettings.Password, Password, sizeof(WiFiSettings.Password) - 1);
+        Provision_Handler_Send_JSON_Response(p_Request, Response, 200);
 
-        SettingsManager_UpdateWiFi(&WiFiSettings);
-
-        SaveError = SettingsManager_Save();
-        if (SaveError == ESP_OK) {
-            ESP_LOGI(TAG, "WiFi credentials saved to NVS");
-
-            cJSON_AddBoolToObject(Response, "success", true);
-            cJSON_AddStringToObject(Response, "message", "Credentials saved, connecting to WiFi...");
-
-            Provision_Handler_Send_JSON_Response(p_Request, Response, 200);
-
-            /* Post event with short timeout to avoid blocking HTTP task */
-            esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_PROV_SUCCESS, NULL, 0, pdMS_TO_TICKS(100));
-        } else {
-            ESP_LOGE(TAG, "Failed to save credentials to NVS: %d!", SaveError);
-
-            cJSON_AddBoolToObject(Response, "success", false);
-            cJSON_AddStringToObject(Response, "error", "NVS storage full, please reset device");
-            Provision_Handler_Send_JSON_Response(p_Request, Response, 500);
-        }
+        /* Post event with short timeout to avoid blocking HTTP task */
+        esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_PROV_SUCCESS, NULL, 0, portMAX_DELAY);
     } else {
+        ESP_LOGE(TAG, "Failed to save credentials to NVS: %d!", Error);
+
         cJSON_AddBoolToObject(Response, "success", false);
-        cJSON_AddStringToObject(Response, "error", "Failed to save credentials");
-        Provision_Handler_Send_JSON_Response(p_Request, Response, 400);
+        cJSON_AddStringToObject(Response, "error", "NVS storage full, please reset device");
+        Provision_Handler_Send_JSON_Response(p_Request, Response, 500);
     }
 
     cJSON_Delete(JSON);

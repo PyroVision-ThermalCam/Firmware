@@ -206,4 +206,14 @@ esp_err_t MemoryManager_GetWearLevelingHandle(wl_handle_t *p_Handle);
  */
 esp_err_t MemoryManager_GetSDCardHandle(sdmmc_card_t **pp_Card);
 
+/** @brief          Format the active storage location.
+ *                  Reformats the currently active storage (internal flash or SD card).
+ *  @note           Use with caution - all data will be lost. Use MemoryManager_EraseStorage() instead for safer erase.
+ *  @warning        This will delete ALL files including images and logs!
+ *  @return         ESP_OK on success
+ *                  ESP_ERR_NOT_FOUND if storage not found
+ *                  ESP_FAIL if format fails
+ */
+esp_err_t MemoryManager_FormatActiveStorage(void);
+
 #endif /* MEMORYMANAGER_H_ */

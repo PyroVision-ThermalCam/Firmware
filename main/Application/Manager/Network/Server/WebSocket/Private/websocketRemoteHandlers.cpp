@@ -23,9 +23,9 @@
 
 #include <esp_log.h>
 
-#include <string.h>
+#include <string>
+#include <cstring>
 
-#include "Settings/settingsManager.h"
 #include "websocketRemoteHandlers.h"
 #include "../../RemoteControl/remoteControl.h"
 
@@ -113,7 +113,7 @@ void WebSocket_Handle_SetTime(int FD, cJSON *p_Data)
 void WebSocket_Handle_GetBattery(int FD, cJSON *p_Data)
 {
     esp_err_t Error;
-    float Voltage;
+    int Voltage;
     uint8_t SOC;
     cJSON *Data;
 
@@ -142,8 +142,8 @@ void WebSocket_Handle_GetBattery(int FD, cJSON *p_Data)
 void WebSocket_Handle_GetLeptonEmissivity(int FD, cJSON *p_Data)
 {
     esp_err_t Error;
-    uint8_t Emissivity;
     cJSON *Data;
+    uint8_t Emissivity;
 
     Error = RemoteControl_GetLeptonEmissivity(&Emissivity);
     if (Error != ESP_OK) {
@@ -251,20 +251,13 @@ void WebSocket_Handle_GetLeptonSpotmeter(int FD, cJSON *p_Data)
 void WebSocket_Handle_GetFlash(int FD, cJSON *p_Data)
 {
     esp_err_t Error;
+    cJSON *Data;
     bool Enabled;
     uint8_t Power;
-    cJSON *Data;
 
-    Error = RemoteControl_GetFlashState(&Enabled);
+    Error = RemoteControl_GetFlashConfig(&Enabled, &Power);
     if (Error != ESP_OK) {
         WebSocket_SendResponse(FD, "flash", "error", NULL, "Failed to get flash state");
-
-        return;
-    }
-
-    Error = RemoteControl_GetFlashPower(&Power);
-    if (Error != ESP_OK) {
-        WebSocket_SendResponse(FD, "flash", "error", NULL, "Failed to get flash power");
 
         return;
     }
@@ -309,34 +302,42 @@ void WebSocket_Handle_SetFlash(int FD, cJSON *p_Data)
 void WebSocket_Handle_GetImageFormat(int FD, cJSON *p_Data)
 {
     esp_err_t Error;
-    Remote_Image_Format_t Format;
-    const char *FormatStr;
+    Settings_Image_Format_t ImageFormat;
+    const char *Format;
     cJSON *Data;
 
-    Error = RemoteControl_GetImageFormat(&Format);
+    Error = RemoteControl_GetImageFormat(&ImageFormat);
     if (Error != ESP_OK) {
         WebSocket_SendResponse(FD, "image_format", "error", NULL, "Failed to get image format");
 
         return;
     }
 
-    switch (Format) {
-        case REMOTE_IMAGE_FORMAT_PNG:
-            FormatStr = "PNG";
+    switch (ImageFormat) {
+        case IMAGE_FORMAT_PNG: {
+            Format = "PNG";
+
             break;
-        case REMOTE_IMAGE_FORMAT_RAW:
-            FormatStr = "RAW";
+        }
+        case IMAGE_FORMAT_RAW: {
+            Format = "RAW";
+
             break;
-        case REMOTE_IMAGE_FORMAT_JPEG:
-            FormatStr = "JPEG";
+        }
+        case IMAGE_FORMAT_JPEG: {
+            Format = "JPEG";
+
             break;
-        default:
+        }
+        default: {
             WebSocket_SendResponse(FD, "image_format", "error", NULL, "Unknown format");
+
             return;
+        }
     }
 
     Data = cJSON_CreateObject();
-    cJSON_AddStringToObject(Data, "format", FormatStr);
+    cJSON_AddStringToObject(Data, "format", Format);
 
     WebSocket_SendResponse(FD, "image_format", "ok", Data, NULL);
     cJSON_Delete(Data);
@@ -346,7 +347,7 @@ void WebSocket_Handle_SetImageFormat(int FD, cJSON *p_Data)
 {
     esp_err_t Error;
     cJSON *FormatField;
-    Remote_Image_Format_t Format;
+    Settings_Image_Format_t Format;
 
     FormatField = cJSON_GetObjectItem(p_Data, "format");
     if (cJSON_IsString(FormatField) == false) {
@@ -355,11 +356,11 @@ void WebSocket_Handle_SetImageFormat(int FD, cJSON *p_Data)
     }
 
     if (strcasecmp(FormatField->valuestring, "PNG") == 0) {
-        Format = REMOTE_IMAGE_FORMAT_PNG;
+        Format = IMAGE_FORMAT_PNG;
     } else if (strcasecmp(FormatField->valuestring, "RAW") == 0) {
-        Format = REMOTE_IMAGE_FORMAT_RAW;
+        Format = IMAGE_FORMAT_RAW;
     } else if (strcasecmp(FormatField->valuestring, "JPEG") == 0) {
-        Format = REMOTE_IMAGE_FORMAT_JPEG;
+        Format = IMAGE_FORMAT_JPEG;
     } else {
         WebSocket_SendResponse(FD, "set_image_format", "error", NULL, "Invalid format");
         return;

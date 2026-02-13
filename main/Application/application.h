@@ -70,7 +70,7 @@ enum {
     GUI_EVENT_INIT_ERROR,                       /**< GUI task initialization error occurred. */
     GUI_EVENT_APP_STARTED,                      /**< Application has started. */
     GUI_EVENT_REQUEST_ROI,                      /**< Update the ROI rectangle on the GUI.
-                                                     Data is transmitted in a App_Settings_ROI_t structure. */
+                                                     Data is transmitted in a Settings_ROI_t structure. */
     GUI_EVENT_REQUEST_FPA_AUX_TEMP,             /**< Request update of the FPA and AUX temperature. */
     GUI_EVENT_REQUEST_UPTIME,                   /**< Request update of the uptime. */
     GUI_EVENT_REQUEST_PIXEL_TEMPERATURE,        /**< Request update of pixel temperature.
@@ -142,9 +142,6 @@ typedef struct {
  */
 typedef struct {
     QueueHandle_t Lepton_FrameEventQueue;               /**< Queue for Lepton frame ready events. */
-    Network_WiFi_STA_Config_t STA_Config;               /**< WiFi STA configuration. */
-    Network_Provisioning_Config_t Prov_Config;          /**< Network provisioning configuration. */
-    Network_Server_Config_t Server_Config;              /**< Server configuration. */
 } App_Context_t;
 
 #endif /* APPLICATION_H_ */

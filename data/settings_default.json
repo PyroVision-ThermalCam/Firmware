@@ -1,5 +1,9 @@
 {
     "version" : 1,
+    "led-flash" : {
+        "enabled" : true,
+        "power" : 100
+    },
     "lepton" : {
         "emissivity" : [
             {
@@ -68,14 +72,18 @@
     "system" : {
         "timezone" : "CET-1CEST,M3.5.0,M10.5.0/3",
         "ntp-server" : "pool.ntp.org",
-        "imageFormat" : "JPEG"
+        "imageFormat" : "JPEG",
+        "jpegQuality" : 80
     },
     "http-server" : {
         "port" : 80,
         "ws-ping-interval" : 30,
-        "max-clients" : 4
+        "max-clients" : 4,
+        "enable-cors" : true,
+        "api-key" : ""
     },
     "visa-server": {
-        "port" : 5025
+        "port" : 5025,
+        "timeout" : 5000
     }
 }

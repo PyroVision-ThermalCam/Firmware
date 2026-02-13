@@ -83,6 +83,16 @@ static const char *TAG = "PCA9633DP1";
  */
 #define PCA9633_AUTO_INCREMENT              0x80
 
+static i2c_device_config_t _Device_I2C_Config = {
+    .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+    .device_address = PCA9633_I2C_ADDR,
+    .scl_speed_hz = 400000,
+    .scl_wait_us = 0,
+    .flags = {
+        .disable_ack_check = 0,
+    },
+};
+
 /** @brief              Write a single register to PCA9633.
  *  @param p_Dev_Handle Device handle
  *  @param RegAddr      Register address
@@ -96,7 +106,7 @@ static esp_err_t pca9633_write_register(i2c_master_dev_handle_t *p_Dev_Handle, u
     Buffer[0] = RegAddr;
     Buffer[1] = Value;
 
-    return i2c_master_transmit(*p_Dev_Handle, Buffer, sizeof(Buffer), pdMS_TO_TICKS(1000));
+    return I2CM_Write(p_Dev_Handle, Buffer, sizeof(Buffer));
 }
 
 /** @brief              Read a single register from PCA9633.
@@ -109,7 +119,14 @@ static esp_err_t pca9633_read_register(i2c_master_dev_handle_t *p_Dev_Handle, ui
 {
     esp_err_t Error;
 
-    Error = i2c_master_transmit_receive(*p_Dev_Handle, &RegAddr, 1, p_Value, 1, pdMS_TO_TICKS(1000));
+    Error = I2CM_Write(p_Dev_Handle, &RegAddr, 1);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to write register address 0x%02X: %d!", RegAddr, Error);
+
+        return Error;
+    }
+
+    Error = I2CM_Read(p_Dev_Handle, p_Value, 1);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read register 0x%02X: %d!", RegAddr, Error);
 
@@ -142,25 +159,20 @@ static esp_err_t pca9633_write_registers(i2c_master_dev_handle_t *p_Dev_Handle, 
         Buffer[i + 1] = p_Data[i];
     }
 
-    return i2c_master_transmit(*p_Dev_Handle, Buffer, Length + 1, pdMS_TO_TICKS(1000));
+    return I2CM_Write(p_Dev_Handle, Buffer, Length + 1);
 }
 
 esp_err_t PCA9633DP1_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_handle_t *p_Dev_Handle)
 {
     esp_err_t Error;
-    i2c_device_config_t DevConfig;
+    uint8_t PWM_Values[4] = {0, 0, 0, 0};
 
     if ((p_Bus_Handle == NULL) || (p_Dev_Handle == NULL)) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    /* Configure I2C device */
-    DevConfig.dev_addr_length = I2C_ADDR_BIT_LEN_7;
-    DevConfig.device_address = PCA9633_I2C_ADDR;
-    DevConfig.scl_speed_hz = 400000;
-
     /* Add device to bus */
-    Error = i2c_master_bus_add_device(*p_Bus_Handle, &DevConfig, p_Dev_Handle);
+    Error = i2c_master_bus_add_device(*p_Bus_Handle, &_Device_I2C_Config, p_Dev_Handle);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to add I2C device: %d!", Error);
 
@@ -201,7 +213,6 @@ esp_err_t PCA9633DP1_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_
     }
 
     /* Set all PWM registers to 0 (LEDs off) */
-    uint8_t PWM_Values[4] = {0, 0, 0, 0};
     Error = pca9633_write_registers(p_Dev_Handle, PCA9633_REG_PWM0, PWM_Values, 4);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize PWM values: %d!", Error);

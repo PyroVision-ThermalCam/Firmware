@@ -153,7 +153,7 @@ esp_err_t DevicesManager_Init(void)
     }
 
     if (SPIM_Init(&_Devices_Manager_Periph_SPI_Config, _Devices_Manager_Periph_SPI, SPI_DMA_CH_AUTO) != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize SPI3!");
+        ESP_LOGE(TAG, "Failed to initialize SPI%u!", _Devices_Manager_Periph_SPI);
 
         return ESP_FAIL;
     }
@@ -254,6 +254,25 @@ esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, uint8_t *p_Percentage
     return Error;
 }
 
+esp_err_t DevicesManager_GetStateOfCharge(uint8_t *p_Percentage)
+{
+    int Voltage;
+    esp_err_t Error;
+
+    if (p_Percentage == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    Error = DevicesManager_GetBatteryVoltage(&Voltage, p_Percentage);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to get battery voltage for SOC calculation!");
+
+        return Error;
+    }
+
+    return ESP_OK;
+}
+
 esp_err_t DevicesManager_GetRTCHandle(i2c_master_dev_handle_t *p_Handle)
 {
     if (_Devices_Manager_State.initialized == false) {
@@ -277,4 +296,10 @@ esp_err_t DevicesManager_GetTime(struct tm *p_Time)
 esp_err_t DevicesManager_SetTime(const struct tm *p_Time)
 {
     return RTC_SetTime(&_Devices_Manager_State.RTC_Handle, p_Time);
+}
+
+esp_err_t DevicesManager_GetTemperature(float *p_Temperature)
+{
+    *p_Temperature = 0.0f;
+    return ESP_OK;
 }

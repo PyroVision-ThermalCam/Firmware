@@ -35,6 +35,7 @@
 
 Slider_Widgets_t brightness_widgets;
 Slider_Widgets_t emissivity_widgets;
+Slider_Widgets_t jpeg_quality_widgets;
 
 static lv_obj_t *flash_storage_used_label = NULL;
 static lv_obj_t *flash_storage_free_label = NULL;
@@ -52,7 +53,10 @@ lv_obj_t *flash_Page;
 lv_obj_t *settings_Menu;
 lv_obj_t *emissivity_Dropdown;
 lv_obj_t *usb_Page;
+lv_obj_t *image_Page;
 lv_obj_t *usb_mode_switch;
+lv_obj_t *image_format_dropdown;
+lv_obj_t *jpeg_quality_row;
 lv_obj_t *ui_settings_wifi_status_label;
 lv_obj_t *ui_settings_wifi_connect_btn;
 
@@ -309,7 +313,7 @@ static lv_obj_t *ui_Settings_Create_WiFi_Page(lv_obj_t *p_Menu)
     Menu_Page_Result_t WiFiResult = ui_Settings_Create_Menu_Page_With_Container(p_Menu);
     lv_obj_t *WiFiContainer = WiFiResult.Container;
     lv_obj_t *WiFiPage = WiFiResult.Page;
-    App_Settings_WiFi_t WiFiSettings;
+    Settings_WiFi_t WiFiSettings;
 
     SettingsManager_GetWiFi(&WiFiSettings);
 
@@ -364,7 +368,7 @@ static lv_obj_t *ui_Settings_Create_Display_Page(lv_obj_t *p_Menu)
     Menu_Page_Result_t DisplayResult = ui_Settings_Create_Menu_Page_With_Container(p_Menu);
     lv_obj_t *DisplayContainer = DisplayResult.Container;
     lv_obj_t *DisplayPage = DisplayResult.Page;
-    App_Settings_Display_t DisplaySettings;
+    Settings_Display_t DisplaySettings;
 
     SettingsManager_GetDisplay(&DisplaySettings);
 
@@ -385,7 +389,7 @@ static lv_obj_t *ui_Settings_Create_Lepton_Page(lv_obj_t *p_Menu)
     Menu_Page_Result_t LeptonResult = ui_Settings_Create_Menu_Page_With_Container(p_Menu);
     lv_obj_t *LeptonContainer = LeptonResult.Container;
     lv_obj_t *LeptonPage = LeptonResult.Page;
-    App_Settings_Lepton_t LeptonSettings;
+    Settings_Lepton_t LeptonSettings;
 
     SettingsManager_GetLepton(&LeptonSettings);
 
@@ -598,6 +602,96 @@ static lv_obj_t *ui_Settings_Create_Flash_Page(lv_obj_t *p_Menu)
     return FlashPage;
 }
 
+/** @brief          Creates the Image/Capture settings page.
+ *  @param p_Menu   Pointer to the menu object
+ */
+static lv_obj_t *ui_Settings_Create_Image_Page(lv_obj_t *p_Menu)
+{
+    Menu_Page_Result_t ImageResult = ui_Settings_Create_Menu_Page_With_Container(p_Menu);
+    lv_obj_t *ImageContainer = ImageResult.Container;
+    lv_obj_t *ImagePage = ImageResult.Page;
+    Settings_System_t SystemSettings;
+
+    SettingsManager_GetSystem(&SystemSettings);
+
+    /* Section Label */
+    lv_obj_t *image_section_label = lv_label_create(ImageContainer);
+    lv_label_set_text(image_section_label, "Image Format");
+    lv_obj_set_style_text_color(image_section_label, lv_color_hex(0xFF9500), 0);
+    lv_obj_set_style_text_font(image_section_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_pad_top(image_section_label, 0, 0);
+    lv_obj_set_style_pad_bottom(image_section_label, 8, 0);
+
+    /* Format Dropdown */
+    lv_obj_t *format_dropdown_row = ui_Settings_Create_Row(ImageContainer, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_height(format_dropdown_row, LV_SIZE_CONTENT);
+    image_format_dropdown = lv_dropdown_create(format_dropdown_row);
+    lv_obj_set_width(image_format_dropdown, LV_PCT(95));
+    lv_obj_set_style_bg_color(image_format_dropdown, lv_color_hex(0x3A3A3A), LV_PART_MAIN);
+    lv_obj_set_style_border_color(image_format_dropdown, lv_color_hex(0xFF9500), LV_PART_MAIN);
+    lv_obj_set_style_border_width(image_format_dropdown, 2, LV_PART_MAIN);
+    lv_obj_set_style_radius(image_format_dropdown, 6, LV_PART_MAIN);
+    lv_obj_set_style_text_color(image_format_dropdown, lv_color_white(), LV_PART_MAIN);
+    lv_obj_set_style_pad_all(image_format_dropdown, 8, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(image_format_dropdown, lv_color_hex(0xFF9500), LV_PART_SELECTED);
+    lv_obj_set_style_text_color(image_format_dropdown, lv_color_white(), LV_PART_SELECTED);
+    lv_dropdown_set_options(image_format_dropdown, "JPEG\nPNG\nRAW\nBitmap");
+    lv_dropdown_set_selected(image_format_dropdown, static_cast<uint16_t>(SystemSettings.ImageFormat));
+    lv_obj_add_event_cb(image_format_dropdown, on_Image_Format_Dropdown_Callback, LV_EVENT_VALUE_CHANGED, NULL);
+
+    /* Separator */
+    lv_obj_t *separator = lv_obj_create(ImageContainer);
+    lv_obj_set_size(separator, LV_PCT(100), 1);
+    lv_obj_set_style_bg_color(separator, lv_color_hex(0x505050), 0);
+    lv_obj_set_style_border_width(separator, 0, 0);
+    lv_obj_set_style_pad_all(separator, 0, 0);
+    lv_obj_set_style_margin_top(separator, 16, 0);
+    lv_obj_set_style_margin_bottom(separator, 16, 0);
+
+    /* JPEG Quality Section */
+    lv_obj_t *quality_section_label = lv_label_create(ImageContainer);
+    lv_label_set_text(quality_section_label, "JPEG Settings");
+    lv_obj_set_style_text_color(quality_section_label, lv_color_hex(0xFF9500), 0);
+    lv_obj_set_style_text_font(quality_section_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_pad_top(quality_section_label, 0, 0);
+    lv_obj_set_style_pad_bottom(quality_section_label, 8, 0);
+
+    /* JPEG Quality Slider (only visible when JPEG is selected) */
+    lv_obj_t *quality_slider = ui_Settings_Create_Compact_Slider(ImageContainer, "Quality", 1, 100,
+                                                                  SystemSettings.JpegQuality, &jpeg_quality_widgets);
+    lv_obj_add_event_cb(quality_slider, on_Image_JpegQuality_Slider_Callback, LV_EVENT_VALUE_CHANGED, NULL);
+
+    /* Store the rows for visibility control */
+    jpeg_quality_row = lv_obj_get_parent(quality_slider);
+
+    /* Show/hide quality slider based on current format */
+    if (SystemSettings.ImageFormat == IMAGE_FORMAT_JPEG) {
+        lv_obj_remove_flag(jpeg_quality_row, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(lv_obj_get_parent(jpeg_quality_row), LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(quality_section_label, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(jpeg_quality_row, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(lv_obj_get_parent(jpeg_quality_row), LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(quality_section_label, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    /* Info text */
+    lv_obj_t *info_label = lv_label_create(ImageContainer);
+    lv_label_set_text(info_label,
+                      "JPEG: Compressed, small files\n"
+                      "PNG: Lossless (not yet implemented)\n"
+                      "RAW: Uncompressed RGB data\n"
+                      "Bitmap: BMP file format");
+    lv_obj_set_width(info_label, LV_PCT(95));
+    lv_obj_set_style_text_color(info_label, lv_color_hex(0xAAAAAA), 0);
+    lv_obj_set_style_text_font(info_label, &lv_font_montserrat_10, 0);
+    lv_obj_set_style_text_align(info_label, LV_TEXT_ALIGN_LEFT, 0);
+    lv_label_set_long_mode(info_label, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_margin_top(info_label, 16, 0);
+
+    return ImagePage;
+}
+
 void ui_settings_init(lv_obj_t *p_Parent)
 {
     settings_Menu = lv_menu_create(p_Parent);
@@ -611,6 +705,7 @@ void ui_settings_init(lv_obj_t *p_Parent)
     wifi_Page = ui_Settings_Create_WiFi_Page(settings_Menu);
     display_Page = ui_Settings_Create_Display_Page(settings_Menu);
     lepton_Page = ui_Settings_Create_Lepton_Page(settings_Menu);
+    image_Page = ui_Settings_Create_Image_Page(settings_Menu);
     flash_Page = ui_Settings_Create_Flash_Page(settings_Menu);
     usb_Page = ui_Settings_Create_USB_Page(settings_Menu);
     about_Page = ui_Settings_Create_About_Page(settings_Menu);
@@ -632,6 +727,9 @@ void ui_settings_init(lv_obj_t *p_Parent)
 
     cont = ui_Settings_Create_Text(section, "Lepton");
     lv_menu_set_load_page_event(settings_Menu, cont, lepton_Page);
+
+    cont = ui_Settings_Create_Text(section, "Image");
+    lv_menu_set_load_page_event(settings_Menu, cont, image_Page);
 
     cont = ui_Settings_Create_Text(section, "Flash");
     lv_menu_set_load_page_event(settings_Menu, cont, flash_Page);

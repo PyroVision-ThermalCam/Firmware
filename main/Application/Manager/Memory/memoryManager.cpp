@@ -111,6 +111,7 @@ static esp_err_t MemoryManager_Mount_Internal_Storage(void)
 
     if (Partition == NULL) {
         ESP_LOGE(TAG, "Storage partition not found!");
+
         return ESP_ERR_NOT_FOUND;
     }
 
@@ -119,6 +120,7 @@ static esp_err_t MemoryManager_Mount_Internal_Storage(void)
     Error = esp_vfs_fat_spiflash_mount_rw_wl("/storage", "storage", &MountConfig, &_Memory_Manager_State.WL_Handle);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to mount FAT filesystem: %d", Error);
+
         return Error;
     }
 
@@ -298,6 +300,7 @@ esp_err_t MemoryManager_GetStorageUsage(MemoryManager_Usage_t *p_Usage)
 
         if (_Memory_Manager_State.WL_Handle == WL_INVALID_HANDLE) {
             ESP_LOGE(TAG, "Internal storage not mounted!");
+
             return ESP_ERR_INVALID_STATE;
         }
 
@@ -318,6 +321,7 @@ esp_err_t MemoryManager_GetStorageUsage(MemoryManager_Usage_t *p_Usage)
             return ESP_OK;
         } else {
             ESP_LOGE(TAG, "Failed to get internal storage filesystem info!");
+
             return ESP_FAIL;
         }
     }
@@ -422,6 +426,7 @@ esp_err_t MemoryManager_EraseStorage(void)
         Error = esp_vfs_fat_spiflash_mount_rw_wl("/storage", "storage", &MountConfig, &_Memory_Manager_State.WL_Handle);
         if (Error != ESP_OK) {
             ESP_LOGE(TAG, "Failed to remount storage: %d!", Error);
+
             return ESP_FAIL;
         }
 
@@ -448,6 +453,7 @@ esp_err_t MemoryManager_EraseCoredump(void)
     Error = esp_partition_erase_range(Partition, 0, Partition->size);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to erase coredump partition: %d!", Error);
+
         return ESP_FAIL;
     }
 
@@ -464,11 +470,13 @@ esp_err_t MemoryManager_GetWearLevelingHandle(wl_handle_t *p_Handle)
 
     if (_Memory_Manager_State.StorageLocation != MEMORY_LOCATION_INTERNAL) {
         ESP_LOGE(TAG, "Wear leveling only available for internal storage!");
+
         return ESP_ERR_INVALID_STATE;
     }
 
     if (_Memory_Manager_State.WL_Handle == WL_INVALID_HANDLE) {
         ESP_LOGE(TAG, "Internal storage not mounted!");
+
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -530,4 +538,89 @@ esp_err_t MemoryManager_UnlockFilesystem(void)
 bool MemoryManager_IsFilesystemLocked(void)
 {
     return _Memory_Manager_State.isFilesystemLocked;
+}
+
+esp_err_t MemoryManager_FormatActiveStorage(void)
+{
+    esp_err_t Error;
+
+    if (_Memory_Manager_State.isFilesystemLocked == false) {
+        ESP_LOGW(TAG, "Filesystem not locked! Lock filesystem before formatting.");
+
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    ESP_LOGI(TAG, "Formatting active storage location...");
+
+    if (_Memory_Manager_State.StorageLocation == MEMORY_LOCATION_SD_CARD) {
+        sdmmc_host_t Host = SDSPI_HOST_DEFAULT();
+        sdspi_device_config_t SlotConfig = SDSPI_DEVICE_CONFIG_DEFAULT();
+        spi_host_device_t SPI_Host = DevicesManager_GetSPIHost();
+        const esp_vfs_fat_mount_config_t MountConfig = {
+            .format_if_mount_failed = true,
+            .max_files = 5,
+            .allocation_unit_size = 16 * 1024
+        };
+
+        ESP_LOGD(TAG, "Formatting SD card...");
+
+        /* Unmount current SD card */
+        if (_Memory_Manager_State.hasSDCard) {
+            esp_vfs_fat_sdcard_unmount("/sdcard", _Memory_Manager_State.p_SDCard);
+            _Memory_Manager_State.p_SDCard = NULL;
+        }
+
+        /* Format by creating new filesystem */
+        SlotConfig.gpio_cs = static_cast<gpio_num_t>(CONFIG_SD_CARD_PIN_CS);
+        SlotConfig.host_id = SPI_Host;
+        Host.slot = SPI_Host;
+
+        Error = esp_vfs_fat_sdspi_mount("/sdcard", &Host, &SlotConfig, &MountConfig, &_Memory_Manager_State.p_SDCard);
+        if (Error != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to format and remount SD card: %d!", Error);
+            _Memory_Manager_State.hasSDCard = false;
+
+            return Error;
+        }
+
+        ESP_LOGI(TAG, "SD card formatted and remounted successfully");
+        _Memory_Manager_State.hasSDCard = true;
+
+        return ESP_OK;
+
+    } else {
+        const esp_vfs_fat_mount_config_t MountConfig = {
+            .format_if_mount_failed = true,
+            .max_files = 5,
+            .allocation_unit_size = 4096,
+            .disk_status_check_enable = false
+        };
+
+        ESP_LOGD(TAG, "Formatting internal storage...");
+
+        /* Unmount current filesystem */
+        if (_Memory_Manager_State.WL_Handle != WL_INVALID_HANDLE) {
+            esp_vfs_fat_spiflash_unmount_rw_wl("/storage", _Memory_Manager_State.WL_Handle);
+            _Memory_Manager_State.WL_Handle = WL_INVALID_HANDLE;
+        }
+
+        /* Format and remount */
+        Error = esp_vfs_fat_spiflash_format_rw_wl("/storage", "storage");
+        if (Error != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to format internal storage: %d!", Error);
+
+            return Error;
+        }
+
+        Error = esp_vfs_fat_spiflash_mount_rw_wl("/storage", "storage", &MountConfig, &_Memory_Manager_State.WL_Handle);
+        if (Error != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to remount internal storage after formatting: %d!", Error);
+
+            return Error;
+        }
+
+        ESP_LOGI(TAG, "Internal storage formatted and remounted successfully");
+
+        return ESP_OK;
+    }
 }

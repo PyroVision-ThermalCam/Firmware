@@ -28,18 +28,14 @@
 #include <sys/time.h>
 
 #include "remoteControl.h"
-#include "../../../Time/timeManager.h"
-#include "../../../Devices/devicesManager.h"
-#include "../../../Settings/settingsManager.h"
-#include "../../../Memory/memoryManager.h"
-#include "../../../../Tasks/tasks.h"
+#include "managers.h"
 
 static const char *TAG = "RemoteControl";
 
 typedef struct {
-    App_Lepton_ROI_Result_t Spotmeter;
     SemaphoreHandle_t Mutex;
     bool isValid;
+    bool isLocked;
 } RemoteControl_State_t;
 
 static RemoteControl_State_t _RemoteControl_State;
@@ -50,8 +46,11 @@ esp_err_t RemoteControl_GetTemperature(float *p_Temperature)
         return ESP_ERR_INVALID_ARG;
     }
 
-    /* TODO: Get temperature from TMP117 via DevicesManager */
-    *p_Temperature = 25.0f;  /* Placeholder */
+    if (DevicesManager_GetTemperature(p_Temperature) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to get temperature from DevicesManager!");
+
+        return ESP_FAIL;
+    }
 
     return ESP_OK;
 }
@@ -85,7 +84,8 @@ esp_err_t RemoteControl_SetTime(const char *p_TimeStr)
 
     /* Parse ISO 8601 format: YYYY-MM-DDTHH:MM:SS */
     if (strptime(p_TimeStr, "%Y-%m-%dT%H:%M:%S", &TimeInfo) == NULL) {
-        ESP_LOGE(TAG, "Invalid time format. Expected: YYYY-MM-DDTHH:MM:SS");
+        ESP_LOGE(TAG, "Invalid time format. Expected: YYYY-MM-DDTHH:MM:SS!");
+
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -109,14 +109,17 @@ esp_err_t RemoteControl_SetTime(const char *p_TimeStr)
     return ESP_OK;
 }
 
-esp_err_t RemoteControl_GetBatteryVoltage(float *p_Voltage)
+esp_err_t RemoteControl_GetBatteryVoltage(int *p_Voltage)
 {
     if (p_Voltage == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    /* TODO: Get battery voltage from ADC via DevicesManager */
-    *p_Voltage = 3.7f;  /* Placeholder */
+    if (DevicesManager_GetBatteryVoltage(p_Voltage, NULL) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to get battery voltage from DevicesManager!");
+
+        return ESP_FAIL;
+    }
 
     return ESP_OK;
 }
@@ -127,13 +130,16 @@ esp_err_t RemoteControl_GetStateOfCharge(uint8_t *p_SOC)
         return ESP_ERR_INVALID_ARG;
     }
 
-    /* TODO: Calculate SOC from battery voltage */
-    *p_SOC = 75;  /* Placeholder */
+    if (DevicesManager_GetStateOfCharge(p_SOC) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to get state of charge from DevicesManager!");
+
+        return ESP_FAIL;
+    }
 
     return ESP_OK;
 }
 
-esp_err_t RemoteControl_GetOV5640Image(uint8_t **pp_Buffer, size_t *p_Size, Remote_Image_Format_t Format)
+esp_err_t RemoteControl_GetOV5640Image(uint8_t **pp_Buffer, size_t *p_Size, Settings_Image_Format_t Format)
 {
     if ((pp_Buffer == NULL) || (p_Size == NULL)) {
         return ESP_ERR_INVALID_ARG;
@@ -145,7 +151,7 @@ esp_err_t RemoteControl_GetOV5640Image(uint8_t **pp_Buffer, size_t *p_Size, Remo
     return ESP_ERR_NOT_FOUND;
 }
 
-esp_err_t RemoteControl_GetLeptonImage(uint8_t **pp_Buffer, size_t *p_Size, Remote_Image_Format_t Format)
+esp_err_t RemoteControl_GetLeptonImage(uint8_t **pp_Buffer, size_t *p_Size, Settings_Image_Format_t Format)
 {
     if ((pp_Buffer == NULL) || (p_Size == NULL)) {
         return ESP_ERR_INVALID_ARG;
@@ -160,14 +166,14 @@ esp_err_t RemoteControl_GetLeptonImage(uint8_t **pp_Buffer, size_t *p_Size, Remo
 esp_err_t RemoteControl_GetLeptonEmissivity(uint8_t *p_Emissivity)
 {
     esp_err_t Error;
-    App_Settings_Lepton_t Lepton;
+    Settings_Lepton_t Lepton;
 
     if (p_Emissivity == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
 
     Error = SettingsManager_GetLepton(&Lepton);
-    if(Error != ESP_OK) {
+    if (Error != ESP_OK) {
         return Error;
     }
 
@@ -179,8 +185,8 @@ esp_err_t RemoteControl_GetLeptonEmissivity(uint8_t *p_Emissivity)
 esp_err_t RemoteControl_SetLeptonEmissivity(uint8_t Emissivity)
 {
     esp_err_t Error;
-    App_Settings_Lepton_t Lepton;
-    SettingsManager_Setting_t Changed;
+    Settings_Lepton_t Lepton;
+    SettingsManager_ChangeNotification_t Changed;
 
     if (Emissivity > 100) {
         return ESP_ERR_INVALID_ARG;
@@ -258,21 +264,22 @@ esp_err_t RemoteControl_UpdateSpotmeter(float Min, float Max, float Mean)
     if (_RemoteControl_State.Mutex == NULL) {
         _RemoteControl_State.Mutex = xSemaphoreCreateMutex();
         if (_RemoteControl_State.Mutex == NULL) {
-            ESP_LOGE(TAG, "Failed to create mutex for spotmeter data");
+            ESP_LOGE(TAG, "Failed to create mutex for spotmeter data!");
+
             return ESP_ERR_NO_MEM;
         }
     }
 
     /* Thread-safe update of spotmeter data */
     if (xSemaphoreTake(_RemoteControl_State.Mutex, 100 / portTICK_PERIOD_MS) == pdTRUE) {
-        _RemoteControl_State.Spotmeter.Min = Min;
-        _RemoteControl_State.Spotmeter.Max = Max;
-        _RemoteControl_State.Spotmeter.Mean = Mean;
-        _RemoteControl_State.isValid = true;
+        //_RemoteControl_State.Spotmeter.Min = Min;
+        //_RemoteControl_State.Spotmeter.Max = Max;
+        //_RemoteControl_State.Spotmeter.Mean = Mean;
+        //_RemoteControl_State.isValid = true;
         xSemaphoreGive(_RemoteControl_State.Mutex);
 
-        ESP_LOGD(TAG, "Spotmeter data updated: Min=%.2f°C, Max=%.2f°C, Avg=%.2f°C",
-                 _RemoteControl_State.Spotmeter.Min, _RemoteControl_State.Spotmeter.Max, _RemoteControl_State.Spotmeter.Mean);
+        //ESP_LOGD(TAG, "Spotmeter data updated: Min=%.2f°C, Max=%.2f°C, Avg=%.2f°C",
+        //         _RemoteControl_State.Spotmeter.Min, _RemoteControl_State.Spotmeter.Max, _RemoteControl_State.Spotmeter.Mean);
 
         return ESP_OK;
     } else {
@@ -291,72 +298,88 @@ esp_err_t RemoteControl_GetLeptonSpotmeter(cJSON *p_JSON)
     /* Check if data is available */
     if (_RemoteControl_State.isValid == false) {
         ESP_LOGW(TAG, "No spotmeter data available yet");
+
         return ESP_ERR_NOT_FOUND;
     }
 
     /* Thread-safe read of spotmeter data */
-    if (xSemaphoreTake(_RemoteControl_State.Mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-        cJSON_AddNumberToObject(p_JSON, "min", _RemoteControl_State.Spotmeter.Min);
-        cJSON_AddNumberToObject(p_JSON, "max", _RemoteControl_State.Spotmeter.Max);
-        cJSON_AddNumberToObject(p_JSON, "average", _RemoteControl_State.Spotmeter.Average);
-        cJSON_AddNumberToObject(p_JSON, "mean", _RemoteControl_State.Spotmeter.Mean);
+    if (xSemaphoreTake(_RemoteControl_State.Mutex, 100 / portTICK_PERIOD_MS) == pdTRUE) {
+        //cJSON_AddNumberToObject(p_JSON, "min", _RemoteControl_State.Spotmeter.Min);
+        //cJSON_AddNumberToObject(p_JSON, "max", _RemoteControl_State.Spotmeter.Max);
+        //cJSON_AddNumberToObject(p_JSON, "average", _RemoteControl_State.Spotmeter.Average);
+        //cJSON_AddNumberToObject(p_JSON, "mean", _RemoteControl_State.Spotmeter.Mean);
         xSemaphoreGive(_RemoteControl_State.Mutex);
 
         return ESP_OK;
     } else {
-        ESP_LOGE(TAG, "Failed to acquire mutex for spotmeter read");
+        ESP_LOGE(TAG, "Failed to acquire mutex for spotmeter read!");
+
         return ESP_ERR_TIMEOUT;
     }
 }
 
-esp_err_t RemoteControl_GetFlashPower(uint8_t *p_Power)
+esp_err_t RemoteControl_GetFlashConfig(bool *p_Enabled, uint8_t *p_Power)
 {
-    if (p_Power == NULL) {
+    esp_err_t Error;
+    Settings_LED_Flash_t LEDFlash;
+
+    if ((p_Enabled == NULL) || (p_Power == NULL)) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    /* TODO: Get flash power from settings or hardware */
-    *p_Power = 50;  /* Placeholder */
+    Error = SettingsManager_GetLEDFlash(&LEDFlash);
+    if (Error != ESP_OK) {
+        return Error;
+    }
+
+    *p_Enabled = LEDFlash.Enable;
+    *p_Power = LEDFlash.Power;
 
     return ESP_OK;
 }
 
 esp_err_t RemoteControl_SetFlashPower(uint8_t Power)
 {
-    if (Power > 100) {
+    esp_err_t Error;
+    Settings_LED_Flash_t LEDFlash;
+    SettingsManager_ChangeNotification_t Changed;
+
+    Error = SettingsManager_GetLEDFlash(&LEDFlash);
+    if (Error != ESP_OK) {
+        return Error;
+    } else if (Power > 100) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    /* TODO: Set flash power */
-    ESP_LOGI(TAG, "Set flash power to: %u%%", Power);
+    LEDFlash.Power = Power;
+    Changed.ID = SETTINGS_ID_LED_FLASH_POWER;
+    Changed.Value = Power;
 
-    return ESP_OK;
-}
-
-esp_err_t RemoteControl_GetFlashState(bool *p_Enabled)
-{
-    if (p_Enabled == NULL) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    /* TODO: Get flash state */
-    *p_Enabled = false;  /* Placeholder */
-
-    return ESP_OK;
+    return SettingsManager_UpdateLEDFlash(&LEDFlash, &Changed);
 }
 
 esp_err_t RemoteControl_SetFlashState(bool Enabled)
 {
-    /* TODO: Set flash state */
-    ESP_LOGI(TAG, "Set flash state: %s", Enabled ? "ON" : "OFF");
+    esp_err_t Error;
+    Settings_LED_Flash_t LEDFlash;
+    SettingsManager_ChangeNotification_t Changed;
 
-    return ESP_OK;
+    Error = SettingsManager_GetLEDFlash(&LEDFlash);
+    if (Error != ESP_OK) {
+        return Error;
+    }
+
+    LEDFlash.Enable = Enabled;
+    Changed.ID = SETTINGS_ID_LED_FLASH_ENABLE;
+    Changed.Value = Enabled;
+
+    return SettingsManager_UpdateLEDFlash(&LEDFlash, &Changed);
 }
 
-esp_err_t RemoteControl_GetImageFormat(Remote_Image_Format_t *p_Format)
+esp_err_t RemoteControl_GetImageFormat(Settings_Image_Format_t *p_Format)
 {
-    App_Settings_System_t System;
     esp_err_t Error;
+    Settings_System_t System;
 
     if (p_Format == NULL) {
         return ESP_ERR_INVALID_ARG;
@@ -367,21 +390,20 @@ esp_err_t RemoteControl_GetImageFormat(Remote_Image_Format_t *p_Format)
         return Error;
     }
 
-    /* Convert from Settings format to Remote format (enum values match) */
-    *p_Format = static_cast<Remote_Image_Format_t>(System.ImageFormat);
+    *p_Format = System.ImageFormat;
 
     return ESP_OK;
 }
 
-esp_err_t RemoteControl_SetImageFormat(Remote_Image_Format_t Format)
+esp_err_t RemoteControl_SetImageFormat(Settings_Image_Format_t Format)
 {
     esp_err_t Error;
-    App_Settings_System_t System;
-    SettingsManager_Setting_t Changed;
+    Settings_System_t System;
+    SettingsManager_ChangeNotification_t Changed;
 
-    if ((Format != REMOTE_IMAGE_FORMAT_PNG) &&
-        (Format != REMOTE_IMAGE_FORMAT_RAW) &&
-        (Format != REMOTE_IMAGE_FORMAT_JPEG)) {
+    if ((Format != IMAGE_FORMAT_PNG) &&
+        (Format != IMAGE_FORMAT_RAW) &&
+        (Format != IMAGE_FORMAT_JPEG)) {
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -392,7 +414,7 @@ esp_err_t RemoteControl_SetImageFormat(Remote_Image_Format_t Format)
 
     Changed.ID = SETTINGS_ID_IMAGE_FORMAT;
     Changed.Value = Format;
-    System.ImageFormat = static_cast<App_Settings_Image_Format_t>(Format);
+    System.ImageFormat = static_cast<Settings_Image_Format_t>(Format);
 
     ESP_LOGI(TAG, "Set image format to: %d", System.ImageFormat);
 
@@ -418,34 +440,41 @@ esp_err_t RemoteControl_SetStatusLED(Remote_LED_Color_t Color, uint8_t Brightnes
 
 esp_err_t RemoteControl_GetSDCardState(bool *p_Available)
 {
+    MemoryManager_Location_t Location;
+
     if (p_Available == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    /* TODO: Check SD card state via MemoryManager */
-    *p_Available = false;  /* Placeholder */
+    Location = MemoryManager_GetStorageLocation();
+    if(Location == MEMORY_LOCATION_SD_CARD) {
+        *p_Available = true;
+    } else {
+        *p_Available = false;
+    }
 
     return ESP_OK;
 }
 
 esp_err_t RemoteControl_FormatMemory(void)
 {
-    /* TODO: Format active memory via MemoryManager */
-    ESP_LOGW(TAG, "Memory format not implemented");
-
-    return ESP_FAIL;
+    return MemoryManager_FormatActiveStorage();
 }
 
 esp_err_t RemoteControl_DisplayMessageBox(const char *p_Message)
 {
+    Remote_Display_Message_t Message;
+
     if (p_Message == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    /* TODO: Display message box via GUITask */
     ESP_LOGI(TAG, "Display message: %s", p_Message);
 
-    return ESP_OK;
+    memcpy(Message.Message, p_Message, sizeof(Message.Message) - 1);
+    Message.Message[sizeof(Message.Message) - 1] = '\0';
+
+    return esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_REMOTE_DISPLAY_MESSAGE, &Message, sizeof(Message), portMAX_DELAY);
 }
 
 esp_err_t RemoteControl_GetLockState(bool *p_Locked)
@@ -454,16 +483,14 @@ esp_err_t RemoteControl_GetLockState(bool *p_Locked)
         return ESP_ERR_INVALID_ARG;
     }
 
-    /* TODO: Get lock state from settings or GUI */
-    *p_Locked = false;  /* Placeholder */
+    *p_Locked = _RemoteControl_State.isLocked;
 
     return ESP_OK;
 }
 
 esp_err_t RemoteControl_SetLockState(bool Locked)
 {
-    /* TODO: Set lock state in settings or GUI */
-    ESP_LOGI(TAG, "Set lock state: %s", Locked ? "LOCKED" : "UNLOCKED");
+    _RemoteControl_State.isLocked = Locked;
 
-    return ESP_OK;
+    return esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_REMOTE_LOCK_SET, &Locked, sizeof(Locked), portMAX_DELAY);
 }

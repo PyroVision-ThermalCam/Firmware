@@ -30,10 +30,9 @@
 #include "../networkTypes.h"
 
 /** @brief          Initialize provisioning manager.
- *  @param p_Config Network provisioning configuration
  *  @return         ESP_OK on success
  */
-esp_err_t Provisioning_Init(Network_Provisioning_Config_t *p_Config);
+esp_err_t Provisioning_Init(void);
 
 /** @brief Deinitialize provisioning manager.
  */

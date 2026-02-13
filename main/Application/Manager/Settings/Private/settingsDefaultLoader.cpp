@@ -35,7 +35,7 @@
 
 static const char *TAG = "Settings-Default-Loader";
 
-void SettingsManager_InitDefaultLeptonROIs(App_Settings_t *p_Settings)
+void SettingsManager_InitDefaultLeptonROIs(Settings_t *p_Settings)
 {
     /* Spotmeter defaults */
     p_Settings->Lepton.ROI[ROI_TYPE_SPOTMETER].Type = ROI_TYPE_SPOTMETER;
@@ -66,7 +66,7 @@ void SettingsManager_InitDefaultLeptonROIs(App_Settings_t *p_Settings)
     p_Settings->Lepton.ROI[ROI_TYPE_VIDEO_FOCUS].h = 157;
 }
 
-void SettingsManager_InitDefaultLeptonEmissivityPresets(App_Settings_t *p_Settings)
+void SettingsManager_InitDefaultLeptonEmissivityPresets(Settings_t *p_Settings)
 {
     /* No emissiviy values available */
     p_Settings->Lepton.EmissivityPresetsCount = 1;
@@ -77,7 +77,7 @@ void SettingsManager_InitDefaultLeptonEmissivityPresets(App_Settings_t *p_Settin
     p_Settings->Lepton.CurrentEmissivity = SETTINGS_DEFAULT_LEPTON_EMISSIVITY;
 }
 
-void SettingsManager_InitDefaultDisplay(App_Settings_t *p_Settings)
+void SettingsManager_InitDefaultDisplay(Settings_t *p_Settings)
 {
     ESP_LOGW(TAG, "Loading default Display settings");
 
@@ -85,7 +85,7 @@ void SettingsManager_InitDefaultDisplay(App_Settings_t *p_Settings)
     p_Settings->Display.Timeout = SETTINGS_DISPLAY_DEFAULT_TIMEOUT;
 }
 
-void SettingsManager_InitDefaultProvisioning(App_Settings_t *p_Settings)
+void SettingsManager_InitDefaultProvisioning(Settings_t *p_Settings)
 {
     ESP_LOGW(TAG, "Loading default Provisioning settings");
 
@@ -93,7 +93,7 @@ void SettingsManager_InitDefaultProvisioning(App_Settings_t *p_Settings)
     strncpy(p_Settings->Provisioning.Name, SETTINGS_PROVISIONING_DEFAULT_NAME, sizeof(p_Settings->Provisioning.Name));
 }
 
-void SettingsManager_InitDefaultWiFi(App_Settings_t *p_Settings)
+void SettingsManager_InitDefaultWiFi(Settings_t *p_Settings)
 {
     ESP_LOGW(TAG, "Loading default WiFi settings");
 
@@ -104,7 +104,7 @@ void SettingsManager_InitDefaultWiFi(App_Settings_t *p_Settings)
     strncpy(p_Settings->WiFi.Password, SETTINGS_WIFI_DEFAULT_PASSWORD, sizeof(p_Settings->WiFi.Password));
 }
 
-void SettingsManager_InitDefaultSystem(App_Settings_t *p_Settings)
+void SettingsManager_InitDefaultSystem(Settings_t *p_Settings)
 {
     uint8_t Mac[6];
 
@@ -122,11 +122,12 @@ void SettingsManager_InitDefaultSystem(App_Settings_t *p_Settings)
 
     p_Settings->System.SDCard_AutoMount = true;
     p_Settings->System.ImageFormat = IMAGE_FORMAT_JPEG;
+    p_Settings->System.JpegQuality = 80;
     strncpy(p_Settings->System.Timezone, SETTINGS_SYSTEM_DEFAULT_TIMEZONE, sizeof(p_Settings->System.Timezone));
     strncpy(p_Settings->System.NTPServer, SETTINGS_SYSTEM_DEFAULT_NTP_SERVER, sizeof(p_Settings->System.NTPServer));
 }
 
-void SettingsManager_InitDefaultLepton(App_Settings_t *p_Settings)
+void SettingsManager_InitDefaultLepton(Settings_t *p_Settings)
 {
     ESP_LOGW(TAG, "Loading default Lepton settings");
 
@@ -134,25 +135,36 @@ void SettingsManager_InitDefaultLepton(App_Settings_t *p_Settings)
     SettingsManager_InitDefaultLeptonEmissivityPresets(p_Settings);
 }
 
-void SettingsManager_InitDefaultHTTPServer(App_Settings_t *p_Settings)
+void SettingsManager_InitDefaultHTTPServer(Settings_t *p_Settings)
 {
     ESP_LOGW(TAG, "Loading default HTTP Server settings");
 
     p_Settings->HTTPServer.Port = SETTINGS_DEFAULT_HTTP_PORT;
     p_Settings->HTTPServer.WSPingIntervalSec = SETTINGS_DEFAULT_WS_PING_INTERVAL;
     p_Settings->HTTPServer.MaxClients = SETTINGS_DEFAULT_HTTP_MAX_CLIENTS;
+    p_Settings->HTTPServer.useCORS = SETTINGS_DEFAULT_HTTP_ENABLE_CORS;
+    strncpy(p_Settings->HTTPServer.APIKey, SETTINGS_DEFAULT_HTTP_API_KEY, sizeof(p_Settings->HTTPServer.APIKey));
 }
 
-void SettingsManager_InitDefaultVISAServer(App_Settings_t *p_Settings)
+void SettingsManager_InitDefaultVISAServer(Settings_t *p_Settings)
 {
     ESP_LOGW(TAG, "Loading default VISA Server settings");
 
     p_Settings->VISAServer.Port = SETTINGS_DEFAULT_VISA_PORT;
+    p_Settings->VISAServer.Timeout = SETTINGS_DEFAULT_VISA_TIMEOUT_MS;
+}
+
+void SettingsManager_InitDefaultLEDFlash(Settings_t *p_Settings)
+{
+    ESP_LOGW(TAG, "Loading default LED Flash settings");
+
+    p_Settings->LEDFlash.Enable = SETTINGS_DEFAULT_LED_FLASH_ENABLE;
+    p_Settings->LEDFlash.Power = SETTINGS_DEFAULT_LED_FLASH_POWER;
 }
 
 void SettingsManager_LoadFromDefaults(Settings_Manager_State_t *p_State)
 {
-    memset(&p_State->Settings, 0, sizeof(App_Settings_t));
+    memset(&p_State->Settings, 0, sizeof(Settings_t));
 
     p_State->Settings.Version = SETTINGS_VERSION;
     SettingsManager_InitDefaultDisplay(&p_State->Settings);
@@ -162,4 +174,5 @@ void SettingsManager_LoadFromDefaults(Settings_Manager_State_t *p_State)
     SettingsManager_InitDefaultLepton(&p_State->Settings);
     SettingsManager_InitDefaultHTTPServer(&p_State->Settings);
     SettingsManager_InitDefaultVISAServer(&p_State->Settings);
+    SettingsManager_InitDefaultLEDFlash(&p_State->Settings);
 }

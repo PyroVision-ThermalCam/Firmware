@@ -100,6 +100,18 @@ spi_host_device_t DevicesManager_GetSPIHost(void);
  */
 esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, uint8_t *p_Percentage);
 
+/** @brief              Get the battery state of charge (SOC) percentage.
+ *                      Calculates the battery SOC percentage based on the voltage reading.
+ *  @note               ADC is calibrated using eFuse values.
+ *                      Battery voltage range: typically 3.0V to 4.2V for Li-Ion.
+ *  @warning            Measurement enables battery voltage divider (increases power consumption).
+ *  @param p_Percentage Pointer to store percentage (0-100)
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_ARG if pointers are NULL
+ *                      ESP_FAIL if ADC read fails
+ */
+esp_err_t DevicesManager_GetStateOfCharge(uint8_t *p_Percentage);
+
 /** @brief          Get the RTC device handle (for Time Manager).
  *                  Returns the I2C device handle for the RV8263-C8 Real-Time Clock.
  *                  Used by TimeManager for time synchronization.
@@ -130,5 +142,14 @@ esp_err_t DevicesManager_GetTime(struct tm *p_Time);
  *  @return         ESP_OK when successful
  */
 esp_err_t DevicesManager_SetTime(const struct tm *p_Time);
+
+/** @brief              Get the temperature from the TMP117 sensor.
+ *  @param p_Temperature Pointer to store the temperature in Celsius
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_ARG if p_Temperature is NULL
+ *                      ESP_ERR_INVALID_STATE if TMP117 not initialized
+ *                      ESP_FAIL if I2C communication fails
+ */
+esp_err_t DevicesManager_GetTemperature(float *p_Temperature);
 
 #endif /* DEVICESMANAGER_H_ */

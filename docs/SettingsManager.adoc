@@ -45,7 +45,7 @@ typedef struct {
     bool isInitialized;           // Initialization status
     bool PendingChanges;          // Unsaved changes
     nvs_handle_t NVS_Handle;      // NVS Handle
-    App_Settings_t Settings;      // Current settings in RAM
+    Settings_t Settings;      // Current settings in RAM
     SemaphoreHandle_t Mutex;      // Thread safety
 } SettingsManager_State_t;
 ----
@@ -53,7 +53,7 @@ typedef struct {
 === NVS Storage Layout
 
 * *Namespace*: `"pyrovision"`
-* *Blob Key*: `"settings"` - Contains the complete `App_Settings_t` structure
+* *Blob Key*: `"settings"` - Contains the complete `Settings_t` structure
 * *Version Key*: Reserved for future migrations
 * *Config valid Flag*: `"config_valid"` - Indicates a valid configuration in the NVS
 
@@ -63,21 +63,21 @@ typedef struct {
 
 The settings are divided into the following categories:
 
-==== 1. Lepton Camera Settings (`App_Settings_Lepton_t`)
+==== 1. Lepton Camera Settings (`Settings_Lepton_t`)
 
 [source,cpp]
 ----
 typedef struct {
-    App_Settings_ROI_t ROI[4];                      // Camera ROIs
-    App_Settings_Emissivity_t EmissivityPresets[128]; // Emissivity presets
+    Settings_ROI_t ROI[4];                      // Camera ROIs
+    Settings_Emissivity_t EmissivityPresets[128]; // Emissivity presets
     size_t EmissivityPresetsCount;                    // Number of presets
-} App_Settings_Lepton_t;
+} Settings_Lepton_t;
 ----
 
 * *ROIs*: Up to 4 Regions of Interest (Spotmeter, Scene, AGC, Video Focus)
 * *Emissivity Presets*: Predefined material emissivities (e.g. Concrete: 0.92, Skin: 0.98)
 
-==== 2. WiFi Settings (`App_Settings_WiFi_t`)
+==== 2. WiFi Settings (`Settings_WiFi_t`)
 
 [source,cpp]
 ----
@@ -87,10 +87,10 @@ typedef struct {
     bool AutoConnect;           // Automatic connection
     uint8_t MaxRetries;         // Maximum connection attempts
     uint16_t RetryInterval;     // Wait time between attempts (ms)
-} App_Settings_WiFi_t;
+} Settings_WiFi_t;
 ----
 
-==== 3. Provisioning Settings (`App_Settings_Provisioning_t`)
+==== 3. Provisioning Settings (`Settings_Provisioning_t`)
 
 [source,cpp]
 ----
@@ -98,20 +98,20 @@ typedef struct {
     char DeviceName[32];        // Device name for provisioning
     char PoP[32];               // Proof of Possession
     uint32_t Timeout;           // Provisioning timeout (seconds)
-} App_Settings_Provisioning_t;
+} Settings_Provisioning_t;
 ----
 
-==== 4. Display Settings (`App_Settings_Display_t`)
+==== 4. Display Settings (`Settings_Display_t`)
 
 [source,cpp]
 ----
 typedef struct {
     uint8_t Brightness;         // Brightness (0-100%)
     uint16_t ScreenTimeout;     // Screen timeout (seconds, 0=off)
-} App_Settings_Display_t;
+} Settings_Display_t;
 ----
 
-==== 5. HTTP Server Settings (`App_Settings_HTTP_Server_t`)
+==== 5. HTTP Server Settings (`Settings_HTTP_Server_t`)
 
 [source,cpp]
 ----
@@ -119,19 +119,19 @@ typedef struct {
     uint16_t Port;              // HTTP Server Port
     uint16_t WSPingIntervalSec; // WebSocket ping interval (seconds)
     uint8_t MaxClients;         // Max. simultaneous clients
-} App_Settings_HTTP_Server_t;
+} Settings_HTTP_Server_t;
 ----
 
-==== 6. VISA Server Settings (`App_Settings_VISA_Server_t`)
+==== 6. VISA Server Settings (`Settings_VISA_Server_t`)
 
 [source,cpp]
 ----
 typedef struct {
     uint16_t Port;              // VISA Server Port (default: 5025)
-} App_Settings_VISA_Server_t;
+} Settings_VISA_Server_t;
 ----
 
-==== 7. System Settings (`App_Settings_System_t`)
+==== 7. System Settings (`Settings_System_t`)
 
 [source,cpp]
 ----
@@ -141,7 +141,7 @@ typedef struct {
     bool Bluetooth_Enabled;     // Bluetooth enabled
     char Timezone[32];          // Timezone string (POSIX format)
     uint8_t Reserved[100];      // Reserved for future extensions
-} App_Settings_System_t;
+} Settings_System_t;
 ----
 
 === Event System
@@ -161,7 +161,7 @@ ESP_EVENT_DECLARE_BASE(SETTINGS_EVENTS);
 
 |`SETTINGS_EVENT_LOADED`
 |Settings loaded from NVS
-|`App_Settings_t`
+|`Settings_t`
 
 |`SETTINGS_EVENT_SAVED`
 |Settings saved to NVS
@@ -173,27 +173,27 @@ ESP_EVENT_DECLARE_BASE(SETTINGS_EVENTS);
 
 |`SETTINGS_EVENT_WIFI_CHANGED`
 |WiFi settings changed
-|`App_Settings_WiFi_t`
+|`Settings_WiFi_t`
 
 |`SETTINGS_EVENT_PROVISIONING_CHANGED`
 |Provisioning settings changed
-|`App_Settings_Provisioning_t`
+|`Settings_Provisioning_t`
 
 |`SETTINGS_EVENT_DISPLAY_CHANGED`
 |Display settings changed
-|`App_Settings_Display_t`
+|`Settings_Display_t`
 
 |`SETTINGS_EVENT_HTTP_SERVER_CHANGED`
 |HTTP server settings changed
-|`App_Settings_HTTP_Server_t`
+|`Settings_HTTP_Server_t`
 
 |`SETTINGS_EVENT_VISA_SERVER_CHANGED`
 |VISA server settings changed
-|`App_Settings_VISA_Server_t`
+|`Settings_VISA_Server_t`
 
 |`SETTINGS_EVENT_SYSTEM_CHANGED`
 |System settings changed
-|`App_Settings_System_t`
+|`Settings_System_t`
 
 |`SETTINGS_EVENT_REQUEST_GET`
 |Request to retrieve current settings
@@ -272,7 +272,7 @@ esp_err_t SettingsManager_Deinit(void);
 
 [source,cpp]
 ----
-esp_err_t SettingsManager_Load(App_Settings_t *p_Settings);
+esp_err_t SettingsManager_Load(Settings_t *p_Settings);
 ----
 
 *Description*: Loads all settings from NVS into RAM and the provided structure. *Warning*: Overwrites unsaved RAM changes!
@@ -300,7 +300,7 @@ esp_err_t SettingsManager_Save(void);
 
 *Process*:
 
-1. Writes complete `App_Settings_t` structure as blob to NVS
+1. Writes complete `Settings_t` structure as blob to NVS
 2. Commits the changes
 3. Posts `SETTINGS_EVENT_SAVED` event
 
@@ -336,7 +336,7 @@ esp_err_t SettingsManager_Get<Category>(App_Settings_<Category>_t* p_Settings);
 
 [source,cpp]
 ----
-App_Settings_WiFi_t wifi_settings;
+Settings_WiFi_t wifi_settings;
 if (SettingsManager_GetWiFi(&wifi_settings) == ESP_OK) {
     ESP_LOGI(TAG, "WiFi SSID: %s", wifi_settings.SSID);
 }
@@ -368,7 +368,7 @@ esp_err_t SettingsManager_Update<Category>(App_Settings_<Category>_t* p_Settings
 
 [source,cpp]
 ----
-App_Settings_Display_t display_settings;
+Settings_Display_t display_settings;
 SettingsManager_GetDisplay(&display_settings);
 
 display_settings.Brightness = 90;
@@ -436,7 +436,7 @@ void app_main(void)
 
 [source,cpp]
 ----
-App_Settings_System_t system_settings;
+Settings_System_t system_settings;
 
 if (SettingsManager_GetSystem(&system_settings) == ESP_OK) {
     ESP_LOGI(TAG, "Device Name: %s", system_settings.DeviceName);
@@ -448,7 +448,7 @@ if (SettingsManager_GetSystem(&system_settings) == ESP_OK) {
 
 [source,cpp]
 ----
-App_Settings_Display_t display;
+Settings_Display_t display;
 
 // Read current settings
 SettingsManager_GetDisplay(&display);
@@ -486,13 +486,13 @@ static void settings_event_handler(void* handler_args, esp_event_base_t base,
             break;
             
         case SETTINGS_EVENT_WIFI_CHANGED:
-            App_Settings_WiFi_t* wifi = (App_Settings_WiFi_t*)event_data;
+            Settings_WiFi_t* wifi = (Settings_WiFi_t*)event_data;
             ESP_LOGI(TAG, "WiFi settings changed: SSID=%s", wifi->SSID);
             // Reconfigure WiFi...
             break;
             
         case SETTINGS_EVENT_DISPLAY_CHANGED:
-            App_Settings_Display_t* display = (App_Settings_Display_t*)event_data;
+            Settings_Display_t* display = (Settings_Display_t*)event_data;
             ESP_LOGI(TAG, "Display Brightness: %d%%", display->Brightness);
             // Adjust display brightness...
             break;
@@ -518,8 +518,8 @@ void init_event_handlers(void)
 ----
 esp_err_t update_wifi_with_rollback(const char* ssid, const char* password)
 {
-    App_Settings_WiFi_t old_settings;
-    App_Settings_WiFi_t new_settings;
+    Settings_WiFi_t old_settings;
+    Settings_WiFi_t new_settings;
     
     // Backup old settings
     SettingsManager_GetWiFi(&old_settings);
@@ -551,9 +551,9 @@ esp_err_t update_wifi_with_rollback(const char* ssid, const char* password)
 ----
 void configure_device_initial(void)
 {
-    App_Settings_System_t system;
-    App_Settings_Display_t display;
-    App_Settings_WiFi_t wifi;
+    Settings_System_t system;
+    Settings_Display_t display;
+    Settings_WiFi_t wifi;
     
     // Change multiple settings
     SettingsManager_GetSystem(&system);
@@ -742,13 +742,13 @@ typedef struct {
 } App_Settings_NewCategory_t;
 ----
 
-2. *Insert into `App_Settings_t`*:
+2. *Insert into `Settings_t`*:
 [source,cpp]
 ----
 typedef struct {
     // ... existing categories
     App_Settings_NewCategory_t NewCategory;
-} App_Settings_t;
+} Settings_t;
 ----
 
 3. *Add event ID* in `settingsTypes.h`:

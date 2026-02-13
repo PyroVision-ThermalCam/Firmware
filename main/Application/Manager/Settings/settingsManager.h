@@ -69,7 +69,7 @@ esp_err_t SettingsManager_Deinit(void);
  *                      ESP_ERR_INVALID_SIZE if size mismatch (corrupted)
  *                      ESP_FAIL on other NVS errors
  */
-esp_err_t SettingsManager_LoadFromNVS(App_Settings_t *p_Settings);
+esp_err_t SettingsManager_LoadFromNVS(Settings_t *p_Settings);
 
 /** @brief          Save all RAM settings to NVS.
  *                  Writes current settings from RAM to non-volatile storage. Changes
@@ -88,13 +88,13 @@ esp_err_t SettingsManager_Save(void);
  *  @param p_Settings   Pointer to Info structure to populate
  *  @return             ESP_OK on success, ESP_ERR_* on failure
 */
-esp_err_t SettingsManager_GetInfo(App_Settings_Info_t *p_Settings);
+esp_err_t SettingsManager_GetInfo(Settings_Info_t *p_Settings);
 
 /** @brief              Get the Lepton settings from the Settings Manager RAM.
  *  @param p_Settings   Pointer to System settings structure to populate
  *  @return             ESP_OK on success, ESP_ERR_* on failure
 */
-esp_err_t SettingsManager_GetLepton(App_Settings_Lepton_t *p_Settings);
+esp_err_t SettingsManager_GetLepton(Settings_Lepton_t *p_Settings);
 
 /** @brief                  Update Lepton settings in the Settings Manager RAM.
  *                          This function triggers the SETTINGS_EVENT_LEPTON_CHANGED event.
@@ -102,14 +102,14 @@ esp_err_t SettingsManager_GetLepton(App_Settings_Lepton_t *p_Settings);
  *  @param p_ChangedSetting Optional pointer to structure to receive changed setting ID and value for event data (can be NULL if not needed)
  *  @return                 ESP_OK on success, ESP_ERR_* on failure
  */
-esp_err_t SettingsManager_UpdateLepton(App_Settings_Lepton_t *p_Settings,
-                                       SettingsManager_Setting_t *p_ChangedSetting = NULL);
+esp_err_t SettingsManager_UpdateLepton(Settings_Lepton_t *p_Settings,
+                                       SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
 
 /** @brief              Get the WiFi settings from the Settings Manager RAM.
  *  @param p_Settings   Pointer to WiFi settings structure to populate
  *  @return             ESP_OK on success, ESP_ERR_* on failure
 */
-esp_err_t SettingsManager_GetWiFi(App_Settings_WiFi_t *p_Settings);
+esp_err_t SettingsManager_GetWiFi(Settings_WiFi_t *p_Settings);
 
 /** @brief                  Update WiFi settings in the Settings Manager RAM.
  *                          This function triggers the SETTINGS_EVENT_WIFI_CHANGED event.
@@ -117,14 +117,14 @@ esp_err_t SettingsManager_GetWiFi(App_Settings_WiFi_t *p_Settings);
  *  @param p_ChangedSetting Optional pointer to structure to receive changed setting ID and value for event data (can be NULL if not needed)
  *  @return                 ESP_OK on success, ESP_ERR_* on failure
  */
-esp_err_t SettingsManager_UpdateWiFi(App_Settings_WiFi_t *p_Settings,
-                                       SettingsManager_Setting_t *p_ChangedSetting = NULL);
+esp_err_t SettingsManager_UpdateWiFi(Settings_WiFi_t *p_Settings,
+                                       SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
 
 /** @brief              Get the Provisioning settings from the Settings Manager RAM.
  *  @param p_Settings   Pointer to Provisioning settings structure to populate
  *  @return             ESP_OK on success, ESP_ERR_* on failure
 */
-esp_err_t SettingsManager_GetProvisioning(App_Settings_Provisioning_t *p_Settings);
+esp_err_t SettingsManager_GetProvisioning(Settings_Provisioning_t *p_Settings);
 
 /** @brief                  Update Provisioning settings in the Settings Manager RAM.
  *                          This function triggers the SETTINGS_EVENT_PROVISIONING_CHANGED event.
@@ -132,14 +132,14 @@ esp_err_t SettingsManager_GetProvisioning(App_Settings_Provisioning_t *p_Setting
  *  @param p_ChangedSetting Optional pointer to structure to receive changed setting ID and value for event data (can be NULL if not needed)
  *  @return                 ESP_OK on success, ESP_ERR_* on failure
  */
-esp_err_t SettingsManager_UpdateProvisioning(App_Settings_Provisioning_t *p_Settings,
-                                       SettingsManager_Setting_t *p_ChangedSetting = NULL);
+esp_err_t SettingsManager_UpdateProvisioning(Settings_Provisioning_t *p_Settings,
+                                       SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
 
 /** @brief              Get the Display settings from the Settings Manager RAM.
  *  @param p_Settings   Pointer to Display settings structure to populate
  *  @return             ESP_OK on success, ESP_ERR_* on failure
 */
-esp_err_t SettingsManager_GetDisplay(App_Settings_Display_t *p_Settings);
+esp_err_t SettingsManager_GetDisplay(Settings_Display_t *p_Settings);
 
 /** @brief                  Update Display settings in the Settings Manager RAM.
  *                          This function triggers the SETTINGS_EVENT_DISPLAY_CHANGED event.
@@ -147,14 +147,14 @@ esp_err_t SettingsManager_GetDisplay(App_Settings_Display_t *p_Settings);
  *  @param p_ChangedSetting Optional pointer to structure to receive changed setting ID and value for event data (can be NULL if not needed)
  *  @return                 ESP_OK on success, ESP_ERR_* on failure
  */
-esp_err_t SettingsManager_UpdateDisplay(App_Settings_Display_t *p_Settings,
-                                       SettingsManager_Setting_t *p_ChangedSetting = NULL);
+esp_err_t SettingsManager_UpdateDisplay(Settings_Display_t *p_Settings,
+                                       SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
 
 /** @brief              Get the HTTP Server settings from the Settings Manager RAM.
  *  @param p_Settings   Pointer to HTTP Server settings structure to populate
  *  @return             ESP_OK on success, ESP_ERR_* on failure
 */
-esp_err_t SettingsManager_GetHTTPServer(App_Settings_HTTP_Server_t *p_Settings);
+esp_err_t SettingsManager_GetHTTPServer(Settings_HTTP_Server_t *p_Settings);
 
 /** @brief                  Update HTTP Server settings in the Settings Manager RAM.
  *                          This function triggers the SETTINGS_EVENT_HTTP_SERVER_CHANGED event.
@@ -162,14 +162,14 @@ esp_err_t SettingsManager_GetHTTPServer(App_Settings_HTTP_Server_t *p_Settings);
  *  @param p_ChangedSetting Optional pointer to structure to receive changed setting ID and value for event data (can be NULL if not needed)
  *  @return                 ESP_OK on success, ESP_ERR_* on failure
  */
-esp_err_t SettingsManager_UpdateHTTPServer(App_Settings_HTTP_Server_t *p_Settings,
-                                       SettingsManager_Setting_t *p_ChangedSetting = NULL);
+esp_err_t SettingsManager_UpdateHTTPServer(Settings_HTTP_Server_t *p_Settings,
+                                       SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
 
 /** @brief              Get the VISA Server settings from the Settings Manager RAM.
  *  @param p_Settings   Pointer to VISA Server settings structure to populate
  *  @return             ESP_OK on success, ESP_ERR_* on failure
 */
-esp_err_t SettingsManager_GetVISAServer(App_Settings_VISA_Server_t *p_Settings);
+esp_err_t SettingsManager_GetVISAServer(Settings_VISA_Server_t *p_Settings);
 
 /** @brief                  Update VISA Server settings in the Settings Manager RAM.
  *                          This function triggers the SETTINGS_EVENT_VISA_SERVER_CHANGED event.
@@ -177,14 +177,14 @@ esp_err_t SettingsManager_GetVISAServer(App_Settings_VISA_Server_t *p_Settings);
  *  @param p_ChangedSetting Optional pointer to structure to receive changed setting ID and value for event data (can be NULL if not needed)
  *  @return                 ESP_OK on success, ESP_ERR_* on failure
  */
-esp_err_t SettingsManager_UpdateVISAServer(App_Settings_VISA_Server_t *p_Settings,
-                                       SettingsManager_Setting_t *p_ChangedSetting = NULL);
+esp_err_t SettingsManager_UpdateVISAServer(Settings_VISA_Server_t *p_Settings,
+                                       SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
 
-/** @brief              Get the system settings from the Settings Manager RAM.
+/** @brief              Get the System settings from the Settings Manager RAM.
  *  @param p_Settings   Pointer to System settings structure to populate
  *  @return             ESP_OK on success, ESP_ERR_* on failure
 */
-esp_err_t SettingsManager_GetSystem(App_Settings_System_t *p_Settings);
+esp_err_t SettingsManager_GetSystem(Settings_System_t *p_Settings);
 
 /** @brief                  Update System settings in the Settings Manager RAM.
  *                          This function triggers the SETTINGS_EVENT_SYSTEM_CHANGED event.
@@ -192,8 +192,23 @@ esp_err_t SettingsManager_GetSystem(App_Settings_System_t *p_Settings);
  *  @param p_ChangedSetting Optional pointer to structure to receive changed setting ID and value for event data (can be NULL if not needed)
  *  @return                 ESP_OK on success, ESP_ERR_* on failure
  */
-esp_err_t SettingsManager_UpdateSystem(App_Settings_System_t *p_Settings,
-                                       SettingsManager_Setting_t *p_ChangedSetting = NULL);
+esp_err_t SettingsManager_UpdateSystem(Settings_System_t *p_Settings,
+                                       SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
+
+/** @brief              Get the LED Flash settings from the Settings Manager RAM.
+ *  @param p_Settings   Pointer to LED Flash settings structure to populate
+ *  @return             ESP_OK on success, ESP_ERR_* on failure
+*/
+esp_err_t SettingsManager_GetLEDFlash(Settings_LED_Flash_t *p_Settings);
+    
+/** @brief                  Update LED Flash settings in the Settings Manager RAM.
+ *                          This function triggers the SETTINGS_EVENT_LED_FLASH_CHANGED event.
+ *  @param p_Settings       Pointer to LED Flash settings structure
+ *  @param p_ChangedSetting Optional pointer to structure to receive changed setting ID and value for event data (can be NULL if not needed)
+ *  @return                 ESP_OK on success, ESP_ERR_* on failure
+ */
+esp_err_t SettingsManager_UpdateLEDFlash(Settings_LED_Flash_t *p_Settings,
+                                       SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
 
 /** @brief  Reset all settings to factory defaults.
  *          Erases NVS partition and reloads defaults.

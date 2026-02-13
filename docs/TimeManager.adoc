@@ -567,7 +567,7 @@ void app_main(void)
     ESP_ERROR_CHECK(TimeManager_Init(&rtc_handle));
     
     // Set desired timezone
-    App_Settings_System_t system_settings;
+    Settings_System_t system_settings;
     SettingsManager_GetSystem(&system_settings);
     TimeManager_SetTimezone(system_settings.Timezone);
     
@@ -732,7 +732,7 @@ void set_timezone_by_index(size_t index)
         TimeManager_SetTimezone(timezones[index].posix_tz);
         
         // Save to settings
-        App_Settings_System_t system;
+        Settings_System_t system;
         SettingsManager_GetSystem(&system);
         strncpy(system.Timezone, timezones[index].posix_tz, sizeof(system.Timezone) - 1);
         SettingsManager_UpdateSystem(&system);

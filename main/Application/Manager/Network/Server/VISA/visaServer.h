@@ -25,17 +25,8 @@
 #define VISA_SERVER_H_
 
 #include <esp_err.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
 
 #include "../../networkTypes.h"
-
-/** @brief VISA server configuration */
-#define VISA_SERVER_PORT                    5025    /**< Standard VISA/SCPI port */
-#define VISA_MAX_COMMAND_LENGTH             256     /**< Maximum command length */
-#define VISA_MAX_RESPONSE_LENGTH            1024    /**< Maximum response length */
-#define VISA_MAX_CLIENTS                    4       /**< Maximum concurrent clients */
-#define VISA_SOCKET_TIMEOUT_MS              5000    /**< Socket timeout in milliseconds */
 
 /** @brief VISA error codes */
 typedef enum {
@@ -50,10 +41,9 @@ typedef enum {
 } VISA_Error_t;
 
 /** @brief          Initialize VISA server.
- *  @param p_Config Pointer to server configuration.
  *  @return         VISA_OK on success, error code otherwise
  */
-esp_err_t VISAServer_Init(const Network_VISA_Server_Config_t *p_Config);
+esp_err_t VISAServer_Init(void);
 
 /** @brief  Deinitialize VISA server.
  *  @return VISA_OK on success, error code otherwise

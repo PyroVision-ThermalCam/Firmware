@@ -25,24 +25,26 @@
 #include <esp_timer.h>
 #include <esp_heap_caps.h>
 
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <ctype.h>
+#include <string>
+#include <vector>
+#include <sstream>
+#include <algorithm>
+#include <cstring>
+#include <cstdio>
+#include <cstdlib>
+#include <cctype>
 
 #include "visaCommands.h"
 #include "visaRemoteCommands.h"
+#include "Settings/settingsManager.h"
 
 #include "sdkconfig.h"
 
-/** @brief Error queue */
-#define ERROR_QUEUE_SIZE        10
-
-static int _error_queue[ERROR_QUEUE_SIZE];
-static size_t _error_count = 0;
+static int VISA_ErrorQueue[CONFIG_NETWORK_VISA_ERROR_QUEUE_LLENGTH];
+static size_t VISA_ErrorCount = 0;
 
 /** @brief Operation complete flag */
-static bool _operation_complete = true;
+static bool VISA_OperationComplete = true;
 
 static const char *TAG = "VISA-Commands";
 
@@ -51,327 +53,408 @@ static const char *TAG = "VISA-Commands";
  */
 static void VISA_PushError(int Error)
 {
-    if (_error_count < ERROR_QUEUE_SIZE) {
-        _error_queue[_error_count++] = Error;
+    if (VISA_ErrorCount < CONFIG_NETWORK_VISA_ERROR_QUEUE_LLENGTH) {
+        VISA_ErrorQueue[VISA_ErrorCount++] = Error;
     }
+}
+
+/** @brief          Case-insensitive string comparison
+ *  @param s1       First string
+ *  @param s2       Second string
+ *  @return         true if equal (case-insensitive)
+ */
+static bool string_iequals(const std::string& s1, const std::string& s2)
+{
+    return std::equal(s1.begin(), s1.end(), s2.begin(), s2.end(),
+                     [](char a, char b) {
+                         return std::tolower(a) == std::tolower(b);
+                     });
 }
 
 /** @brief          Check if string is a query (ends with ?)
  *  @param Command  Command string
  *  @return         true if query, false otherwise
  */
-static bool VISA_IsQuery(const char *Command)
+static bool VISA_IsQuery(const std::string& Command)
 {
-    size_t len = strlen(Command);
-    return ((len > 0) && (Command[len - 1] == '?'));
+    return (Command.empty() == false) && (Command.back() == '?');
 }
 
 /** @brief          Parse command into tokens
  *  @param Command  Command string
- *  @param Tokens   Array to store tokens
- *  @param MaxTokens Maximum number of tokens
- *  @return         Number of tokens parsed
+ *  @return         Vector of token strings
  */
-static int VISA_ParseCommand(char *Command, char **Tokens, int MaxTokens)
+static std::vector<std::string> VISA_ParseCommand(const std::string& Command)
 {
-    int count = 0;
-    char *token = strtok(Command, " \t:");
-
-    while ((token != NULL) && (count < MaxTokens)) {
-        Tokens[count++] = token;
-        token = strtok(NULL, " \t:");
+    std::vector<std::string> TokenList;
+    std::string Token;
+    
+    for (char c : Command) {
+        if ((c == ' ') || (c == '\t') || (c == ':')) {
+            if ((Token.empty() == false)) {
+                TokenList.push_back(Token);
+                Token.clear();
+            }
+        } else {
+            Token += c;
+        }
     }
-
-    return count;
+    
+    if (Token.empty() == false) {
+        TokenList.push_back(Token);
+    }
+    
+    return TokenList;
 }
 
 /* ===== IEEE 488.2 Common Commands ===== */
 
-/** @brief          *IDN? - Identification query
- *  @param Response Response buffer
- *  @param MaxLen   Maximum response length
- *  @return         Response length
+/** @brief              *IDN? - Identification query
+ *  @param p_Response   Response buffer
+ *  @param MaxLen       Maximum response length
+ *  @return             Response length
  */
-static int VISA_CMD_IDN(char *Response, size_t MaxLen)
+static int VISA_CMD_IDN(char *p_Response, size_t MaxLen)
 {
-    return 0;
-    /*
-    return snprintf(Response, MaxLen, "%s,%s,%s,%u.%u.%u\n",
-                    CONFIG_NETWORK_VISA_DEVICE_MANUFACTURER,
-                    CONFIG_NETWORK_VISA_DEVICE_MODEL,
-                    CONFIG_NETWORK_VISA_DEVICE_SERIAL,
-                    PYROVISION_VERSION_MAJOR, PYROVISION_VERSION_MINOR, PYROVISION_VERSION_BUILD);
-    */
+    size_t Length;
+    Settings_Info_t Info;
+    std::ostringstream oss;
+    std::string Result;
+
+    SettingsManager_GetInfo(&Info);
+
+    /* Build response using C++ string for safety */
+    oss << (Info.Manufacturer[0] ? Info.Manufacturer : "PyroVision") << ","
+        << (Info.Name[0] ? Info.Name : "ThermalCam") << ","
+        << (Info.Serial[0] ? Info.Serial : "00000001") << ","
+        << (Info.FirmwareVersion[0] ? Info.FirmwareVersion : "1.0.0") << "\n";
+
+    Result = oss.str();
+    
+    /* Copy to output buffer */
+    Length = std::min(Result.length(), MaxLen - 1);
+    memcpy(p_Response, Result.c_str(), Length);
+    p_Response[Length] = '\0';
+    
+    ESP_LOGI(TAG, "*IDN? response: %s", Result.c_str());
+    
+    return static_cast<int>(Length);
 }
 
-/** @brief          *RST - Reset device
- *  @param Response Response buffer
- *  @param MaxLen   Maximum response length
- *  @return         Response length
+/** @brief              *RST - Reset device
+ *  @param p_Response   Response buffer
+ *  @param MaxLen       Maximum response length
+ *  @return             Response length
  */
-static int VISA_CMD_RST(char *Response, size_t MaxLen)
+static int VISA_CMD_RST(char *p_Response, size_t MaxLen)
 {
     ESP_LOGI(TAG, "Device reset requested");
 
     /* TODO: Implement actual reset logic */
     // Reset managers to default state
 
-    _operation_complete = true;
-    return 0; /* No response for command */
+    VISA_OperationComplete = true;
+
+    /* No response for command */
+    return 0;
 }
 
-/** @brief          *CLS - Clear status
- *  @param Response Response buffer
- *  @param MaxLen   Maximum response length
- *  @return         Response length
+/** @brief              *CLS - Clear status
+ *  @param p_Response   Response buffer
+ *  @param MaxLen       Maximum response length
+ *  @return             Response length
  */
-static int VISA_CMD_CLS(char *Response, size_t MaxLen)
+static int VISA_CMD_CLS(char *p_Response, size_t MaxLen)
 {
     VISACommands_ClearErrors();
-    _operation_complete = true;
-    return 0; /* No response */
+    VISA_OperationComplete = true;
+
+    /* No response for command */
+    return 0;
 }
 
-/** @brief          *OPC? - Operation complete query
- *  @param Response Response buffer
- *  @param MaxLen   Maximum response length
- *  @return         Response length
+/** @brief              *OPC? - Operation complete query
+ *  @param p_Response   Response buffer
+ *  @param MaxLen       Maximum response length
+ *  @return             Response length
  */
-static int VISA_CMD_OPC(char *Response, size_t MaxLen)
+static int VISA_CMD_OPC(char *p_Response, size_t MaxLen)
 {
-    return snprintf(Response, MaxLen, "%d\n", _operation_complete ? 1 : 0);
+    size_t Length;
+    std::string Result;
+
+    Result = std::to_string(VISA_OperationComplete ? 1 : 0) + "\n";
+    Length = std::min(Result.length(), MaxLen - 1);
+    memcpy(p_Response, Result.c_str(), Length);
+    p_Response[Length] = '\0';
+
+    return static_cast<int>(Length);
 }
 
-/** @brief          *TST? - Self-test query
- *  @param Response Response buffer
- *  @param MaxLen   Maximum response length
- *  @return         Response length
+/** @brief              *TST? - Self-test query
+ *  @param p_Response   Response buffer
+ *  @param MaxLen       Maximum response length
+ *  @return             Response length
  */
-static int VISA_CMD_TST(char *Response, size_t MaxLen)
+static int VISA_CMD_TST(char *p_Response, size_t MaxLen)
 {
     /* Perform basic self-test */
     /* 0 = pass, non-zero = fail */
     int result = 0;
+    size_t Length;
+    std::string Response;
 
     /* TODO: Implement actual self-test */
     // Check camera connection
     // Check display
     // Check memory
 
-    return snprintf(Response, MaxLen, "%d\n", result);
+    Response = std::to_string(result) + "\n";
+    Length = std::min(Response.length(), MaxLen - 1);
+    memcpy(p_Response, Response.c_str(), Length);
+    p_Response[Length] = '\0';
+
+    return static_cast<int>(Length);
 }
 
-/** @brief          SYSTem:ERRor? - Get error from queue
- *  @param Response Response buffer
- *  @param MaxLen   Maximum response length
- *  @return         Response length
+/** @brief              SYSTem:ERRor? - Get error from queue
+ *  @param p_Response   Response buffer
+ *  @param MaxLen       Maximum response length
+ *  @return             Response length
  */
-static int VISA_CMD_SYST_ERR(char *Response, size_t MaxLen)
+static int VISA_CMD_SYST_ERR(char *p_Response, size_t MaxLen)
 {
-    int error = VISACommands_GetError();
+    size_t Length;
+    std::string Result;
+    std::ostringstream oss;
+    int Error;
 
-    if (error == SCPI_ERROR_NO_ERROR) {
-        return snprintf(Response, MaxLen, "0,\"No error\"\n");
+    Error = VISACommands_GetError();
+    if (Error == SCPI_ERROR_NO_ERROR) {
+        oss << "0,\"No error\"\n";
     } else {
-        return snprintf(Response, MaxLen, "%d,\"Error %d\"\n", error, error);
+        oss << Error << ",\"Error " << Error << "\"\n";
     }
+
+    Result = oss.str();
+    Length = std::min(Result.length(), MaxLen - 1);
+    memcpy(p_Response, Result.c_str(), Length);
+    p_Response[Length] = '\0';
+
+    return static_cast<int>(Length);
 }
 
-/** @brief          SYSTem:VERSion? - Get SCPI version
- *  @param Response Response buffer
- *  @param MaxLen   Maximum response length
- *  @return         Response length
+/** @brief              SYSTem:VERSion? - Get SCPI version
+ *  @param p_Response   Response buffer
+ *  @param MaxLen       Maximum response length
+ *  @return             Response length
  */
-static int VISA_CMD_SYST_VERS(char *Response, size_t MaxLen)
+static int VISA_CMD_SYST_VERS(char *p_Response, size_t MaxLen)
 {
-    return snprintf(Response, MaxLen, "1999.0\n"); /* SCPI-99 */
+    std::string result = "1999.0\n"; /* SCPI-99 */
+    size_t Length;
+
+    Length = std::min(result.length(), MaxLen - 1);
+    memcpy(p_Response, result.c_str(), Length);
+    p_Response[Length] = '\0';
+
+    return static_cast<int>(Length);
 }
 
 /* ===== Device-Specific Commands ===== */
 
-/** @brief          SENSe:TEMPerature? - Get sensor temperature
- *  @param Response Response buffer
- *  @param MaxLen   Maximum response length
- *  @return         Response length
+/** @brief              SENSe:TEMPerature? - Get sensor temperature
+ *  @param p_Response   Response buffer
+ *  @param MaxLen       Maximum response length
+ *  @return             Response length
  */
-static int VISA_CMD_SENS_TEMP(char *Response, size_t MaxLen)
+static int VISA_CMD_SENS_TEMP(char *p_Response, size_t MaxLen)
 {
     /* TODO: Get actual temperature from Lepton manager */
     float temperature = 25.5f; /* Placeholder */
 
-    return snprintf(Response, MaxLen, "%.2f\n", temperature);
+    return snprintf(p_Response, MaxLen, "%.2f\n", temperature);
 }
 
-/** @brief          SENSe:IMAGE:CAPTure - Capture image
- *  @param Response Response buffer
- *  @param MaxLen   Maximum response length
- *  @return         Response length
+/** @brief              SENSe:IMAGE:CAPTure - Capture image
+ *  @param p_Response   Response buffer
+ *  @param MaxLen       Maximum response length
+ *  @return             Response length
  */
-static int VISA_CMD_SENS_IMG_CAPT(char *Response, size_t MaxLen)
+static int VISA_CMD_SENS_IMG_CAPT(char *p_Response, size_t MaxLen)
 {
     /* TODO: Trigger image capture */
     ESP_LOGI(TAG, "Image capture triggered");
 
-    _operation_complete = false;
+    VISA_OperationComplete = false;
     /* Capture happens asynchronously */
     /* Set _operation_complete = true when done */
 
     return 0; /* No immediate response */
 }
 
-/** @brief          SENSe:IMAGE:DATA? - Get captured image data
- *  @param Response Response buffer
- *  @param MaxLen   Maximum response length
- *  @return         Response length or negative for binary data
+/** @brief              SENSe:IMAGE:DATA? - Get captured image data
+ *  @param p_Response   Response buffer
+ *  @param MaxLen       Maximum response length
+ *  @return             Response length or negative for binary data
  */
-static int VISA_CMD_SENS_IMG_DATA(char *Response, size_t MaxLen)
+static int VISA_CMD_SENS_IMG_DATA(char *p_Response, size_t MaxLen)
 {
+    char Header[32];
+    int HeaderSize;
+    int Digits;
+    size_t Size = 1024;
+    uint8_t *Data;
+
     /* TODO: Get actual image data */
     /* This should return binary data in IEEE 488.2 format */
     /* Format: #<n><length><data> where n = digits in length */
 
     /* Example with dummy data */
-    uint8_t *image_data = static_cast<uint8_t *>(heap_caps_malloc(1024, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-    if (image_data == NULL) {
+    Data = static_cast<uint8_t *>(heap_caps_malloc(1024, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (Data == NULL) {
         VISA_PushError(SCPI_ERROR_OUT_OF_MEMORY);
+
         return SCPI_ERROR_OUT_OF_MEMORY;
     }
 
-    size_t image_size = 1024; /* Placeholder */
-    memset(image_data, 0xAA, image_size); /* Dummy data */
+    memset(Data, 0xAA, Size); /* Dummy data */
 
     /* Format binary block header */
-    char header[32];
-    int digits = snprintf(header, sizeof(header), "%zu", image_size);
-    int header_len = snprintf(Response, MaxLen, "#%d%zu", digits, image_size);
+    Digits = snprintf(Header, sizeof(Header), "%zu", Size);
+    HeaderSize = snprintf(p_Response, MaxLen, "#%d%zu", Digits, Size);
 
     /* Copy image data after header */
-    if ((header_len + image_size) < MaxLen) {
-        memcpy(Response + header_len, image_data, image_size);
-        free(image_data);
-        return header_len + image_size;
+    if ((HeaderSize + Size) < MaxLen) {
+        memcpy(p_Response + HeaderSize, Data, Size);
+        free(Data);
+
+        return HeaderSize + Size;
     }
 
-    free(image_data);
+    free(Data);
     VISA_PushError(SCPI_ERROR_OUT_OF_MEMORY);
+
     return SCPI_ERROR_OUT_OF_MEMORY;
 }
 
-/** @brief          SENSe:IMAGE:FORMat - Set image format
- *  @param Tokens   Command tokens
- *  @param Count    Token count
- *  @param Response Response buffer
- *  @param MaxLen   Maximum response length
- *  @return         Response length
+/** @brief              SENSe:IMAGE:FORMat - Set image format
+ *  @param Tokens       Command tokens
+ *  @param Count        Token count
+ *  @param p_Response   Response buffer
+ *  @param MaxLen       Maximum response length
+ *  @return             Response length
  */
-static int VISA_CMD_SENS_IMG_FORM(char **Tokens, int Count, char *Response, size_t MaxLen)
+static int VISA_CMD_SENS_IMG_FORM(char **Tokens, int Count, char *p_Response, size_t MaxLen)
 {
     if (Count < 4) {
         VISA_PushError(SCPI_ERROR_MISSING_PARAMETER);
+
         return SCPI_ERROR_MISSING_PARAMETER;
     }
 
-    const char *format = Tokens[3];
-
-    ESP_LOGI(TAG, "Set image format: %s", format);
+    ESP_LOGI(TAG, "Set image format: %s", Tokens[3]);
 
     /* TODO: Set actual format */
     /* Valid: JPEG, PNG, RAW */
 
-    if ((strcasecmp(format, "JPEG") == 0) ||
-        (strcasecmp(format, "PNG") == 0) ||
-        (strcasecmp(format, "RAW") == 0)) {
+    if ((strcasecmp(Tokens[3], "JPEG") == 0) ||
+        (strcasecmp(Tokens[3], "PNG") == 0) ||
+        (strcasecmp(Tokens[3], "RAW") == 0)) {
         return 0; /* Success */
     } else {
         VISA_PushError(SCPI_ERROR_DATA_OUT_OF_RANGE);
+
         return SCPI_ERROR_DATA_OUT_OF_RANGE;
     }
 }
 
-/** @brief          SENSe:IMAGE:PALette - Set color palette
- *  @param Tokens   Command tokens
- *  @param Count    Token count
- *  @param Response Response buffer
- *  @param MaxLen   Maximum response length
- *  @return         Response length
+/** @brief              SENSe:IMAGE:PALette - Set color palette
+ *  @param Tokens       Command tokens
+ *  @param Count        Token count
+ *  @param p_Response   Response buffer
+ *  @param MaxLen       Maximum response length
+ *  @return             Response length
  */
-static int VISA_CMD_SENS_IMG_PAL(char **Tokens, int Count, char *Response, size_t MaxLen)
+static int VISA_CMD_SENS_IMG_PAL(char **Tokens, int Count, char *p_Response, size_t MaxLen)
 {
     if (Count < 4) {
         VISA_PushError(SCPI_ERROR_MISSING_PARAMETER);
+
         return SCPI_ERROR_MISSING_PARAMETER;
     }
 
-    const char *palette = Tokens[3];
-
-    ESP_LOGI(TAG, "Set palette: %s", palette);
+    ESP_LOGI(TAG, "Set palette: %s", Tokens[3]);
 
     /* TODO: Set actual palette */
     /* Valid: IRON, GRAY, RAINBOW */
 
-    if ((strcasecmp(palette, "IRON") == 0) ||
-        (strcasecmp(palette, "GRAY") == 0) ||
-        (strcasecmp(palette, "RAINBOW") == 0)) {
+    if ((strcasecmp(Tokens[3], "IRON") == 0) ||
+        (strcasecmp(Tokens[3], "GRAY") == 0) ||
+        (strcasecmp(Tokens[3], "RAINBOW") == 0)) {
         return 0; /* Success */
     } else {
         VISA_PushError(SCPI_ERROR_DATA_OUT_OF_RANGE);
+
         return SCPI_ERROR_DATA_OUT_OF_RANGE;
     }
 }
 
-/** @brief          DISPlay:LED:STATe - Set LED state
- *  @param Tokens   Command tokens
- *  @param Count    Token count
- *  @param Response Response buffer
- *  @param MaxLen   Maximum response length
- *  @return         Response length
+/** @brief              DISPlay:LED:STATe - Set LED state
+ *  @param Tokens       Command tokens
+ *  @param Count        Token count
+ *  @param p_Response   Response buffer
+ *  @param MaxLen       Maximum response length
+ *  @return             Response length
  */
-static int VISA_CMD_DISP_LED_STAT(char **Tokens, int Count, char *Response, size_t MaxLen)
+static int VISA_CMD_DISP_LED_STAT(char **Tokens, int Count, char *p_Response, size_t MaxLen)
 {
     if (Count < 4) {
         VISA_PushError(SCPI_ERROR_MISSING_PARAMETER);
+
         return SCPI_ERROR_MISSING_PARAMETER;
     }
 
-    const char *state = Tokens[3];
-
-    ESP_LOGI(TAG, "Set LED state: %s", state);
+    ESP_LOGI(TAG, "Set LED state: %s", Tokens[3]);
 
     /* TODO: Control actual LED */
     /* Valid: ON, OFF, BLINK */
 
-    if ((strcasecmp(state, "ON") == 0) ||
-        (strcasecmp(state, "OFF") == 0) ||
-        (strcasecmp(state, "BLINK") == 0)) {
+    if ((strcasecmp(Tokens[3], "ON") == 0) ||
+        (strcasecmp(Tokens[3], "OFF") == 0) ||
+        (strcasecmp(Tokens[3], "BLINK") == 0)) {
         return 0; /* Success */
     } else {
         VISA_PushError(SCPI_ERROR_DATA_OUT_OF_RANGE);
+
         return SCPI_ERROR_DATA_OUT_OF_RANGE;
     }
 }
 
-/** @brief          DISPlay:LED:BRIGhtness - Set LED brightness
- *  @param Tokens   Command tokens
- *  @param Count    Token count
- *  @param Response Response buffer
- *  @param MaxLen   Maximum response length
- *  @return         Response length
+/** @brief              DISPlay:LED:BRIGhtness - Set LED brightness
+ *  @param Tokens       Command tokens
+ *  @param Count        Token count
+ *  @param p_Response   Response buffer
+ *  @param MaxLen       Maximum response length
+ *  @return             Response length
  */
-static int VISA_CMD_DISP_LED_BRIG(char **Tokens, int Count, char *Response, size_t MaxLen)
+static int VISA_CMD_DISP_LED_BRIG(char **Tokens, int Count, char *p_Response, size_t MaxLen)
 {
+    int Brightness = atoi(Tokens[3]);
+
     if (Count < 4) {
         VISA_PushError(SCPI_ERROR_MISSING_PARAMETER);
+
         return SCPI_ERROR_MISSING_PARAMETER;
     }
 
-    int brightness = atoi(Tokens[3]);
-
-    if ((brightness < 0) || (brightness > 255)) {
+    if ((Brightness < 0) || (Brightness > 255)) {
         VISA_PushError(SCPI_ERROR_DATA_OUT_OF_RANGE);
+
         return SCPI_ERROR_DATA_OUT_OF_RANGE;
     }
 
-    ESP_LOGI(TAG, "Set LED brightness: %d", brightness);
+    ESP_LOGI(TAG, "Set LED brightness: %d", Brightness);
 
     /* TODO: Set actual LED brightness */
 
@@ -381,9 +464,10 @@ static int VISA_CMD_DISP_LED_BRIG(char **Tokens, int Count, char *Response, size
 esp_err_t VISACommands_Init(void)
 {
     VISACommands_ClearErrors();
-    _operation_complete = true;
+    VISA_OperationComplete = true;
 
-    ESP_LOGI(TAG, "VISA command handler initialized");
+    ESP_LOGD(TAG, "VISA command handler initialized");
+
     return ESP_OK;
 }
 
@@ -391,133 +475,165 @@ esp_err_t VISACommands_Deinit(void)
 {
     VISACommands_ClearErrors();
 
-    ESP_LOGI(TAG, "VISA command handler deinitialized");
+    ESP_LOGD(TAG, "VISA command handler deinitialized");
+
     return ESP_OK;
 }
 
 int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
 {
+    std::vector<std::string> Tokens;
+    bool isQuery;
+
     if ((Command == NULL) || (Response == NULL)) {
         return SCPI_ERROR_COMMAND_ERROR;
     }
 
-    /* Make a copy for parsing */
-    char cmd_copy[256];
-    strncpy(cmd_copy, Command, sizeof(cmd_copy) - 1);
-    cmd_copy[sizeof(cmd_copy) - 1] = '\0';
-
-    /* Convert to uppercase for comparison */
-    char *tokens[16];
-    int token_count = VISA_ParseCommand(cmd_copy, tokens, 16);
-
-    if (token_count == 0) {
+    /* Convert to C++ string and parse */
+    Tokens = VISA_ParseCommand(std::string(Command));
+    if (Tokens.empty()) {
         VISA_PushError(SCPI_ERROR_COMMAND_ERROR);
+
         return SCPI_ERROR_COMMAND_ERROR;
     }
 
     /* Check for queries */
-    bool is_query = VISA_IsQuery(tokens[token_count - 1]);
+    isQuery = VISA_IsQuery(Tokens.back());
 
     /* Remove ? from last token if query */
-    if (is_query) {
-        size_t len = strlen(tokens[token_count - 1]);
-        if (len > 0) {
-            tokens[token_count - 1][len - 1] = '\0';
-        }
+    if (isQuery && (Tokens.back().empty() == false)) {
+        Tokens.back().pop_back();
     }
 
     /* IEEE 488.2 Common Commands */
-    if (strcmp(tokens[0], "*IDN") == 0) {
-        if (is_query) {
+    if (Tokens[0] == "*IDN") {
+        if (isQuery) {
             return VISA_CMD_IDN(Response, MaxLen);
         }
-    } else if (strcmp(tokens[0], "*RST") == 0) {
+    } else if (Tokens[0] == "*RST") {
         return VISA_CMD_RST(Response, MaxLen);
-    } else if (strcmp(tokens[0], "*CLS") == 0) {
+    } else if (Tokens[0] == "*CLS") {
         return VISA_CMD_CLS(Response, MaxLen);
-    } else if (strcmp(tokens[0], "*OPC") == 0) {
-        if (is_query) {
+    } else if (Tokens[0] == "*OPC") {
+        if (isQuery) {
             return VISA_CMD_OPC(Response, MaxLen);
         }
-    } else if (strcmp(tokens[0], "*TST") == 0) {
-        if (is_query) {
+    } else if (Tokens[0] == "*TST") {
+        if (isQuery) {
             return VISA_CMD_TST(Response, MaxLen);
         }
     }
     /* SCPI System Commands */
-    else if ((strcasecmp(tokens[0], "SYST") == 0) || (strcasecmp(tokens[0], "SYSTem") == 0)) {
-        if ((token_count >= 2) && (strcasecmp(tokens[1], "ERR") == 0 || strcasecmp(tokens[1], "ERRor") == 0)) {
-            if (is_query) {
+    else if (string_iequals(Tokens[0], "SYST") || string_iequals(Tokens[0], "SYSTem")) {
+        if ((Tokens.size() >= 2) && (string_iequals(Tokens[1], "ERR") || string_iequals(Tokens[1], "ERRor"))) {
+            if (isQuery) {
                 return VISA_CMD_SYST_ERR(Response, MaxLen);
             }
-        } else if ((token_count >= 2) && (strcasecmp(tokens[1], "VERS") == 0 || strcasecmp(tokens[1], "VERSion") == 0)) {
-            if (is_query) {
+        } else if ((Tokens.size() >= 2) && (string_iequals(Tokens[1], "VERS") || string_iequals(Tokens[1], "VERSion"))) {
+            if (isQuery) {
                 return VISA_CMD_SYST_VERS(Response, MaxLen);
             }
-        } else if ((token_count >= 2) && (strcasecmp(tokens[1], "TIME") == 0)) {
-            if (is_query) {
+        } else if ((Tokens.size() >= 2) && string_iequals(Tokens[1], "TIME")) {
+            if (isQuery) {
                 return VISA_Cmd_GetTime(Response, MaxLen);
             } else {
-                return VISA_Cmd_SetTime(tokens, token_count, Response, MaxLen);
+                std::vector<char*> TokenList;
+
+                for (auto& t : Tokens) {
+                    TokenList.push_back(const_cast<char*>(t.c_str()));
+                }
+
+                return VISA_Cmd_SetTime(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
             }
-        } else if ((token_count >= 2) && (strcasecmp(tokens[1], "LOCK") == 0)) {
-            if (is_query) {
+        } else if ((Tokens.size() >= 2) && string_iequals(Tokens[1], "LOCK")) {
+            if (isQuery) {
                 return VISA_Cmd_GetLockState(Response, MaxLen);
             } else {
-                return VISA_Cmd_SetLockState(tokens, token_count, Response, MaxLen);
+                std::vector<char*> TokenList;
+
+                for (auto& t : Tokens) {
+                    TokenList.push_back(const_cast<char*>(t.c_str()));
+                }
+
+                return VISA_Cmd_SetLockState(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
             }
         }
     }
     /* Device-Specific Commands - SENSe */
-    else if ((strcasecmp(tokens[0], "SENS") == 0) || (strcasecmp(tokens[0], "SENSe") == 0)) {
-        if ((token_count >= 2) && (strcasecmp(tokens[1], "TEMP") == 0 || strcasecmp(tokens[1], "TEMPerature") == 0)) {
-            if (is_query) {
+    else if (string_iequals(Tokens[0], "SENS") || string_iequals(Tokens[0], "SENSe")) {
+        if ((Tokens.size() >= 2) && (string_iequals(Tokens[1], "TEMP") || string_iequals(Tokens[1], "TEMPerature"))) {
+            if (isQuery) {
                 return VISA_Cmd_GetTemperature(Response, MaxLen);
             }
-        } else if ((token_count >= 2) && (strcasecmp(tokens[1], "BATT") == 0 || strcasecmp(tokens[1], "BATTery") == 0)) {
-            if ((token_count >= 3) && (strcasecmp(tokens[2], "VOLT") == 0 || strcasecmp(tokens[2], "VOLTage") == 0)) {
-                if (is_query) {
+        } else if ((Tokens.size() >= 2) && (string_iequals(Tokens[1], "BATT") || string_iequals(Tokens[1], "BATTery"))) {
+            if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "VOLT") || string_iequals(Tokens[2], "VOLTage"))) {
+                if (isQuery) {
                     return VISA_Cmd_GetBatteryVoltage(Response, MaxLen);
                 }
-            } else if ((token_count >= 3) && (strcasecmp(tokens[2], "SOC") == 0)) {
-                if (is_query) {
+            } else if ((Tokens.size() >= 3) && string_iequals(Tokens[2], "SOC")) {
+                if (isQuery) {
                     return VISA_Cmd_GetStateOfCharge(Response, MaxLen);
                 }
             }
-        } else if ((token_count >= 2) && (strcasecmp(tokens[1], "IMG") == 0 || strcasecmp(tokens[1], "IMAGE") == 0)) {
-            if ((token_count >= 3) && (strcasecmp(tokens[2], "CAPT") == 0 || strcasecmp(tokens[2], "CAPTure") == 0)) {
+        } else if ((Tokens.size() >= 2) && (string_iequals(Tokens[1], "IMG") || string_iequals(Tokens[1], "IMAGE"))) {
+            if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "CAPT") || string_iequals(Tokens[2], "CAPTure"))) {
                 return VISA_CMD_SENS_IMG_CAPT(Response, MaxLen);
-            } else if ((token_count >= 3) && (strcasecmp(tokens[2], "DATA") == 0)) {
-                if (is_query) {
+            } else if ((Tokens.size() >= 3) && string_iequals(Tokens[2], "DATA")) {
+                if (isQuery) {
                     return VISA_CMD_SENS_IMG_DATA(Response, MaxLen);
                 }
-            } else if ((token_count >= 3) && (strcasecmp(tokens[2], "FORM") == 0 || strcasecmp(tokens[2], "FORMat") == 0)) {
-                if (is_query) {
+            } else if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "FORM") || string_iequals(Tokens[2], "FORMat"))) {
+                if (isQuery) {
                     return VISA_Cmd_GetImageFormat(Response, MaxLen);
                 } else {
-                    return VISA_Cmd_SetImageFormat(tokens, token_count, Response, MaxLen);
+                    std::vector<char*> TokenList;
+
+                    for (auto& t : Tokens) {
+                        TokenList.push_back(const_cast<char*>(t.c_str()));
+                    }
+
+                    return VISA_Cmd_SetImageFormat(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
                 }
-            } else if ((token_count >= 3) && (strcasecmp(tokens[2], "PAL") == 0 || strcasecmp(tokens[2], "PALette") == 0)) {
-                return VISA_CMD_SENS_IMG_PAL(tokens, token_count, Response, MaxLen);
-            } else if ((token_count >= 3) && (strcasecmp(tokens[2], "LEP") == 0 || strcasecmp(tokens[2], "LEPton") == 0)) {
-                if ((token_count >= 4) && (strcasecmp(tokens[3], "EMIS") == 0 || strcasecmp(tokens[3], "EMISsivity") == 0)) {
-                    if (is_query) {
+            } else if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "PAL") || string_iequals(Tokens[2], "PALette"))) {
+                std::vector<char*> TokenList;
+
+                for (auto& t : Tokens) {
+                    TokenList.push_back(const_cast<char*>(t.c_str()));
+                }
+
+                return VISA_CMD_SENS_IMG_PAL(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
+            } else if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "LEP") || string_iequals(Tokens[2], "LEPton"))) {
+                if ((Tokens.size() >= 4) && (string_iequals(Tokens[3], "EMIS") || string_iequals(Tokens[3], "EMISsivity"))) {
+                    if (isQuery) {
                         return VISA_Cmd_GetLeptonEmissivity(Response, MaxLen);
                     } else {
-                        return VISA_Cmd_SetLeptonEmissivity(tokens, token_count, Response, MaxLen);
+                        std::vector<char*> TokenList;
+
+                        for (auto& t : Tokens) {
+                            TokenList.push_back(const_cast<char*>(t.c_str()));
+                        }
+
+                        return VISA_Cmd_SetLeptonEmissivity(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
                     }
-                } else if ((token_count >= 4) && (strcasecmp(tokens[3], "STAT") == 0 || strcasecmp(tokens[3], "STATistics") == 0)) {
-                    if (is_query) {
+                } else if ((Tokens.size() >= 4) && (string_iequals(Tokens[3], "STAT") || string_iequals(Tokens[3], "STATistics"))) {
+                    if (isQuery) {
                         return VISA_Cmd_GetLeptonStats(Response, MaxLen);
                     }
-                } else if ((token_count >= 4) && (strcasecmp(tokens[3], "ROI") == 0)) {
-                    if (is_query) {
+                } else if ((Tokens.size() >= 4) && string_iequals(Tokens[3], "ROI")) {
+                    if (isQuery) {
                         return VISA_Cmd_GetLeptonROI(Response, MaxLen);
                     } else {
-                        return VISA_Cmd_SetLeptonROI(tokens, token_count, Response, MaxLen);
+                        std::vector<char*> TokenList;
+
+                        for (auto& t : Tokens) {
+                            TokenList.push_back(const_cast<char*>(t.c_str()));
+                        }
+
+                        return VISA_Cmd_SetLeptonROI(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
                     }
-                } else if ((token_count >= 4) && (strcasecmp(tokens[3], "SPOT") == 0 || strcasecmp(tokens[3], "SPOTmeter") == 0)) {
-                    if (is_query) {
+                } else if ((Tokens.size() >= 4) && (string_iequals(Tokens[3], "SPOT") || string_iequals(Tokens[3], "SPOTmeter"))) {
+                    if (isQuery) {
+
                         return VISA_Cmd_GetLeptonSpotmeter(Response, MaxLen);
                     }
                 }
@@ -525,61 +641,95 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
         }
     }
     /* Device-Specific Commands - DISPlay */
-    else if ((strcasecmp(tokens[0], "DISP") == 0) || (strcasecmp(tokens[0], "DISPlay") == 0)) {
-        if ((token_count >= 2) && (strcasecmp(tokens[1], "LED") == 0)) {
-            if ((token_count >= 3) && (strcasecmp(tokens[2], "STAT") == 0 || strcasecmp(tokens[2], "STATe") == 0)) {
-                return VISA_Cmd_SetStatusLED(tokens, token_count, Response, MaxLen);
-            } else if ((token_count >= 3) && (strcasecmp(tokens[2], "BRIG") == 0 || strcasecmp(tokens[2], "BRIGhtness") == 0)) {
-                return VISA_CMD_DISP_LED_BRIG(tokens, token_count, Response, MaxLen);
+    else if (string_iequals(Tokens[0], "DISP") || string_iequals(Tokens[0], "DISPlay")) {
+        if ((Tokens.size() >= 2) && string_iequals(Tokens[1], "LED")) {
+            if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "STAT") || string_iequals(Tokens[2], "STATe"))) {
+                std::vector<char*> TokenList;
+
+                for (auto& t : Tokens) {
+                    TokenList.push_back(const_cast<char*>(t.c_str()));
+                }
+
+                return VISA_Cmd_SetStatusLED(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
+            } else if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "BRIG") || string_iequals(Tokens[2], "BRIGhtness"))) {
+                std::vector<char*> TokenList;
+
+                for (auto& t : Tokens) {
+                    TokenList.push_back(const_cast<char*>(t.c_str()));
+                }
+
+                return VISA_CMD_DISP_LED_BRIG(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
             }
-        } else if ((token_count >= 2) && (strcasecmp(tokens[1], "FLASH") == 0)) {
-            if ((token_count >= 3) && (strcasecmp(tokens[2], "POW") == 0 || strcasecmp(tokens[2], "POWer") == 0)) {
-                if (is_query) {
+        } else if ((Tokens.size() >= 2) && string_iequals(Tokens[1], "FLASH")) {
+            if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "POW") || string_iequals(Tokens[2], "POWer"))) {
+                if (isQuery) {
                     return VISA_Cmd_GetFlashPower(Response, MaxLen);
                 } else {
-                    return VISA_Cmd_SetFlashPower(tokens, token_count, Response, MaxLen);
+                    std::vector<char*> TokenList;
+
+                    for (auto& t : Tokens) {
+                        TokenList.push_back(const_cast<char*>(t.c_str()));
+                    }
+
+                    return VISA_Cmd_SetFlashPower(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
                 }
-            } else if ((token_count >= 3) && (strcasecmp(tokens[2], "STAT") == 0 || strcasecmp(tokens[2], "STATe") == 0)) {
-                if (is_query) {
+            } else if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "STAT") || string_iequals(Tokens[2], "STATe"))) {
+                if (isQuery) {
                     return VISA_Cmd_GetFlashState(Response, MaxLen);
                 } else {
-                    return VISA_Cmd_SetFlashState(tokens, token_count, Response, MaxLen);
+                    std::vector<char*> TokenList;
+
+                    for (auto& t : Tokens) {
+                        TokenList.push_back(const_cast<char*>(t.c_str()));
+                    }
+    
+                    return VISA_Cmd_SetFlashState(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
                 }
             }
-        } else if ((token_count >= 2) && (strcasecmp(tokens[1], "MBOX") == 0 || strcasecmp(tokens[1], "MessageBOX") == 0)) {
-            return VISA_Cmd_DisplayMessageBox(tokens, token_count, Response, MaxLen);
+        } else if ((Tokens.size() >= 2) && (string_iequals(Tokens[1], "MBOX") || string_iequals(Tokens[1], "MessageBOX"))) {
+            std::vector<char*> TokenList;
+
+            for (auto& t : Tokens) {
+                TokenList.push_back(const_cast<char*>(t.c_str()));
+            }
+
+            return VISA_Cmd_DisplayMessageBox(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
         }
     }
     /* Device-Specific Commands - MEMory */
-    else if ((strcasecmp(tokens[0], "MEM") == 0) || (strcasecmp(tokens[0], "MEMory") == 0)) {
-        if ((token_count >= 2) && (strcasecmp(tokens[1], "SD") == 0)) {
-            if ((token_count >= 3) && (strcasecmp(tokens[2], "STAT") == 0 || strcasecmp(tokens[2], "STATe") == 0)) {
-                if (is_query) {
+    else if (string_iequals(Tokens[0], "MEM") || string_iequals(Tokens[0], "MEMory")) {
+        if ((Tokens.size() >= 2) && string_iequals(Tokens[1], "SD")) {
+            if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "STAT") || string_iequals(Tokens[2], "STATe"))) {
+                if (isQuery) {
                     return VISA_Cmd_GetSDCardState(Response, MaxLen);
                 }
             }
-        } else if ((token_count >= 2) && (strcasecmp(tokens[1], "FORM") == 0 || strcasecmp(tokens[1], "FORMat") == 0)) {
+        } else if ((Tokens.size() >= 2) && (string_iequals(Tokens[1], "FORM") || string_iequals(Tokens[1], "FORMat"))) {
             return VISA_Cmd_FormatMemory(Response, MaxLen);
         }
     }
 
     /* Command not found */
     VISA_PushError(SCPI_ERROR_UNDEFINED_HEADER);
+
     return SCPI_ERROR_UNDEFINED_HEADER;
 }
 
 int VISACommands_GetError(void)
 {
-    if (_error_count > 0) {
-        int error = _error_queue[0];
+    if (VISA_ErrorCount > 0) {
+        int Error;
+
+        Error = VISA_ErrorQueue[0];
 
         /* Shift queue */
-        for (size_t i = 1; i < _error_count; i++) {
-            _error_queue[i - 1] = _error_queue[i];
+        for (size_t i = 1; i < VISA_ErrorCount; i++) {
+            VISA_ErrorQueue[i - 1] = VISA_ErrorQueue[i];
         }
-        _error_count--;
 
-        return error;
+        VISA_ErrorCount--;
+
+        return Error;
     }
 
     return SCPI_ERROR_NO_ERROR;
@@ -587,6 +737,6 @@ int VISACommands_GetError(void)
 
 void VISACommands_ClearErrors(void)
 {
-    _error_count = 0;
-    memset(_error_queue, 0, sizeof(_error_queue));
+    VISA_ErrorCount = 0;
+    memset(VISA_ErrorQueue, 0, sizeof(VISA_ErrorQueue));
 }

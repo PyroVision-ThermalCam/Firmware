@@ -21,41 +21,49 @@
  * Errors and commissions should be reported to DanielKampert@kampis-elektroecke.de
  */
 
-#include <esp_log.h>
 #include <stdio.h>
-#include <string.h>
+#include <string>
+#include <cstring>
+#include <algorithm>
+#include <cctype>
 #include <cJSON.h>
 
 #include "visaRemoteCommands.h"
 #include "visaCommands.h"
 #include "../../RemoteControl/remoteControl.h"
 
-static const char *TAG = "VISA-Remote";
-
 int VISA_Cmd_GetTemperature(char *p_Response, size_t MaxLen)
 {
     esp_err_t Error;
     float Temperature;
+    std::string Response;
 
     Error = RemoteControl_GetTemperature(&Temperature);
     if (Error != ESP_OK) {
         return SCPI_ERROR_HARDWARE_ERROR;
     }
 
-    return snprintf(p_Response, MaxLen, "%.2f\n", Temperature);
+    Response = std::to_string(Temperature).substr(0, std::to_string(Temperature).find('.') + 3) + "\n";
+    strncpy(p_Response, Response.c_str(), MaxLen);
+
+    return Response.size();
 }
 
 int VISA_Cmd_GetTime(char *p_Response, size_t MaxLen)
 {
     esp_err_t Error;
     char TimeStr[32];
+    std::string Response;
 
     Error = RemoteControl_GetTime(TimeStr, sizeof(TimeStr));
     if (Error != ESP_OK) {
         return SCPI_ERROR_EXECUTION_ERROR;
     }
 
-    return snprintf(p_Response, MaxLen, "%s\n", TimeStr);
+    Response = std::string(TimeStr) + "\n";
+    strncpy(p_Response, Response.c_str(), MaxLen);
+
+    return Response.size();
 }
 
 int VISA_Cmd_SetTime(char **pp_Tokens, int Count, char *p_Response, size_t MaxLen)
@@ -77,32 +85,41 @@ int VISA_Cmd_SetTime(char **pp_Tokens, int Count, char *p_Response, size_t MaxLe
 int VISA_Cmd_GetBatteryVoltage(char *p_Response, size_t MaxLen)
 {
     esp_err_t Error;
-    float Voltage;
+    int Voltage;
+    std::string Response;
 
     Error = RemoteControl_GetBatteryVoltage(&Voltage);
     if (Error != ESP_OK) {
         return SCPI_ERROR_HARDWARE_ERROR;
     }
 
-    return snprintf(p_Response, MaxLen, "%.3f\n", Voltage);
+    Response = std::to_string(Voltage).substr(0, std::to_string(Voltage).find('.') + 4) + "\n";
+    strncpy(p_Response, Response.c_str(), MaxLen);
+
+    return Response.size();
 }
 
 int VISA_Cmd_GetStateOfCharge(char *p_Response, size_t MaxLen)
 {
     esp_err_t Error;
     uint8_t SOC;
+    std::string Response;
 
     Error = RemoteControl_GetStateOfCharge(&SOC);
     if (Error != ESP_OK) {
         return SCPI_ERROR_HARDWARE_ERROR;
     }
 
-    return snprintf(p_Response, MaxLen, "%u\n", SOC);
+    Response = std::to_string(SOC) + "\n";
+    strncpy(p_Response, Response.c_str(), MaxLen);
+
+    return Response.size();
 }
 
 int VISA_Cmd_GetLeptonEmissivity(char *p_Response, size_t MaxLen)
 {
     esp_err_t Error;
+    std::string Response;
     uint8_t Emissivity;
 
     Error = RemoteControl_GetLeptonEmissivity(&Emissivity);
@@ -110,7 +127,10 @@ int VISA_Cmd_GetLeptonEmissivity(char *p_Response, size_t MaxLen)
         return SCPI_ERROR_HARDWARE_ERROR;
     }
 
-    return snprintf(p_Response, MaxLen, "%u\n", Emissivity);
+    Response = std::to_string(Emissivity) + "\n";
+    strncpy(p_Response, Response.c_str(), MaxLen);
+
+    return Response.size();
 }
 
 int VISA_Cmd_SetLeptonEmissivity(char **pp_Tokens, int Count, char *p_Response, size_t MaxLen)
@@ -140,7 +160,7 @@ int VISA_Cmd_GetLeptonStats(char *p_Response, size_t MaxLen)
     esp_err_t Error;
     cJSON *JSON;
     char *JSONStr;
-    int len;
+    std::string Response;
 
     JSON = cJSON_CreateObject();
     if (JSON == NULL) {
@@ -150,6 +170,7 @@ int VISA_Cmd_GetLeptonStats(char *p_Response, size_t MaxLen)
     Error = RemoteControl_GetLeptonSceneStats(JSON);
     if (Error != ESP_OK) {
         cJSON_Delete(JSON);
+
         return SCPI_ERROR_HARDWARE_ERROR;
     }
 
@@ -160,10 +181,11 @@ int VISA_Cmd_GetLeptonStats(char *p_Response, size_t MaxLen)
         return SCPI_ERROR_OUT_OF_MEMORY;
     }
 
-    len = snprintf(p_Response, MaxLen, "%s\n", JSONStr);
+    Response = std::string(JSONStr) + "\n";
     cJSON_free(JSONStr);
+    strncpy(p_Response, Response.c_str(), MaxLen);
 
-    return len;
+    return Response.size();
 }
 
 int VISA_Cmd_GetLeptonROI(char *p_Response, size_t MaxLen)
@@ -171,7 +193,7 @@ int VISA_Cmd_GetLeptonROI(char *p_Response, size_t MaxLen)
     esp_err_t Error;
     cJSON *JSON;
     char *JSONStr;
-    int len;
+    std::string Response;
 
     JSON = cJSON_CreateObject();
     if (JSON == NULL) {
@@ -181,6 +203,7 @@ int VISA_Cmd_GetLeptonROI(char *p_Response, size_t MaxLen)
     Error = RemoteControl_GetLeptonROI(JSON);
     if (Error != ESP_OK) {
         cJSON_Delete(JSON);
+
         return SCPI_ERROR_HARDWARE_ERROR;
     }
 
@@ -191,10 +214,11 @@ int VISA_Cmd_GetLeptonROI(char *p_Response, size_t MaxLen)
         return SCPI_ERROR_OUT_OF_MEMORY;
     }
 
-    len = snprintf(p_Response, MaxLen, "%s\n", JSONStr);
+    Response = std::string(JSONStr) + "\n";
     cJSON_free(JSONStr);
+    strncpy(p_Response, Response.c_str(), MaxLen);
 
-    return len;
+    return Response.size();
 }
 
 int VISA_Cmd_SetLeptonROI(char **pp_Tokens, int Count, char *p_Response, size_t MaxLen)
@@ -228,7 +252,7 @@ int VISA_Cmd_GetLeptonSpotmeter(char *p_Response, size_t MaxLen)
     esp_err_t Error;
     cJSON *JSON;
     char *JSONStr;
-    int len;
+    std::string Response;
 
     JSON = cJSON_CreateObject();
     if (JSON == NULL) {
@@ -238,6 +262,7 @@ int VISA_Cmd_GetLeptonSpotmeter(char *p_Response, size_t MaxLen)
     Error = RemoteControl_GetLeptonSpotmeter(JSON);
     if (Error != ESP_OK) {
         cJSON_Delete(JSON);
+
         return SCPI_ERROR_HARDWARE_ERROR;
     }
 
@@ -248,23 +273,29 @@ int VISA_Cmd_GetLeptonSpotmeter(char *p_Response, size_t MaxLen)
         return SCPI_ERROR_OUT_OF_MEMORY;
     }
 
-    len = snprintf(p_Response, MaxLen, "%s\n", JSONStr);
+    Response = std::string(JSONStr) + "\n";
     cJSON_free(JSONStr);
+    strncpy(p_Response, Response.c_str(), MaxLen);
 
-    return len;
+    return Response.size();
 }
 
 int VISA_Cmd_GetFlashPower(char *p_Response, size_t MaxLen)
 {
     esp_err_t Error;
+    std::string Response;
+    bool Enabled;
     uint8_t Power;
 
-    Error = RemoteControl_GetFlashPower(&Power);
+    Error = RemoteControl_GetFlashConfig(&Enabled, &Power);
     if (Error != ESP_OK) {
         return SCPI_ERROR_HARDWARE_ERROR;
     }
 
-    return snprintf(p_Response, MaxLen, "%u\n", Power);
+    Response = std::to_string(Power) + "\n";
+    strncpy(p_Response, Response.c_str(), MaxLen);
+
+    return Response.size();
 }
 
 int VISA_Cmd_SetFlashPower(char **pp_Tokens, int Count, char *p_Response, size_t MaxLen)
@@ -292,28 +323,35 @@ int VISA_Cmd_SetFlashPower(char **pp_Tokens, int Count, char *p_Response, size_t
 int VISA_Cmd_GetFlashState(char *p_Response, size_t MaxLen)
 {
     esp_err_t Error;
+    std::string Response;
     bool Enabled;
+    uint8_t Power;
 
-    Error = RemoteControl_GetFlashState(&Enabled);
+    Error = RemoteControl_GetFlashConfig(&Enabled, &Power);
     if (Error != ESP_OK) {
-        return SCPI_ERROR_HARDWARE_ERROR;
+        return Error;
     }
 
-    return snprintf(p_Response, MaxLen, "%s\n", Enabled ? "ON" : "OFF");
+    Response = std::string(Enabled ? "ON" : "OFF") + "\n";
+    strncpy(p_Response, Response.c_str(), MaxLen);
+
+    return Response.size();
 }
 
 int VISA_Cmd_SetFlashState(char **pp_Tokens, int Count, char *p_Response, size_t MaxLen)
 {
     esp_err_t Error;
     bool Enabled;
+    std::string Value(pp_Tokens[3]);
 
     if (Count < 4) {
         return SCPI_ERROR_MISSING_PARAMETER;
     }
 
-    if ((strcasecmp(pp_Tokens[3], "ON") == 0) || (strcasecmp(pp_Tokens[3], "1") == 0)) {
+    std::transform(Value.begin(), Value.end(), Value.begin(), ::tolower);
+    if ((Value == "on") || (Value == "1")) {
         Enabled = true;
-    } else if ((strcasecmp(pp_Tokens[3], "OFF") == 0) || (strcasecmp(pp_Tokens[3], "0") == 0)) {
+    } else if ((Value == "off") || (Value == "0")) {
         Enabled = false;
     } else {
         return SCPI_ERROR_DATA_OUT_OF_RANGE;
@@ -330,8 +368,9 @@ int VISA_Cmd_SetFlashState(char **pp_Tokens, int Count, char *p_Response, size_t
 int VISA_Cmd_GetImageFormat(char *p_Response, size_t MaxLen)
 {
     esp_err_t Error;
-    Remote_Image_Format_t Format;
+    Settings_Image_Format_t Format;
     const char *FormatStr;
+    std::string Response;
 
     Error = RemoteControl_GetImageFormat(&Format);
     if (Error != ESP_OK) {
@@ -339,37 +378,42 @@ int VISA_Cmd_GetImageFormat(char *p_Response, size_t MaxLen)
     }
 
     switch (Format) {
-        case REMOTE_IMAGE_FORMAT_PNG:
+        case IMAGE_FORMAT_PNG:
             FormatStr = "PNG";
             break;
-        case REMOTE_IMAGE_FORMAT_RAW:
+        case IMAGE_FORMAT_RAW:
             FormatStr = "RAW";
             break;
-        case REMOTE_IMAGE_FORMAT_JPEG:
+        case IMAGE_FORMAT_JPEG:
             FormatStr = "JPEG";
             break;
         default:
             return SCPI_ERROR_HARDWARE_ERROR;
     }
 
-    return snprintf(p_Response, MaxLen, "%s\n", FormatStr);
+    Response = std::string(FormatStr) + "\n";
+    strncpy(p_Response, Response.c_str(), MaxLen);
+
+    return Response.size();
 }
 
 int VISA_Cmd_SetImageFormat(char **pp_Tokens, int Count, char *p_Response, size_t MaxLen)
 {
     esp_err_t Error;
-    Remote_Image_Format_t Format;
+    Settings_Image_Format_t Format;
+    std::string FormatValue(pp_Tokens[3]);
 
     if (Count < 4) {
         return SCPI_ERROR_MISSING_PARAMETER;
     }
 
-    if (strcasecmp(pp_Tokens[3], "PNG") == 0) {
-        Format = REMOTE_IMAGE_FORMAT_PNG;
-    } else if (strcasecmp(pp_Tokens[3], "RAW") == 0) {
-        Format = REMOTE_IMAGE_FORMAT_RAW;
-    } else if (strcasecmp(pp_Tokens[3], "JPEG") == 0) {
-        Format = REMOTE_IMAGE_FORMAT_JPEG;
+    std::transform(FormatValue.begin(), FormatValue.end(), FormatValue.begin(), ::toupper);
+    if (FormatValue == "PNG") {
+        Format = IMAGE_FORMAT_PNG;
+    } else if (FormatValue == "RAW") {
+        Format = IMAGE_FORMAT_RAW;
+    } else if (FormatValue == "JPEG") {
+        Format = IMAGE_FORMAT_JPEG;
     } else {
         return SCPI_ERROR_DATA_OUT_OF_RANGE;
     }
@@ -387,16 +431,18 @@ int VISA_Cmd_SetStatusLED(char **pp_Tokens, int Count, char *p_Response, size_t 
     esp_err_t Error;
     Remote_LED_Color_t Color;
     int Brightness;
+    std::string ColorValue(pp_Tokens[3]);
 
     if (Count < 5) {
         return SCPI_ERROR_MISSING_PARAMETER;
     }
 
-    if (strcasecmp(pp_Tokens[3], "RED") == 0) {
+    std::transform(ColorValue.begin(), ColorValue.end(), ColorValue.begin(), ::toupper);
+    if (ColorValue == "RED") {
         Color = REMOTE_LED_RED;
-    } else if (strcasecmp(pp_Tokens[3], "GREEN") == 0) {
+    } else if (ColorValue == "GREEN") {
         Color = REMOTE_LED_GREEN;
-    } else if (strcasecmp(pp_Tokens[3], "BLUE") == 0) {
+    } else if (ColorValue == "BLUE") {
         Color = REMOTE_LED_BLUE;
     } else {
         return SCPI_ERROR_DATA_OUT_OF_RANGE;
@@ -407,7 +453,7 @@ int VISA_Cmd_SetStatusLED(char **pp_Tokens, int Count, char *p_Response, size_t 
         return SCPI_ERROR_DATA_OUT_OF_RANGE;
     }
 
-    Error = RemoteControl_SetStatusLED(Color, (uint8_t)Brightness);
+    Error = RemoteControl_SetStatusLED(Color, static_cast<uint8_t>(Brightness));
     if (Error != ESP_OK) {
         return SCPI_ERROR_EXECUTION_ERROR;
     }
@@ -419,13 +465,17 @@ int VISA_Cmd_GetSDCardState(char *p_Response, size_t MaxLen)
 {
     esp_err_t Error;
     bool Available;
+    std::string Response;
 
     Error = RemoteControl_GetSDCardState(&Available);
     if (Error != ESP_OK) {
         return SCPI_ERROR_HARDWARE_ERROR;
     }
 
-    return snprintf(p_Response, MaxLen, "%s\n", Available ? "AVAILABLE" : "NOT_AVAILABLE");
+    Response = std::string(Available ? "AVAILABLE" : "NOT_AVAILABLE") + "\n";
+    strncpy(p_Response, Response.c_str(), MaxLen);
+
+    return Response.size();
 }
 
 int VISA_Cmd_FormatMemory(char *p_Response, size_t MaxLen)
@@ -460,27 +510,33 @@ int VISA_Cmd_GetLockState(char *p_Response, size_t MaxLen)
 {
     esp_err_t Error;
     bool Locked;
+    std::string Response;
 
     Error = RemoteControl_GetLockState(&Locked);
     if (Error != ESP_OK) {
         return SCPI_ERROR_HARDWARE_ERROR;
     }
 
-    return snprintf(p_Response, MaxLen, "%s\n", Locked ? "LOCKED" : "UNLOCKED");
+    Response = std::string(Locked ? "LOCKED" : "UNLOCKED") + "\n";
+    strncpy(p_Response, Response.c_str(), MaxLen);
+
+    return Response.size();
 }
 
 int VISA_Cmd_SetLockState(char **pp_Tokens, int Count, char *p_Response, size_t MaxLen)
 {
     esp_err_t Error;
     bool Locked;
+    std::string LockValue(pp_Tokens[2]);
 
     if (Count < 3) {
         return SCPI_ERROR_MISSING_PARAMETER;
     }
 
-    if ((strcasecmp(pp_Tokens[2], "LOCKED") == 0) || (strcasecmp(pp_Tokens[2], "1") == 0)) {
+    std::transform(LockValue.begin(), LockValue.end(), LockValue.begin(), ::toupper);
+    if ((LockValue == "LOCKED") || (LockValue == "1")) {
         Locked = true;
-    } else if ((strcasecmp(pp_Tokens[2], "UNLOCKED") == 0) || (strcasecmp(pp_Tokens[2], "0") == 0)) {
+    } else if ((LockValue == "UNLOCKED") || (LockValue == "0")) {
         Locked = false;
     } else {
         return SCPI_ERROR_DATA_OUT_OF_RANGE;

@@ -57,7 +57,7 @@ extern "C" void app_main(void)
     /* Initialize Time Manager (requires RTC from DevicesManager) */
     if (DevicesManager_GetRTCHandle(&RtcHandle) == ESP_OK) {
         if (TimeManager_Init(RtcHandle) == ESP_OK) {
-            App_Settings_System_t SystemSettings;
+            Settings_System_t SystemSettings;
 
             SettingsManager_GetSystem(&SystemSettings);
             TimeManager_SetTimezone(SystemSettings.Timezone);

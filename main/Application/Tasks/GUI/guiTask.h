@@ -31,8 +31,6 @@
 
 #include "Application/application.h"
 
-ESP_EVENT_DECLARE_BASE(GUI_EVENTS);
-
 /** @brief  Initialize the GUI task.
  *  @return ESP_OK on success, error code otherwise
  */

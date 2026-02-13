@@ -132,7 +132,7 @@ Settings are organized hierarchically:
 
 [source]
 ----
-App_Settings_t
+Settings_t
 ├── WiFi (SSID, password, auto-connect)
 ├── Display (brightness, orientation, timeout)
 ├── Lepton (ROIs, emissivity presets, AGC)
@@ -163,7 +163,7 @@ if (Error != ESP_OK) {
 
 [source,c]
 ----
-App_Settings_WiFi_t WiFiSettings;
+Settings_WiFi_t WiFiSettings;
 esp_err_t Error = SettingsManager_GetWiFi(&WiFiSettings);
 ----
 
@@ -171,7 +171,7 @@ esp_err_t Error = SettingsManager_GetWiFi(&WiFiSettings);
 
 [source,c]
 ----
-App_Settings_WiFi_t WiFiSettings = {
+Settings_WiFi_t WiFiSettings = {
     .SSID = "MyNetwork",
     .Password = "MyPassword",
     .AutoConnect = true

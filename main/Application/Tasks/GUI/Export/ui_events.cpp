@@ -18,7 +18,7 @@ static const char *TAG = "ui_events";
 void ScreenMainLoaded(lv_event_t *e)
 {
     char Buf[128];
-    App_Settings_Info_t Info;
+    Settings_Info_t Info;
 
     SettingsManager_GetInfo(&Info);
 

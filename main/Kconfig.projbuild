@@ -41,11 +41,11 @@ menu "PyroVision"
         config BATTERY_ADC_CHANNEL
             int "ADC channel used for battery measurement"
             range 0 9
-            default 0
+            default 2
 
         choice
             prompt "ADC Attenuation"
-            default BATTERY_ADC_ATT_0
+            default BATTERY_ADC_ATT_12
             help
                 Select the used ADC attenuation.
 
@@ -69,11 +69,44 @@ menu "PyroVision"
 
         config BATTERY_ADC_R1
             int "Value of the R1 resistor of the voltage divider"
-            default 10000
+            default 2200
 
         config BATTERY_ADC_R2
             int "Value of the R2 resistor of the voltage divider"
-            default 3300
+            default 2200
+
+        config BATTERY_ADC_SAMPLES
+            int "Number of ADC samples to average"
+            range 1 64
+            default 16
+            help
+                Number of ADC samples to take and average for battery voltage measurement.
+                Higher values give more accurate readings but take longer.
+
+        config BATTERY_ADC_SAMPLE_DELAY_MS
+            int "Delay between ADC samples in milliseconds"
+            range 0 100
+            default 10
+            help
+                Delay between consecutive ADC samples in milliseconds.
+                A small delay can improve accuracy by allowing the ADC to settle.
+
+        config BATTERY_ADC_EMA_ALPHA
+            int "Exponential moving average alpha (0-100)"
+            range 0 100
+            default 20
+            help
+                Exponential moving average alpha factor (0-100, representing 0.0-1.0).
+                Lower values give more smoothing but slower response to changes.
+                20 represents 0.2 (20% new value, 80% old value).
+
+        config BATTERY_ADC_OUTLIER_THRESHOLD
+            int "Maximum deviation from median in millivolts"
+            range 50 500
+            default 200
+            help
+                Maximum allowed deviation from the median value in mV.
+                Samples exceeding this threshold are considered outliers and excluded.
     endmenu
 
     menu "Network"
@@ -98,7 +131,61 @@ menu "PyroVision"
         endmenu
 
         menu "VISA"
+            config NETWORK_VISA_ERROR_QUEUE_LLENGTH
+                int "Length of the error queue"
+                default 10
+
+            config NETWORK_VISA_MAX_CLIENTS
+                int "Maximum number of clients"
+                default 2
         endmenu
+    endmenu
+
+    menu "Image Encoding"
+        choice
+            prompt "Default Image Format"
+            default IMAGE_FORMAT_JPEG
+            help
+                Select the default image format for thermal frame encoding.
+                This can be changed at runtime through the settings.
+
+            config IMAGE_FORMAT_JPEG
+                bool "JPEG"
+                help
+                    Lossy JPEG compression. Smallest file size, fastest encoding.
+                    Recommended for most use cases.
+
+            config IMAGE_FORMAT_PNG
+                bool "PNG (Not implemented)"
+                help
+                    Lossless PNG compression. Larger file size than JPEG.
+                    Currently not implemented - will fall back to RAW format.
+
+            config IMAGE_FORMAT_BITMAP
+                bool "Bitmap (BMP)"
+                help
+                    Uncompressed 24-bit RGB bitmap. Largest file size.
+                    Compatible with most image viewers.
+
+            config IMAGE_FORMAT_RAW
+                bool "RAW RGB"
+                help
+                    Raw RGB888 pixel data without headers or compression.
+                    Largest file size, requires custom parsing.
+        endchoice
+
+        config IMAGE_JPEG_QUALITY
+            int "JPEG Quality (1-100)"
+            range 1 100
+            default 80
+            depends on IMAGE_FORMAT_JPEG
+            help
+                JPEG compression quality (1-100).
+                Higher values produce better quality but larger files.
+                Recommended range: 70-90
+                - 70: Good quality, small file size
+                - 80: High quality (default)
+                - 90: Very high quality, larger files
     endmenu
 
     menu "Lepton"
@@ -261,7 +348,7 @@ menu "PyroVision"
 
                 config LCD_CLOCK
                     int "SPI clock"
-                    default 80000000
+                    default 200000000
 
                 config LCD_CS
                     int "Chip Select GPIO"

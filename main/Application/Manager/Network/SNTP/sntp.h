@@ -38,8 +38,6 @@ ESP_EVENT_DECLARE_BASE(SNTP_EVENTS);
 typedef enum {
     SNTP_EVENT_SNTP_SYNCED,                     /**< SNTP time synchronization completed
                                                      Data is of type struct timeval */
-    SNTP_EVENT_TZ_CHANGED,                      /**< Timezone changed
-                                                     Data is of type const char* */
 } SNTP_Event_t;
 
 /** @brief              Initialize SNTP and event handlers.

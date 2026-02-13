@@ -31,10 +31,9 @@
 #include "../../networkTypes.h"
 
 /** @brief          Initialize the WebSocket.
- *  @param p_Config Pointer to server configuration
  *  @return         ESP_OK on success
  */
-esp_err_t WebSocket_Init(const Network_HTTP_Server_Config_t *p_Config);
+esp_err_t WebSocket_Init(void);
 
 /** @brief Deinitialize the WebSocket.
  */

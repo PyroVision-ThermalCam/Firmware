@@ -30,6 +30,7 @@
 
 #include <sys/time.h>
 
+#include <string>
 #include <cJSON.h>
 #include <cstring>
 
@@ -61,17 +62,17 @@ static const char *TAG = "HTTP-Server";
  */
 static bool HTTP_Server_CheckAuth(httpd_req_t *p_Request)
 {
-    char ApiKey[64] = {0};
+    std::string ApiKey(64, '\0');
 
-    if (_HTTP_Server_State.Config.API_Key == NULL) {
+    if (_HTTP_Server_State.Config.API_Key[0] == '\0') {
         return true;
-    }
-
-    if (httpd_req_get_hdr_value_str(p_Request, HTTP_SERVER_API_KEY_HEADER, ApiKey, sizeof(ApiKey)) != ESP_OK) {
+    } else if (httpd_req_get_hdr_value_str(p_Request, HTTP_SERVER_API_KEY_HEADER, &ApiKey[0], ApiKey.size()) != ESP_OK) {
         return false;
     }
 
-    return (strcmp(ApiKey, _HTTP_Server_State.Config.API_Key) == 0);
+    ApiKey.resize(strlen(ApiKey.c_str()));
+
+    return (ApiKey == _HTTP_Server_State.Config.API_Key);
 }
 
 /** @brief              Send JSON response.
@@ -83,17 +84,18 @@ static bool HTTP_Server_CheckAuth(httpd_req_t *p_Request)
 static esp_err_t HTTP_Server_SendJSON(httpd_req_t *p_Request, cJSON *p_JSON, int StatusCode)
 {
     esp_err_t Error;
+    char *JSON;
 
-    char *JsonStr = cJSON_PrintUnformatted(p_JSON);
-    if (JsonStr == NULL) {
+    JSON = cJSON_PrintUnformatted(p_JSON);
+    if (JSON == NULL) {
         httpd_resp_send_err(p_Request, HTTPD_500_INTERNAL_SERVER_ERROR, "JSON encoding failed");
+
         return ESP_FAIL;
     }
 
     if (StatusCode != 200) {
-        char status_str[16];
-        snprintf(status_str, sizeof(status_str), "%d", StatusCode);
-        httpd_resp_set_status(p_Request, status_str);
+        std::string status_str = std::to_string(StatusCode);
+        httpd_resp_set_status(p_Request, status_str.c_str());
     }
 
     httpd_resp_set_type(p_Request, "application/json");
@@ -102,8 +104,8 @@ static esp_err_t HTTP_Server_SendJSON(httpd_req_t *p_Request, cJSON *p_JSON, int
         httpd_resp_set_hdr(p_Request, "Access-Control-Allow-Origin", "*");
     }
 
-    Error = httpd_resp_sendstr(p_Request, JsonStr);
-    cJSON_free(JsonStr);
+    Error = httpd_resp_sendstr(p_Request, JSON);
+    cJSON_free(JSON);
 
     return Error;
 }
@@ -117,18 +119,20 @@ static esp_err_t HTTP_Server_SendJSON(httpd_req_t *p_Request, cJSON *p_JSON, int
 static esp_err_t HTTP_Server_SendError(httpd_req_t *p_Request, int StatusCode, const char *p_Message)
 {
     esp_err_t Error;
+    cJSON *JSON;
 
-    cJSON *Json = cJSON_CreateObject();
-    if (Json == NULL) {
+    JSON = cJSON_CreateObject();
+    if (JSON == NULL) {
         httpd_resp_send_err(p_Request, HTTPD_500_INTERNAL_SERVER_ERROR, "JSON allocation failed");
+
         return ESP_FAIL;
     }
 
-    cJSON_AddStringToObject(Json, "error", p_Message);
-    cJSON_AddNumberToObject(Json, "code", StatusCode);
+    cJSON_AddStringToObject(JSON, "error", p_Message);
+    cJSON_AddNumberToObject(JSON, "code", StatusCode);
 
-    Error = HTTP_Server_SendJSON(p_Request, Json, StatusCode);
-    cJSON_Delete(Json);
+    Error = HTTP_Server_SendJSON(p_Request, JSON, StatusCode);
+    cJSON_Delete(JSON);
 
     return Error;
 }
@@ -139,25 +143,29 @@ static esp_err_t HTTP_Server_SendError(httpd_req_t *p_Request, int StatusCode, c
  */
 static cJSON *HTTP_Server_ParseJSON(httpd_req_t *p_Request)
 {
+    char *Buffer;
+    cJSON *JSON;
+
     if ((p_Request->content_len <= 0) || (p_Request->content_len > 4096)) {
         return NULL;
     }
 
-    char *Buffer = (char *)heap_caps_malloc(p_Request->content_len + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    Buffer = static_cast<char *>(heap_caps_malloc(p_Request->content_len + 1, MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM));
     if (Buffer == NULL) {
         return NULL;
     }
 
     if (httpd_req_recv(p_Request, Buffer, p_Request->content_len) != p_Request->content_len) {
-        free(Buffer);
+        heap_caps_free(Buffer);
+
         return NULL;
     }
 
     Buffer[p_Request->content_len] = '\0';
-    cJSON *Json = cJSON_Parse(Buffer);
-    free(Buffer);
+    JSON = cJSON_Parse(Buffer);
+    heap_caps_free(Buffer);
 
-    return Json;
+    return JSON;
 }
 
 /** @brief              Handler for POST /api/v1/time.
@@ -167,6 +175,9 @@ static cJSON *HTTP_Server_ParseJSON(httpd_req_t *p_Request)
 static esp_err_t HTTP_Handler_Time(httpd_req_t *p_Request)
 {
     esp_err_t Error;
+    cJSON *JSON;
+    cJSON *Epoch;
+    cJSON *Timezone;
 
     _HTTP_Server_State.RequestCount++;
 
@@ -174,40 +185,41 @@ static esp_err_t HTTP_Handler_Time(httpd_req_t *p_Request)
         return HTTP_Server_SendError(p_Request, 401, "Unauthorized");
     }
 
-    cJSON *json = HTTP_Server_ParseJSON(p_Request);
-    if (json == NULL) {
+    JSON = HTTP_Server_ParseJSON(p_Request);
+    if (JSON == NULL) {
         return HTTP_Server_SendError(p_Request, 400, "Invalid JSON");
     }
 
-    cJSON *epoch = cJSON_GetObjectItem(json, "epoch");
-    cJSON *timezone = cJSON_GetObjectItem(json, "timezone");
+    Epoch = cJSON_GetObjectItem(JSON, "epoch");
+    Timezone = cJSON_GetObjectItem(JSON, "timezone");
 
-    if (cJSON_IsNumber(epoch) == false) {
-        cJSON_Delete(json);
+    if (cJSON_IsNumber(Epoch) == false) {
+        cJSON_Delete(JSON);
+
         return HTTP_Server_SendError(p_Request, 400, "Missing epoch field");
     }
 
     /* Set system time */
     struct timeval tv = {
-        .tv_sec = (time_t)epoch->valuedouble,
+        .tv_sec = static_cast<time_t>(Epoch->valuedouble),
         .tv_usec = 0,
     };
     settimeofday(&tv, NULL);
 
     /* Set timezone if provided */
-    if (cJSON_IsString(timezone) && (timezone->valuestring != NULL)) {
-        SNTP_SetTimezone(timezone->valuestring);
+    if (cJSON_IsString(Timezone) && (Timezone->valuestring != NULL)) {
+        SNTP_SetTimezone(Timezone->valuestring);
     }
 
-    ESP_LOGD(TAG, "Time set to epoch: %f", epoch->valuedouble);
+    ESP_LOGD(TAG, "Time set to epoch: %f", Epoch->valuedouble);
 
-    cJSON_Delete(json);
+    cJSON_Delete(JSON);
 
     /* Send response */
-    cJSON *response = cJSON_CreateObject();
-    cJSON_AddStringToObject(response, "status", "ok");
-    Error = HTTP_Server_SendJSON(p_Request, response, 200);
-    cJSON_Delete(response);
+    JSON = cJSON_CreateObject();
+    cJSON_AddStringToObject(JSON, "status", "ok");
+    Error = HTTP_Server_SendJSON(p_Request, JSON, 200);
+    cJSON_Delete(JSON);
 
     return Error;
 }
@@ -219,10 +231,10 @@ static esp_err_t HTTP_Handler_Time(httpd_req_t *p_Request)
 static esp_err_t HTTP_Handler_Image(httpd_req_t *p_Request)
 {
     esp_err_t Error;
-    Network_Encoded_Image_t encoded;
-    char query[128] = {0};
-    Network_ImageFormat_t format = NETWORK_IMAGE_FORMAT_JPEG;
-    Server_Palette_t palette = PALETTE_IRON;
+    Network_Encoded_Image_t Encoded;
+    std::string query(128, '\0');
+    Settings_Image_Format_t Format = IMAGE_FORMAT_JPEG;
+    Server_Palette_t Palette = PALETTE_IRON;
 
     _HTTP_Server_State.RequestCount++;
 
@@ -232,20 +244,23 @@ static esp_err_t HTTP_Handler_Image(httpd_req_t *p_Request)
         return HTTP_Server_SendError(p_Request, 503, "No thermal data available");
     }
 
-    if (httpd_req_get_url_query_str(p_Request, query, sizeof(query)) == ESP_OK) {
-        char param[32];
-        if (httpd_query_key_value(query, "format", param, sizeof(param)) == ESP_OK) {
-            if (strcmp(param, "png") == 0) {
-                format = NETWORK_IMAGE_FORMAT_PNG;
-            } else if (strcmp(param, "raw") == 0) {
-                format = NETWORK_IMAGE_FORMAT_RAW;
+    if (httpd_req_get_url_query_str(p_Request, &query[0], query.size()) == ESP_OK) {
+        query.resize(strlen(query.c_str()));
+        std::string param(32, '\0');
+        if (httpd_query_key_value(query.c_str(), "format", &param[0], param.size()) == ESP_OK) {
+            param.resize(strlen(param.c_str()));
+            if (param == "png") {
+                Format = IMAGE_FORMAT_PNG;
+            } else if (param == "raw") {
+                Format = IMAGE_FORMAT_RAW;
             }
         }
-        if (httpd_query_key_value(query, "palette", param, sizeof(param)) == ESP_OK) {
-            if (strcmp(param, "gray") == 0) {
-                palette = PALETTE_GRAY;
-            } else if (strcmp(param, "rainbow") == 0) {
-                palette = PALETTE_RAINBOW;
+        if (httpd_query_key_value(query.c_str(), "palette", &param[0], param.size()) == ESP_OK) {
+            param.resize(strlen(param.c_str()));
+            if (param == "gray") {
+                Palette = PALETTE_GRAY;
+            } else if (param == "rainbow") {
+                Palette = PALETTE_RAINBOW;
             }
         }
     }
@@ -254,7 +269,7 @@ static esp_err_t HTTP_Handler_Image(httpd_req_t *p_Request)
         return HTTP_Server_SendError(p_Request, 503, "Frame busy");
     }
 
-    Error = ImageEncoder_Encode(_HTTP_Server_State.ThermalFrame, format, palette, &encoded);
+    Error = ImageEncoder_Encode(_HTTP_Server_State.ThermalFrame, Format, Palette, &Encoded);
 
     xSemaphoreGive(_HTTP_Server_State.ThermalFrame->Mutex);
 
@@ -262,27 +277,36 @@ static esp_err_t HTTP_Handler_Image(httpd_req_t *p_Request)
         return HTTP_Server_SendError(p_Request, 500, "Image encoding failed");
     }
 
-    /* Set content type */
-    switch (format) {
-        case NETWORK_IMAGE_FORMAT_JPEG:
+    switch (Format) {
+        case IMAGE_FORMAT_JPEG: {
             httpd_resp_set_type(p_Request, "image/jpeg");
+
             break;
-        case NETWORK_IMAGE_FORMAT_PNG:
+        }
+        case IMAGE_FORMAT_PNG: {
             httpd_resp_set_type(p_Request, "image/png");
+    
             break;
-        case NETWORK_IMAGE_FORMAT_RAW:
+        }
+        case IMAGE_FORMAT_RAW: {
             httpd_resp_set_type(p_Request, "application/octet-stream");
+
             break;
+        }
+        case IMAGE_FORMAT_BITMAP: {
+            httpd_resp_set_type(p_Request, "image/bmp");
+
+            break;
+        }
     }
 
     if (_HTTP_Server_State.Config.EnableCORS) {
         httpd_resp_set_hdr(p_Request, "Access-Control-Allow-Origin", "*");
     }
 
-    /* Send image data */
-    Error = httpd_resp_send(p_Request, (const char *)encoded.Data, encoded.Size);
+    Error = httpd_resp_send(p_Request, reinterpret_cast<const char *>(Encoded.Data), Encoded.Size);
 
-    ImageEncoder_Free(&encoded);
+    ImageEncoder_Free(&Encoded);
 
     return Error;
 }
@@ -294,6 +318,7 @@ static esp_err_t HTTP_Handler_Image(httpd_req_t *p_Request)
 static esp_err_t HTTP_Handler_Telemetry(httpd_req_t *p_Request)
 {
     esp_err_t Error;
+    cJSON *JSON;
 
     _HTTP_Server_State.RequestCount++;
 
@@ -301,33 +326,32 @@ static esp_err_t HTTP_Handler_Telemetry(httpd_req_t *p_Request)
         return HTTP_Server_SendError(p_Request, 401, "Unauthorized");
     }
 
-    cJSON *json = cJSON_CreateObject();
+    JSON = cJSON_CreateObject();
 
-    uint32_t uptime = (esp_timer_get_time() / 1000000);
-    cJSON_AddNumberToObject(json, "uptime_s", uptime);
+    cJSON_AddNumberToObject(JSON, "uptime_s", esp_timer_get_time() / 1000000);
 
     /* Sensor temperature (from thermal frame if available) */
     if (_HTTP_Server_State.ThermalFrame != NULL) {
         // TODO
-        //cJSON_AddNumberToObject(json, "sensor_temp_c", _HTTP_Server_State.ThermalFrame->temp_avg);
+        //cJSON_AddNumberToObject(JSON, "sensor_temp_c", _HTTP_Server_State.ThermalFrame->temp_avg);
     }
 
-    cJSON_AddNumberToObject(json, "supply_voltage_v", 0);
+    cJSON_AddNumberToObject(JSON, "supply_voltage_v", 0);
 
     wifi_ap_record_t ap_info;
     if (esp_wifi_sta_get_ap_info(&ap_info) == ESP_OK) {
-        cJSON_AddNumberToObject(json, "wifi_rssi_dbm", ap_info.rssi);
+        cJSON_AddNumberToObject(JSON, "wifi_rssi_dbm", ap_info.rssi);
     } else {
-        cJSON_AddNumberToObject(json, "wifi_rssi_dbm", 0);
+        cJSON_AddNumberToObject(JSON, "wifi_rssi_dbm", 0);
     }
 
     cJSON *sdcard = cJSON_CreateObject();
     cJSON_AddBoolToObject(sdcard, "present", false);
     cJSON_AddNumberToObject(sdcard, "free_mb", 0);
-    cJSON_AddItemToObject(json, "sdcard", sdcard);
+    cJSON_AddItemToObject(JSON, "sdcard", sdcard);
 
-    Error = HTTP_Server_SendJSON(p_Request, json, 200);
-    cJSON_Delete(json);
+    Error = HTTP_Server_SendJSON(p_Request, JSON, 200);
+    cJSON_Delete(JSON);
 
     return Error;
 }
@@ -342,6 +366,8 @@ static esp_err_t HTTP_Handler_Update(httpd_req_t *p_Request)
     int Total_Received;
     esp_err_t Error;
     esp_ota_handle_t ota_handle;
+    char *Buffer;
+    cJSON *JSON;
 
     _HTTP_Server_State.RequestCount++;
 
@@ -360,12 +386,13 @@ static esp_err_t HTTP_Handler_Update(httpd_req_t *p_Request)
     Error = esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &ota_handle);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "esp_ota_begin failed: %d!", Error);
+
         return HTTP_Server_SendError(p_Request, 500, "OTA begin failed");
     }
 
     /* Receive firmware data */
-    char *buffer = (char *)heap_caps_malloc(1024, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (buffer == NULL) {
+    Buffer = static_cast<char *>(heap_caps_malloc(1024, MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM));
+    if (Buffer == NULL) {
         esp_ota_abort(ota_handle);
 
         return HTTP_Server_SendError(p_Request, 500, "Memory allocation failed");
@@ -374,22 +401,24 @@ static esp_err_t HTTP_Handler_Update(httpd_req_t *p_Request)
     Received = 0;
     Total_Received = 0;
     while (Total_Received < p_Request->content_len) {
-        Received = httpd_req_recv(p_Request, buffer, 1024);
+        Received = httpd_req_recv(p_Request, Buffer, 1024);
         if (Received <= 0) {
             if (Received == HTTPD_SOCK_ERR_TIMEOUT) {
                 continue;
             }
-            free(buffer);
+
+            heap_caps_free(Buffer);
             esp_ota_abort(ota_handle);
 
             return HTTP_Server_SendError(p_Request, 500, "Receive failed");
         }
 
-        Error = esp_ota_write(ota_handle, buffer, Received);
+        Error = esp_ota_write(ota_handle, Buffer, Received);
         if (Error != ESP_OK) {
-            free(buffer);
-            esp_ota_abort(ota_handle);
             ESP_LOGE(TAG, "esp_ota_write failed: %d!", Error);
+
+            heap_caps_free(Buffer);
+            esp_ota_abort(ota_handle);
 
             return HTTP_Server_SendError(p_Request, 500, "OTA write failed");
         }
@@ -398,28 +427,30 @@ static esp_err_t HTTP_Handler_Update(httpd_req_t *p_Request)
         ESP_LOGD(TAG, "OTA progress: %d/%d bytes", Total_Received, p_Request->content_len);
     }
 
-    free(buffer);
+    heap_caps_free(Buffer);
 
     Error = esp_ota_end(ota_handle);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "esp_ota_end failed: %d", Error);
+
         return HTTP_Server_SendError(p_Request, 500, "OTA end failed");
     }
 
     Error = esp_ota_set_boot_partition(update_partition);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "esp_ota_set_boot_partition failed: %d!", Error);
+
         return HTTP_Server_SendError(p_Request, 500, "Set boot partition failed");
     }
 
     ESP_LOGI(TAG, "OTA update successful, rebooting...");
 
     /* Send response */
-    cJSON *response = cJSON_CreateObject();
-    cJSON_AddStringToObject(response, "status", "updating");
-    cJSON_AddStringToObject(response, "message", "Firmware upload successful. Device will reboot after update.");
-    Error = HTTP_Server_SendJSON(p_Request, response, 200);
-    cJSON_Delete(response);
+    JSON = cJSON_CreateObject();
+    cJSON_AddStringToObject(JSON, "status", "updating");
+    cJSON_AddStringToObject(JSON, "message", "Firmware upload successful. Device will reboot after update.");
+    Error = HTTP_Server_SendJSON(p_Request, JSON, 200);
+    cJSON_Delete(JSON);
 
     /* Reboot after response is sent */
     vTaskDelay(1000 / portTICK_PERIOD_MS);
@@ -598,6 +629,7 @@ esp_err_t HTTP_Server_Start(void)
         return ESP_ERR_INVALID_STATE;
     } else if (_HTTP_Server_State.isRunning) {
         ESP_LOGW(TAG, "Server already running");
+
         return ESP_OK;
     }
 
@@ -630,6 +662,7 @@ esp_err_t HTTP_Server_Start(void)
     Error = httpd_start(&_HTTP_Server_State.Handle, &config);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to start HTTP server: %d!", Error);
+
         return Error;
     }
 
@@ -659,6 +692,8 @@ esp_err_t HTTP_Server_Start(void)
 
 esp_err_t HTTP_Server_Stop(void)
 {
+    esp_err_t Error;
+
     if (_HTTP_Server_State.isRunning == false) {
         return ESP_OK;
     }
@@ -666,7 +701,14 @@ esp_err_t HTTP_Server_Stop(void)
     ESP_LOGD(TAG, "Stopping HTTP server");
 
     _HTTP_Server_State.isRunning = false;
-    _HTTP_Server_State.Handle = NULL;
+
+    if (_HTTP_Server_State.Handle != NULL) {
+        Error = httpd_stop(_HTTP_Server_State.Handle);
+        if (Error != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to stop HTTP server: %d", Error);
+        }
+        _HTTP_Server_State.Handle = NULL;
+    }
 
     return ESP_OK;
 }

@@ -290,7 +290,7 @@ ROIs are configured via Settings Manager:
 
 [source,c]
 ----
-App_Settings_ROI_t ROI = {
+Settings_ROI_t ROI = {
     .X = 70,          // X position (pixels)
     .Y = 50,          // Y position (pixels)
     .Width = 20,      // Width (pixels)
@@ -617,7 +617,7 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
 
 Requests ROI statistics calculation for a specific region.
 
-* **Event Data**: `App_Settings_ROI_t *` (MUST NOT be NULL)
+* **Event Data**: `Settings_ROI_t *` (MUST NOT be NULL)
 * **Response**: Posts `LEPTON_EVENT_ROI_DATA` with calculated statistics
 
 **`GUI_EVENT_REQUEST_PIXEL_TEMPERATURE`:**

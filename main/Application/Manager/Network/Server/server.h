@@ -28,35 +28,45 @@
 #include "WebSocket/websocket.h"
 #include "VISA/visaServer.h"
 #include "ImageEncoder/imageEncoder.h"
+#include "Settings/settingsManager.h"
 
 /** @brief          Initialize the complete server (HTTP + WebSocket + Image Encoder + VISA).
- *  @param p_Config Pointer to server configuration
  *  @return         ESP_OK on success
  */
-static inline esp_err_t Server_Init(const Network_Server_Config_t *p_Config)
+static inline esp_err_t Server_Init(void)
 {
     esp_err_t Error;
+    Settings_HTTP_Server_t Config;
+    Settings_System_t SystemConfig;
+    Network_HTTP_Server_Config_t ServerConfig;
 
-    /* Default JPEG quality */
-    Error = ImageEncoder_Init(80);
+    SettingsManager_GetSystem(&SystemConfig);
+    Error = ImageEncoder_Init(SystemConfig.JpegQuality);
     if (Error != ESP_OK) {
         return Error;
     }
 
-    Error = HTTP_Server_Init(&p_Config->HTTP_Server);
+    SettingsManager_GetHTTPServer(&Config);
+    memcpy(ServerConfig.API_Key, Config.APIKey, sizeof(ServerConfig.API_Key));
+    ServerConfig.EnableCORS = Config.useCORS;
+    ServerConfig.MaxClients = Config.MaxClients;
+    ServerConfig.Port = Config.Port;
+    ServerConfig.WSPingIntervalSec = Config.WSPingIntervalSec;
+
+    Error = HTTP_Server_Init(&ServerConfig);
     if (Error != ESP_OK) {
         ImageEncoder_Deinit();
         return Error;
     }
 
-    Error = WebSocket_Init(&p_Config->HTTP_Server);
+    Error = WebSocket_Init();
     if (Error != ESP_OK) {
         HTTP_Server_Deinit();
         ImageEncoder_Deinit();
         return Error;
     }
 
-    Error = VISAServer_Init(&p_Config->VISA_Server);
+    Error = VISAServer_Init();
     if (Error != ESP_OK) {
         WebSocket_Deinit();
         HTTP_Server_Deinit();
@@ -102,6 +112,13 @@ static inline esp_err_t Server_Start(void)
         return Error;
     }
 
+    Error = VISAServer_Start();
+    if (Error != ESP_OK) {
+        WebSocket_StopTask();
+        HTTP_Server_Stop();
+        return Error;
+    }
+
     return ESP_OK;
 }
 
@@ -110,6 +127,7 @@ static inline esp_err_t Server_Start(void)
  */
 static inline esp_err_t Server_Stop(void)
 {
+    VISAServer_Stop();
     WebSocket_StopTask();
 
     return HTTP_Server_Stop();
@@ -120,7 +138,7 @@ static inline esp_err_t Server_Stop(void)
  */
 static inline bool Server_IsRunning(void)
 {
-    return HTTP_Server_IsRunning();
+    return HTTP_Server_IsRunning() && VISAServer_IsRunning();
 }
 
 /** @brief          Set the thermal frame data for both HTTP and WebSocket endpoints.
