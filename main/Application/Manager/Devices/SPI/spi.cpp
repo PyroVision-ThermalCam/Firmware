@@ -101,9 +101,7 @@ esp_err_t SPIM_Deinit(spi_host_device_t Host)
         return ESP_ERR_INVALID_ARG;
     } else if (_SPI_State[Host].isInitialized == false) {
         return ESP_OK;
-    }
-
-    if (_SPI_State[Host].DeviceCount > 0) {
+    } else if (_SPI_State[Host].DeviceCount > 0) {
         ESP_LOGW(TAG, "SPI%d still has %d devices attached", Host + 1, _SPI_State[Host].DeviceCount);
     }
 
@@ -136,15 +134,13 @@ esp_err_t SPIM_AddDevice(spi_host_device_t Host, const spi_device_interface_conf
 
     if ((p_Dev_Config == NULL) || (p_Handle == NULL) || (Host >= SOC_SPI_PERIPH_NUM)) {
         return ESP_ERR_INVALID_ARG;
-    }
-
-    if (Host >= SOC_SPI_PERIPH_NUM) {
+    } else if (Host >= SOC_SPI_PERIPH_NUM) {
         ESP_LOGE(TAG, "Invalid SPI host: %d", Host);
-        return ESP_ERR_INVALID_ARG;
-    }
 
-    if (_SPI_State[Host].isInitialized == false) {
+        return ESP_ERR_INVALID_ARG;
+    } else if (_SPI_State[Host].isInitialized == false) {
         ESP_LOGE(TAG, "SPI%d bus not initialized!", Host + 1);
+
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -152,7 +148,9 @@ esp_err_t SPIM_AddDevice(spi_host_device_t Host, const spi_device_interface_conf
     Error = spi_bus_add_device(Host, p_Dev_Config, p_Handle);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to add device to SPI%d: %d!", Host + 1, Error);
+
         xSemaphoreGive(_SPI_State[Host].Mutex);
+
         return Error;
     }
 
@@ -176,7 +174,9 @@ esp_err_t SPIM_RemoveDevice(spi_host_device_t Host, spi_device_handle_t Handle)
     Error = spi_bus_remove_device(Handle);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to remove SPI device: %d!", Error);
+
         xSemaphoreGive(_SPI_State[Host].Mutex);
+
         return Error;
     }
 
@@ -219,9 +219,12 @@ esp_err_t SPIM_Transmit(spi_host_device_t Host, spi_device_handle_t Handle, uint
     Error = spi_device_polling_transmit(Handle, &trans);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "SPI transmit failed: %d!", Error);
+
         xSemaphoreGive(_SPI_State[Host].Mutex);
+
         return Error;
     }
+
     xSemaphoreGive(_SPI_State[Host].Mutex);
 
     return ESP_OK;
