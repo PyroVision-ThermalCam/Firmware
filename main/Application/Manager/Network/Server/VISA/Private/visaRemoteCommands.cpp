@@ -37,13 +37,15 @@ int VISA_Cmd_GetTemperature(char *p_Response, size_t MaxLen)
     esp_err_t Error;
     float Temperature;
     std::string Response;
+    std::string TempStr;
 
     Error = RemoteControl_GetTemperature(&Temperature);
     if (Error != ESP_OK) {
         return SCPI_ERROR_HARDWARE_ERROR;
     }
 
-    Response = std::to_string(Temperature).substr(0, std::to_string(Temperature).find('.') + 3) + "\n";
+    TempStr = std::to_string(Temperature);
+    Response = TempStr.substr(0, TempStr.find('.') + 3) + "\n";
     strncpy(p_Response, Response.c_str(), MaxLen);
 
     return Response.size();
@@ -87,13 +89,15 @@ int VISA_Cmd_GetBatteryVoltage(char *p_Response, size_t MaxLen)
     esp_err_t Error;
     int Voltage;
     std::string Response;
+    std::string VoltageStr;
 
     Error = RemoteControl_GetBatteryVoltage(&Voltage);
     if (Error != ESP_OK) {
         return SCPI_ERROR_HARDWARE_ERROR;
     }
 
-    Response = std::to_string(Voltage).substr(0, std::to_string(Voltage).find('.') + 4) + "\n";
+    VoltageStr = std::to_string(Voltage);
+    Response = VoltageStr.substr(0, VoltageStr.find('.') + 4) + "\n";
     strncpy(p_Response, Response.c_str(), MaxLen);
 
     return Response.size();
@@ -147,7 +151,7 @@ int VISA_Cmd_SetLeptonEmissivity(char **pp_Tokens, int Count, char *p_Response, 
         return SCPI_ERROR_DATA_OUT_OF_RANGE;
     }
 
-    Error = RemoteControl_SetLeptonEmissivity((uint8_t)Emissivity);
+    Error = RemoteControl_SetLeptonEmissivity(static_cast<uint8_t>(Emissivity));
     if (Error != ESP_OK) {
         return SCPI_ERROR_EXECUTION_ERROR;
     }
@@ -312,7 +316,7 @@ int VISA_Cmd_SetFlashPower(char **pp_Tokens, int Count, char *p_Response, size_t
         return SCPI_ERROR_DATA_OUT_OF_RANGE;
     }
 
-    Error = RemoteControl_SetFlashPower((uint8_t)Power);
+    Error = RemoteControl_SetFlashPower(static_cast<uint8_t>(Power));
     if (Error != ESP_OK) {
         return SCPI_ERROR_EXECUTION_ERROR;
     }
@@ -547,5 +551,38 @@ int VISA_Cmd_SetLockState(char **pp_Tokens, int Count, char *p_Response, size_t 
         return SCPI_ERROR_EXECUTION_ERROR;
     }
 
+    return 0;
+}
+
+int VISA_Cmd_SetImagePalette(char **pp_Tokens, int Count, char *p_Response, size_t MaxLen)
+{
+    if (Count < 4) {
+        return SCPI_ERROR_MISSING_PARAMETER;
+    }
+
+    std::string PaletteValue(pp_Tokens[3]);
+    std::transform(PaletteValue.begin(), PaletteValue.end(), PaletteValue.begin(), ::toupper);
+
+    /* TODO: Implement palette setting via RemoteControl interface */
+    /* Valid: IRON, GRAY, RAINBOW */
+    if ((PaletteValue == "IRON") || (PaletteValue == "GRAY") || (PaletteValue == "RAINBOW")) {
+        return 0;
+    } else {
+        return SCPI_ERROR_DATA_OUT_OF_RANGE;
+    }
+}
+
+int VISA_Cmd_SetLEDBrightness(char **pp_Tokens, int Count, char *p_Response, size_t MaxLen)
+{
+    if (Count < 4) {
+        return SCPI_ERROR_MISSING_PARAMETER;
+    }
+
+    int Brightness = atoi(pp_Tokens[3]);
+    if ((Brightness < 0) || (Brightness > 255)) {
+        return SCPI_ERROR_DATA_OUT_OF_RANGE;
+    }
+
+    /* TODO: Implement LED brightness setting via RemoteControl interface */
     return 0;
 }

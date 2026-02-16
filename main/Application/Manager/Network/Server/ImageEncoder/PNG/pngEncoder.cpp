@@ -55,7 +55,7 @@ esp_err_t PNGEncoder_Encode(const uint8_t *p_RGB, uint16_t Width, uint16_t Heigh
      * }
      * 
      * // Allocate output buffer with proper memory caps
-     * *p_Output = (uint8_t *)heap_caps_malloc(png_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+     * *p_Output = static_cast<uint8_t *>(heap_caps_malloc(png_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
      * if (*p_Output == NULL) {
      *     free(png_data);
      *     return ESP_ERR_NO_MEM;

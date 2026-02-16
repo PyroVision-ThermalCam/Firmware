@@ -47,6 +47,7 @@
 #define NETWORK_TASK_OPEN_WIFI_REQUEST          BIT5
 #define NETWORK_TASK_PROV_TIMEOUT               BIT6
 #define NETWORK_TASK_SNTP_TIME_SYNCED           BIT8
+#define NETWORK_TASK_SETTINGS_CHANGED           BIT7
 #define LEPTON_SPOTMETER_READY                  BIT11
 
 typedef struct {
@@ -153,9 +154,9 @@ static void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base,
             break;
         }
         case NETWORK_EVENT_PROV_TIMEOUT: {
-            ESP_LOGW(TAG, "Provisioning timeout - stopping provisioning");
+            ESP_LOGW(TAG, "Provisioning timeout - scheduling stop");
 
-            Provisioning_Stop();
+            xEventGroupSetBits(_Network_Task_State.EventGroup, NETWORK_TASK_PROV_TIMEOUT);
 
             break;
         }
@@ -217,14 +218,9 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
             break;
         }
         case SETTINGS_EVENT_SYSTEM_CHANGED: {
-            Settings_System_t SystemSettings;
-
-            SettingsManager_GetSystem(&SystemSettings);
-
-            /* Update ImageEncoder with new JPEG quality */
-            ImageEncoder_SetQuality(SystemSettings.JpegQuality);
-
-            ESP_LOGD(TAG, "System settings changed - JPEG quality updated to: %d", SystemSettings.JpegQuality);
+            /* Defer to network task - SettingsManager_GetSystem() acquires a mutex.
+             * Calling it here (event loop task context) can block the entire event loop. */
+            xEventGroupSetBits(_Network_Task_State.EventGroup, NETWORK_TASK_SETTINGS_CHANGED);
 
             break;
         }
@@ -247,7 +243,7 @@ static void Task_Network(void *p_Parameters)
 
     while (_Network_Task_State.ApplicationStarted == false) {
         esp_task_wdt_reset();
-        vTaskDelay(100 / portTICK_PERIOD_MS);
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 
     SettingsManager_GetWiFi(&WiFiSettings);
@@ -296,11 +292,11 @@ static void Task_Network(void *p_Parameters)
             TimeManager_OnNetworkConnected();
 
             if (NetworkManager_StartServer() == ESP_OK) {
-                esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_SERVER_STARTED, NULL, 0, portMAX_DELAY);
+                esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_SERVER_STARTED, NULL, 0, pdMS_TO_TICKS(100));
             } else {
                 ESP_LOGE(TAG, "Failed to start HTTP/WebSocket server");
 
-                esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_SERVER_ERROR, NULL, 0, portMAX_DELAY);
+                esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_SERVER_ERROR, NULL, 0, pdMS_TO_TICKS(100));
             }
 
             xEventGroupClearBits(_Network_Task_State.EventGroup, NETWORK_TASK_WIFI_CONNECTED);
@@ -321,28 +317,37 @@ static void Task_Network(void *p_Parameters)
         } else if (EventBits & NETWORK_TASK_PROV_SUCCESS) {
             ESP_LOGI(TAG, "Provisioning success - stopping provisioning and connecting to WiFi");
 
-            /* Reset watchdog before potentially long operation */
-            esp_task_wdt_reset();
+            /* Provisioning_Stop() calls esp_wifi_stop() which can block for several seconds.
+             * NetworkManager_StartSTA() also performs blocking WiFi initialization.
+             * Unregister from WDT for the duration to prevent false WDT triggers. */
+            esp_task_wdt_delete(NULL);
 
             /* Stop provisioning (HTTP server on port 80 and DNS) */
             Provisioning_Stop();
 
             ESP_LOGI(TAG, "Provisioning stopped, starting WiFi STA connection");
 
-            /* Reset watchdog after provisioning stop */
-            esp_task_wdt_reset();
-
             /* Connect to WiFi with the new credentials */
             NetworkManager_StartSTA();
 
             ESP_LOGI(TAG, "WiFi STA connection initiated");
 
+            /* Re-register with WDT now that the long blocking operations are complete */
+            esp_task_wdt_add(NULL);
+            esp_task_wdt_reset();
+
             xEventGroupClearBits(_Network_Task_State.EventGroup, NETWORK_TASK_PROV_SUCCESS);
         } else if (EventBits & NETWORK_TASK_PROV_TIMEOUT) {
             ESP_LOGD(TAG, "Handling provisioning timeout");
 
-            esp_task_wdt_reset();
+            /* Provisioning_Stop() calls esp_wifi_stop() which can block for several seconds.
+             * Unregister from WDT for the duration to prevent false WDT triggers. */
+            esp_task_wdt_delete(NULL);
+
             Provisioning_Stop();
+
+            /* Re-register with WDT now that the long blocking operation is complete */
+            esp_task_wdt_add(NULL);
             esp_task_wdt_reset();
 
             xEventGroupClearBits(_Network_Task_State.EventGroup, NETWORK_TASK_PROV_TIMEOUT);
@@ -390,9 +395,20 @@ static void Task_Network(void *p_Parameters)
             }
 
             xEventGroupClearBits(_Network_Task_State.EventGroup, LEPTON_SPOTMETER_READY);
+        } else if (EventBits & NETWORK_TASK_SNTP_TIME_SYNCED) {
+            xEventGroupClearBits(_Network_Task_State.EventGroup, NETWORK_TASK_SNTP_TIME_SYNCED);
+        } else if (EventBits & NETWORK_TASK_SETTINGS_CHANGED) {
+            Settings_System_t SystemSettings;
+
+            SettingsManager_GetSystem(&SystemSettings);
+            ImageEncoder_SetQuality(SystemSettings.JpegQuality);
+
+            ESP_LOGD(TAG, "System settings applied - JPEG quality: %d", SystemSettings.JpegQuality);
+
+            xEventGroupClearBits(_Network_Task_State.EventGroup, NETWORK_TASK_SETTINGS_CHANGED);
         }
 
-        vTaskDelay(10 / portTICK_PERIOD_MS);
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 
     ESP_LOGD(TAG, "Network task shutting down");
@@ -419,7 +435,6 @@ esp_err_t Network_Task_Init(App_Context_t *p_AppContext)
 
     ESP_LOGD(TAG, "Initializing network task");
 
-    /* Initialize NVS */
     Error = nvs_flash_init();
     if ((Error == ESP_ERR_NVS_NO_FREE_PAGES) || (Error == ESP_ERR_NVS_NEW_VERSION_FOUND)) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -432,7 +447,6 @@ esp_err_t Network_Task_Init(App_Context_t *p_AppContext)
         return Error;
     }
 
-    /* Create event group */
     _Network_Task_State.EventGroup = xEventGroupCreate();
     if (_Network_Task_State.EventGroup == NULL) {
         ESP_LOGE(TAG, "Failed to create event group!");
@@ -441,9 +455,9 @@ esp_err_t Network_Task_Init(App_Context_t *p_AppContext)
     }
 
     if ((esp_event_handler_register(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler, NULL) != ESP_OK) ||
-        (esp_event_handler_register(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler, NULL) != ESP_OK) ||
-        (esp_event_handler_register(SNTP_EVENTS, ESP_EVENT_ANY_ID, on_SNTP_Event_Handler, NULL) != ESP_OK) ||
-        (esp_event_handler_register(LEPTON_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Event_Handler, NULL) != ESP_OK) ||
+        (esp_event_handler_register(GUI_EVENTS, GUI_EVENT_APP_STARTED, on_GUI_Event_Handler, NULL) != ESP_OK) ||
+        (esp_event_handler_register(SNTP_EVENTS, SNTP_EVENT_SNTP_SYNCED, on_SNTP_Event_Handler, NULL) != ESP_OK) ||
+        (esp_event_handler_register(LEPTON_EVENTS, LEPTON_EVENT_RESPONSE_SPOTMETER, on_Lepton_Event_Handler, NULL) != ESP_OK) ||
         (esp_event_handler_register(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler, NULL) != ESP_OK)) {
         ESP_LOGE(TAG, "Failed to register event handler: %d!", Error);
 
@@ -456,10 +470,10 @@ esp_err_t Network_Task_Init(App_Context_t *p_AppContext)
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to init WiFi manager: 0x%x!", Error);
 
-        esp_event_handler_unregister(SNTP_EVENTS, ESP_EVENT_ANY_ID, on_SNTP_Event_Handler);
+        esp_event_handler_unregister(SNTP_EVENTS, SNTP_EVENT_SNTP_SYNCED, on_SNTP_Event_Handler);
         esp_event_handler_unregister(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler);
-        esp_event_handler_unregister(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler);
-        esp_event_handler_unregister(LEPTON_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Event_Handler);
+        esp_event_handler_unregister(GUI_EVENTS, GUI_EVENT_APP_STARTED, on_GUI_Event_Handler);
+        esp_event_handler_unregister(LEPTON_EVENTS, LEPTON_EVENT_RESPONSE_SPOTMETER, on_Lepton_Event_Handler);
         esp_event_handler_unregister(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler);
         vEventGroupDelete(_Network_Task_State.EventGroup);
 
@@ -492,10 +506,10 @@ void Network_Task_Deinit(void)
     Provisioning_Deinit();
     NetworkManager_Deinit();
 
-    esp_event_handler_unregister(LEPTON_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Event_Handler);
-    esp_event_handler_unregister(SNTP_EVENTS, ESP_EVENT_ANY_ID, on_SNTP_Event_Handler);
+    esp_event_handler_unregister(LEPTON_EVENTS, LEPTON_EVENT_RESPONSE_SPOTMETER, on_Lepton_Event_Handler);
+    esp_event_handler_unregister(SNTP_EVENTS, SNTP_EVENT_SNTP_SYNCED, on_SNTP_Event_Handler);
     esp_event_handler_unregister(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler);
-    esp_event_handler_unregister(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler);
+    esp_event_handler_unregister(GUI_EVENTS, GUI_EVENT_APP_STARTED, on_GUI_Event_Handler);
     esp_event_handler_unregister(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler);
 
     if (_Network_Task_State.EventGroup != NULL) {
@@ -536,7 +550,7 @@ esp_err_t Network_Task_Start(void)
         return ESP_ERR_NO_MEM;
     }
 
-    _Network_Task_State.StartTime = xTaskGetTickCount() * portTICK_PERIOD_MS / 1000;
+    _Network_Task_State.StartTime = xTaskGetTickCount() / configTICK_RATE_HZ;
 
     return ESP_OK;
 }

@@ -62,7 +62,7 @@ static void Task_Camera(void *p_Parameters)
 
     while (_Camera_Task_State.isRunning) {
 
-        vTaskDelay(10 / portTICK_PERIOD_MS);
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 
     ESP_LOGD(TAG, "Camera task shutting down");

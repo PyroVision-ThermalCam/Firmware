@@ -28,6 +28,7 @@ The project uses **Artistic Style (AStyle)** with a K&R-based configuration (`sc
 - **Headers**: Space between header and bracket: `if (condition) {`
 - **Pointers/References**: Stick to name: `char *pThing`, `char &thing`
 - **Conditionals**: Always use braces, even for single-line blocks
+- **Boolean Negation**: Always use explicit comparison with `== false` or `== NULL` instead of `!` operator
 - **Switch**: Indent case statements
 
 **Example:**
@@ -43,6 +44,27 @@ esp_err_t MyFunction(uint8_t *p_Buffer, size_t Size)
     }
     
     return ESP_OK;
+}
+```
+
+**Boolean Negation Examples:**
+```cpp
+// ✅ CORRECT: Explicit comparison
+if (isInitialized == false) {
+    return ESP_ERR_INVALID_STATE;
+}
+
+if (p_Buffer == NULL) {
+    return ESP_ERR_INVALID_ARG;
+}
+
+// ❌ INCORRECT: Negation operator
+if (!isInitialized) {
+    return ESP_ERR_INVALID_STATE;
+}
+
+if (!p_Buffer) {
+    return ESP_ERR_INVALID_ARG;
 }
 ```
 
@@ -109,6 +131,112 @@ Manager/Settings/
     ├── settingsLoader.h     # Internal interface
     ├── settingsJSONLoader.cpp
     └── settingsDefaultLoader.cpp
+```
+
+### Type Casting
+
+**CRITICAL**: Always use C++ style casts. Never use C-style casts `(Type)value`.
+
+#### Cast Types and Usage
+
+##### static_cast<T>()
+**Use for**: Safe, checked type conversions at compile time
+- Numeric conversions: `static_cast<uint32_t>(value)`
+- Pointer upcasting in inheritance hierarchies
+- Explicit conversions between compatible types
+- Void pointer to typed pointer (when type is known)
+
+**Examples:**
+```cpp
+// Numeric conversions
+uint32_t Value = static_cast<uint32_t>(floatValue);
+size_t Size = static_cast<size_t>(intValue);
+
+// Pointer conversions (type-safe)
+uint8_t *p_Buffer = static_cast<uint8_t *>(heap_caps_malloc(Size, MALLOC_CAP_SPIRAM));
+void *p_Data = GetData();
+Settings_t *p_Settings = static_cast<Settings_t *>(p_Data);
+
+// Enum conversions
+USB_Mode_t Mode = static_cast<USB_Mode_t>(intValue);
+```
+
+##### reinterpret_cast<T>()
+**Use for**: Low-level pointer/reference reinterpretation (use sparingly)
+- Converting between unrelated pointer types
+- Pointer to integer conversions
+- Hardware register access
+
+**Examples:**
+```cpp
+// Pointer to integer (for hardware address manipulation)
+uintptr_t Address = reinterpret_cast<uintptr_t>(p_Register);
+
+// Hardware register access
+volatile uint32_t *p_Register = reinterpret_cast<volatile uint32_t *>(0x40000000);
+
+// Reinterpreting data (when absolutely necessary)
+uint32_t *p_IntData = reinterpret_cast<uint32_t *>(p_ByteArray);
+```
+
+##### const_cast<T>()
+**Use for**: Removing or adding const/volatile qualifiers (discouraged, use only when interfacing with legacy APIs)
+- Passing const data to non-const APIs (ESP-IDF legacy functions)
+- Should be avoided in new code
+
+**Examples:**
+```cpp
+// Interfacing with legacy API (use sparingly)
+void LegacyFunction(char *p_Buffer);  // Should be const but isn't
+
+const char *p_ConstStr = "Hello";
+LegacyFunction(const_cast<char *>(p_ConstStr));  // Only if absolutely necessary
+
+// Better approach: avoid const_cast by redesigning API
+```
+
+##### dynamic_cast<T>()
+**Use for**: Safe downcasting in polymorphic class hierarchies with runtime checking
+- Requires RTTI (Runtime Type Information)
+- Returns nullptr for pointers or throws for references if cast fails
+- Typically not used in embedded systems due to RTTI overhead
+
+**Examples:**
+```cpp
+// Polymorphic type checking (rarely used in embedded)
+Base *p_Base = GetObject();
+Derived *p_Derived = dynamic_cast<Derived *>(p_Base);
+if (p_Derived != nullptr) {
+    p_Derived->DerivedMethod();
+}
+```
+
+#### Cast Guidelines
+
+**DO:**
+- Use `static_cast<T>()` for most conversions
+- Use `reinterpret_cast<T>()` only for hardware access or truly low-level operations
+- Document why `reinterpret_cast<T>()` or `const_cast<T>()` is necessary
+- Prefer redesigning APIs over using `const_cast<T>()`
+
+**DON'T:**
+- Never use C-style casts: `(uint8_t *)ptr` ❌
+- Avoid `const_cast<T>()` unless interfacing with legacy code
+- Don't use `dynamic_cast<T>()` without RTTI enabled
+- Don't use `reinterpret_cast<T>()` for conversions that `static_cast<T>()` can handle
+
+**Common Patterns:**
+
+```cpp
+// ✅ CORRECT: C++ style casts
+uint8_t *p_Data = static_cast<uint8_t *>(malloc(Size));
+size_t Length = static_cast<size_t>(strlen(p_String));
+uint32_t Value = static_cast<uint32_t>(floatValue);
+
+// ❌ INCORRECT: C-style casts
+uint8_t *p_Data = (uint8_t *)malloc(Size);
+size_t Length = (size_t)strlen(p_String);
+uint32_t Value = (uint32_t)floatValue;
 ```
 
 ---
@@ -362,6 +490,24 @@ static const char *TAG = "module_name";
 - Always check if queue/semaphore creation succeeded
 - Use `portMAX_DELAY` for blocking operations unless timeout is critical
 - Prefer queues for inter-task communication
+- **Always use `pdMS_TO_TICKS()` for time conversions** instead of manual division by `portTICK_PERIOD_MS`
+  - For ticks-to-seconds conversion use `xTaskGetTickCount() / configTICK_RATE_HZ`
+
+**Time Conversion Examples:**
+```cpp
+// ✅ CORRECT: pdMS_TO_TICKS macro
+vTaskDelay(pdMS_TO_TICKS(100));
+xSemaphoreTake(Mutex, pdMS_TO_TICKS(500));
+xQueueReceive(Queue, &Data, pdMS_TO_TICKS(200));
+
+// ✅ CORRECT: Ticks to seconds
+uint32_t UptimeSeconds = xTaskGetTickCount() / configTICK_RATE_HZ;
+
+// ❌ INCORRECT: Manual division by portTICK_PERIOD_MS
+vTaskDelay(100 / portTICK_PERIOD_MS);
+xSemaphoreTake(Mutex, 500 / portTICK_PERIOD_MS);
+uint32_t Seconds = xTaskGetTickCount() * portTICK_PERIOD_MS / 1000;
+```
 
 ---
 
@@ -918,6 +1064,7 @@ pio check
 - Use blocking operations in ISRs
 - Forget to call `SettingsManager_Save()` after updates
 - Access shared state without mutex protection
+- Use `portTICK_PERIOD_MS` for time conversions (use `pdMS_TO_TICKS()` instead)
 
 ✅ **Do:**
 - Use consistent naming conventions
@@ -930,6 +1077,7 @@ pio check
 - Follow the established module patterns
 - **Update corresponding AsciiDoc documentation when changing code**
 - Address all compiler warnings before committing
+- **Use `pdMS_TO_TICKS()` for all millisecond-to-tick conversions**
 
 ---
 

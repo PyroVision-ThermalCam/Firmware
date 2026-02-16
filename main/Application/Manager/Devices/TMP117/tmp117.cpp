@@ -376,7 +376,7 @@ esp_err_t TMP117_SoftReset(i2c_master_dev_handle_t *p_Dev_Handle)
     }
 
     /* Wait for reset to complete (minimum 2ms) */
-    vTaskDelay(5 / portTICK_PERIOD_MS);
+    vTaskDelay(pdMS_TO_TICKS(5));
 
     ESP_LOGI(TAG, "TMP117 soft reset completed");
 

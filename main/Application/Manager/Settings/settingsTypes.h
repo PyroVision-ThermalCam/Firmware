@@ -63,6 +63,8 @@ enum {
                                                      Data contains SettingsManager_ChangeNotification_t. */
     SETTINGS_EVENT_LED_FLASH_CHANGED,           /**< LED flash settings changed.
                                                      Data contains SettingsManager_ChangeNotification_t. */
+    SETTINGS_EVENT_USB_CHANGED,                 /**< USB settings changed.
+                                                     Data contains SettingsManager_ChangeNotification_t. */
     SETTINGS_EVENT_REQUEST_GET,                 /**< Request to get current settings. */
     SETTINGS_EVENT_REQUEST_SAVE,                /**< Request to save settings to NVS. */
     SETTINGS_EVENT_REQUEST_RESET,               /**< Request to reset settings to factory defaults. */
@@ -217,6 +219,14 @@ typedef struct {
     uint8_t Power;                              /**< LED flash power (0-100%). */
 } __attribute__((packed)) Settings_LED_Flash_t;
 
+/** @brief  USB settings.
+ *          NOTE: This structure is covered by the settings version number because it is stored in the NVS.
+ */
+typedef struct {
+    bool MSC_Enabled;                           /**< Enable USB Mass Storage Class mode. */
+    uint8_t Reserved[7];                        /**< Reserved for future use. */
+} __attribute__((packed)) Settings_USB_t;
+
 /** @brief Complete application settings structure.
  */
 typedef struct {
@@ -229,6 +239,7 @@ typedef struct {
     Settings_VISA_Server_t VISAServer;          /**< VISA server settings. */
     Settings_System_t System;                   /**< System settings. */
     Settings_LED_Flash_t LEDFlash;              /**< LED flash settings. */
+    Settings_USB_t USB;                         /**< USB settings. */
 } Settings_t;
 
 #endif /* SETTINGS_TYPES_H_ */

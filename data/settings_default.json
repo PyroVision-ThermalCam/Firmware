@@ -85,5 +85,9 @@
     "visa-server": {
         "port" : 5025,
         "timeout" : 5000
+    },
+    "usb": {
+        "msc-enabled" : false,
+        "uvc-enabled" : false
     }
 }

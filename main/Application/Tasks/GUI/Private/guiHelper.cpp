@@ -36,10 +36,33 @@
 #error "No SPI host defined for LCD!"
 #endif
 
-#define GUI_DRAW_BUFFER_SIZE                (CONFIG_GUI_WIDTH * CONFIG_GUI_HEIGHT * sizeof(uint16_t) / 10)
+/* Partial render buffer: 1/5 of the screen (2 * 320 * 24 * 2 = 30720 bytes) in PSRAM.
+ * This size safely fits in one SPI DMA transaction (max_transfer_sz = 32768 bytes).
+ * With ISR-based flush_ready (on_lcd_color_trans_done), LVGL correctly sequences
+ * partial flushes without tearing. RENDER_MODE_FULL is NOT used because the full
+ * 153,600-byte frame exceeds the ESP32-S3 SPI DMA transaction limit (~32 KB). */
+#define GUI_DRAW_BUFFER_SIZE                (2 * CONFIG_GUI_WIDTH * CONFIG_GUI_HEIGHT * sizeof(uint16_t) / 10)
+
+/** @brief          LCD color transfer done callback (called from ISR context after DMA transfer completes).
+ *  @param PanelIO  Panel IO handle
+ *  @param p_Edata  Event data (unused)
+ *  @param p_UserCtx User context (pointer to LVGL display)
+ */
+static IRAM_ATTR bool on_lcd_color_trans_done(esp_lcd_panel_io_handle_t PanelIO,
+                                              esp_lcd_panel_io_event_data_t *p_Edata,
+                                              void *p_UserCtx)
+{
+    (void)PanelIO;
+    (void)p_Edata;
+
+    lv_display_t *p_Disp = static_cast<lv_display_t *>(p_UserCtx);
+    lv_display_flush_ready(p_Disp);
+
+    return false;
+}
 
 static const esp_lcd_panel_io_callbacks_t _GUI_Panel_Callbacks = {
-    .on_color_trans_done = NULL,
+    .on_color_trans_done = on_lcd_color_trans_done,
 };
 
 static const esp_lcd_panel_dev_config_t _GUI_Panel_Config = {
@@ -123,15 +146,18 @@ static const esp_lcd_touch_config_t _GUI_Touch_Config = {
 
 static const char *TAG = "GUI-Helper";
 
+/** @brief          LVGL tick timer callback for GUI task.
+ *  @param p_Arg    User data (pointer to GUI_Task_State_t)
+ */
 inline void GUI_LVGL_TickTimer_CB(void *p_Arg)
 {
     lv_tick_inc(CONFIG_GUI_LVGL_TICK_PERIOD_MS);
 }
 
 /** @brief          Initialize the GUI helper functions.
- *  @param p_Disp
- *  @param p_Area
- *  @param p_PxMap
+ *  @param p_Disp   Display handle
+ *  @param p_Area   Area to update
+ *  @param p_PxMap  Pixel data to flush
  */
 static void GUI_LCD_Flush_CB(lv_display_t *p_Disp, const lv_area_t *p_Area, uint8_t *p_PxMap)
 {
@@ -144,7 +170,7 @@ static void GUI_LCD_Flush_CB(lv_display_t *p_Disp, const lv_area_t *p_Area, uint
 
     esp_lcd_panel_draw_bitmap(panel_handle, offsetx1, offsety1, offsetx2 + 1, offsety2 + 1, p_PxMap);
 
-    lv_display_flush_ready(p_Disp);
+    /* lv_display_flush_ready() is called in on_lcd_color_trans_done() after DMA transfer completes */
 }
 
 esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t Touch_Read_Callback)
@@ -189,12 +215,12 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t
 
     ESP_LOGD(TAG, "Reset the panel...");
     ESP_ERROR_CHECK(esp_lcd_panel_reset(p_GUI_Task_State->PanelHandle));
-    vTaskDelay(100 / portTICK_PERIOD_MS);
+    vTaskDelay(pdMS_TO_TICKS(100));
     ESP_LOGD(TAG, " Panel reset complete");
 
     ESP_LOGI(TAG, "Initialize the panel...");
     ESP_ERROR_CHECK(esp_lcd_panel_init(p_GUI_Task_State->PanelHandle));
-    vTaskDelay(100 / portTICK_PERIOD_MS);
+    vTaskDelay(pdMS_TO_TICKS(100));
     ESP_LOGD(TAG, " Panel initialized");
 
     ESP_LOGI(TAG, "Configure panel for landscape mode...");
@@ -207,10 +233,9 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t
 
     ESP_LOGI(TAG, "Turn ON the panel display...");
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(p_GUI_Task_State->PanelHandle, true));
-    vTaskDelay(100 / portTICK_PERIOD_MS);
+    vTaskDelay(pdMS_TO_TICKS(100));
     ESP_LOGD(TAG, " Panel display turned ON");
 
-    /* Set LVGL display properties */
     lv_display_set_flush_cb(p_GUI_Task_State->Display, GUI_LCD_Flush_CB);
     lv_display_set_user_data(p_GUI_Task_State->Display,
                              p_GUI_Task_State->PanelHandle);
@@ -224,6 +249,9 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t
 
         return ESP_ERR_NO_MEM;
     }
+    /* RENDER_MODE_PARTIAL with ISR-based flush_ready (on_lcd_color_trans_done):
+     * Each partial buffer (~15 KB) fits in a single SPI DMA transaction, so
+     * on_color_trans_done fires exactly once per flush_cb call. No tearing. */
     lv_display_set_buffers(p_GUI_Task_State->Display,
                            p_GUI_Task_State->DisplayBuffer1,
                            p_GUI_Task_State->DisplayBuffer2,
@@ -271,10 +299,10 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t
 
     /* Create LVGL clock update timer. Use a 100 ms interval for smoother updates */
     p_GUI_Task_State->UpdateTimer[0] = lv_timer_create(GUI_Helper_Timer_ClockUpdate, 100, NULL);
-
     p_GUI_Task_State->UpdateTimer[1] = lv_timer_create(GUI_Helper_Timer_SpotUpdate, 2000, NULL);
     p_GUI_Task_State->UpdateTimer[2] = lv_timer_create(GUI_Helper_Timer_SpotmeterUpdate, 5000, NULL);
     p_GUI_Task_State->UpdateTimer[3] = lv_timer_create(GUI_Helper_Timer_SceneStatisticsUpdate, 5000, NULL);
+    p_GUI_Task_State->UpdateTimer[4] = lv_timer_create(GUI_Helper_Timer_RAMUpdate, 5000, NULL);
 
     _lock_init(&p_GUI_Task_State->LVGL_API_Lock);
 
@@ -342,6 +370,7 @@ void GUI_Helper_Deinit(GUI_Task_State_t *p_GUI_Task_State)
 
 void GUI_Helper_Timer_ClockUpdate(lv_timer_t *p_Timer)
 {
+    (void)p_Timer;
     char Buffer[9];
     struct tm Now;
 
@@ -357,9 +386,9 @@ void GUI_Helper_Timer_ClockUpdate(lv_timer_t *p_Timer)
 
 void GUI_Helper_Timer_SpotUpdate(lv_timer_t *p_Timer)
 {
+    (void)p_Timer;
     App_GUI_Screenposition_t ScreenPosition;
 
-    /* Check if thermal image is initialized */
     if ((lv_obj_get_width(ui_Image_Thermal) == 0) || (lv_obj_get_height(ui_Image_Thermal) == 0)) {
         return;
     }
@@ -375,15 +404,30 @@ void GUI_Helper_Timer_SpotUpdate(lv_timer_t *p_Timer)
     ESP_LOGD(TAG, "Crosshair center in thermal canvas: (%d,%d), size (%d,%d)", ScreenPosition.x, ScreenPosition.y,
              ScreenPosition.Width, ScreenPosition.Height);
 
-    esp_event_post(GUI_EVENTS, GUI_EVENT_REQUEST_PIXEL_TEMPERATURE, &ScreenPosition, sizeof(ScreenPosition), portMAX_DELAY);
+    esp_event_post(GUI_EVENTS, GUI_EVENT_REQUEST_PIXEL_TEMPERATURE, &ScreenPosition, sizeof(ScreenPosition), 0);
 }
 
 void GUI_Helper_Timer_SpotmeterUpdate(lv_timer_t *p_Timer)
 {
-    esp_event_post(GUI_EVENTS, GUI_EVENT_REQUEST_SPOTMETER, NULL, 0, portMAX_DELAY);
+    (void)p_Timer;
+    esp_event_post(GUI_EVENTS, GUI_EVENT_REQUEST_SPOTMETER, NULL, 0, 0);
 }
 
 void GUI_Helper_Timer_SceneStatisticsUpdate(lv_timer_t *p_Timer)
 {
-    esp_event_post(GUI_EVENTS, GUI_EVENT_REQUEST_SCENE_STATISTICS, NULL, 0, portMAX_DELAY);
+    (void)p_Timer;
+    esp_event_post(GUI_EVENTS, GUI_EVENT_REQUEST_SCENE_STATISTICS, NULL, 0, 0);
+}
+
+void GUI_Helper_Timer_RAMUpdate(lv_timer_t *p_Timer)
+{
+    (void)p_Timer;
+    char Buffer[16];
+    size_t Internal = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    size_t PSRAM = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+
+    sprintf(Buffer, "%u KB", PSRAM / 1024);
+    lv_label_set_text(ui_Label_Info_PSRAM_Free, Buffer);
+    sprintf(Buffer, "%u KB", Internal / 1024);
+    lv_label_set_text(ui_Label_Info_RAM_Free, Buffer);
 }

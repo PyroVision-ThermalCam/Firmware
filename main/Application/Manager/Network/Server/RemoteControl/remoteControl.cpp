@@ -271,7 +271,7 @@ esp_err_t RemoteControl_UpdateSpotmeter(float Min, float Max, float Mean)
     }
 
     /* Thread-safe update of spotmeter data */
-    if (xSemaphoreTake(_RemoteControl_State.Mutex, 100 / portTICK_PERIOD_MS) == pdTRUE) {
+    if (xSemaphoreTake(_RemoteControl_State.Mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
         //_RemoteControl_State.Spotmeter.Min = Min;
         //_RemoteControl_State.Spotmeter.Max = Max;
         //_RemoteControl_State.Spotmeter.Mean = Mean;
@@ -303,7 +303,7 @@ esp_err_t RemoteControl_GetLeptonSpotmeter(cJSON *p_JSON)
     }
 
     /* Thread-safe read of spotmeter data */
-    if (xSemaphoreTake(_RemoteControl_State.Mutex, 100 / portTICK_PERIOD_MS) == pdTRUE) {
+    if (xSemaphoreTake(_RemoteControl_State.Mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
         //cJSON_AddNumberToObject(p_JSON, "min", _RemoteControl_State.Spotmeter.Min);
         //cJSON_AddNumberToObject(p_JSON, "max", _RemoteControl_State.Spotmeter.Max);
         //cJSON_AddNumberToObject(p_JSON, "average", _RemoteControl_State.Spotmeter.Average);

@@ -32,10 +32,15 @@
 #include <string.h>
 #include <stdbool.h>
 
+#include <sdkconfig.h>
+
 #include "lepton.h"
 #include "leptonTask.h"
 #include "Application/application.h"
 #include "Application/Manager/Devices/devicesManager.h"
+#include "Application/Manager/USB/usbManager.h"
+#include "Application/Manager/USB/UVC/usbUVC.h"
+#include <esp_jpeg_enc.h>
 
 #define LEPTON_TASK_STOP_REQUEST                BIT0
 #define LEPTON_TASK_UPDATE_ROI_REQUEST          BIT1
@@ -52,6 +57,9 @@ typedef struct {
     bool isInitialized;
     bool isRunning;
     bool ApplicationStarted;
+    bool isUVCStreaming;                            /**< UVC streaming is active. */
+    uint8_t *p_JpegBuffer;                          /**< JPEG compression output buffer. */
+    size_t JpegBufferSize;                          /**< JPEG buffer allocated size. */
     TaskHandle_t TaskHandle;
     EventGroupHandle_t EventGroup;
     uint8_t *RGB_Buffer[2];
@@ -140,7 +148,7 @@ static void on_GUI_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
         }
         case GUI_EVENT_REQUEST_PIXEL_TEMPERATURE: {
             if (p_Data != NULL) {
-                _Lepton_Task_State.ScreenPosition = *(App_GUI_Screenposition_t *)p_Data;
+                _Lepton_Task_State.ScreenPosition = *static_cast<const App_GUI_Screenposition_t *>(p_Data);
 
                 xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_PIXEL_TEMPERATURE);
             } else {
@@ -162,6 +170,43 @@ static void on_GUI_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
         default: {
             ESP_LOGW(TAG, "Unhandled GUI event ID: %d", ID);
 
+            break;
+        }
+    }
+}
+
+/** @brief                  Event handler for the USB Manager to receive UVC streaming events.
+ *  @param p_HandlerArgs    Handler argument
+ *  @param Base             Event base
+ *  @param ID               Event ID
+ *  @param p_Data           Event-specific data
+ */
+static void on_USB_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+{
+    ESP_LOGD(TAG, "USB event received: ID=%d", ID);
+
+    switch (ID) {
+        case USB_EVENT_UVC_STREAMING_START: {
+            ESP_LOGD(TAG, "UVC streaming started - redirecting frames to USB");
+            _Lepton_Task_State.isUVCStreaming = true;
+
+            break;
+        }
+        case USB_EVENT_UVC_STREAMING_STOP: {
+            ESP_LOGD(TAG, "UVC streaming stopped - resuming GUI frames");
+            _Lepton_Task_State.isUVCStreaming = false;
+
+            break;
+        }
+        case USB_EVENT_UNINITIALIZED: {
+            if (_Lepton_Task_State.isUVCStreaming) {
+                ESP_LOGI(TAG, "USB deinitialized while UVC streaming - resuming GUI frames");
+                _Lepton_Task_State.isUVCStreaming = false;
+            }
+
+            break;
+        }
+        default: {
             break;
         }
     }
@@ -199,7 +244,7 @@ static void Task_Lepton(void *p_Parameters)
     if (Lepton_Error != LEPTON_ERR_OK) {
         ESP_LOGE(TAG, "Lepton initialization failed with error: %d!", Lepton_Error);
 
-        esp_event_post(LEPTON_EVENTS, LEPTON_EVENT_CAMERA_ERROR, NULL, 0, portMAX_DELAY);
+        esp_event_post(LEPTON_EVENTS, LEPTON_EVENT_CAMERA_ERROR, NULL, 0, pdMS_TO_TICKS(500));
         esp_task_wdt_delete(NULL);
 
         vTaskDelete(NULL);
@@ -231,11 +276,11 @@ static void Task_Lepton(void *p_Parameters)
     ESP_LOGI(TAG, "	GPP revision: %s", DeviceInfo.SoftwareRevision.GPP_Revision);
     ESP_LOGI(TAG, "	DSP revision: %s", DeviceInfo.SoftwareRevision.DSP_Revision);
 
-    esp_event_post(LEPTON_EVENTS, LEPTON_EVENT_CAMERA_READY, &DeviceInfo, sizeof(App_Lepton_Device_t), portMAX_DELAY);
+    esp_event_post(LEPTON_EVENTS, LEPTON_EVENT_CAMERA_READY, &DeviceInfo, sizeof(App_Lepton_Device_t), pdMS_TO_TICKS(500));
 
     while (_Lepton_Task_State.ApplicationStarted == false) {
         esp_task_wdt_reset();
-        vTaskDelay(100 / portTICK_PERIOD_MS);
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 
     Lepton_FluxLinearParams_t FluxParams;
@@ -258,7 +303,7 @@ static void Task_Lepton(void *p_Parameters)
     if (Lepton_StartCapture(&_Lepton_Task_State.Lepton, _Lepton_Task_State.RawFrameQueue) != LEPTON_ERR_OK) {
         ESP_LOGE(TAG, "Can not start image capturing!");
 
-        esp_event_post(LEPTON_EVENTS, LEPTON_EVENT_CAMERA_ERROR, NULL, 0, portMAX_DELAY);
+        esp_event_post(LEPTON_EVENTS, LEPTON_EVENT_CAMERA_ERROR, NULL, 0, pdMS_TO_TICKS(500));
 
         /* Critical error - cannot continue without capture task */
         _Lepton_Task_State.isRunning = false;
@@ -276,7 +321,7 @@ static void Task_Lepton(void *p_Parameters)
         esp_task_wdt_reset();
 
         /* Wait for a new raw frame with longer timeout to avoid busy waiting */
-        if (xQueueReceive(_Lepton_Task_State.RawFrameQueue, &_Lepton_Task_State.RawFrame, 500 / portTICK_PERIOD_MS) == pdTRUE) {
+        if (xQueueReceive(_Lepton_Task_State.RawFrameQueue, &_Lepton_Task_State.RawFrame, pdMS_TO_TICKS(500)) == pdTRUE) {
             uint8_t WriteBufferIdx;
             uint8_t *WriteBuffer;
             int16_t Min = 0;
@@ -295,7 +340,7 @@ static void Task_Lepton(void *p_Parameters)
             ESP_LOGD(TAG, "Processing frame...");
 
             /* Determine which buffer to write to (ping-pong) */
-            if (xSemaphoreTake(_Lepton_Task_State.BufferMutex, 100 / portTICK_PERIOD_MS) == pdTRUE) {
+            if (xSemaphoreTake(_Lepton_Task_State.BufferMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
                 /* Find a buffer that's not currently being read */
                 WriteBufferIdx = (_Lepton_Task_State.CurrentReadBuffer + 1) % 2;
                 WriteBuffer = _Lepton_Task_State.RGB_Buffer[WriteBufferIdx];
@@ -326,7 +371,7 @@ static void Task_Lepton(void *p_Parameters)
             }
 
             /* Mark buffer as ready and update read buffer index */
-            if (xSemaphoreTake(_Lepton_Task_State.BufferMutex, 100 / portTICK_PERIOD_MS) == pdTRUE) {
+            if (xSemaphoreTake(_Lepton_Task_State.BufferMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
                 _Lepton_Task_State.CurrentReadBuffer = WriteBufferIdx;
                 xSemaphoreGive(_Lepton_Task_State.BufferMutex);
             } else {
@@ -335,7 +380,60 @@ static void Task_Lepton(void *p_Parameters)
                 continue;
             }
 
-            /* Send frame notification to network task */
+            /* If UVC streaming is active, also send frames to USB */
+            if (_Lepton_Task_State.isUVCStreaming && (_Lepton_Task_State.p_JpegBuffer != NULL)) {
+                /* Double-check streaming state to avoid submitting after host closed stream */
+                if (USBUVC_IsStreaming() == false) {
+                    _Lepton_Task_State.isUVCStreaming = false;
+
+                    ESP_LOGI(TAG, "UVC streaming ended - resuming GUI frames");
+                } else {
+                    jpeg_error_t JpegError;
+                    jpeg_enc_config_t EncConfig = DEFAULT_JPEG_ENC_CONFIG();
+                    jpeg_enc_handle_t JpegEncoder = NULL;
+                    int JpegSize = 0;
+
+                    /* Configure JPEG encoder for Lepton thermal camera */
+                    EncConfig.src_type = JPEG_PIXEL_FORMAT_RGB888;
+                    EncConfig.subsampling = JPEG_SUBSAMPLE_420;
+                    EncConfig.quality = 80;
+                    EncConfig.width = _Lepton_Task_State.RawFrame.Width;
+                    EncConfig.height = _Lepton_Task_State.RawFrame.Height;
+
+                    /* Create encoder instance */
+                    JpegError = jpeg_enc_open(&EncConfig, &JpegEncoder);
+                    if (JpegError == JPEG_ERR_OK) {
+                        JpegError = jpeg_enc_process(JpegEncoder, WriteBuffer,
+                                                     static_cast<int>(_Lepton_Task_State.RawFrame.Width * _Lepton_Task_State.RawFrame.Height * 3),
+                                                     _Lepton_Task_State.p_JpegBuffer,
+                                                     static_cast<int>(_Lepton_Task_State.JpegBufferSize),
+                                                     &JpegSize);
+                        if (JpegError == JPEG_ERR_OK) {
+                            /* Submit JPEG frame to UVC */
+                            esp_err_t UVCError = USBUVC_SubmitFrame(_Lepton_Task_State.p_JpegBuffer, static_cast<size_t>(JpegSize));
+                            if (UVCError == ESP_ERR_INVALID_STATE) {
+                                /* Streaming was stopped - immediately stop submitting.
+                                   Next frame iteration will route to GUI path. */
+                                _Lepton_Task_State.isUVCStreaming = false;
+
+                                ESP_LOGI(TAG, "UVC stream no longer active - resuming GUI frames");
+                            } else if (UVCError != ESP_OK) {
+                                ESP_LOGW(TAG, "Failed to submit frame to UVC: %d", UVCError);
+                            } else {
+                                ESP_LOGD(TAG, "UVC frame submitted: %d bytes JPEG", JpegSize);
+                            }
+                        } else {
+                            ESP_LOGW(TAG, "JPEG encoding failed: %d", JpegError);
+                        }
+
+                        jpeg_enc_close(JpegEncoder);
+                    } else {
+                        ESP_LOGW(TAG, "Failed to open JPEG encoder: %d", JpegError);
+                    }
+                }
+            }
+
+            /* Send frame notification to GUI/network task */
             App_Lepton_FrameReady_t FrameEvent = {
                 .Buffer = WriteBuffer,
                 .Width = _Lepton_Task_State.RawFrame.Width,
@@ -612,9 +710,20 @@ esp_err_t Lepton_Task_Init(void)
         return ESP_ERR_NO_MEM;
     }
 
-    /* Use the event loop to receive control signals from other tasks */
     esp_event_handler_register(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler, NULL);
-    esp_event_handler_register(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler, NULL);
+    esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_LEPTON_CHANGED, on_Settings_Event_Handler, NULL);
+    esp_event_handler_register(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler, NULL);
+
+    /* Allocate JPEG compression buffer in PSRAM */
+    _Lepton_Task_State.JpegBufferSize = 160 * 120 * 3;
+    _Lepton_Task_State.p_JpegBuffer = static_cast<uint8_t *>(heap_caps_malloc(_Lepton_Task_State.JpegBufferSize, MALLOC_CAP_SPIRAM));
+    if (_Lepton_Task_State.p_JpegBuffer == NULL) {
+        ESP_LOGW(TAG, "Failed to allocate JPEG buffer - UVC streaming will not work");
+    } else {
+        ESP_LOGD(TAG, "JPEG buffer allocated: %u bytes", static_cast<unsigned int>(_Lepton_Task_State.JpegBufferSize));
+    }
+
+    _Lepton_Task_State.isUVCStreaming = false;
 
     ESP_LOGD(TAG, "Lepton Task initialized");
 
@@ -640,8 +749,14 @@ void Lepton_Task_Deinit(void)
         _Lepton_Task_State.EventGroup = NULL;
     }
 
-    esp_event_handler_unregister(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler);
+    esp_event_handler_unregister(SETTINGS_EVENTS, SETTINGS_EVENT_LEPTON_CHANGED, on_Settings_Event_Handler);
     esp_event_handler_unregister(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler);
+    esp_event_handler_unregister(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler);
+
+    if (_Lepton_Task_State.p_JpegBuffer != NULL) {
+        heap_caps_free(_Lepton_Task_State.p_JpegBuffer);
+        _Lepton_Task_State.p_JpegBuffer = NULL;
+    }
 
     Lepton_Deinit(&_Lepton_Task_State.Lepton);
 

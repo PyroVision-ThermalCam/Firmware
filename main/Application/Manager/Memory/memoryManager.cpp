@@ -101,7 +101,8 @@ static esp_err_t MemoryManager_Mount_Internal_Storage(void)
         .format_if_mount_failed = true,
         .max_files = 5,
         .allocation_unit_size = 4096,
-        .disk_status_check_enable = false
+        .disk_status_check_enable = false,
+        .use_one_fat = false
     };
     const esp_partition_t *Partition = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
                                                                 ESP_PARTITION_SUBTYPE_DATA_FAT,
@@ -142,7 +143,9 @@ static esp_err_t MemoryManager_Mount_SD_Card(void)
     const esp_vfs_fat_mount_config_t MountConfig = {
         .format_if_mount_failed = false,
         .max_files = 5,
-        .allocation_unit_size = 16 * 1024
+        .allocation_unit_size = 16 * 1024,
+        .disk_status_check_enable = false,
+        .use_one_fat = false
     };
 
     ESP_LOGD(TAG, "Attempting to mount SD card via SPI...");
@@ -282,7 +285,7 @@ esp_err_t MemoryManager_GetStorageUsage(MemoryManager_Usage_t *p_Usage)
             p_Usage->UsedBytes = p_Usage->TotalBytes - p_Usage->FreeBytes;
 
             if (p_Usage->TotalBytes > 0) {
-                p_Usage->UsedPercent = (uint8_t)((p_Usage->UsedBytes * 100) / p_Usage->TotalBytes);
+                p_Usage->UsedPercent = static_cast<uint8_t>((p_Usage->UsedBytes * 100) / p_Usage->TotalBytes);
             } else {
                 p_Usage->UsedPercent = 0;
             }
@@ -313,7 +316,7 @@ esp_err_t MemoryManager_GetStorageUsage(MemoryManager_Usage_t *p_Usage)
             p_Usage->UsedBytes = p_Usage->TotalBytes - p_Usage->FreeBytes;
 
             if (p_Usage->TotalBytes > 0) {
-                p_Usage->UsedPercent = (uint8_t)((p_Usage->UsedBytes * 100) / p_Usage->TotalBytes);
+                p_Usage->UsedPercent = static_cast<uint8_t>((p_Usage->UsedBytes * 100) / p_Usage->TotalBytes);
             } else {
                 p_Usage->UsedPercent = 0;
             }
@@ -411,7 +414,8 @@ esp_err_t MemoryManager_EraseStorage(void)
             .format_if_mount_failed = true,
             .max_files = 5,
             .allocation_unit_size = 4096,
-            .disk_status_check_enable = false
+            .disk_status_check_enable = false,
+            .use_one_fat = false
         };
 
         /* Erase internal FAT storage by unmounting and reformatting */
@@ -559,7 +563,9 @@ esp_err_t MemoryManager_FormatActiveStorage(void)
         const esp_vfs_fat_mount_config_t MountConfig = {
             .format_if_mount_failed = true,
             .max_files = 5,
-            .allocation_unit_size = 16 * 1024
+            .allocation_unit_size = 16 * 1024,
+            .disk_status_check_enable = false,
+            .use_one_fat = false
         };
 
         ESP_LOGD(TAG, "Formatting SD card...");
@@ -589,11 +595,13 @@ esp_err_t MemoryManager_FormatActiveStorage(void)
         return ESP_OK;
 
     } else {
+        esp_err_t Error;
         const esp_vfs_fat_mount_config_t MountConfig = {
             .format_if_mount_failed = true,
             .max_files = 5,
             .allocation_unit_size = 4096,
-            .disk_status_check_enable = false
+            .disk_status_check_enable = false,
+            .use_one_fat = false
         };
 
         ESP_LOGD(TAG, "Formatting internal storage...");

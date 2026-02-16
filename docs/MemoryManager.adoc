@@ -867,8 +867,7 @@ esp_err_t EnableUSB_MassStorage(void)
         MemoryManager_UnlockFilesystem();
         return Error;
     }
-    
-    ESP_LOGI(TAG, "USB Mass Storage Device active!");
+
     return ESP_OK;
 }
 

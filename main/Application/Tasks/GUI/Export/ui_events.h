@@ -10,16 +10,11 @@
 extern "C" {
 #endif
 
-/** @brief          Callback for the message box timer to close the box after a delay.
- *  @param p_Timer  Timer handle (user data is the message box to close)
- */
-void MessageBox_on_Close(lv_timer_t *p_Timer);
-
-void ScreenSplashLoaded(lv_event_t *e);
-void ScreenMainLoaded(lv_event_t *e);
-void ButtonMainSaveClicked(lv_event_t *e);
-void ButtonMenuSaveClicked(lv_event_t *e);
-void ScreenInfoLoaded(lv_event_t *e);
+void ScreenSplashLoaded(lv_event_t * e);
+void ScreenMainLoaded(lv_event_t * e);
+void ButtonMainSaveClicked(lv_event_t * e);
+void ButtonMenuSaveClicked(lv_event_t * e);
+void ScreenInfoLoaded(lv_event_t * e);
 
 #ifdef __cplusplus
 } /*extern "C"*/

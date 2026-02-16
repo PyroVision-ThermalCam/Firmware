@@ -39,6 +39,8 @@
 #define SETTINGS_DEFAULT_LED_FLASH_ENABLE       true
 #define SETTINGS_DEFAULT_LED_FLASH_POWER        100
 
+#define SETTINGS_DEFAULT_USB_MSC_ENABLE         false
+
 #define SETTINGS_DEFAULT_LEPTON_EMISSIVITY      100
 
 #define SETTINGS_DEFAULT_VISA_PORT              5025
@@ -139,5 +141,10 @@ void SettingsManager_InitDefaultVISAServer(Settings_t *p_Settings);
  *  @param p_Settings   Pointer to settings structure
  */
 void SettingsManager_InitDefaultLEDFlash(Settings_t *p_Settings);
+
+/** @brief              Initialize USB settings with factory defaults.
+ *  @param p_Settings   Pointer to settings structure
+ */
+void SettingsManager_InitDefaultUSB(Settings_t *p_Settings);
 
 #endif /* SETTINGS_LOADER_H_ */

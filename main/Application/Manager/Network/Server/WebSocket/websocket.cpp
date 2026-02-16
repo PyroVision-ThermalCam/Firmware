@@ -170,7 +170,7 @@ esp_err_t WebSocket_SendJSON(int FD, const char *p_Cmd, cJSON *p_Data)
         return ESP_ERR_NO_MEM;
     }
 
-    Frame.payload = (uint8_t *)JSON;
+    Frame.payload = reinterpret_cast<uint8_t *>(JSON);
     Frame.len = std::string(JSON).size();
 
     Error = httpd_ws_send_frame_async(WebSocket_State.ServerHandle, FD, &Frame);
@@ -193,7 +193,7 @@ static esp_err_t WebSocket_SendBinary(int FD, const uint8_t *p_Data, size_t Leng
         .final = true,
         .fragmented = false,
         .type = HTTPD_WS_TYPE_BINARY,
-        .payload = (uint8_t *)p_Data,
+        .payload = const_cast<uint8_t *>(p_Data),
         .len = Length,
     };
 
@@ -204,14 +204,14 @@ static esp_err_t WebSocket_SendBinary(int FD, const uint8_t *p_Data, size_t Leng
 
         if (Error == ESP_OK) {
             /* Send queued successfully - add small delay to prevent queue overflow */
-            vTaskDelay(5 / portTICK_PERIOD_MS);
+            vTaskDelay(pdMS_TO_TICKS(5));
 
             break;
         }
 
         /* Queue might be full, wait and retry */
         ESP_LOGW(TAG, "Failed to queue frame to fd=%d (retry %d): %d!", FD, retry + 1, Error);
-        vTaskDelay(50 / portTICK_PERIOD_MS);
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 
     if (Error != ESP_OK) {
@@ -232,7 +232,7 @@ static void WebSocket_HandleStart(WS_Client_t *p_Client, cJSON *p_Data)
 
     /* Set FPS (default 8) */
     if (cJSON_IsNumber(fps)) {
-        p_Client->stream_fps = (uint8_t)fps->valueint;
+        p_Client->stream_fps = static_cast<uint8_t>(fps->valueint);
         if (p_Client->stream_fps < 1) {
             p_Client->stream_fps = 1;
         }
@@ -281,7 +281,7 @@ static void WebSocket_HandleTelemetrySubscribe(WS_Client_t *p_Client, cJSON *p_D
     cJSON *interval = cJSON_GetObjectItem(p_Data, "interval");
 
     if (cJSON_IsNumber(interval)) {
-        p_Client->telemetry_interval_ms = (uint32_t)interval->valueint;
+        p_Client->telemetry_interval_ms = static_cast<uint32_t>(interval->valueint);
         if (p_Client->telemetry_interval_ms < 100) {
             p_Client->telemetry_interval_ms = 100;
         }
@@ -487,7 +487,7 @@ static esp_err_t WebSocket_Handler(httpd_req_t *p_Request)
                 ESP_LOGW(TAG, "Failed to send Pong to fd=%d: %d, retrying...", FD, Error);
 
                 /* Pong fails sometimes. So we simply try again */
-                vTaskDelay(10 / portTICK_PERIOD_MS);
+                vTaskDelay(pdMS_TO_TICKS(10));
                 Error = httpd_ws_send_frame_async(WebSocket_State.ServerHandle, FD, &pong_frame);
                 if (Error != ESP_OK) {
                     ESP_LOGW(TAG, "Failed to send Pong to fd=%d again: %d, removing client!", FD, Error);
@@ -644,7 +644,7 @@ static void WebSocket_BroadcastTask(void *p_Param)
 
     while (WebSocket_State.isRunning) {
         /* Wait for frame ready notification (blocking, 100ms timeout) */
-        if (xQueueReceive(WebSocket_State.FrameReadyQueue, &Signal, 100 / portTICK_PERIOD_MS) == pdTRUE) {
+        if (xQueueReceive(WebSocket_State.FrameReadyQueue, &Signal, pdMS_TO_TICKS(100)) == pdTRUE) {
             uint32_t Now = esp_timer_get_time() / 1000;
 
             if ((WebSocket_State.isInitialized == false) || (WebSocket_State.ThermalFrame == NULL) ||
@@ -653,7 +653,7 @@ static void WebSocket_BroadcastTask(void *p_Param)
             }
 
             /* Encode frame ONCE for all clients (assume JPEG format for simplicity) */
-            if (xSemaphoreTake(WebSocket_State.ThermalFrame->Mutex, 50 / portTICK_PERIOD_MS) == pdTRUE) {
+            if (xSemaphoreTake(WebSocket_State.ThermalFrame->Mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
                 Error = ImageEncoder_Encode(WebSocket_State.ThermalFrame,
                                             IMAGE_FORMAT_JPEG, PALETTE_IRON, &Encoded);
                 xSemaphoreGive(WebSocket_State.ThermalFrame->Mutex);
@@ -709,7 +709,7 @@ static void WebSocket_BroadcastTask(void *p_Param)
             ImageEncoder_Free(&Encoded);
         }
 
-        vTaskDelay(10 / portTICK_PERIOD_MS);
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 
     WebSocket_State.BroadcastTask = NULL;
@@ -757,7 +757,11 @@ esp_err_t WebSocket_BroadcastTelemetry(void)
         //cJSON_AddNumberToObject(JSON, "temp", WebSocket_State.ThermalFrame->temp_avg);
     }
 
-    xSemaphoreTake(WebSocket_State.ClientsMutex, portMAX_DELAY);
+    /* Non-blocking: skip telemetry if mutex is held by another task (called from LVGL timer context) */
+    if (xSemaphoreTake(WebSocket_State.ClientsMutex, 0) == pdFALSE) {
+        cJSON_Delete(JSON);
+        return ESP_ERR_TIMEOUT;
+    }
 
     for (uint8_t i = 0; i < CONFIG_NETWORK_WEBSOCKET_CLIENTS; i++) {
         WS_Client_t *client = &WebSocket_State.Clients[i];

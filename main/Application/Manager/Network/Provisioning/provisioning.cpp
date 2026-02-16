@@ -75,7 +75,7 @@ static void on_Prov_Event(void *p_Arg, esp_event_base_t EventBase, int32_t Event
             break;
         }
         case WIFI_PROV_CRED_RECV: {
-            wifi_sta_config_t *wifi_cfg = (wifi_sta_config_t *)p_EventData;
+            wifi_sta_config_t *wifi_cfg = static_cast<wifi_sta_config_t *>(p_EventData);
 
             if (wifi_cfg != NULL) {
                 memcpy(&_Provisioning_State.WiFi_STA_Config.ssid, wifi_cfg->ssid, sizeof(wifi_cfg->ssid));
@@ -91,7 +91,7 @@ static void on_Prov_Event(void *p_Arg, esp_event_base_t EventBase, int32_t Event
             break;
         }
         case WIFI_PROV_CRED_FAIL: {
-            wifi_prov_sta_fail_reason_t *reason = (wifi_prov_sta_fail_reason_t *)p_EventData;
+            wifi_prov_sta_fail_reason_t *reason = static_cast<wifi_prov_sta_fail_reason_t *>(p_EventData);
 
             ESP_LOGE(TAG, "Provisioning failed! Reason: %s", (*reason == WIFI_PROV_STA_AUTH_ERROR) ? "Auth Error" : "AP Not Found");
 
@@ -180,7 +180,7 @@ void Provisioning_Deinit(void)
 
     Provisioning_Stop();
 
-    vTaskDelay(200 / portTICK_PERIOD_MS);
+    vTaskDelay(pdMS_TO_TICKS(200));
 
     wifi_prov_mgr_deinit();
 
@@ -247,7 +247,7 @@ esp_err_t Provisioning_Start(void)
         return Error;
     }
 
-    vTaskDelay(100 / portTICK_PERIOD_MS);
+    vTaskDelay(pdMS_TO_TICKS(100));
 
     /* Start HTTP server with minimal configuration for provisioning */
     ServerConfig.Port = 80;
@@ -329,7 +329,7 @@ esp_err_t Provisioning_Stop(void)
         esp_wifi_stop();
 
         /* Small delay for WiFi to fully stop */
-        vTaskDelay(50 / portTICK_PERIOD_MS);
+        vTaskDelay(pdMS_TO_TICKS(50));
 
         HTTP_Server_Deinit();
 

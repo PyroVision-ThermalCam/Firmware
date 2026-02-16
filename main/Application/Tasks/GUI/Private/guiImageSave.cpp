@@ -53,7 +53,7 @@ void Task_ImageSave(void *p_Param)
         if (MemoryManager_IsFilesystemLocked()) {
             ESP_LOGW(TAG, "Cannot save image - USB mode active!");
 
-            esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
+            esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, pdMS_TO_TICKS(100));
 
             continue;
         }
@@ -62,7 +62,7 @@ void Task_ImageSave(void *p_Param)
         if ((Frame.Buffer == NULL) || (Frame.Width == 0) || (Frame.Height == 0)) {
             ESP_LOGE(TAG, "Invalid frame data!");
 
-            esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
+            esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, pdMS_TO_TICKS(100));
 
             continue;
         }
@@ -79,7 +79,7 @@ void Task_ImageSave(void *p_Param)
         if (PNGFile == NULL) {
             ESP_LOGE(TAG, "Failed to open file for writing: %s", FilePath);
 
-            esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
+            esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, pdMS_TO_TICKS(100));
 
             continue;
         }
@@ -90,7 +90,7 @@ void Task_ImageSave(void *p_Param)
             ESP_LOGE(TAG, "Failed to create PNG write struct!");
 
             fclose(PNGFile);
-            esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
+            esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, pdMS_TO_TICKS(100));
 
             continue;
         }
@@ -101,7 +101,7 @@ void Task_ImageSave(void *p_Param)
 
             png_destroy_write_struct(&png_ptr, NULL);
             fclose(PNGFile);
-            esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
+            esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, pdMS_TO_TICKS(100));
 
             continue;
         }
@@ -113,7 +113,7 @@ void Task_ImageSave(void *p_Param)
 
             png_destroy_write_struct(&png_ptr, &info_ptr);
             fclose(PNGFile);
-            esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
+            esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, pdMS_TO_TICKS(100));
 
             continue;
         }
@@ -125,7 +125,7 @@ void Task_ImageSave(void *p_Param)
             heap_caps_free(LineBuffer);
             png_destroy_write_struct(&png_ptr, &info_ptr);
             fclose(PNGFile);
-            esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
+            esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, pdMS_TO_TICKS(100));
 
             continue;
         }
@@ -171,11 +171,11 @@ void Task_ImageSave(void *p_Param)
         /* Get file size for logging */
         struct stat FileStat;
         if (stat(FilePath, &FileStat) == 0) {
-            ESP_LOGI(TAG, "PNG image saved: %s (%u bytes)", FilePath, (uint32_t)FileStat.st_size);
+            ESP_LOGI(TAG, "PNG image saved: %s (%u bytes)", FilePath, static_cast<uint32_t>(FileStat.st_size));
         } else {
             ESP_LOGI(TAG, "PNG image saved: %s", FilePath);
         }
 
-        esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVED, NULL, 0, portMAX_DELAY);
+        esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVED, NULL, 0, pdMS_TO_TICKS(100));
     }
 }

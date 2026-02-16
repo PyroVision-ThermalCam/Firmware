@@ -96,13 +96,15 @@ static void Task_Devices(void *p_Parameters)
 
         Now = esp_timer_get_time() / 1000;
 
-        if ((Now - _Devices_Task_State.LastBatteryUpdate) >= 1000) {
+        if ((Now - _Devices_Task_State.LastBatteryUpdate) >= (60 * 1000)) {
             App_Devices_Battery_t BatteryInfo;
 
             ESP_LOGD(TAG, "Updating battery voltage...");
 
             if (DevicesManager_GetBatteryVoltage(&BatteryInfo.Voltage, &BatteryInfo.Percentage) == ESP_OK) {
-                esp_event_post(DEVICE_EVENTS, DEVICE_EVENT_RESPONSE_BATTERY_VOLTAGE, &BatteryInfo, sizeof(BatteryInfo), portMAX_DELAY);
+                if (esp_event_post(DEVICE_EVENTS, DEVICE_EVENT_RESPONSE_BATTERY_VOLTAGE, &BatteryInfo, sizeof(BatteryInfo), pdMS_TO_TICKS(100)) != ESP_OK) {
+                    ESP_LOGW(TAG, "Failed to post battery event - event queue full!");
+                }
             } else {
                 ESP_LOGE(TAG, "Failed to read battery voltage!");
             }
@@ -110,7 +112,7 @@ static void Task_Devices(void *p_Parameters)
             _Devices_Task_State.LastBatteryUpdate = esp_timer_get_time() / 1000;
         }
 
-        vTaskDelay(10 / portTICK_PERIOD_MS);
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 
     ESP_LOGD(TAG, "Devices task shutting down");

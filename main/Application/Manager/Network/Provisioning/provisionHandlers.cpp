@@ -88,7 +88,7 @@ esp_err_t Provision_Handler_Logo(httpd_req_t *p_Request)
     httpd_resp_set_type(p_Request, "image/png+xml");
     httpd_resp_set_hdr(p_Request, "Cache-Control", "public, max-age=86400");
 
-    return httpd_resp_send(p_Request, (const char *)logo_png_start, logo_png_end - logo_png_start);
+    return httpd_resp_send(p_Request, reinterpret_cast<const char *>(logo_png_start), logo_png_end - logo_png_start);
 }
 
 esp_err_t Provision_Handler_CaptivePortal(httpd_req_t *p_Request)
@@ -101,12 +101,12 @@ esp_err_t Provision_Handler_CaptivePortal(httpd_req_t *p_Request)
         esp_netif_ip_info_t ip_info;
 
         if (esp_netif_get_ip_info(ap_netif, &ip_info) == ESP_OK) {
-            snprintf((char *)address, sizeof(address) - 1, "http://" IPSTR, IP2STR(&ip_info.ip));
+            snprintf(address, sizeof(address) - 1, "http://" IPSTR, IP2STR(&ip_info.ip));
         } else {
-            strncpy((char *)address, "http://192.168.4.1", sizeof(address) - 1);
+            strncpy(address, "http://192.168.4.1", sizeof(address) - 1);
         }
     } else {
-        strncpy((char *)address, "http://192.168.4.1", sizeof(address) - 1);
+        strncpy(address, "http://192.168.4.1", sizeof(address) - 1);
     }
 
     ESP_LOGD(TAG, "Captive portal redirect to %s", address);
@@ -147,7 +147,7 @@ esp_err_t Provision_Handler_Scan(httpd_req_t *p_Request)
 
     /* Wait for scan to complete (max 15 seconds for thorough scan) */
     for (uint8_t i = 0; i < 150; i++) {
-        vTaskDelay(100 / portTICK_PERIOD_MS);
+        vTaskDelay(pdMS_TO_TICKS(100));
         if (esp_wifi_scan_get_ap_num(&APCount) == ESP_OK) {
             break;
         }
@@ -173,7 +173,7 @@ esp_err_t Provision_Handler_Scan(httpd_req_t *p_Request)
         APCount = MaxAPCount;
     }
 
-    wifi_ap_record_t *APList = (wifi_ap_record_t *)malloc(sizeof(wifi_ap_record_t) * APCount);
+    wifi_ap_record_t *APList = static_cast<wifi_ap_record_t *>(malloc(sizeof(wifi_ap_record_t) * APCount));
     if (APList == NULL) {
         httpd_resp_send_500(p_Request);
 
@@ -219,7 +219,7 @@ esp_err_t Provision_Handler_Connect(httpd_req_t *p_Request)
         return ESP_FAIL;
     }
 
-    Buffer = (char *)heap_caps_malloc(ContentLen + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    Buffer = static_cast<char *>(heap_caps_malloc(ContentLen + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     if (Buffer == NULL) {
         httpd_resp_send_500(p_Request);
 

@@ -365,6 +365,27 @@ static void SettingsManager_LoadLEDFlash(Settings_Manager_State_t *p_State, cons
     }
 }
 
+/** @brief          Load the USB settings from the JSON object and apply them to the Settings Manager state. If a setting is missing or invalid, the default value is used.
+ *  @param p_State  The Settings Manager state structure to update with the loaded settings
+ *  @param p_JSON   The cJSON object representing the root of the settings JSON document
+ */
+static void SettingsManager_LoadUSB(Settings_Manager_State_t *p_State, const cJSON *p_JSON)
+{
+    cJSON *usb = NULL;
+
+    usb = cJSON_GetObjectItem(p_JSON, "usb");
+    if (usb != NULL) {
+        cJSON *msc_enabled = cJSON_GetObjectItem(usb, "msc-enabled");
+        if (cJSON_IsBool(msc_enabled)) {
+            p_State->Settings.USB.MSC_Enabled = cJSON_IsTrue(msc_enabled);
+        } else {
+            p_State->Settings.USB.MSC_Enabled = SETTINGS_DEFAULT_USB_MSC_ENABLE;
+        }
+    } else {
+        SettingsManager_InitDefaultUSB(&p_State->Settings);
+    }
+}
+
 esp_err_t SettingsManager_LoadFromJSON(Settings_Manager_State_t *p_State, const char *p_FilePath)
 {
     FILE *File = NULL;
@@ -491,6 +512,9 @@ esp_err_t SettingsManager_LoadFromJSON(Settings_Manager_State_t *p_State, const 
 
     /* Extract LED flash settings */
     SettingsManager_LoadLEDFlash(p_State, JSON);
+
+    /* Extract USB settings */
+    SettingsManager_LoadUSB(p_State, JSON);
 
 SettingsManager_Load_JSON_Exit:
     cJSON_Delete(JSON);

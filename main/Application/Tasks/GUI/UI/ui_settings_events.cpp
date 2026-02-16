@@ -170,12 +170,35 @@ void on_USB_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
 
     switch (ID) {
         case USB_EVENT_INITIALIZED: {
-            lv_obj_add_state(usb_mode_switch, LV_STATE_CHECKED);
+            if (p_Data != NULL) {
+                USB_Mode_t Mode = *static_cast<USB_Mode_t *>(p_Data);
+
+                if (Mode == USB_MODE_MSC) {
+                    lv_obj_add_state(usb_mode_switch, LV_STATE_CHECKED);
+
+                    /* Lock UVC switch */
+                    lv_obj_remove_flag(usb_uvc_switch, LV_OBJ_FLAG_CLICKABLE);
+                    lv_obj_set_style_opa(usb_uvc_switch, LV_OPA_50, 0);
+                } else if (Mode == USB_MODE_UVC) {
+                    lv_obj_add_state(usb_uvc_switch, LV_STATE_CHECKED);
+
+                    /* Lock MSC switch */
+                    lv_obj_remove_flag(usb_mode_switch, LV_OBJ_FLAG_CLICKABLE);
+                    lv_obj_set_style_opa(usb_mode_switch, LV_OPA_50, 0);
+                }
+            }
 
             break;
         }
         case USB_EVENT_UNINITIALIZED: {
+            /* Unlock both switches */
+            lv_obj_add_flag(usb_mode_switch, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_add_flag(usb_uvc_switch, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_set_style_opa(usb_mode_switch, LV_OPA_100, 0);
+            lv_obj_set_style_opa(usb_uvc_switch, LV_OPA_100, 0);
+
             lv_obj_clear_state(usb_mode_switch, LV_STATE_CHECKED);
+            lv_obj_clear_state(usb_uvc_switch, LV_STATE_CHECKED);
 
             break;
         }
@@ -285,30 +308,88 @@ void on_USB_Mode_Switch_Callback(lv_event_t *e)
         if (USBManager_IsInitialized()) {
             ESP_LOGW(TAG, "USB already active!");
 
+            lv_obj_clear_state(switch_obj, LV_STATE_CHECKED);
+
             return;
         }
+
+        /* Clear UVC switch if active */
+        lv_obj_clear_state(usb_uvc_switch, LV_STATE_CHECKED);
 
         SettingsManager_GetInfo(&InfoSettings);
 
         /* Configure USB Mass Storage with auto-detected mount point */
         USB_Config = {
+            .Mode = USB_MODE_MSC,
             .MountPoint = MemoryManager_GetStoragePath(),
-            .Manufacturer = InfoSettings.Manufacturer,
-            .Product = InfoSettings.Name,
-            .SerialNumber = InfoSettings.Serial,
         };
 
         Error = USBManager_Init(&USB_Config);
         if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to initialize USB Manager: %d", Error);
+            ESP_LOGE(TAG, "Failed to initialize USB Manager: %d!", Error);
 
             lv_obj_clear_state(switch_obj, LV_STATE_CHECKED);
         } else {
-            ESP_LOGI(TAG, "\u2713 USB Mass Storage Device active!");
-            ESP_LOGW(TAG, "\u26a0\ufe0f  Application CANNOT write to /storage while USB is active!");
+            /* Lock UVC switch to prevent mode conflict */
+            lv_obj_remove_flag(usb_uvc_switch, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_set_style_opa(usb_uvc_switch, LV_OPA_50, 0);
         }
     } else {
         ESP_LOGI(TAG, "Disabling USB Mass Storage...");
+
+        if (USBManager_IsInitialized() == false) {
+            ESP_LOGW(TAG, "USB not active!");
+
+            lv_obj_clear_state(switch_obj, LV_STATE_CHECKED);
+
+            return;
+        }
+
+        USBManager_Deinit();
+    }
+}
+
+void on_USB_UVC_Switch_Callback(lv_event_t *e)
+{
+    esp_err_t Error;
+    lv_obj_t *switch_obj = static_cast<lv_obj_t *>(lv_event_get_target(e));
+
+    if (lv_obj_has_state(switch_obj, LV_STATE_CHECKED)) {
+        Settings_Info_t InfoSettings;
+
+        ESP_LOGI(TAG, "Enabling USB Video Class...");
+
+        if (USBManager_IsInitialized()) {
+            ESP_LOGW(TAG, "USB already active!");
+
+            lv_obj_clear_state(switch_obj, LV_STATE_CHECKED);
+
+            return;
+        }
+
+        /* Clear MSC switch if active */
+        lv_obj_clear_state(usb_mode_switch, LV_STATE_CHECKED);
+
+        SettingsManager_GetInfo(&InfoSettings);
+
+        /* Configure USB Video Class */
+        USB_Config = {
+            .Mode = USB_MODE_UVC,
+            .MountPoint = nullptr,
+        };
+
+        Error = USBManager_Init(&USB_Config);
+        if (Error != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize USB Manager: %d!", Error);
+
+            lv_obj_clear_state(switch_obj, LV_STATE_CHECKED);
+        } else {
+            /* Lock MSC switch to prevent mode conflict */
+            lv_obj_remove_flag(usb_mode_switch, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_set_style_opa(usb_mode_switch, LV_OPA_50, 0);
+        }
+    } else {
+        ESP_LOGI(TAG, "Disabling USB Video Class...");
 
         if (USBManager_IsInitialized() == false) {
             ESP_LOGW(TAG, "USB not active!");

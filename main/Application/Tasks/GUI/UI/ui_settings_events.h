@@ -53,6 +53,7 @@ extern Slider_Widgets_t emissivity_widgets;
 extern Slider_Widgets_t jpeg_quality_widgets;
 
 extern lv_obj_t *usb_mode_switch;
+extern lv_obj_t *usb_uvc_switch;
 extern lv_obj_t *image_format_dropdown;
 extern lv_obj_t *jpeg_quality_row;
 
@@ -100,6 +101,11 @@ void on_Flash_ClearCoredump_Callback(lv_event_t *e);
  *  @param e    Pointer to the event object
  */
 void on_USB_Mode_Switch_Callback(lv_event_t *e);
+
+/** @brief      USB UVC switch callback to enable/disable USB Video Class.
+ *  @param e    Pointer to the event object
+ */
+void on_USB_UVC_Switch_Callback(lv_event_t *e);
 
 /** @brief      Image format dropdown callback to change image format setting.
  *  @param e    Pointer to the event object

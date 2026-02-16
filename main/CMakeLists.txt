@@ -2,10 +2,15 @@ FILE(GLOB_RECURSE app_sources ${CMAKE_SOURCE_DIR}/main/*.*)
 
 idf_component_register(SRCS ${app_sources}
                        INCLUDE_DIRS "Application/Manager"
-                       REQUIRES esp_http_server esp_timer esp_wifi json nvs_flash driver espressif__esp_tinyusb fatfs wear_levelling
+                       REQUIRES esp_http_server esp_timer esp_wifi json nvs_flash driver fatfs wear_levelling
                        EMBED_TXTFILES "../webserver/provision.html"
                        EMBED_TXTFILES "../webserver/logo.png"
                        EMBED_TXTFILES "../LICENSE"
+)
+
+# Allow descriptors.cpp to use UVC descriptor macros from esp_tinyusb private headers
+target_include_directories(${COMPONENT_LIB} PRIVATE
+    "${CMAKE_SOURCE_DIR}/components/esp_tinyusb/include_private"
 )
 
 target_compile_definitions(${COMPONENT_LIB} PUBLIC

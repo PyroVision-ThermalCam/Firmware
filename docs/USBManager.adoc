@@ -8,18 +8,24 @@ v1.0, 2026-02-08
 
 == Overview
 
-The USB Manager implements USB Mass Storage Device (MSC) functionality for the PyroVision firmware, allowing the device's storage (internal flash or SD card) to be exposed as a USB drive to a PC. This enables convenient file transfer, firmware updates, and data backup without requiring network connectivity or special software.
+The USB Manager implements USB functionality for the PyroVision firmware, supporting both USB Mass Storage Device (MSC) and USB Video Class (UVC) modes. This allows the device to function as:
+
+* *USB Mass Storage Device*: Expose internal storage (SD card or flash) as a USB drive
+* *USB Webcam (UVC)*: Stream the thermal camera image to a PC as a webcam device
 
 === Key Features
 
+* *Dual Mode Support*: USB Mass Storage Class (MSC) and USB Video Class (UVC)
 * *USB Mass Storage Class (MSC)*: Standard USB drive functionality compatible with all operating systems
-* *Automatic Storage Detection*: Works with both internal flash and SD card storage
+* *USB Video Class (UVC)*: Webcam functionality for streaming thermal images
+* *Automatic Storage Detection*: Works with both internal flash and SD card storage (MSC mode)
+* *Upscaled Thermal Streaming*: High-resolution thermal image streaming (UVC mode)
 * *TinyUSB Integration*: Based on Espressif's esp_tinyusb component
 * *Asynchronous Deinitialization*: Non-blocking USB disconnect with background task
 * *Event-driven Architecture*: Notification of USB state changes via ESP Event System
 * *Windows Compatibility*: Proper USB enumeration and ejection support
 * *Re-initialization Support*: Reliable activate → deactivate → activate cycles
-* *Filesystem Locking*: Integrates with Memory Manager to prevent data corruption
+* *Filesystem Locking*: Integrates with Memory Manager to prevent data corruption (MSC mode)
 
 ---
 
@@ -143,28 +149,61 @@ typedef struct {
 
 [source,cpp]
 ----
+typedef enum {
+    USB_MODE_MSC = 0,                       // USB Mass Storage Class mode
+    USB_MODE_UVC = 1,                       // USB Video Class (Webcam) mode
+} USB_Mode_t;
+
 typedef struct {
-    const char *p_MountPoint;       // Mount point (from MemoryManager)
-    const char *p_VendorID;         // USB vendor ID string
-    const char *p_ProductID;        // USB product ID string
-    const char *p_ProductRevision;  // USB product revision string
+    USB_Mode_t Mode;                        // USB mode (MSC or UVC)
+    const char *MountPoint;                 // Mount point (MSC mode only)
+    char *Manufacturer;                     // USB manufacturer string
+    char *Product;                          // USB product name string
+    char *SerialNumber;                     // USB serial number string
+    uint16_t FrameWidth;                    // Frame width (UVC mode only)
+    uint16_t FrameHeight;                   // Frame height (UVC mode only)
+    uint8_t FrameInterval;                  // Frame interval (UVC mode only)
 } USB_Manager_Config_t;
 ----
 
-* *p_MountPoint*: Must match MemoryManager mount point (`/storage` or `/sdcard`)
-* *p_VendorID*: Vendor identifier shown on PC (max 8 characters)
-* *p_ProductID*: Product name shown on PC (max 16 characters)
-* *p_ProductRevision*: Product revision string (max 4 characters)
+* *Mode*: USB operating mode (MSC or UVC)
+* *MountPoint*: Must match MemoryManager mount point (MSC mode only, `/storage` or `/sdcard`)
+* *Manufacturer*: Manufacturer name shown on PC (e.g., "Kampi's Elektroecke")
+* *Product*: Product name shown on PC (e.g., "PyroVision Thermal Camera")
+* *SerialNumber*: Serial number string
+* *FrameWidth*: Video frame width in pixels (UVC mode only, e.g., 640)
+* *FrameHeight*: Video frame height in pixels (UVC mode only, e.g., 480)
+* *FrameInterval*: Frame interval in 100ns units (UVC mode only, FPS = 10000000 / FrameInterval)
 
-**Example:**
+**Example (MSC Mode):**
 
 [source,cpp]
 ----
-const USB_Manager_Config_t USB_Config = {
-    .p_MountPoint = MemoryManager_GetStoragePath(),
-    .p_VendorID = "PyroVis",        // Shows as "PyroVis" in device manager
-    .p_ProductID = "ThermalCam",    // Shows as "ThermalCam" drive name
-    .p_ProductRevision = "1.0",     // Firmware version
+const USB_Manager_Config_t USB_MSC_Config = {
+    .Mode = USB_MODE_MSC,
+    .MountPoint = MemoryManager_GetStoragePath(),
+    .Manufacturer = "Kampi's Elektroecke",
+    .Product = "PyroVision",
+    .SerialNumber = "PV-12345678",
+    .FrameWidth = 0,        // Not used in MSC mode
+    .FrameHeight = 0,       // Not used in MSC mode
+    .FrameInterval = 0,     // Not used in MSC mode
+};
+----
+
+**Example (UVC Mode):**
+
+[source,cpp]
+----
+const USB_Manager_Config_t USB_UVC_Config = {
+    .Mode = USB_MODE_UVC,
+    .MountPoint = NULL,     // Not used in UVC mode
+    .Manufacturer = "Kampi's Elektroecke",
+    .Product = "PyroVision Thermal Webcam",
+    .SerialNumber = "PV-12345678",
+    .FrameWidth = 640,      // VGA resolution
+    .FrameHeight = 480,
+    .FrameInterval = 333333, // 30 FPS (10000000 / 30)
 };
 ----
 
@@ -246,9 +285,9 @@ esp_event_handler_register(USB_EVENTS, ESP_EVENT_ANY_ID,
 esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config);
 ----
 
-Initialize the USB Manager and expose storage as USB Mass Storage Device.
+Initialize the USB Manager in either Mass Storage (MSC) or Video Class (UVC) mode.
 
-**Behavior:**
+**Behavior (MSC Mode):**
 
 1. Validates configuration parameters
 2. Waits for any pending deinitialization to complete (max 10 seconds)
@@ -260,59 +299,107 @@ Initialize the USB Manager and expose storage as USB Mass Storage Device.
 8. Connects to USB bus via `tud_connect()` to trigger PC enumeration
 9. Posts `USB_EVENT_INITIALIZED` event
 
+**Behavior (UVC Mode):**
+
+1. Validates configuration parameters (FrameWidth, FrameHeight)
+2. Waits for any pending deinitialization to complete
+3. Creates frame buffer mutex for thread-safe frame updates
+4. Allocates initial frame buffer in SPIRAM
+5. Installs TinyUSB driver
+6. NOTE: Full UVC implementation requires ESP-IOT-Solution UVC component
+7. Posts `USB_EVENT_INITIALIZED` event
+
 **Parameters:**
 
 * `p_Config` - Pointer to USB manager configuration structure
 
 **Return Values:**
 
-* `ESP_OK` - USB MSC successfully initialized and active
+* `ESP_OK` - USB successfully initialized and active
 * `ESP_ERR_INVALID_ARG` - p_Config is NULL or invalid parameters
 * `ESP_ERR_INVALID_STATE` - Already initialized or deinitialization timeout
-* `ESP_ERR_NO_MEM` - Failed to allocate memory (increase DMA pool)
+* `ESP_ERR_NO_MEM` - Failed to allocate memory (increase DMA pool or SPIRAM)
 * `ESP_FAIL` - USB initialization failed
 
 **Thread Safety:** Not thread-safe during initialization. Call once from main task.
 
-**Critical Requirements:**
+**Critical Requirements (MSC Mode):**
 
 * Memory Manager must be initialized first
 * DMA memory pool must be adequate (CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL ≥ 160 KB)
 * Filesystem must not be accessed by application during USB MSC operation
 
-**Example:**
+**Critical Requirements (UVC Mode):**
+
+* Frame buffer memory must be available in SPIRAM
+* For full functionality, requires ESP-IOT-Solution UVC component integration
+* Call `USBManager_SendFrame()` periodically to update webcam stream
+
+**Example (MSC Mode):**
 
 [source,cpp]
 ----
-void EnableUSB_Mode(void)
+void EnableUSB_MSC_Mode(void)
 {
-    // Lock filesystem first
-    esp_err_t Error = MemoryManager_LockFilesystem();
-    if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to lock filesystem: %d", Error);
-        return;
-    }
+    Settings_Info_t InfoSettings;
+    SettingsManager_GetInfo(&InfoSettings);
     
     // Configure USB Mass Storage
     const USB_Manager_Config_t USB_Config = {
-        .p_MountPoint = MemoryManager_GetStoragePath(),
-        .p_VendorID = "PyroVis",
-        .p_ProductID = "ThermalCam",
-        .p_ProductRevision = "1.0",
+        .Mode = USB_MODE_MSC,
+        .MountPoint = MemoryManager_GetStoragePath(),
+        .Manufacturer = InfoSettings.Manufacturer,
+        .Product = InfoSettings.Name,
+        .SerialNumber = InfoSettings.Serial,
+        .FrameWidth = 0,
+        .FrameHeight = 0,
+        .FrameInterval = 0,
     };
     
     // Initialize USB MSC
-    Error = USBManager_Init(&USB_Config);
+    esp_err_t Error = USBManager_Init(&USB_Config);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize USB: %d", Error);
-        
-        // Unlock filesystem on failure
-        MemoryManager_UnlockFilesystem();
+        ESP_LOGE(TAG, "Failed to initialize USB MSC: %d", Error);
         return;
     }
     
-    ESP_LOGI(TAG, "✓ USB Mass Storage Device active!");
-    ESP_LOGW(TAG, "⚠️  Application CANNOT write to storage while USB is active!");
+    ESP_LOGI(TAG, "USB Mass Storage Device active");
+}
+----
+
+**Example (UVC Mode):**
+
+[source,cpp]
+----
+void EnableUSB_UVC_Mode(void)
+{
+    Settings_Info_t InfoSettings;
+    SettingsManager_GetInfo(&InfoSettings);
+    
+    // Configure USB Webcam
+    const USB_Manager_Config_t USB_Config = {
+        .Mode = USB_MODE_UVC,
+        .MountPoint = NULL,
+        .Manufacturer = InfoSettings.Manufacturer,
+        .Product = InfoSettings.Name,
+        .SerialNumber = InfoSettings.Serial,
+        .FrameWidth = 640,
+        .FrameHeight = 480,
+        .FrameInterval = 333333,  // 30 FPS
+    };
+    
+    // Initialize USB UVC
+    esp_err_t Error = USBManager_Init(&USB_Config);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize USB UVC: %d", Error);
+        return;
+    }
+    
+    ESP_LOGI(TAG, "USB Webcam (UVC) active");
+    ESP_LOGW(TAG, "Note: Full UVC requires ESP-IOT-Solution component");
+}
+----
+    }
     
     // Wait for USB_EVENT_INITIALIZED event...
 }
@@ -439,6 +526,87 @@ void SaveImage(uint8_t *p_Data, size_t Size)
 }
 ----
 
+==== USBManager_SendFrame()
+
+[source,cpp]
+----
+esp_err_t USBManager_SendFrame(const uint8_t *p_FrameBuffer, size_t BufferSize);
+----
+
+Send a new frame to the USB Video Class device (UVC mode only).
+
+**Behavior:**
+
+1. Validates that USB Manager is initialized in UVC mode
+2. Validates frame buffer pointer and size
+3. Acquires frame buffer mutex
+4. Reallocates internal frame buffer if size changed
+5. Copies frame data to internal buffer
+6. Releases mutex
+7. TODO: Signals TinyUSB UVC that new frame is ready
+
+**Parameters:**
+
+* `p_FrameBuffer` - Pointer to MJPEG frame buffer
+* `BufferSize` - Size of the frame buffer in bytes
+
+**Return Values:**
+
+* `ESP_OK` - Frame copied successfully
+* `ESP_ERR_INVALID_STATE` - USB not initialized or not in UVC mode
+* `ESP_ERR_INVALID_ARG` - Invalid frame buffer pointer or size
+* `ESP_ERR_NO_MEM` - Failed to allocate frame buffer
+
+**Thread Safety:** Thread-safe due to mutex protection.
+
+**Important Notes:**
+
+* Only valid in UVC mode; returns error if called in MSC mode
+* Frame buffer is copied internally, so p_FrameBuffer can be reused after return
+* Frame format must be MJPEG (Motion JPEG)
+* Full UVC streaming requires ESP-IOT-Solution UVC component integration
+* Current implementation provides API structure but streaming not yet functional
+
+**Example:**
+
+[source,cpp]
+----
+void StreamThermalFrame(void)
+{
+    uint8_t *p_JPEGBuffer = NULL;
+    size_t JPEGSize = 0;
+    
+    // Capture and encode thermal frame as MJPEG
+    esp_err_t Error = CaptureThermalImage(&p_JPEGBuffer, &JPEGSize, IMAGE_FORMAT_JPEG);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to capture thermal image: %d", Error);
+        return;
+    }
+    
+    // Send frame to USB UVC
+    Error = USBManager_SendFrame(p_JPEGBuffer, JPEGSize);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to send frame: %d", Error);
+    }
+    
+    // Free buffer
+    free(p_JPEGBuffer);
+}
+
+// Called periodically (e.g., 30 FPS)
+void USB_UVC_StreamTask(void *p_Param)
+{
+    while (true) {
+        if (USBManager_IsInitialized()) {
+            StreamThermalFrame();
+        }
+        
+        vTaskDelay(pdMS_TO_TICKS(33));  // ~30 FPS
+    }
+}
+----
+
+
 ---
 
 == Common Use Cases
@@ -484,8 +652,6 @@ void ActivateUSB_Button_Callback(lv_event_t *e)
         lv_msgbox_add_text(msgbox, "Failed to activate USB mode!");
         return;
     }
-    
-    ESP_LOGI(TAG, "✓ USB Mass Storage Device active!");
 }
 ----
 
@@ -878,7 +1044,10 @@ CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=163840  # 160 KB
 ----
 CONFIG_TINYUSB_ENABLED=y
 CONFIG_TINYUSB_MSC_ENABLED=y
+CONFIG_TINYUSB_UVC_ENABLED=y
 ----
+
+NOTE: Both MSC and UVC must be enabled in Kconfig. The active mode is selected at runtime via the UI switches. MSC and UVC are mutually exclusive — only one mode can be active at a time.
 
 ==== PSRAM Configuration
 

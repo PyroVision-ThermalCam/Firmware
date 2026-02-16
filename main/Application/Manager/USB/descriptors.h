@@ -26,6 +26,8 @@
 
 #include <tinyusb.h>
 
+#include "usbTypes.h"
+
 /** @brief String Descriptor Index
  */
 enum {
@@ -33,13 +35,23 @@ enum {
     STRID_MANUFACTURER,
     STRID_PRODUCT,
     STRID_SERIAL,
-    STRID_UVC_CONTROL,
-    STRID_UVC_STREAMING,
 };
 
-/** @brief Get the device descriptor. This is used by the USB Manager to provide the device descriptor to TinyUSB.
+/** @brief  Get the device descriptor. This is used by the USB Manager to provide the device descriptor to TinyUSB.
  *  @return Pointer to the device descriptor structure.
  */
 uint8_t const *get_Desc_Device(void);
+
+/** @brief          Get the MSC configuration descriptor.
+ *  @return         Pointer to the MSC configuration descriptor.
+ */
+uint8_t const *get_Desc_Config_MSC(void);
+
+/** @brief          Get the UVC configuration descriptor.
+ *                  Returns a UVC-only configuration descriptor (MJPEG, Isochronous)
+ *                  that does not include any MSC interfaces.
+ *  @return         Pointer to the UVC configuration descriptor.
+ */
+uint8_t const *get_Desc_Config_UVC(void);
 
 #endif /* DESCRIPTORS_H_ */

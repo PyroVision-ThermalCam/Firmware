@@ -162,6 +162,15 @@ void SettingsManager_InitDefaultLEDFlash(Settings_t *p_Settings)
     p_Settings->LEDFlash.Power = SETTINGS_DEFAULT_LED_FLASH_POWER;
 }
 
+void SettingsManager_InitDefaultUSB(Settings_t *p_Settings)
+{
+    ESP_LOGW(TAG, "Loading default USB settings");
+
+    p_Settings->USB.MSC_Enabled = SETTINGS_DEFAULT_USB_MSC_ENABLE;
+
+    memset(p_Settings->USB.Reserved, 0, sizeof(p_Settings->USB.Reserved));
+}
+
 void SettingsManager_LoadFromDefaults(Settings_Manager_State_t *p_State)
 {
     memset(&p_State->Settings, 0, sizeof(Settings_t));
@@ -175,4 +184,5 @@ void SettingsManager_LoadFromDefaults(Settings_Manager_State_t *p_State)
     SettingsManager_InitDefaultHTTPServer(&p_State->Settings);
     SettingsManager_InitDefaultVISAServer(&p_State->Settings);
     SettingsManager_InitDefaultLEDFlash(&p_State->Settings);
+    SettingsManager_InitDefaultUSB(&p_State->Settings);
 }

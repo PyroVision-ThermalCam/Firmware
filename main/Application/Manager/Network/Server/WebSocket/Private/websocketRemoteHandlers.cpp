@@ -171,7 +171,7 @@ void WebSocket_Handle_SetLeptonEmissivity(int FD, cJSON *p_Data)
         return;
     }
 
-    Error = RemoteControl_SetLeptonEmissivity((uint8_t)EmisField->valueint);
+    Error = RemoteControl_SetLeptonEmissivity(static_cast<uint8_t>(EmisField->valueint));
     if (Error != ESP_OK) {
         WebSocket_SendResponse(FD, "set_lepton_emissivity", "error", NULL, "Invalid emissivity value");
 
@@ -288,7 +288,7 @@ void WebSocket_Handle_SetFlash(int FD, cJSON *p_Data)
 
     PowerField = cJSON_GetObjectItem(p_Data, "power");
     if (cJSON_IsNumber(PowerField)) {
-        Error = RemoteControl_SetFlashPower((uint8_t)PowerField->valueint);
+        Error = RemoteControl_SetFlashPower(static_cast<uint8_t>(PowerField->valueint));
         if (Error != ESP_OK) {
             WebSocket_SendResponse(FD, "set_flash", "error", NULL, "Invalid flash power value");
 
@@ -403,7 +403,7 @@ void WebSocket_Handle_SetStatusLED(int FD, cJSON *p_Data)
         return;
     }
 
-    Brightness = (uint8_t)BrightnessField->valueint;
+    Brightness = static_cast<uint8_t>(BrightnessField->valueint);
 
     Error = RemoteControl_SetStatusLED(Color, Brightness);
     if (Error != ESP_OK) {

@@ -205,4 +205,38 @@ int VISA_Cmd_GetLockState(char *p_Response, size_t MaxLen);
  */
 int VISA_Cmd_SetLockState(char **pp_Tokens, int Count, char *p_Response, size_t MaxLen);
 
+/** @brief          Handle SENS:IMG:PAL - Set image color palette.
+ *  @param pp_Tokens Command tokens
+ *  @param Count    Token count
+ *  @param p_Response Response buffer
+ *  @param MaxLen   Maximum response length
+ *  @return         Response length or negative error code
+ */
+int VISA_Cmd_SetImagePalette(char **pp_Tokens, int Count, char *p_Response, size_t MaxLen);
+
+/** @brief          Handle DISP:LED:BRIG - Set LED brightness.
+ *  @param pp_Tokens Command tokens
+ *  @param Count    Token count
+ *  @param p_Response Response buffer
+ *  @param MaxLen   Maximum response length
+ *  @return         Response length or negative error code
+ */
+int VISA_Cmd_SetLEDBrightness(char **pp_Tokens, int Count, char *p_Response, size_t MaxLen);
+/** @brief          Handle SENS:IMG:PAL - Set image color palette.
+ *  @param pp_Tokens Command tokens
+ *  @param Count    Token count
+ *  @param p_Response Response buffer
+ *  @param MaxLen   Maximum response length
+ *  @return         Response length or negative error code
+ */
+int VISA_Cmd_SetImagePalette(char **pp_Tokens, int Count, char *p_Response, size_t MaxLen);
+
+/** @brief          Handle DISP:LED:BRIG - Set LED brightness.
+ *  @param pp_Tokens Command tokens
+ *  @param Count    Token count
+ *  @param p_Response Response buffer
+ *  @param MaxLen   Maximum response length
+ *  @return         Response length or negative error code
+ */
+int VISA_Cmd_SetLEDBrightness(char **pp_Tokens, int Count, char *p_Response, size_t MaxLen);
 #endif /* VISA_REMOTE_COMMANDS_H_ */

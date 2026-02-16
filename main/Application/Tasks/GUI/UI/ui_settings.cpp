@@ -29,9 +29,9 @@
 #include "../Export/ui.h"
 #include "../Export/screens/ui_Menu.h"
 
+#include "managers.h"
 #include "ui_settings.h"
 #include "ui_settings_events.h"
-#include "managers.h"
 
 Slider_Widgets_t brightness_widgets;
 Slider_Widgets_t emissivity_widgets;
@@ -55,6 +55,7 @@ lv_obj_t *emissivity_Dropdown;
 lv_obj_t *usb_Page;
 lv_obj_t *image_Page;
 lv_obj_t *usb_mode_switch;
+lv_obj_t *usb_uvc_switch;
 lv_obj_t *image_format_dropdown;
 lv_obj_t *jpeg_quality_row;
 lv_obj_t *ui_settings_wifi_status_label;
@@ -455,7 +456,7 @@ static lv_obj_t *ui_Settings_Create_USB_Page(lv_obj_t *p_Menu)
     lv_obj_set_style_pad_bottom(usb_switch_row, 4, 0);
 
     lv_obj_t *usb_mode_label = lv_label_create(usb_switch_row);
-    lv_label_set_text(usb_mode_label, "USB Mode");
+    lv_label_set_text(usb_mode_label, "MSC Mode");
     lv_obj_set_style_text_color(usb_mode_label, lv_color_white(), 0);
     lv_obj_set_style_text_font(usb_mode_label, &lv_font_montserrat_14, 0);
 
@@ -464,6 +465,44 @@ static lv_obj_t *ui_Settings_Create_USB_Page(lv_obj_t *p_Menu)
     lv_obj_set_style_bg_color(usb_mode_switch, lv_color_hex(0x7B3FF0), 0);
     lv_obj_set_style_bg_color(usb_mode_switch, lv_color_hex(0xFF9500), LV_PART_KNOB);
     lv_obj_add_event_cb(usb_mode_switch, on_USB_Mode_Switch_Callback, LV_EVENT_VALUE_CHANGED, NULL);
+
+    /* Separator */
+    lv_obj_t *separator = lv_obj_create(USBContainer);
+    lv_obj_set_size(separator, LV_PCT(100), 1);
+    lv_obj_set_style_bg_color(separator, lv_color_hex(0x505050), 0);
+    lv_obj_set_style_border_width(separator, 0, 0);
+    lv_obj_set_style_pad_all(separator, 0, 0);
+    lv_obj_set_style_margin_top(separator, 12, 0);
+    lv_obj_set_style_margin_bottom(separator, 12, 0);
+
+    /* UVC Section */
+    lv_obj_t *uvc_section_label = lv_label_create(USBContainer);
+    lv_label_set_text(uvc_section_label, "USB Video Class");
+    lv_obj_set_style_text_color(uvc_section_label, lv_color_hex(0xFF9500), 0);
+    lv_obj_set_style_text_font(uvc_section_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_pad_top(uvc_section_label, 0, 0);
+    lv_obj_set_style_pad_bottom(uvc_section_label, 8, 0);
+
+    lv_obj_t *uvc_desc_label = lv_label_create(USBContainer);
+    lv_label_set_text(uvc_desc_label, "Stream thermal camera via USB");
+    lv_obj_set_style_text_color(uvc_desc_label, lv_color_hex(0xAAAAAA), 0);
+    lv_obj_set_style_text_font(uvc_desc_label, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_pad_bottom(uvc_desc_label, 12, 0);
+
+    lv_obj_t *uvc_switch_row = ui_Settings_Create_Row(USBContainer, LV_FLEX_ALIGN_SPACE_BETWEEN);
+    lv_obj_set_style_pad_top(uvc_switch_row, 4, 0);
+    lv_obj_set_style_pad_bottom(uvc_switch_row, 4, 0);
+
+    lv_obj_t *uvc_mode_label = lv_label_create(uvc_switch_row);
+    lv_label_set_text(uvc_mode_label, "UVC Mode");
+    lv_obj_set_style_text_color(uvc_mode_label, lv_color_white(), 0);
+    lv_obj_set_style_text_font(uvc_mode_label, &lv_font_montserrat_14, 0);
+
+    usb_uvc_switch = lv_switch_create(uvc_switch_row);
+    lv_obj_set_size(usb_uvc_switch, 50, 25);
+    lv_obj_set_style_bg_color(usb_uvc_switch, lv_color_hex(0x7B3FF0), 0);
+    lv_obj_set_style_bg_color(usb_uvc_switch, lv_color_hex(0xFF9500), LV_PART_KNOB);
+    lv_obj_add_event_cb(usb_uvc_switch, on_USB_UVC_Switch_Callback, LV_EVENT_VALUE_CHANGED, NULL);
 
     return USBPage;
 }

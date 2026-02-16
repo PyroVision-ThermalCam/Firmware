@@ -246,7 +246,7 @@ esp_err_t PortExpander_Deinit(i2c_master_dev_handle_t *p_Dev_Handle)
 
 esp_err_t PortExpander_EnableCamera(i2c_master_dev_handle_t *p_Dev_Handle, bool Enable)
 {
-    return PortExpander_SetPinLevel(p_Dev_Handle, PORT_0, (0x01 << PIN_CAMERA), (!Enable << PIN_CAMERA));
+    return PortExpander_SetPinLevel(p_Dev_Handle, PORT_0, (0x01 << PIN_CAMERA), ((Enable == false ? 1 : 0) << PIN_CAMERA));
 }
 
 esp_err_t PortExpander_EnableLED(i2c_master_dev_handle_t *p_Dev_Handle, bool Enable)
@@ -257,5 +257,5 @@ esp_err_t PortExpander_EnableLED(i2c_master_dev_handle_t *p_Dev_Handle, bool Ena
 esp_err_t PortExpander_EnableBatteryVoltage(i2c_master_dev_handle_t *p_Dev_Handle, bool Enable)
 {
     return PortExpander_SetPinLevel(p_Dev_Handle, PORT_0, (0x01 << PIN_BATTERY_VOLTAGE_ENABLE),
-                                    (!Enable << PIN_BATTERY_VOLTAGE_ENABLE));
+                                    ((Enable == false ? 1 : 0) << PIN_BATTERY_VOLTAGE_ENABLE));
 }

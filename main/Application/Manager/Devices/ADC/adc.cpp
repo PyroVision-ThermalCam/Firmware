@@ -158,7 +158,7 @@ static int ADC_CalculateMedian(int *p_Array, size_t Size)
  */
 static int ADC_CompareInt(const void *a, const void *b)
 {
-    return (*(int *)a - *(int *)b);
+    return (*static_cast<const int *>(a) - *static_cast<const int *>(b));
 }
 
 /** @brief          Calculate battery percentage using improved LiPo discharge curve
@@ -249,7 +249,7 @@ esp_err_t ADC_ReadBattery(int *p_Voltage, uint8_t *p_Percentage)
         
         /* Small delay between samples */
         if (i < (CONFIG_BATTERY_ADC_SAMPLES - 1)) {
-            vTaskDelay(CONFIG_BATTERY_ADC_SAMPLE_DELAY_MS / portTICK_PERIOD_MS);
+            vTaskDelay(pdMS_TO_TICKS(CONFIG_BATTERY_ADC_SAMPLE_DELAY_MS));
         }
     }
 

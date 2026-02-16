@@ -8,9 +8,9 @@
 
 #include "ui.h"
 
-#include "../UI/ui_Settings.h"
 #include "../../../application.h"
 #include "../guiTask.h"
+#include "../UI/ui_settings.h"
 #include "../UI/ui_messagebox.h"
 
 static const char *TAG = "ui_events";
@@ -36,12 +36,18 @@ void ScreenMainLoaded(lv_event_t *e)
     lv_label_set_text(ui_Label_Main_Thermal_Crosshair, "\uF05B");
     lv_label_set_text(ui_Label_Menu_Back, "\uF060");
     lv_label_set_text(ui_Label_Info_Back, "\uF060");
+
+    /* Force full screen repaint to clear any artifacts from previous screen */
+    lv_obj_invalidate(lv_screen_active());
 }
 
 void ScreenInfoLoaded(lv_event_t *e)
 {
     esp_event_post(GUI_EVENTS, GUI_EVENT_REQUEST_UPTIME, NULL, 0, 0);
     esp_event_post(GUI_EVENTS, GUI_EVENT_REQUEST_FPA_AUX_TEMP, NULL, 0, 0);
+
+    /* Force full screen repaint to clear any artifacts from previous screen */
+    lv_obj_invalidate(lv_screen_active());
 }
 
 void ButtonMainWiFiClicked(lv_event_t *e)

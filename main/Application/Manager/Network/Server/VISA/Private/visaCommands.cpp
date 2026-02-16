@@ -263,19 +263,6 @@ static int VISA_CMD_SYST_VERS(char *p_Response, size_t MaxLen)
 
 /* ===== Device-Specific Commands ===== */
 
-/** @brief              SENSe:TEMPerature? - Get sensor temperature
- *  @param p_Response   Response buffer
- *  @param MaxLen       Maximum response length
- *  @return             Response length
- */
-static int VISA_CMD_SENS_TEMP(char *p_Response, size_t MaxLen)
-{
-    /* TODO: Get actual temperature from Lepton manager */
-    float temperature = 25.5f; /* Placeholder */
-
-    return snprintf(p_Response, MaxLen, "%.2f\n", temperature);
-}
-
 /** @brief              SENSe:IMAGE:CAPTure - Capture image
  *  @param p_Response   Response buffer
  *  @param MaxLen       Maximum response length
@@ -336,129 +323,6 @@ static int VISA_CMD_SENS_IMG_DATA(char *p_Response, size_t MaxLen)
     VISA_PushError(SCPI_ERROR_OUT_OF_MEMORY);
 
     return SCPI_ERROR_OUT_OF_MEMORY;
-}
-
-/** @brief              SENSe:IMAGE:FORMat - Set image format
- *  @param Tokens       Command tokens
- *  @param Count        Token count
- *  @param p_Response   Response buffer
- *  @param MaxLen       Maximum response length
- *  @return             Response length
- */
-static int VISA_CMD_SENS_IMG_FORM(char **Tokens, int Count, char *p_Response, size_t MaxLen)
-{
-    if (Count < 4) {
-        VISA_PushError(SCPI_ERROR_MISSING_PARAMETER);
-
-        return SCPI_ERROR_MISSING_PARAMETER;
-    }
-
-    ESP_LOGI(TAG, "Set image format: %s", Tokens[3]);
-
-    /* TODO: Set actual format */
-    /* Valid: JPEG, PNG, RAW */
-
-    if ((strcasecmp(Tokens[3], "JPEG") == 0) ||
-        (strcasecmp(Tokens[3], "PNG") == 0) ||
-        (strcasecmp(Tokens[3], "RAW") == 0)) {
-        return 0; /* Success */
-    } else {
-        VISA_PushError(SCPI_ERROR_DATA_OUT_OF_RANGE);
-
-        return SCPI_ERROR_DATA_OUT_OF_RANGE;
-    }
-}
-
-/** @brief              SENSe:IMAGE:PALette - Set color palette
- *  @param Tokens       Command tokens
- *  @param Count        Token count
- *  @param p_Response   Response buffer
- *  @param MaxLen       Maximum response length
- *  @return             Response length
- */
-static int VISA_CMD_SENS_IMG_PAL(char **Tokens, int Count, char *p_Response, size_t MaxLen)
-{
-    if (Count < 4) {
-        VISA_PushError(SCPI_ERROR_MISSING_PARAMETER);
-
-        return SCPI_ERROR_MISSING_PARAMETER;
-    }
-
-    ESP_LOGI(TAG, "Set palette: %s", Tokens[3]);
-
-    /* TODO: Set actual palette */
-    /* Valid: IRON, GRAY, RAINBOW */
-
-    if ((strcasecmp(Tokens[3], "IRON") == 0) ||
-        (strcasecmp(Tokens[3], "GRAY") == 0) ||
-        (strcasecmp(Tokens[3], "RAINBOW") == 0)) {
-        return 0; /* Success */
-    } else {
-        VISA_PushError(SCPI_ERROR_DATA_OUT_OF_RANGE);
-
-        return SCPI_ERROR_DATA_OUT_OF_RANGE;
-    }
-}
-
-/** @brief              DISPlay:LED:STATe - Set LED state
- *  @param Tokens       Command tokens
- *  @param Count        Token count
- *  @param p_Response   Response buffer
- *  @param MaxLen       Maximum response length
- *  @return             Response length
- */
-static int VISA_CMD_DISP_LED_STAT(char **Tokens, int Count, char *p_Response, size_t MaxLen)
-{
-    if (Count < 4) {
-        VISA_PushError(SCPI_ERROR_MISSING_PARAMETER);
-
-        return SCPI_ERROR_MISSING_PARAMETER;
-    }
-
-    ESP_LOGI(TAG, "Set LED state: %s", Tokens[3]);
-
-    /* TODO: Control actual LED */
-    /* Valid: ON, OFF, BLINK */
-
-    if ((strcasecmp(Tokens[3], "ON") == 0) ||
-        (strcasecmp(Tokens[3], "OFF") == 0) ||
-        (strcasecmp(Tokens[3], "BLINK") == 0)) {
-        return 0; /* Success */
-    } else {
-        VISA_PushError(SCPI_ERROR_DATA_OUT_OF_RANGE);
-
-        return SCPI_ERROR_DATA_OUT_OF_RANGE;
-    }
-}
-
-/** @brief              DISPlay:LED:BRIGhtness - Set LED brightness
- *  @param Tokens       Command tokens
- *  @param Count        Token count
- *  @param p_Response   Response buffer
- *  @param MaxLen       Maximum response length
- *  @return             Response length
- */
-static int VISA_CMD_DISP_LED_BRIG(char **Tokens, int Count, char *p_Response, size_t MaxLen)
-{
-    int Brightness = atoi(Tokens[3]);
-
-    if (Count < 4) {
-        VISA_PushError(SCPI_ERROR_MISSING_PARAMETER);
-
-        return SCPI_ERROR_MISSING_PARAMETER;
-    }
-
-    if ((Brightness < 0) || (Brightness > 255)) {
-        VISA_PushError(SCPI_ERROR_DATA_OUT_OF_RANGE);
-
-        return SCPI_ERROR_DATA_OUT_OF_RANGE;
-    }
-
-    ESP_LOGI(TAG, "Set LED brightness: %d", Brightness);
-
-    /* TODO: Set actual LED brightness */
-
-    return 0; /* Success */
 }
 
 esp_err_t VISACommands_Init(void)
@@ -601,7 +465,7 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
                     TokenList.push_back(const_cast<char*>(t.c_str()));
                 }
 
-                return VISA_CMD_SENS_IMG_PAL(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
+                return VISA_Cmd_SetImagePalette(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
             } else if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "LEP") || string_iequals(Tokens[2], "LEPton"))) {
                 if ((Tokens.size() >= 4) && (string_iequals(Tokens[3], "EMIS") || string_iequals(Tokens[3], "EMISsivity"))) {
                     if (isQuery) {
@@ -658,7 +522,7 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
                     TokenList.push_back(const_cast<char*>(t.c_str()));
                 }
 
-                return VISA_CMD_DISP_LED_BRIG(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
+                return VISA_Cmd_SetLEDBrightness(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
             }
         } else if ((Tokens.size() >= 2) && string_iequals(Tokens[1], "FLASH")) {
             if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "POW") || string_iequals(Tokens[2], "POWer"))) {

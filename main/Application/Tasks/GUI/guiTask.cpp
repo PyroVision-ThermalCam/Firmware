@@ -69,25 +69,10 @@ static void on_GUI_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
         case GUI_EVENT_THERMAL_IMAGE_SAVED: {
             ESP_LOGI(TAG, "Thermal image saved successfully");
 
-            /* Show success message box */
-            // TODO: Move to Messagebox module
-            lv_obj_t *msgbox = lv_msgbox_create(NULL);
-            lv_msgbox_add_title(msgbox, "Image Saved");
-            lv_msgbox_add_text(msgbox, "Thermal image saved successfully!");
-            lv_msgbox_add_close_button(msgbox);
-
             break;
         }
         case GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED: {
             ESP_LOGE(TAG, "Thermal image save failed");
-
-            /* Show error message box */
-            // TODO: Move to Messagebox module
-            lv_obj_t *msgbox = lv_msgbox_create(NULL);
-            lv_msgbox_add_title(msgbox, "Save Failed");
-            lv_msgbox_add_text(msgbox, "Failed to save thermal image!\\nCheck storage or USB mode.");
-            lv_msgbox_add_close_button(msgbox);
-            lv_obj_set_style_bg_color(msgbox, lv_color_hex(0xFF0000), LV_PART_MAIN);
 
             break;
         }
@@ -119,26 +104,6 @@ static void on_Devices_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base,
         case DEVICE_EVENT_RESPONSE_CHARGING: {
             xEventGroupSetBits(_GUI_Task_State.EventGroup, BATTERY_CHARGING_STATUS_READY);
 
-            break;
-        }
-    }
-}
-
-/** @brief                  Event handler for the SNTP events to receive updates when time is synchronized or updated.
- *  @param p_HandlerArgs    Handler argument
- *  @param Base             Event base
- *  @param ID               Event ID
- *  @param p_Data           Event-specific data
- */
-static void on_Time_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
-{
-    ESP_LOGD(TAG, "Time event received: ID=%d", ID);
-
-    switch (ID) {
-        case TIME_EVENT_SYNCHRONIZED: {
-            break;
-        }
-        case TIME_EVENT_SOURCE_CHANGED: {
             break;
         }
     }
@@ -222,6 +187,47 @@ static void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base,
         }
     }
 }
+
+/** @brief                  Event handler for the USB events to receive UVC streaming state changes.
+ *  @param p_HandlerArgs    Handler argument
+ *  @param Base             Event base
+ *  @param ID               Event ID
+ *  @param p_Data           Event-specific data
+ */
+static void on_USB_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+{
+    ESP_LOGD(TAG, "USB event received in GUI: ID=%d", ID);
+
+    switch (ID) {
+        case USB_EVENT_UVC_STREAMING_START: {
+            _GUI_Task_State.isUVCStreaming = true;
+
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, UVC_STREAMING_STATE_CHANGED);
+
+            break;
+        }
+        case USB_EVENT_UVC_STREAMING_STOP: {
+            _GUI_Task_State.isUVCStreaming = false;
+
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, UVC_STREAMING_STATE_CHANGED);
+
+            break;
+        }
+        case USB_EVENT_UNINITIALIZED: {
+            if (_GUI_Task_State.isUVCStreaming) {
+                _GUI_Task_State.isUVCStreaming = false;
+
+                xEventGroupSetBits(_GUI_Task_State.EventGroup, UVC_STREAMING_STATE_CHANGED);
+            }
+
+            break;
+        }
+        default: {
+            break;
+        }
+    }
+}
+
 /** @brief                  Event handler for the Lepton events to receive updates when Lepton events are triggered (e.g., new frame ready, camera errors).
  *  @param p_HandlerArgs    Handler argument
  *  @param Base             Event base
@@ -235,7 +241,7 @@ static void on_Lepton_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, 
     switch (ID) {
         case LEPTON_EVENT_CAMERA_READY: {
             if (p_Data != NULL) {
-                memcpy(&_GUI_Task_State.LeptonDeviceInfo, ((App_Lepton_Device_t *)p_Data), sizeof(App_Lepton_Device_t));
+                memcpy(&_GUI_Task_State.LeptonDeviceInfo, static_cast<const App_Lepton_Device_t *>(p_Data), sizeof(App_Lepton_Device_t));
 
                 xEventGroupSetBits(_GUI_Task_State.EventGroup, LEPTON_CAMERA_READY);
             } else {
@@ -435,14 +441,14 @@ static void GUI_Update_ROI(Settings_ROI_t ROI)
     /* The Lepton task needs the ROI with the Lepton coordinates */
     SettingsLepton.ROI[ROI.Type] = {
         .Type = ROI.Type,
-        .x = (uint16_t)ROI.x,
-        .y = (uint16_t)ROI.y,
-        .w = (uint16_t)ROI.w,
-        .h = (uint16_t)ROI.h
+        .x = static_cast<uint16_t>(ROI.x),
+        .y = static_cast<uint16_t>(ROI.y),
+        .w = static_cast<uint16_t>(ROI.w),
+        .h = static_cast<uint16_t>(ROI.h)
     };
 
     esp_event_post(GUI_EVENTS, GUI_EVENT_REQUEST_ROI, &SettingsLepton.ROI[ROI.Type], sizeof(Settings_ROI_t),
-                   portMAX_DELAY);
+                   pdMS_TO_TICKS(100));
 }
 
 /** @brief Create temperature gradient canvas for palette visualization.
@@ -549,6 +555,17 @@ void Task_GUI(void *p_Parameters)
     App_Context_t *App_Context;
     Settings_Lepton_t LeptonSettings;
 
+    /* Precompute x bilinear coefficients once per frame (constant across all rows).
+     * Saves ImageHeight (180) redundant divisions per pixel column.
+     * Stack cost: 3 * CONFIG_GUI_WIDTH = 960 bytes.
+     * NOTE: x_lut_xi is NOT stored — computing 256-x_frac inline avoids a uint8_t
+     * overflow: when x_frac==0, 256 would truncate to 0, zeroing all weights → black
+     * pixels. x_inv is computed as uint32_t in the inner loop instead.
+     */
+    uint8_t x_lut_x0[CONFIG_GUI_WIDTH];
+    uint8_t x_lut_x1[CONFIG_GUI_WIDTH];
+    uint8_t x_lut_xf[CONFIG_GUI_WIDTH];
+
     esp_task_wdt_add(NULL);
 
     App_Context = static_cast<App_Context_t *>(p_Parameters);
@@ -578,13 +595,13 @@ void Task_GUI(void *p_Parameters)
         }
 
         if(Timeout >= 30000) {
-            esp_event_post(GUI_EVENTS, GUI_EVENT_INIT_ERROR, NULL, 0, portMAX_DELAY);
+            esp_event_post(GUI_EVENTS, GUI_EVENT_INIT_ERROR, NULL, 0, pdMS_TO_TICKS(500));
 
             break;
         }
 
         lv_timer_handler();
-        vTaskDelay(100 / portTICK_PERIOD_MS);
+        vTaskDelay(pdMS_TO_TICKS(100));
         Timeout += 100;
     } while (lv_bar_get_value(ui_SplashScreen_LoadingBar) < lv_bar_get_max_value(ui_SplashScreen_LoadingBar));
 
@@ -602,7 +619,51 @@ void Task_GUI(void *p_Parameters)
 
     GUI_Update_Info();
 
-    esp_event_post(GUI_EVENTS, GUI_EVENT_APP_STARTED, NULL, 0, portMAX_DELAY);
+    esp_event_post(GUI_EVENTS, GUI_EVENT_APP_STARTED, NULL, 0, pdMS_TO_TICKS(500));
+
+    /* Variables for Illuminance values for the scene label.
+    * Fetch all these values at the beginning to not waste CPU performance because these
+    * functions aren´t simple get functions
+    *      0 = Max label
+    *      1 = Min label
+    *      2 = Mean label
+    *      3 = Crosshair label
+    *      4 = Pixel temperature label
+    *
+    * NOTE on coordinate spaces:
+    * - Labels [3] (Crosshair) and [4] (PixelTemperature) are DIRECT children of
+    *   ui_Image_Thermal, so lv_obj_get_x/y() already returns image-relative coords.
+    * - Labels [0..2] (Max/Min/Mean) are children of ui_Container_Main_Thermal_Scene_Statistics,
+    *   which itself is a child of ui_Image_Thermal. Their lv_obj_get_x/y() is relative
+    *   to the container, so the container's own offset within the image must be added.
+    */
+    int32_t SceneStatsContainer_x = lv_obj_get_x(ui_Container_Main_Thermal_Scene_Statistics);
+    int32_t SceneStatsContainer_y = lv_obj_get_y(ui_Container_Main_Thermal_Scene_Statistics);
+
+    int32_t SceneLabel_x0[5] = { SceneStatsContainer_x + lv_obj_get_x(ui_Label_Main_Thermal_Scene_Max),
+                                SceneStatsContainer_x + lv_obj_get_x(ui_Label_Main_Thermal_Scene_Min),
+                                SceneStatsContainer_x + lv_obj_get_x(ui_Label_Main_Thermal_Scene_Mean),
+                                lv_obj_get_x(ui_Label_Main_Thermal_Crosshair),
+                                lv_obj_get_x(ui_Label_Main_Thermal_PixelTemperature)
+                            };
+    int32_t SceneLabel_y0[5] = { SceneStatsContainer_y + lv_obj_get_y(ui_Label_Main_Thermal_Scene_Max),
+                                SceneStatsContainer_y + lv_obj_get_y(ui_Label_Main_Thermal_Scene_Min),
+                                SceneStatsContainer_y + lv_obj_get_y(ui_Label_Main_Thermal_Scene_Mean),
+                                lv_obj_get_y(ui_Label_Main_Thermal_Crosshair),
+                                lv_obj_get_y(ui_Label_Main_Thermal_PixelTemperature)
+                            };
+    int32_t SceneLabel_w[5] = { lv_obj_get_width(ui_Label_Main_Thermal_Scene_Max),
+                                lv_obj_get_width(ui_Label_Main_Thermal_Scene_Min),
+                                lv_obj_get_width(ui_Label_Main_Thermal_Scene_Mean),
+                                lv_obj_get_width(ui_Label_Main_Thermal_Crosshair),
+                                lv_obj_get_width(ui_Label_Main_Thermal_PixelTemperature)
+                            };
+    int32_t SceneLabel_h[5] = { lv_obj_get_height(ui_Label_Main_Thermal_Scene_Max),
+                                lv_obj_get_height(ui_Label_Main_Thermal_Scene_Min),
+                                lv_obj_get_height(ui_Label_Main_Thermal_Scene_Mean),
+                                lv_obj_get_height(ui_Label_Main_Thermal_Crosshair),
+                                lv_obj_get_height(ui_Label_Main_Thermal_PixelTemperature)
+                            };
 
     while (_GUI_Task_State.isRunning) {
         EventBits_t EventBits;
@@ -612,239 +673,258 @@ void Task_GUI(void *p_Parameters)
 
         /* Check for new thermal frame */
         if (xQueueReceive(App_Context->Lepton_FrameEventQueue, &LeptonFrame, 0) == pdTRUE) {
-            uint8_t *Dst;
-            uint32_t ImageWidth;
-            uint32_t ImageHeight;
-            char Buffer[16];
+            /* During UVC streaming, skip expensive image processing to avoid
+               SPI contention and watchdog timeouts. Just drain the queue. */
+            if (_GUI_Task_State.isUVCStreaming) {
+                ESP_LOGD(TAG, "UVC streaming active - skipping GUI frame processing");
+            } else {
+                uint8_t *Dst;
+                uint32_t ImageWidth;
+                uint32_t ImageHeight;
+                char Buffer[16];
+                uint32_t SceneLabelIlluminance[5] = {0, 0, 0, 0, 0};
+                uint32_t SceneLabelCount[5] = {0, 0, 0, 0, 0};
+                uint8_t SceneLabelAverageLuminance[5] = {0, 0, 0, 0, 0};
 
-            /* Variables for Illuminance values for the scene label.
-             * Fetch all these values at the beginning to not waste CPU performance because these
-             * functions aren´t simple get functions
-             *      0 = Max label
-             *      1 = Min label
-             *      2 = Mean label
-             */
-            int32_t SceneLabel_x0[3] = { lv_obj_get_x(ui_Label_Main_Thermal_Scene_Max),
-                                         lv_obj_get_x(ui_Label_Main_Thermal_Scene_Min),
-                                         lv_obj_get_x(ui_Label_Main_Thermal_Scene_Mean)
-                                       };
-            int32_t SceneLabel_y0[3] = { lv_obj_get_y(ui_Label_Main_Thermal_Scene_Max),
-                                         lv_obj_get_y(ui_Label_Main_Thermal_Scene_Min),
-                                         lv_obj_get_y(ui_Label_Main_Thermal_Scene_Mean)
-                                       };
-            int32_t SceneLabel_w[3] = { lv_obj_get_width(ui_Label_Main_Thermal_Scene_Max),
-                                        lv_obj_get_width(ui_Label_Main_Thermal_Scene_Min),
-                                        lv_obj_get_width(ui_Label_Main_Thermal_Scene_Mean)
-                                      };
-            int32_t SceneLabel_h[3] = { lv_obj_get_height(ui_Label_Main_Thermal_Scene_Max),
-                                        lv_obj_get_height(ui_Label_Main_Thermal_Scene_Min),
-                                        lv_obj_get_height(ui_Label_Main_Thermal_Scene_Mean)
-                                      };
-            uint32_t SceneLabelIlluminance[3] = {0, 0, 0};
-            uint32_t SceneLabelCount[3] = {0, 0, 0};
-            uint8_t SceneLabelAverageLuminance[3] = {0, 0, 0};
+                /* Reset watchdog before image processing */
+                esp_task_wdt_reset();
 
-            /* Reset watchdog before image processing */
-            esp_task_wdt_reset();
+                /* Scale from source (160x120) to destination (240x180) using bilinear interpolation */
+                Dst = _GUI_Task_State.ThermalCanvasBuffer;
+                ImageWidth = lv_obj_get_width(ui_Image_Thermal);
+                ImageHeight = lv_obj_get_height(ui_Image_Thermal);
 
-            /* Scale from source (160x120) to destination (240x180) using bilinear interpolation */
-            Dst = _GUI_Task_State.ThermalCanvasBuffer;
-            ImageWidth = lv_obj_get_width(ui_Image_Thermal);
-            ImageHeight = lv_obj_get_height(ui_Image_Thermal);
+                /* Skip if image widget not properly initialized yet */
+                if ((ImageWidth == 0) || (ImageHeight == 0)) {
+                    ESP_LOGW(TAG, "Image widget not ready yet (size: %ux%u), skipping frame", ImageWidth, ImageHeight);
 
-            /* Skip if image widget not properly initialized yet */
-            if ((ImageWidth == 0) || (ImageHeight == 0)) {
-                ESP_LOGW(TAG, "Image widget not ready yet (size: %ux%u), skipping frame", ImageWidth, ImageHeight);
-
-                continue;
-            }
-
-            for (uint32_t y = 0; y < ImageHeight; y++) {
-                /* Reset watchdog every 20 rows to prevent timeout during image processing */
-                if ((y % 20) == 0) {
-                    esp_task_wdt_reset();
+                    continue;
                 }
-
-                uint32_t src_y_fixed = y * ((LeptonFrame.Height - 1) << 16) / ImageHeight;
-                uint32_t y0 = src_y_fixed >> 16;
-                uint32_t y1 = ((y0 + 1) < LeptonFrame.Height) ? (y0 + 1) : y0;
-                uint32_t y_frac = (src_y_fixed >> 8) & 0xFF; /* 8-bit fractional part */
-                uint32_t y_inv = 256 - y_frac;
 
                 for (uint32_t x = 0; x < ImageWidth; x++) {
                     uint32_t src_x_fixed = x * ((LeptonFrame.Width - 1) << 16) / ImageWidth;
-                    uint32_t x0 = src_x_fixed >> 16;
-                    uint32_t x1 = ((x0 + 1) < LeptonFrame.Width) ? (x0 + 1) : x0;
-                    uint32_t x_frac = (src_x_fixed >> 8) & 0xFF; /* 8-bit fractional part */
-                    uint32_t x_inv = 256 - x_frac;
-
-                    /* Get the four surrounding pixels */
-                    uint32_t idx00 = ((y0 * LeptonFrame.Width) + x0) * 3;
-                    uint32_t idx10 = ((y0 * LeptonFrame.Width) + x1) * 3;
-                    uint32_t idx01 = ((y1 * LeptonFrame.Width) + x0) * 3;
-                    uint32_t idx11 = ((y1 * LeptonFrame.Width) + x1) * 3;
-
-                    /* Bilinear interpolation using fixed-point arithmetic (8.8 format) */
-                    /* Weight: (256 - x_frac) * (256 - y_frac), x_frac*(256 - y_frac), etc. */
-                    uint32_t w00 = (x_inv * y_inv) >> 8;
-                    uint32_t w10 = (x_frac * y_inv) >> 8;
-                    uint32_t w01 = (x_inv * y_frac) >> 8;
-                    uint32_t w11 = (x_frac * y_frac) >> 8;
-
-                    uint32_t r = (LeptonFrame.Buffer[idx00 + 0] * w00 +
-                                  LeptonFrame.Buffer[idx10 + 0] * w10 +
-                                  LeptonFrame.Buffer[idx01 + 0] * w01 +
-                                  LeptonFrame.Buffer[idx11 + 0] * w11) >> 8;
-
-                    uint32_t g = (LeptonFrame.Buffer[idx00 + 1] * w00 +
-                                  LeptonFrame.Buffer[idx10 + 1] * w10 +
-                                  LeptonFrame.Buffer[idx01 + 1] * w01 +
-                                  LeptonFrame.Buffer[idx11 + 1] * w11) >> 8;
-
-                    uint32_t b = (LeptonFrame.Buffer[idx00 + 2] * w00 +
-                                  LeptonFrame.Buffer[idx10 + 2] * w10 +
-                                  LeptonFrame.Buffer[idx01 + 2] * w01 +
-                                  LeptonFrame.Buffer[idx11 + 2] * w11) >> 8;
-
-                    /* Inside the image area under the label: Add the Luminance
-                     * Note: The image widget has 180° rotation applied via lv_image_set_rotation.
-                     * - x_rot = Image_Width - 1 - x (X axis is inverted due to rotation)
-                     * - y is used directly (Y axis matches label position directly)
-                     */
-                    uint32_t x_rot = ImageWidth - 1 - x;
-
-                    /* Max Label */
-                    if ((x_rot >= SceneLabel_x0[0]) &&
-                        (x_rot < (SceneLabel_x0[0] + SceneLabel_w[0])) &&
-                        (y >= SceneLabel_y0[0]) &&
-                        (y < (SceneLabel_y0[0] + SceneLabel_h[0]))) {
-                        SceneLabelIlluminance[0] += static_cast<uint8_t>((0.299f * r) + (0.587f * g) + (0.114f * b));
-                        SceneLabelCount[0]++;
-                    }
-
-                    /* Min Label */
-                    if ((x_rot >= SceneLabel_x0[1]) &&
-                        (x_rot < (SceneLabel_x0[1] + SceneLabel_w[1])) &&
-                        (y >= SceneLabel_y0[1]) &&
-                        (y < (SceneLabel_y0[1] + SceneLabel_h[1]))) {
-                        SceneLabelIlluminance[1] += static_cast<uint8_t>((0.299f * r) + (0.587f * g) + (0.114f * b));
-                        SceneLabelCount[1]++;
-                    }
-
-                    /* Mean Label */
-                    if ((x_rot >= SceneLabel_x0[2]) &&
-                        (x_rot < (SceneLabel_x0[2] + SceneLabel_w[2])) &&
-                        (y >= SceneLabel_y0[2]) &&
-                        (y < (SceneLabel_y0[2] + SceneLabel_h[2]))) {
-                        SceneLabelIlluminance[2] += static_cast<uint8_t>((0.299f * r) + (0.587f * g) + (0.114f * b));
-                        SceneLabelCount[2]++;
-                    }
-
-                    uint32_t dst_idx = (y * ImageWidth) + x;
-
-                    /* Convert to RGB565 - LVGL handles swapping with RGB565_SWAPPED */
-                    uint16_t rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
-
-                    /* Low byte first */
-                    Dst[(dst_idx * 2) + 0] = rgb565 & 0xFF;
-
-                    /* High byte second */
-                    Dst[(dst_idx * 2) + 1] = (rgb565 >> 8) & 0xFF;
-                }
-            }
-
-            /* Set the average Luminance and the text color */
-            for (uint8_t i = 0; i < (sizeof(SceneLabelAverageLuminance) / sizeof(SceneLabelAverageLuminance[0])); i++) {
-                if (SceneLabelCount[i] > 0) {
-                    SceneLabelAverageLuminance[i] = SceneLabelIlluminance[i] / SceneLabelCount[i];
-                } else {
-                    SceneLabelAverageLuminance[i] = 0;
-                }
-            }
-
-            lv_obj_set_style_text_color(ui_Label_Main_Thermal_Scene_Max,
-                                        (SceneLabelAverageLuminance[0] > 128) ? lv_color_black() : lv_color_white(), LV_PART_MAIN);
-            lv_obj_set_style_text_color(ui_Label_Main_Thermal_Scene_Min,
-                                        (SceneLabelAverageLuminance[1] > 128) ? lv_color_black() : lv_color_white(), LV_PART_MAIN);
-            lv_obj_set_style_text_color(ui_Label_Main_Thermal_Scene_Mean,
-                                        (SceneLabelAverageLuminance[2] > 128) ? lv_color_black() : lv_color_white(), LV_PART_MAIN);
-
-            /* Reset watchdog after image processing */
-            esp_task_wdt_reset();
-
-            /* Max temperature (top of gradient) */
-            float temp_max_celsius = (LeptonFrame.Max / 100.0f) - 273.15f;
-            snprintf(Buffer, sizeof(Buffer), "%.1f °C", temp_max_celsius);
-            lv_label_set_text(ui_Label_TempScaleMax, Buffer);
-
-            /* Min temperature (bottom of gradient) */
-            float temp_min_celsius = (LeptonFrame.Min / 100.0f) - 273.15f;
-            snprintf(Buffer, sizeof(Buffer), "%.1f °C", temp_min_celsius);
-            lv_label_set_text(ui_Label_TempScaleMin, Buffer);
-
-            /* Trigger LVGL to redraw the image */
-            lv_obj_invalidate(ui_Image_Thermal);
-            ESP_LOGD(TAG, "Updated thermal image display (src: %ux%u -> dst: %ux%u)", LeptonFrame.Width, LeptonFrame.Height,
-                     ImageWidth, ImageHeight);
-
-            /* Save frame if requested */
-            if (_GUI_Task_State.SaveNextFrameRequested) {
-                App_Lepton_FrameReady_t SaveFrame;
-
-                _GUI_Task_State.SaveNextFrameRequested = false;
-
-                /* Prepare frame data for save task (using scaled RGB565 buffer) */
-                SaveFrame.Buffer = _GUI_Task_State.ThermalCanvasBuffer;  /* Use scaled display buffer */
-                SaveFrame.Width = ImageWidth;
-                SaveFrame.Height = ImageHeight;
-                SaveFrame.Channels = 2;  /* RGB565 = 2 bytes per pixel */
-                SaveFrame.Min = LeptonFrame.Min;
-                SaveFrame.Max = LeptonFrame.Max;
-
-                /* Send to background save task (non-blocking) */
-                if (xQueueSend(_GUI_Task_State.ImageSaveQueue, &SaveFrame, 0) != pdTRUE) {
-                    ESP_LOGW(TAG, "Image save queue full, skipping save");
-
-                    esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, portMAX_DELAY);
-                }
-            }
-
-            /* Update network frame for server streaming if server is running */
-            if (Server_IsRunning()) {
-                if (xSemaphoreTake(_GUI_Task_State.NetworkFrame.Mutex, 0) == pdTRUE) {
-                    /* Convert scaled RGB565 buffer to RGB888 for network transmission */
-                    uint8_t *rgb888_dst = _GUI_Task_State.NetworkRGBBuffer;
-
-                    /* Reset watchdog before RGB conversion */
-                    esp_task_wdt_reset();
-
-                    for (uint32_t i = 0; i < (ImageWidth * ImageHeight); i++) {
-                        /* Read RGB565 value (little endian) */
-                        uint16_t rgb565 = Dst[(i * 2) + 0] | (Dst[(i * 2) + 1] << 8);
-
-                        /* Convert RGB565 to RGB888 */
-                        uint8_t r = (rgb565 >> 8) & 0xF8;
-                        uint8_t g = (rgb565 >> 3) & 0xFC;
-                        uint8_t b = (rgb565 << 3) & 0xF8;
-
-                        /* Store as RGB888 */
-                        rgb888_dst[(i * 3) + 0] = r;
-                        rgb888_dst[(i * 3) + 1] = g;
-                        rgb888_dst[(i * 3) + 2] = b;
-                    }
-
-                    _GUI_Task_State.NetworkFrame.Buffer = _GUI_Task_State.NetworkRGBBuffer;
-                    _GUI_Task_State.NetworkFrame.Width = ImageWidth;
-                    _GUI_Task_State.NetworkFrame.Height = ImageHeight;
-                    _GUI_Task_State.NetworkFrame.Timestamp = esp_timer_get_time() / 1000;
-
-                    xSemaphoreGive(_GUI_Task_State.NetworkFrame.Mutex);
-
-                    /* Reset watchdog after RGB conversion */
-                    esp_task_wdt_reset();
+                    uint32_t xp = src_x_fixed >> 16;
+                    x_lut_x0[x] = static_cast<uint8_t>(xp);
+                    x_lut_x1[x] = static_cast<uint8_t>(((xp + 1) < LeptonFrame.Width) ? (xp + 1) : xp);
+                    x_lut_xf[x] = static_cast<uint8_t>((src_x_fixed >> 8) & 0xFF);
                 }
 
-                Server_NotifyClients();
+                for (uint32_t y = 0; y < ImageHeight; y++) {
+                    /* Reset watchdog every 20 rows to prevent timeout during image processing */
+                    if ((y % 20) == 0) {
+                        esp_task_wdt_reset();
+                    }
+
+                    uint32_t src_y_fixed = y * ((LeptonFrame.Height - 1) << 16) / ImageHeight;
+                    uint32_t y0 = src_y_fixed >> 16;
+                    uint32_t y1 = ((y0 + 1) < LeptonFrame.Height) ? (y0 + 1) : y0;
+                    uint32_t y_frac = (src_y_fixed >> 8) & 0xFF; /* 8-bit fractional part */
+                    uint32_t y_inv = 256 - y_frac;
+
+                    for (uint32_t x = 0; x < ImageWidth; x++) {
+                        /* Use precomputed x LUT — avoids 1 multiply + 1 divide per pixel per row.
+                         * x_inv is computed inline (not cached) to avoid uint8_t overflow when x_frac==0. */
+                        uint32_t x0 = x_lut_x0[x];
+                        uint32_t x1 = x_lut_x1[x];
+                        uint32_t x_frac = x_lut_xf[x];
+                        uint32_t x_inv = 256u - x_frac;
+
+                        /* Get the four surrounding pixels */
+                        uint32_t idx00 = ((y0 * LeptonFrame.Width) + x0) * 3;
+                        uint32_t idx10 = ((y0 * LeptonFrame.Width) + x1) * 3;
+                        uint32_t idx01 = ((y1 * LeptonFrame.Width) + x0) * 3;
+                        uint32_t idx11 = ((y1 * LeptonFrame.Width) + x1) * 3;
+
+                        /* Bilinear interpolation using fixed-point arithmetic (8.8 format) */
+                        /* Weight: (256 - x_frac) * (256 - y_frac), x_frac*(256 - y_frac), etc. */
+                        uint32_t w00 = (x_inv * y_inv) >> 8;
+                        uint32_t w10 = (x_frac * y_inv) >> 8;
+                        uint32_t w01 = (x_inv * y_frac) >> 8;
+                        uint32_t w11 = (x_frac * y_frac) >> 8;
+
+                        uint32_t r = (LeptonFrame.Buffer[idx00 + 0] * w00 +
+                                    LeptonFrame.Buffer[idx10 + 0] * w10 +
+                                    LeptonFrame.Buffer[idx01 + 0] * w01 +
+                                    LeptonFrame.Buffer[idx11 + 0] * w11) >> 8;
+
+                        uint32_t g = (LeptonFrame.Buffer[idx00 + 1] * w00 +
+                                    LeptonFrame.Buffer[idx10 + 1] * w10 +
+                                    LeptonFrame.Buffer[idx01 + 1] * w01 +
+                                    LeptonFrame.Buffer[idx11 + 1] * w11) >> 8;
+
+                        uint32_t b = (LeptonFrame.Buffer[idx00 + 2] * w00 +
+                                    LeptonFrame.Buffer[idx10 + 2] * w10 +
+                                    LeptonFrame.Buffer[idx01 + 2] * w01 +
+                                    LeptonFrame.Buffer[idx11 + 2] * w11) >> 8;
+
+                        /* Inside the image area under the label: Add the Luminance
+                         * Note: The image widget has 180° rotation applied via lv_image_set_rotation.
+                         * - x_rot = Image_Width - 1 - x (X axis is inverted due to rotation)
+                         * - y is used directly (Y axis matches label position directly)
+                         */
+                        /* Map buffer coordinates to display coordinates for 180° rotated image:
+                         * x: x_rot = ImageWidth - 1 - x  (horizontal mirror)
+                         * y: y_rot = ImageHeight - 1 - y  (vertical mirror)
+                         * Labels use display coordinates, so both axes must be inverted. */
+                        uint32_t x_rot = ImageWidth - 1 - x;
+                        uint32_t y_rot = ImageHeight - 1 - y;
+
+                        /* Max label */
+                        if ((x_rot >= SceneLabel_x0[0]) &&
+                            (x_rot < (SceneLabel_x0[0] + SceneLabel_w[0])) &&
+                            (y_rot >= SceneLabel_y0[0]) &&
+                            (y_rot < (SceneLabel_y0[0] + SceneLabel_h[0]))) {
+                            /* BT.601 luma in integer: (77*R + 150*G + 29*B) >> 8 (coefficients sum to 256) */
+                            SceneLabelIlluminance[0] += ((77u * r) + (150u * g) + (29u * b)) >> 8u;
+                            SceneLabelCount[0]++;
+                        }
+
+                        /* Min label */
+                        if ((x_rot >= SceneLabel_x0[1]) &&
+                            (x_rot < (SceneLabel_x0[1] + SceneLabel_w[1])) &&
+                            (y_rot >= SceneLabel_y0[1]) &&
+                            (y_rot < (SceneLabel_y0[1] + SceneLabel_h[1]))) {
+                            SceneLabelIlluminance[1] += ((77u * r) + (150u * g) + (29u * b)) >> 8u;
+                            SceneLabelCount[1]++;
+                        }
+
+                        /* Mean label */
+                        if ((x_rot >= SceneLabel_x0[2]) &&
+                            (x_rot < (SceneLabel_x0[2] + SceneLabel_w[2])) &&
+                            (y_rot >= SceneLabel_y0[2]) &&
+                            (y_rot < (SceneLabel_y0[2] + SceneLabel_h[2]))) {
+                            SceneLabelIlluminance[2] += ((77u * r) + (150u * g) + (29u * b)) >> 8u;
+                            SceneLabelCount[2]++;
+                        }
+
+                        /* Crosshair label */
+                        if ((x_rot >= SceneLabel_x0[3]) &&
+                            (x_rot < (SceneLabel_x0[3] + SceneLabel_w[3])) &&
+                            (y_rot >= SceneLabel_y0[3]) &&
+                            (y_rot < (SceneLabel_y0[3] + SceneLabel_h[3]))) {
+                            SceneLabelIlluminance[3] += ((77u * r) + (150u * g) + (29u * b)) >> 8u;
+                            SceneLabelCount[3]++;
+                        }
+
+                        /* Pixel temperature label */
+                        if ((x_rot >= SceneLabel_x0[4]) &&
+                            (x_rot < (SceneLabel_x0[4] + SceneLabel_w[4])) &&
+                            (y_rot >= SceneLabel_y0[4]) &&
+                            (y_rot < (SceneLabel_y0[4] + SceneLabel_h[4]))) {
+                            SceneLabelIlluminance[4] += ((77u * r) + (150u * g) + (29u * b)) >> 8u;
+                            SceneLabelCount[4]++;
+                        }
+
+                        uint32_t dst_idx = (y * ImageWidth) + x;
+
+                        /* Convert to RGB565 - LVGL handles swapping with RGB565_SWAPPED */
+                        uint16_t rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+
+                        /* Low byte first */
+                        Dst[(dst_idx * 2) + 0] = rgb565 & 0xFF;
+
+                        /* High byte second */
+                        Dst[(dst_idx * 2) + 1] = (rgb565 >> 8) & 0xFF;
+                    }
+                }
+
+                /* Set the average Luminance and the text color */
+                for (uint8_t i = 0; i < (sizeof(SceneLabelAverageLuminance) / sizeof(SceneLabelAverageLuminance[0])); i++) {
+                    if (SceneLabelCount[i] > 0) {
+                        SceneLabelAverageLuminance[i] = SceneLabelIlluminance[i] / SceneLabelCount[i];
+                    } else {
+                        SceneLabelAverageLuminance[i] = 0;
+                    }
+                }
+
+                lv_obj_set_style_text_color(ui_Label_Main_Thermal_Scene_Max,
+                                            (SceneLabelAverageLuminance[0] > 128) ? lv_color_black() : lv_color_white(), LV_PART_MAIN);
+                lv_obj_set_style_text_color(ui_Label_Main_Thermal_Scene_Min,
+                                            (SceneLabelAverageLuminance[1] > 128) ? lv_color_black() : lv_color_white(), LV_PART_MAIN);
+                lv_obj_set_style_text_color(ui_Label_Main_Thermal_Scene_Mean,
+                                            (SceneLabelAverageLuminance[2] > 128) ? lv_color_black() : lv_color_white(), LV_PART_MAIN);
+                lv_obj_set_style_text_color(ui_Label_Main_Thermal_Crosshair,
+                                            (SceneLabelAverageLuminance[3] > 128) ? lv_color_black() : lv_color_white(), LV_PART_MAIN);
+                lv_obj_set_style_text_color(ui_Label_Main_Thermal_PixelTemperature,
+                                            (SceneLabelAverageLuminance[4] > 128) ? lv_color_black() : lv_color_white(), LV_PART_MAIN);
+
+                /* Reset watchdog after image processing */
+                esp_task_wdt_reset();
+
+                /* Max temperature (top of gradient) */
+                float temp_max_celsius = (LeptonFrame.Max / 100.0f) - 273.15f;
+                snprintf(Buffer, sizeof(Buffer), "%.1f °C", temp_max_celsius);
+                lv_label_set_text(ui_Label_TempScaleMax, Buffer);
+
+                /* Min temperature (bottom of gradient) */
+                float temp_min_celsius = (LeptonFrame.Min / 100.0f) - 273.15f;
+                snprintf(Buffer, sizeof(Buffer), "%.1f °C", temp_min_celsius);
+                lv_label_set_text(ui_Label_TempScaleMin, Buffer);
+
+                /* Trigger LVGL to redraw the image */
+                lv_obj_invalidate(ui_Image_Thermal);
+                ESP_LOGD(TAG, "Updated thermal image display (src: %ux%u -> dst: %ux%u)", LeptonFrame.Width, LeptonFrame.Height,
+                        ImageWidth, ImageHeight);
+
+                /* Save frame if requested */
+                if (_GUI_Task_State.SaveNextFrameRequested) {
+                    App_Lepton_FrameReady_t SaveFrame;
+
+                    _GUI_Task_State.SaveNextFrameRequested = false;
+
+                    /* Prepare frame data for save task (using scaled RGB565 buffer) */
+                    SaveFrame.Buffer = _GUI_Task_State.ThermalCanvasBuffer;  /* Use scaled display buffer */
+                    SaveFrame.Width = ImageWidth;
+                    SaveFrame.Height = ImageHeight;
+                    SaveFrame.Channels = 2;  /* RGB565 = 2 bytes per pixel */
+                    SaveFrame.Min = LeptonFrame.Min;
+                    SaveFrame.Max = LeptonFrame.Max;
+
+                    /* Send to background save task (non-blocking) */
+                    if (xQueueSend(_GUI_Task_State.ImageSaveQueue, &SaveFrame, 0) != pdTRUE) {
+                        ESP_LOGW(TAG, "Image save queue full, skipping save");
+
+                        esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, pdMS_TO_TICKS(100));
+                    }
+                }
+
+                /* Update network frame for server streaming if server is running */
+                if (Server_IsRunning()) {
+                    if (xSemaphoreTake(_GUI_Task_State.NetworkFrame.Mutex, 0) == pdTRUE) {
+                        /* Convert scaled RGB565 buffer to RGB888 for network transmission */
+                        uint8_t *rgb888_dst = _GUI_Task_State.NetworkRGBBuffer;
+
+                        /* Reset watchdog before RGB conversion */
+                        esp_task_wdt_reset();
+
+                        for (uint32_t i = 0; i < (ImageWidth * ImageHeight); i++) {
+                            /* Read RGB565 value (little endian) */
+                            uint16_t rgb565 = Dst[(i * 2) + 0] | (Dst[(i * 2) + 1] << 8);
+
+                            /* Convert RGB565 to RGB888 */
+                            uint8_t r = (rgb565 >> 8) & 0xF8;
+                            uint8_t g = (rgb565 >> 3) & 0xFC;
+                            uint8_t b = (rgb565 << 3) & 0xF8;
+
+                            /* Store as RGB888 */
+                            rgb888_dst[(i * 3) + 0] = r;
+                            rgb888_dst[(i * 3) + 1] = g;
+                            rgb888_dst[(i * 3) + 2] = b;
+                        }
+
+                        _GUI_Task_State.NetworkFrame.Buffer = _GUI_Task_State.NetworkRGBBuffer;
+                        _GUI_Task_State.NetworkFrame.Width = ImageWidth;
+                        _GUI_Task_State.NetworkFrame.Height = ImageHeight;
+                        _GUI_Task_State.NetworkFrame.Timestamp = esp_timer_get_time() / 1000;
+
+                        xSemaphoreGive(_GUI_Task_State.NetworkFrame.Mutex);
+
+                        /* Reset watchdog after RGB conversion */
+                        esp_task_wdt_reset();
+                    }
+
+                    Server_NotifyClients();
+                }
             }
         }
 
@@ -980,16 +1060,61 @@ void Task_GUI(void *p_Parameters)
             lv_label_set_text(ui_Label_Main_Thermal_Scene_Mean, Buffer);
 
             xEventGroupClearBits(_GUI_Task_State.EventGroup, LEPTON_SCENE_STATISTICS_READY);
+        } else if (EventBits & UVC_STREAMING_STATE_CHANGED) {
+            if (_GUI_Task_State.isUVCStreaming) {
+                /* Clear thermal canvas to black */
+                memset(_GUI_Task_State.ThermalCanvasBuffer, 0x00, 240 * 180 * 2);
+                lv_obj_invalidate(ui_Image_Thermal);
+
+                /* Show UVC overlay */
+                lv_obj_remove_flag(_GUI_Task_State.UVCOverlayLabel, LV_OBJ_FLAG_HIDDEN);
+
+                /* Hide ROI rectangles */
+                lv_obj_add_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
+
+                /* Hide temperature labels */
+                lv_obj_add_flag(ui_Label_Main_Thermal_PixelTemperature, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Max, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Min, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
+
+                /* Hide temperature scale labels */
+                lv_obj_add_flag(ui_Label_TempScaleMax, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Label_TempScaleMin, LV_OBJ_FLAG_HIDDEN);
+            } else {
+                /* Hide UVC overlay */
+                lv_obj_add_flag(_GUI_Task_State.UVCOverlayLabel, LV_OBJ_FLAG_HIDDEN);
+
+                /* Restore ROI rectangles */
+                lv_obj_remove_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
+
+                /* Restore temperature labels */
+                lv_obj_remove_flag(ui_Label_Main_Thermal_PixelTemperature, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Max, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Min, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
+
+                /* Restore temperature scale labels */
+                lv_obj_remove_flag(ui_Label_TempScaleMax, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Label_TempScaleMin, LV_OBJ_FLAG_HIDDEN);
+            }
+
+            xEventGroupClearBits(_GUI_Task_State.EventGroup, UVC_STREAMING_STATE_CHANGED);
         }
 
         _lock_acquire(&_GUI_Task_State.LVGL_API_Lock);
-        uint32_t time_till_next = lv_timer_handler();
+        lv_timer_handler();
         _lock_release(&_GUI_Task_State.LVGL_API_Lock);
-        uint32_t delay_ms = (time_till_next > 0) ? time_till_next : 10;
 
         esp_task_wdt_reset();
 
-        vTaskDelay(delay_ms / portTICK_PERIOD_MS);
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 
     _GUI_Task_State.TaskHandle = NULL;
@@ -1099,6 +1224,15 @@ esp_err_t GUI_Task_Init(void)
     lv_img_set_src(ui_Image_Thermal, &_GUI_Task_State.ThermalImageDescriptor);
     lv_img_set_src(ui_Image_Gradient, &_GUI_Task_State.GradientImageDescriptor);
 
+    /* Create UVC streaming overlay label (hidden by default) */
+    _GUI_Task_State.UVCOverlayLabel = lv_label_create(ui_Container_Main_Thermal);
+    lv_label_set_text(_GUI_Task_State.UVCOverlayLabel, "USB Video Mode");
+    lv_obj_set_align(_GUI_Task_State.UVCOverlayLabel, LV_ALIGN_CENTER);
+    lv_obj_set_style_text_color(_GUI_Task_State.UVCOverlayLabel, lv_color_white(), LV_PART_MAIN);
+    lv_obj_set_style_text_font(_GUI_Task_State.UVCOverlayLabel, &lv_font_montserrat_14, LV_PART_MAIN);
+    lv_obj_add_flag(_GUI_Task_State.UVCOverlayLabel, LV_OBJ_FLAG_HIDDEN);
+    _GUI_Task_State.isUVCStreaming = false;
+
     /* Initialize network frame for server streaming */
     _GUI_Task_State.NetworkFrame.Mutex = xSemaphoreCreateMutex();
     if (_GUI_Task_State.NetworkFrame.Mutex == NULL) {
@@ -1111,11 +1245,12 @@ esp_err_t GUI_Task_Init(void)
         return ESP_ERR_NO_MEM;
     }
 
-    esp_event_handler_register(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler, NULL);
+    esp_event_handler_register(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVED, on_GUI_Event_Handler, NULL);
+    esp_event_handler_register(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, on_GUI_Event_Handler, NULL);
     esp_event_handler_register(DEVICE_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Event_Handler, NULL);
     esp_event_handler_register(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler, NULL);
     esp_event_handler_register(LEPTON_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Event_Handler, NULL);
-    esp_event_handler_register(TIME_EVENTS, ESP_EVENT_ANY_ID, on_Time_Event_Handler, NULL);
+    esp_event_handler_register(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler, NULL);
 
     _GUI_Task_State.SaveNextFrameRequested = false;
     _GUI_Task_State.isInitialized = true;
@@ -1129,11 +1264,12 @@ void GUI_Task_Deinit(void)
         return;
     }
 
-    esp_event_handler_unregister(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler);
+    esp_event_handler_unregister(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVED, on_GUI_Event_Handler);
+    esp_event_handler_unregister(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, on_GUI_Event_Handler);
     esp_event_handler_unregister(DEVICE_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Event_Handler);
     esp_event_handler_unregister(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler);
     esp_event_handler_unregister(LEPTON_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Event_Handler);
-    esp_event_handler_unregister(TIME_EVENTS, ESP_EVENT_ANY_ID, on_Time_Event_Handler);
+    esp_event_handler_unregister(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler);
 
     ui_destroy();
 

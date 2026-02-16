@@ -138,7 +138,7 @@ static void DNS_Server_Task(void *p_Arg)
         sendto(_DNS_Server_State.Socket, Buffer, ResponsePtr - Buffer, 0,
                (struct sockaddr *)&ClientAddr, ClientAddrLen);
 
-        vTaskDelay(10 / portTICK_PERIOD_MS);
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 
     ESP_LOGI(TAG, "DNS server task exiting");

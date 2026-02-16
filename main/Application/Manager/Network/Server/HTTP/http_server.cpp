@@ -265,7 +265,7 @@ static esp_err_t HTTP_Handler_Image(httpd_req_t *p_Request)
         }
     }
 
-    if (xSemaphoreTake(_HTTP_Server_State.ThermalFrame->Mutex, 100 / portTICK_PERIOD_MS) != pdTRUE) {
+    if (xSemaphoreTake(_HTTP_Server_State.ThermalFrame->Mutex, pdMS_TO_TICKS(100)) != pdTRUE) {
         return HTTP_Server_SendError(p_Request, 503, "Frame busy");
     }
 
@@ -453,7 +453,7 @@ static esp_err_t HTTP_Handler_Update(httpd_req_t *p_Request)
     cJSON_Delete(JSON);
 
     /* Reboot after response is sent */
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    vTaskDelay(pdMS_TO_TICKS(1000));
     esp_restart();
 
     return Error;

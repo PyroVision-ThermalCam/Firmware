@@ -190,7 +190,7 @@ esp_err_t PCA9633DP1_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_
     }
 
     /* Wait for oscillator to start (500μs typical) */
-    vTaskDelay(1 / portTICK_PERIOD_MS);
+    vTaskDelay(pdMS_TO_TICKS(1));
 
     /* Configure MODE2: Totem pole outputs, change on STOP command */
     Error = pca9633_write_register(p_Dev_Handle, PCA9633_REG_MODE2, PCA9633_MODE2_OUTDRV);
@@ -460,7 +460,7 @@ esp_err_t PCA9633DP1_SetSleepMode(i2c_master_dev_handle_t *p_Dev_Handle, bool Sl
 
     /* Wait for oscillator to stabilize when waking up */
     if (Sleep == false) {
-        vTaskDelay(1 / portTICK_PERIOD_MS);
+        vTaskDelay(pdMS_TO_TICKS(1));
     }
 
     return ESP_OK;

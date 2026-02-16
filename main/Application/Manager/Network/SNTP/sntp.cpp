@@ -76,7 +76,7 @@ esp_err_t SNTP_GetTime(uint8_t Retries)
 
     while ((TimeInfo.tm_year < (2016 - 1900)) && (++Retry < Retries)) {
         ESP_LOGD(TAG, "Waiting for system time... (%d/%d)", Retry, Retries);
-        vTaskDelay(2000 / portTICK_PERIOD_MS);
+        vTaskDelay(pdMS_TO_TICKS(2000));
         time(&Now);
         localtime_r(&Now, &TimeInfo);
     }

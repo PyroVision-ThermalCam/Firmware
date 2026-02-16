@@ -54,6 +54,7 @@
 #define LEPTON_CAMERA_ERROR                 BIT14
 #define LEPTON_SPOTMETER_READY              BIT5
 #define LEPTON_SCENE_STATISTICS_READY       BIT6
+#define UVC_STREAMING_STATE_CHANGED         BIT15
 
 typedef struct {
     bool isInitialized;
@@ -75,7 +76,7 @@ typedef struct {
     lv_indev_t *Touch;
     lv_img_dsc_t ThermalImageDescriptor;
     lv_img_dsc_t GradientImageDescriptor;
-    lv_timer_t *UpdateTimer[4];
+    lv_timer_t *UpdateTimer[5];
     _lock_t LVGL_API_Lock;
     App_Devices_Battery_t BatteryInfo;
     App_Lepton_ROI_Result_t ROIResult;
@@ -92,6 +93,8 @@ typedef struct {
     QueueHandle_t ImageSaveQueue;
     Network_Thermal_Frame_t NetworkFrame;
     bool SaveNextFrameRequested;
+    bool isUVCStreaming;
+    lv_obj_t *UVCOverlayLabel;
 
 #ifdef CONFIG_GUI_TOUCH_DEBUG
     /* Touch debug visualization */
@@ -131,5 +134,10 @@ void GUI_Helper_Timer_SpotmeterUpdate(lv_timer_t *p_Timer);
  *  @param p_Timer  Pointer to the LVGL timer structure.
  */
 void GUI_Helper_Timer_SceneStatisticsUpdate(lv_timer_t *p_Timer);
+
+/** @brief          LVGL timer callback to request RAM data update.
+ *  @param p_Timer  Pointer to the LVGL timer structure.
+ */
+void GUI_Helper_Timer_RAMUpdate(lv_timer_t *p_Timer);
 
 #endif /* GUI_HELPER_H_ */

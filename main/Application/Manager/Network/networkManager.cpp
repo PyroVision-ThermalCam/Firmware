@@ -89,7 +89,7 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
             break;
         }
         case WIFI_EVENT_STA_DISCONNECTED: {
-            wifi_event_sta_disconnected_t *Event = (wifi_event_sta_disconnected_t *)p_Data;
+            wifi_event_sta_disconnected_t *Event = static_cast<wifi_event_sta_disconnected_t *>(p_Data);
             Settings_WiFi_t WiFiSettings;
 
             SettingsManager_GetWiFi(&WiFiSettings);
@@ -197,7 +197,7 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
             if (_Network_Manager_State.RetryCount < WiFiSettings.MaxRetries) {
                 ESP_LOGD(TAG, "Retry %d/%d", _Network_Manager_State.RetryCount++, WiFiSettings.MaxRetries);
 
-                vTaskDelay(WiFiSettings.RetryInterval / portTICK_PERIOD_MS);
+                vTaskDelay(pdMS_TO_TICKS(WiFiSettings.RetryInterval));
                 esp_wifi_connect();
                 _Network_Manager_State.State = NETWORK_STATE_CONNECTING;
             } else {
@@ -225,7 +225,7 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
             break;
         }
         case WIFI_EVENT_AP_STACONNECTED: {
-            wifi_event_ap_staconnected_t *Event = (wifi_event_ap_staconnected_t *)p_Data;
+            wifi_event_ap_staconnected_t *Event = static_cast<wifi_event_ap_staconnected_t *>(p_Data);
             Network_Event_STA_Info_t StaInfo;
 
             ESP_LOGD(TAG, "Station " MACSTR " joined, AID=%d", MAC2STR(Event->mac), Event->aid);
@@ -235,7 +235,7 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
             break;
         }
         case WIFI_EVENT_AP_STADISCONNECTED: {
-            wifi_event_ap_stadisconnected_t *Event = (wifi_event_ap_stadisconnected_t *)p_Data;
+            wifi_event_ap_stadisconnected_t *Event = static_cast<wifi_event_ap_stadisconnected_t *>(p_Data);
             Network_Event_STA_Info_t StaInfo;
 
             ESP_LOGD(TAG, "Station " MACSTR " left, AID=%d", MAC2STR(Event->mac), Event->aid);
@@ -260,7 +260,7 @@ static void on_IP_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, 
 {
     switch (ID) {
         case IP_EVENT_STA_GOT_IP: {
-            ip_event_got_ip_t *Event = (ip_event_got_ip_t *)p_Data;
+            ip_event_got_ip_t *Event = static_cast<ip_event_got_ip_t *>(p_Data);
             Network_IP_Info_t IP_Data;
 
             ESP_LOGD(TAG, "Got IP: " IPSTR, IP2STR(&Event->ip_info.ip));

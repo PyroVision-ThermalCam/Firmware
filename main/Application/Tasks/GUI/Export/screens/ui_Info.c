@@ -5,74 +5,78 @@
 
 #include "../ui.h"
 
-lv_obj_t *ui_Info = NULL;
-lv_obj_t *ui_Panel_Info_Header = NULL;
-lv_obj_t *ui_Label_Info_Header = NULL;
-lv_obj_t *ui_Panel_Info_Content = NULL;
-lv_obj_t *ui_Panel_Device = NULL;
-lv_obj_t *ui_Label_Info_Device = NULL;
-lv_obj_t *ui_Container_Info_Device = NULL;
-lv_obj_t *ui_Info_Container4 = NULL;
-lv_obj_t *ui_Label_Info_MAC_Name = NULL;
-lv_obj_t *ui_Label_Info_IP_Name = NULL;
-lv_obj_t *ui_Label_Info_Serial_Name = NULL;
-lv_obj_t *ui_Info_Container5 = NULL;
-lv_obj_t *ui_Label_Info_MAC = NULL;
-lv_obj_t *ui_Label_Info_IP = NULL;
-lv_obj_t *ui_Label_Info_Serial = NULL;
-lv_obj_t *ui_Panel_Battery = NULL;
-lv_obj_t *ui_Label_Info_Battery = NULL;
-lv_obj_t *ui_Container_Battery = NULL;
-lv_obj_t *ui_Info_Container2 = NULL;
-lv_obj_t *ui_Label_Info_Battery_Status_Name = NULL;
-lv_obj_t *ui_Label_Info_Battery_Voltage_Name = NULL;
-lv_obj_t *ui_Label_Info_Battery_Remaining_Name = NULL;
-lv_obj_t *ui_Info_Container3 = NULL;
-lv_obj_t *ui_Label_Info_Battery_Status = NULL;
-lv_obj_t *ui_Label_Info_Battery_Voltage = NULL;
-lv_obj_t *ui_Label_Info_Battery_Remaining = NULL;
-lv_obj_t *ui_Info_Bar2 = NULL;
-lv_obj_t *ui_Panel_Lepton = NULL;
-lv_obj_t *ui_Label_Info_Lepton = NULL;
-lv_obj_t *ui_Container_Lepton = NULL;
-lv_obj_t *ui_Info_Container1 = NULL;
-lv_obj_t *ui_Label_Info_Lepton_Serial_Name = NULL;
-lv_obj_t *ui_Label_Info_Lepton_Part_Name = NULL;
-lv_obj_t *ui_Label_Info_Lepton_GPP_Revision_Name = NULL;
-lv_obj_t *ui_Label_Info_Lepton_DSP_Revision_Main = NULL;
-lv_obj_t *ui_Label_Info_Lepton_Uptime_Name = NULL;
-lv_obj_t *ui_Label_Info_Lepton_FPA_Name = NULL;
-lv_obj_t *ui_Label_Info_Lepton_AUX_Name = NULL;
-lv_obj_t *ui_Info_Container7 = NULL;
-lv_obj_t *ui_Label_Info_Lepton_Serial = NULL;
-lv_obj_t *ui_Label_Info_Lepton_Part = NULL;
-lv_obj_t *ui_Label_Info_Lepton_GPP_Revision = NULL;
-lv_obj_t *ui_Label_Info_Lepton_DSP_Revision = NULL;
-lv_obj_t *ui_Label_Info_Lepton_Uptime = NULL;
-lv_obj_t *ui_Label_Info_Lepton_FPA = NULL;
-lv_obj_t *ui_Label_Info_Lepton_AUX = NULL;
-lv_obj_t *ui_Container_Info_Buttons = NULL;
-lv_obj_t *ui_Button_Info_Back = NULL;
-lv_obj_t *ui_Label_Info_Back = NULL;
+lv_obj_t * ui_Info = NULL;
+lv_obj_t * ui_Panel_Info_Header = NULL;
+lv_obj_t * ui_Label_Info_Header = NULL;
+lv_obj_t * ui_Panel_Info_Content = NULL;
+lv_obj_t * ui_Panel_Device = NULL;
+lv_obj_t * ui_Label_Info_Device = NULL;
+lv_obj_t * ui_Container_Info_Device = NULL;
+lv_obj_t * ui_Info_Container4 = NULL;
+lv_obj_t * ui_Label_Info_MAC_Name = NULL;
+lv_obj_t * ui_Label_Info_IP_Name = NULL;
+lv_obj_t * ui_Label_Info_Serial_Name = NULL;
+lv_obj_t * ui_Label_Info_PSRAM_Free_Name = NULL;
+lv_obj_t * ui_Label_Info_RAM_Free_Name = NULL;
+lv_obj_t * ui_Info_Container5 = NULL;
+lv_obj_t * ui_Label_Info_MAC = NULL;
+lv_obj_t * ui_Label_Info_IP = NULL;
+lv_obj_t * ui_Label_Info_Serial = NULL;
+lv_obj_t * ui_Label_Info_PSRAM_Free = NULL;
+lv_obj_t * ui_Label_Info_RAM_Free = NULL;
+lv_obj_t * ui_Panel_Battery = NULL;
+lv_obj_t * ui_Label_Info_Battery = NULL;
+lv_obj_t * ui_Container_Battery = NULL;
+lv_obj_t * ui_Info_Container2 = NULL;
+lv_obj_t * ui_Label_Info_Battery_Status_Name = NULL;
+lv_obj_t * ui_Label_Info_Battery_Voltage_Name = NULL;
+lv_obj_t * ui_Label_Info_Battery_Remaining_Name = NULL;
+lv_obj_t * ui_Info_Container3 = NULL;
+lv_obj_t * ui_Label_Info_Battery_Status = NULL;
+lv_obj_t * ui_Label_Info_Battery_Voltage = NULL;
+lv_obj_t * ui_Label_Info_Battery_Remaining = NULL;
+lv_obj_t * ui_Info_Bar2 = NULL;
+lv_obj_t * ui_Panel_Lepton = NULL;
+lv_obj_t * ui_Label_Info_Lepton = NULL;
+lv_obj_t * ui_Container_Lepton = NULL;
+lv_obj_t * ui_Info_Container1 = NULL;
+lv_obj_t * ui_Label_Info_Lepton_Serial_Name = NULL;
+lv_obj_t * ui_Label_Info_Lepton_Part_Name = NULL;
+lv_obj_t * ui_Label_Info_Lepton_GPP_Revision_Name = NULL;
+lv_obj_t * ui_Label_Info_Lepton_DSP_Revision_Main = NULL;
+lv_obj_t * ui_Label_Info_Lepton_Uptime_Name = NULL;
+lv_obj_t * ui_Label_Info_Lepton_FPA_Name = NULL;
+lv_obj_t * ui_Label_Info_Lepton_AUX_Name = NULL;
+lv_obj_t * ui_Info_Container7 = NULL;
+lv_obj_t * ui_Label_Info_Lepton_Serial = NULL;
+lv_obj_t * ui_Label_Info_Lepton_Part = NULL;
+lv_obj_t * ui_Label_Info_Lepton_GPP_Revision = NULL;
+lv_obj_t * ui_Label_Info_Lepton_DSP_Revision = NULL;
+lv_obj_t * ui_Label_Info_Lepton_Uptime = NULL;
+lv_obj_t * ui_Label_Info_Lepton_FPA = NULL;
+lv_obj_t * ui_Label_Info_Lepton_AUX = NULL;
+lv_obj_t * ui_Container_Info_Buttons = NULL;
+lv_obj_t * ui_Button_Info_Back = NULL;
+lv_obj_t * ui_Label_Info_Back = NULL;
 // event funtions
-void ui_event_Info(lv_event_t *e)
+void ui_event_Info(lv_event_t * e)
 {
     lv_event_code_t event_code = lv_event_get_code(e);
 
-    if (event_code == LV_EVENT_GESTURE &&  lv_indev_get_gesture_dir(lv_indev_active()) == LV_DIR_RIGHT) {
+    if(event_code == LV_EVENT_GESTURE &&  lv_indev_get_gesture_dir(lv_indev_active()) == LV_DIR_RIGHT) {
         lv_indev_wait_release(lv_indev_active());
         _ui_screen_change(&ui_Main, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Main_screen_init);
     }
-    if (event_code == LV_EVENT_SCREEN_LOADED) {
+    if(event_code == LV_EVENT_SCREEN_LOADED) {
         ScreenInfoLoaded(e);
     }
 }
 
-void ui_event_Button_Info_Back(lv_event_t *e)
+void ui_event_Button_Info_Back(lv_event_t * e)
 {
     lv_event_code_t event_code = lv_event_get_code(e);
 
-    if (event_code == LV_EVENT_CLICKED) {
+    if(event_code == LV_EVENT_CLICKED) {
         _ui_screen_change(&ui_Main, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Main_screen_init);
     }
 }
@@ -240,6 +244,38 @@ void ui_Info_screen_init(void)
     lv_obj_set_style_pad_top(ui_Label_Info_Serial_Name, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_bottom(ui_Label_Info_Serial_Name, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
 
+    ui_Label_Info_PSRAM_Free_Name = lv_label_create(ui_Info_Container4);
+    lv_obj_set_width(ui_Label_Info_PSRAM_Free_Name, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_Label_Info_PSRAM_Free_Name, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_align(ui_Label_Info_PSRAM_Free_Name, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Label_Info_PSRAM_Free_Name, "Free PSRAM:");
+    lv_obj_remove_flag(ui_Label_Info_PSRAM_Free_Name,
+                       LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
+                       LV_OBJ_FLAG_SNAPPABLE);     /// Flags
+    lv_obj_set_style_text_color(ui_Label_Info_PSRAM_Free_Name, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_Label_Info_PSRAM_Free_Name, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Label_Info_PSRAM_Free_Name, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_left(ui_Label_Info_PSRAM_Free_Name, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_right(ui_Label_Info_PSRAM_Free_Name, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_top(ui_Label_Info_PSRAM_Free_Name, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_bottom(ui_Label_Info_PSRAM_Free_Name, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_Label_Info_RAM_Free_Name = lv_label_create(ui_Info_Container4);
+    lv_obj_set_width(ui_Label_Info_RAM_Free_Name, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_Label_Info_RAM_Free_Name, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_align(ui_Label_Info_RAM_Free_Name, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Label_Info_RAM_Free_Name, "Free RAM:");
+    lv_obj_remove_flag(ui_Label_Info_RAM_Free_Name,
+                       LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
+                       LV_OBJ_FLAG_SNAPPABLE);     /// Flags
+    lv_obj_set_style_text_color(ui_Label_Info_RAM_Free_Name, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_Label_Info_RAM_Free_Name, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Label_Info_RAM_Free_Name, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_left(ui_Label_Info_RAM_Free_Name, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_right(ui_Label_Info_RAM_Free_Name, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_top(ui_Label_Info_RAM_Free_Name, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_bottom(ui_Label_Info_RAM_Free_Name, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
+
     ui_Info_Container5 = lv_obj_create(ui_Container_Info_Device);
     lv_obj_remove_style_all(ui_Info_Container5);
     lv_obj_set_width(ui_Info_Container5, lv_pct(50));
@@ -301,6 +337,40 @@ void ui_Info_screen_init(void)
     lv_obj_set_style_pad_right(ui_Label_Info_Serial, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_top(ui_Label_Info_Serial, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_bottom(ui_Label_Info_Serial, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_Label_Info_PSRAM_Free = lv_label_create(ui_Info_Container5);
+    lv_obj_set_width(ui_Label_Info_PSRAM_Free, lv_pct(100));
+    lv_obj_set_height(ui_Label_Info_PSRAM_Free, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_align(ui_Label_Info_PSRAM_Free, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Label_Info_PSRAM_Free, "0 MB");
+    lv_obj_remove_flag(ui_Label_Info_PSRAM_Free,
+                       LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
+                       LV_OBJ_FLAG_SNAPPABLE);     /// Flags
+    lv_obj_set_style_text_color(ui_Label_Info_PSRAM_Free, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_Label_Info_PSRAM_Free, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_align(ui_Label_Info_PSRAM_Free, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Label_Info_PSRAM_Free, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_left(ui_Label_Info_PSRAM_Free, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_right(ui_Label_Info_PSRAM_Free, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_top(ui_Label_Info_PSRAM_Free, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_bottom(ui_Label_Info_PSRAM_Free, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_Label_Info_RAM_Free = lv_label_create(ui_Info_Container5);
+    lv_obj_set_width(ui_Label_Info_RAM_Free, lv_pct(100));
+    lv_obj_set_height(ui_Label_Info_RAM_Free, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_align(ui_Label_Info_RAM_Free, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Label_Info_RAM_Free, "0 MB");
+    lv_obj_remove_flag(ui_Label_Info_RAM_Free,
+                       LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
+                       LV_OBJ_FLAG_SNAPPABLE);     /// Flags
+    lv_obj_set_style_text_color(ui_Label_Info_RAM_Free, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_Label_Info_RAM_Free, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_align(ui_Label_Info_RAM_Free, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Label_Info_RAM_Free, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_left(ui_Label_Info_RAM_Free, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_right(ui_Label_Info_RAM_Free, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_top(ui_Label_Info_RAM_Free, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_bottom(ui_Label_Info_RAM_Free, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_Panel_Battery = lv_obj_create(ui_Panel_Info_Content);
     lv_obj_set_width(ui_Panel_Battery, 300);
@@ -489,8 +559,8 @@ void ui_Info_screen_init(void)
     lv_obj_set_style_bg_grad_dir(ui_Info_Bar2, LV_GRAD_DIR_HOR, LV_PART_INDICATOR | LV_STATE_DEFAULT);
 
     //Compensating for LVGL9.1 draw crash with bar/slider max value when top-padding is nonzero and right-padding is 0
-    if (lv_obj_get_style_pad_top(ui_Info_Bar2, LV_PART_MAIN) > 0) lv_obj_set_style_pad_right(ui_Info_Bar2,
-                                                                                                 lv_obj_get_style_pad_right(ui_Info_Bar2, LV_PART_MAIN) + 1, LV_PART_MAIN);
+    if(lv_obj_get_style_pad_top(ui_Info_Bar2, LV_PART_MAIN) > 0) lv_obj_set_style_pad_right(ui_Info_Bar2,
+                                                                                                lv_obj_get_style_pad_right(ui_Info_Bar2, LV_PART_MAIN) + 1, LV_PART_MAIN);
     ui_Panel_Lepton = lv_obj_create(ui_Panel_Info_Content);
     lv_obj_set_width(ui_Panel_Lepton, 300);
     lv_obj_set_height(ui_Panel_Lepton, LV_SIZE_CONTENT);    /// 1
@@ -826,9 +896,7 @@ void ui_Info_screen_init(void)
 
 void ui_Info_screen_destroy(void)
 {
-    if (ui_Info) {
-        lv_obj_del(ui_Info);
-    }
+    if(ui_Info) lv_obj_del(ui_Info);
 
     // NULL screen variables
     ui_Info = NULL;
@@ -842,10 +910,14 @@ void ui_Info_screen_destroy(void)
     ui_Label_Info_MAC_Name = NULL;
     ui_Label_Info_IP_Name = NULL;
     ui_Label_Info_Serial_Name = NULL;
+    ui_Label_Info_PSRAM_Free_Name = NULL;
+    ui_Label_Info_RAM_Free_Name = NULL;
     ui_Info_Container5 = NULL;
     ui_Label_Info_MAC = NULL;
     ui_Label_Info_IP = NULL;
     ui_Label_Info_Serial = NULL;
+    ui_Label_Info_PSRAM_Free = NULL;
+    ui_Label_Info_RAM_Free = NULL;
     ui_Panel_Battery = NULL;
     ui_Label_Info_Battery = NULL;
     ui_Container_Battery = NULL;

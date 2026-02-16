@@ -3,7 +3,7 @@
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: USB Manager implementation.
+ *  File info: USB Manager implementation - Main coordinator for USB MSC module.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,18 +24,14 @@
 #include <esp_log.h>
 
 #include <tinyusb.h>
-#include <tusb.h>
-#include <class/msc/msc_device.h>
 #include <tinyusb_default_config.h>
-#include <tinyusb_msc.h>
-#include <wear_levelling.h>
 
 #include <string.h>
-#include <sys/stat.h>
 
 #include "usbManager.h"
 #include "descriptors.h"
-#include "../Memory/memoryManager.h"
+#include "MSC/usbMSC.h"
+#include "UVC/usbUVC.h"
 
 ESP_EVENT_DEFINE_BASE(USB_EVENTS);
 
@@ -43,22 +39,22 @@ ESP_EVENT_DEFINE_BASE(USB_EVENTS);
  */
 typedef struct {
     bool isInitialized;                     /**< Initialization state. */
-    bool isDeinitializing;                  /**< Deinitialization in progress. */
     bool isUSBMounted;                      /**< USB host has mounted device. */
-    tinyusb_msc_storage_handle_t Storage;   /**< Storage handle. */
-    TaskHandle_t DeinitTask;                /**< Deinit task handle. */
+    USB_Mode_t Mode;                        /**< Current USB mode. */
     tusb_desc_device_t DeviceDescriptor;    /**< Custom device descriptor. */
-    const char *StringDescriptors[4];       /**< String descriptor pointers. */
+    const char *StringDescriptors[3];       /**< String descriptor pointers (0-2: LangID, Manufacturer, Product). */
 } USB_Manager_State_t;
 
 static USB_Manager_State_t _USB_Manager_State;
 
 static const char *TAG = "USB-Manager";
 
+/* Language ID descriptor for USB (English US - 0x0409) */
+static const char USB_LangID[2] = {0x09, 0x04};
+
 esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config)
 {
     esp_err_t Error;
-    MemoryManager_Location_t StorageLocation;
     tinyusb_config_t USB_Config = TINYUSB_DEFAULT_CONFIG();
 
     if (p_Config == NULL) {
@@ -69,159 +65,91 @@ esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config)
         ESP_LOGW(TAG, "USB Manager already initialized!");
 
         return ESP_ERR_INVALID_STATE;
-    } else if (p_Config->MountPoint == NULL) {
-        ESP_LOGE(TAG, "Mount point is NULL!");
-
-        return ESP_ERR_INVALID_ARG;
     }
 
-    /* Wait for any pending deinitialization to complete */
-    if (_USB_Manager_State.isDeinitializing) {
-        uint8_t WaitCount;
-
-        ESP_LOGD(TAG, "Waiting for previous deinit to complete...");
-
-        WaitCount = 0;
-        while ((_USB_Manager_State.isDeinitializing) && (WaitCount < 100)) {
-            vTaskDelay(100 / portTICK_PERIOD_MS);
-            WaitCount++;
+    /* Validate mode-specific parameters */
+    if (p_Config->Mode == USB_MODE_MSC) {
+        if (p_Config->MountPoint == NULL) {
+            ESP_LOGE(TAG, "MSC mode requires valid MountPoint!");
+            return ESP_ERR_INVALID_ARG;
         }
-
-        if (_USB_Manager_State.isDeinitializing) {
-            ESP_LOGE(TAG, "Previous deinit still running - cannot initialize!");
-
-            return ESP_ERR_INVALID_STATE;
-        }
-
-        ESP_LOGD(TAG, "Previous deinit completed, proceeding with init");
-
-        /* Additional delay to ensure cleanup is complete */
-        vTaskDelay(500 / portTICK_PERIOD_MS);
+        ESP_LOGI(TAG, "Initializing USB Manager in MSC mode...");
+    } else if (p_Config->Mode == USB_MODE_UVC) {
+        ESP_LOGI(TAG, "Initializing USB Manager in UVC mode...");
+    } else {
+        ESP_LOGE(TAG, "Unsupported USB mode: %d", p_Config->Mode);
+        return ESP_ERR_NOT_SUPPORTED;
     }
-
-    /* Detect active storage type from MemoryManager */
-    StorageLocation = MemoryManager_GetStorageLocation();
-    const char *p_StorageTypeName = (StorageLocation == MEMORY_LOCATION_SD_CARD) ? "SD Card (FAT32)" :
-                                    "Internal Flash (FAT32)";
 
     memset(&_USB_Manager_State, 0, sizeof(USB_Manager_State_t));
 
-    ESP_LOGD(TAG, "Initializing USB Manager...");
-    ESP_LOGD(TAG, "  Storage type: %s (auto-detected)", p_StorageTypeName);
-    ESP_LOGD(TAG, "  Mount point: %s", p_Config->MountPoint);
-
-    /* Lock filesystem for USB access */
-    Error = MemoryManager_LockFilesystem();
-    if (Error != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to lock filesystem: %d!", Error);
-    }
+    /* Store mode */
+    _USB_Manager_State.Mode = p_Config->Mode;
 
     /* Configure the Device Descriptor */
     memcpy(&_USB_Manager_State.DeviceDescriptor, get_Desc_Device(), sizeof(tusb_desc_device_t));
 
-    _USB_Manager_State.StringDescriptors[0] = "";                                       // 0: Empty string (Language handled by TinyUSB)
-    _USB_Manager_State.StringDescriptors[1] = p_Config->Manufacturer;                   // 1: Manufacturer
-    _USB_Manager_State.StringDescriptors[2] = p_Config->Product;                        // 2: Product
-    _USB_Manager_State.StringDescriptors[3] = p_Config->SerialNumber;                   // 3: Serial Number
+    /* Set up string descriptors */
+    _USB_Manager_State.StringDescriptors[0] = USB_LangID;                   // 0: Language ID (English US - 0x0409)
+    _USB_Manager_State.StringDescriptors[1] = CONFIG_DEVICE_MANUFACTURER;   // 1: Manufacturer
+    _USB_Manager_State.StringDescriptors[2] = CONFIG_DEVICE_NAME;           // 2: Product
 
     ESP_LOGD(TAG, "USB Descriptors:");
     ESP_LOGD(TAG, "  VID:PID = 0x%04X:0x%04X", _USB_Manager_State.DeviceDescriptor.idVendor,
              _USB_Manager_State.DeviceDescriptor.idProduct);
     ESP_LOGD(TAG, "  Manufacturer: %s", _USB_Manager_State.StringDescriptors[1]);
     ESP_LOGD(TAG, "  Product: %s", _USB_Manager_State.StringDescriptors[2]);
-    ESP_LOGD(TAG, "  Serial: %s", _USB_Manager_State.StringDescriptors[3]);
 
-    /* Override with custom descriptors */
+    /* Set descriptors in TinyUSB config */
     USB_Config.descriptor.device = &_USB_Manager_State.DeviceDescriptor;
     USB_Config.descriptor.string = _USB_Manager_State.StringDescriptors;
-    USB_Config.descriptor.string_count = sizeof(_USB_Manager_State.StringDescriptors) / sizeof(_USB_Manager_State.StringDescriptors[0]);
+    USB_Config.descriptor.string_count = 3;
+
+    /* Set configuration descriptor based on mode */
+    if (p_Config->Mode == USB_MODE_MSC) {
+        USB_Config.descriptor.full_speed_config = get_Desc_Config_MSC();
+        ESP_LOGD(TAG, "  Mode: MSC (Mass Storage Class)");
+    } else if (p_Config->Mode == USB_MODE_UVC) {
+        USB_Config.descriptor.full_speed_config = get_Desc_Config_UVC();
+        ESP_LOGD(TAG, "  Mode: UVC (Video Class)");
+    }
 
     ESP_LOGD(TAG, "Initializing TinyUSB...");
     Error = tinyusb_driver_install(&USB_Config);
     if (Error != ESP_OK) {
-        if (Error == ESP_ERR_INVALID_STATE) {
-            ESP_LOGD(TAG, "TinyUSB driver already installed, reusing...");
-        } else {
-            ESP_LOGE(TAG, "Failed to install TinyUSB driver: %d!", Error);
+        ESP_LOGE(TAG, "Failed to install TinyUSB driver: %d!", Error);
 
-            return Error;
-        }
+        return Error;
     }
 
-    /* Clean up old storage handle if it still exists from previous session */
-    if (_USB_Manager_State.Storage != NULL) {
-        ESP_LOGD(TAG, "Cleaning up old storage handle from previous session...");
+    /* Initialize mode-specific module */
+    if (p_Config->Mode == USB_MODE_MSC) {
+        USB_MSC_Config_t MSC_Config = {
+            .MountPoint = p_Config->MountPoint,
+        };
 
-        Error = tinyusb_msc_delete_storage(_USB_Manager_State.Storage);
+        Error = USBMSC_Init(&MSC_Config);
         if (Error != ESP_OK) {
-            ESP_LOGW(TAG, "Failed to delete old storage: %d (continuing anyway)!", Error);
+            ESP_LOGE(TAG, "Failed to initialize USB MSC module: %d!", Error);
+            return Error;
         }
 
-        _USB_Manager_State.Storage = NULL;
+        ESP_LOGI(TAG, "USB Mass Storage Device ready");
+    } else if (p_Config->Mode == USB_MODE_UVC) {
+        USB_UVC_Config_t UVC_Config = {
+            .Width = 160,
+            .Height = 120,
+            .FrameRate = 9,
+        };
 
-        vTaskDelay(200 / portTICK_PERIOD_MS);
+        Error = USBUVC_Init(&UVC_Config);
+        if (Error != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize USB UVC module: %d!", Error);
+            return Error;
+        }
+
+        ESP_LOGI(TAG, "USB Video Class Device ready");
     }
-
-    /* Initialize MSC storage based on detected storage location */
-    if (StorageLocation == MEMORY_LOCATION_SD_CARD) {
-        sdmmc_card_t *p_Card = NULL;
-        tinyusb_msc_storage_config_t Storage_Config;
-
-        ESP_LOGD(TAG, "Configuring SD Card MSC...");
-
-        /* Get SD card handle from MemoryManager */
-        Error = MemoryManager_GetSDCardHandle(&p_Card);
-        if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to get SD card handle: %d!", Error);
-
-            return Error;
-        }
-
-        ESP_LOGD(TAG, "Using SD card from MemoryManager");
-
-        memset(&Storage_Config, 0, sizeof(tinyusb_msc_storage_config_t));
-        Storage_Config.medium.card = p_Card;
-
-        Error = tinyusb_msc_new_storage_sdmmc(&Storage_Config, &_USB_Manager_State.Storage);
-        if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to create SD card storage: %d!", Error);
-
-            return Error;
-        }
-    } else if (StorageLocation == MEMORY_LOCATION_INTERNAL) {
-        wl_handle_t WL_Handle;
-        tinyusb_msc_storage_config_t Storage_Config;
-
-        /* Configure SPI flash (FAT32 with Wear Leveling) MSC */
-        ESP_LOGD(TAG, "Configuring internal flash MSC...");
-
-        /* Get existing wear leveling handle from MemoryManager */
-        Error = MemoryManager_GetWearLevelingHandle(&WL_Handle);
-        if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to get wear leveling handle: %d!", Error);
-
-            return Error;
-        }
-
-        ESP_LOGD(TAG, "Using existing wear leveling handle: %d", WL_Handle);
-
-        memset(&Storage_Config, 0, sizeof(tinyusb_msc_storage_config_t));
-        Storage_Config.medium.wl_handle = WL_Handle;
-
-        Error = tinyusb_msc_new_storage_spiflash(&Storage_Config, &_USB_Manager_State.Storage);
-        if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to create internal flash storage: %d!", Error);
-
-            return Error;
-        }
-    } else {
-        ESP_LOGE(TAG, "Unknown storage location: %d!", StorageLocation);
-
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    ESP_LOGD(TAG, "USB Mass Storage Device ready");
-    ESP_LOGD(TAG, "   WARNING: Do not access filesystem from application while USB is connected!");
 
     ESP_LOGI(TAG, "Connecting to USB bus...");
     if (tud_connect()) {
@@ -232,7 +160,7 @@ esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config)
 
     _USB_Manager_State.isInitialized = true;
 
-    esp_event_post(USB_EVENTS, USB_EVENT_INITIALIZED, NULL, 0, portMAX_DELAY);
+    esp_event_post(USB_EVENTS, USB_EVENT_INITIALIZED, &_USB_Manager_State.Mode, sizeof(USB_Mode_t), portMAX_DELAY);
 
     /* Assume mounted after successful init */
     _USB_Manager_State.isUSBMounted = true;
@@ -240,17 +168,18 @@ esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config)
     return ESP_OK;
 }
 
-/** @brief          Background task for safe USB deinitialization.
- *  @note           This task runs the deinitialization sequence asynchronously
- *                  to avoid blocking the GUI task during the lengthy USB shutdown.
- *                  Storage is NOT deleted to prevent crashes from pending USB callbacks.
- *  @param p_Param  Task parameters (unused)
- */
-static void Task_USB_Deinit(void *p_Param)
+esp_err_t USBManager_Deinit(void)
 {
     esp_err_t Error;
 
-    ESP_LOGD(TAG, "USB deinit task started");
+    if (_USB_Manager_State.isInitialized == false) {
+        ESP_LOGW(TAG, "USB Manager not initialized - nothing to deinit!");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    ESP_LOGI(TAG, "Starting USB deinitialization (synchronous)...");
+
+    _USB_Manager_State.isInitialized = false;
 
     ESP_LOGI(TAG, "Disconnecting from USB bus...");
     if (tud_disconnect()) {
@@ -259,64 +188,41 @@ static void Task_USB_Deinit(void *p_Param)
         ESP_LOGW(TAG, "Failed to initiate USB disconnect");
     }
 
-    vTaskDelay(500 / portTICK_PERIOD_MS);
+    vTaskDelay(pdMS_TO_TICKS(500));
 
-    ESP_LOGD(TAG, "Storage kept alive to prevent callback crashes");
-
-    Error = MemoryManager_UnlockFilesystem();
-    if (Error != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to unlock filesystem: %d!", Error);
-    } else {
-        ESP_LOGD(TAG, "Filesystem unlocked for application");
+    /* Deinitialize mode-specific module */
+    if (_USB_Manager_State.Mode == USB_MODE_MSC) {
+        Error = USBMSC_Deinit();
+        if (Error != ESP_OK) {
+            ESP_LOGW(TAG, "Failed to deinitialize USB MSC module: %d!", Error);
+        } else {
+            ESP_LOGD(TAG, "USB MSC module deinitialized");
+        }
+    } else if (_USB_Manager_State.Mode == USB_MODE_UVC) {
+        Error = USBUVC_Deinit();
+        if (Error != ESP_OK) {
+            ESP_LOGW(TAG, "Failed to deinitialize USB UVC module: %d!", Error);
+        } else {
+            ESP_LOGD(TAG, "USB UVC module deinitialized");
+        }
     }
 
-    _USB_Manager_State.isDeinitializing = false;
-    _USB_Manager_State.DeinitTask = NULL;
+    /* Uninstall TinyUSB driver to allow re-initialization with different descriptors */
+    Error = tinyusb_driver_uninstall();
+    if (Error != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to uninstall TinyUSB driver: %d!", Error);
+        _USB_Manager_State.isInitialized = true;
+        return Error;
+    }
+
+    ESP_LOGD(TAG, "TinyUSB driver uninstalled");
+
+    /* Allow TinyUSB stack to fully deinitialize before next init */
+    vTaskDelay(pdMS_TO_TICKS(1000));
 
     esp_event_post(USB_EVENTS, USB_EVENT_UNINITIALIZED, NULL, 0, portMAX_DELAY);
 
-    ESP_LOGD(TAG, "USB Manager deinitialized successfully");
-
-    vTaskDelete(NULL);
-}
-
-esp_err_t USBManager_Deinit(void)
-{
-    if (_USB_Manager_State.isInitialized == false) {
-        ESP_LOGW(TAG, "USB Manager not initialized!");
-
-        return ESP_ERR_INVALID_STATE;
-    } else if (_USB_Manager_State.isDeinitializing) {
-        ESP_LOGW(TAG, "USB Manager is already deinitializing!");
-
-        return ESP_ERR_INVALID_STATE;
-    }
-
-    ESP_LOGD(TAG, "Starting USB deinitialization...");
-
-    _USB_Manager_State.isInitialized = false;
-    _USB_Manager_State.isDeinitializing = true;
-
-    /* Create background task to handle the lengthy USB shutdown process */
-    BaseType_t Result = xTaskCreate(
-                            Task_USB_Deinit,
-                            "Task_USB_Deinit",
-                            4096,
-                            NULL,
-                            1,
-                            &_USB_Manager_State.DeinitTask
-                        );
-
-    if (Result != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create USB deinit task!");
-
-        _USB_Manager_State.isDeinitializing = false;
-        _USB_Manager_State.isInitialized = true;
-
-        return ESP_FAIL;
-    }
-
-    ESP_LOGD(TAG, "USB deinitialization task started (async)");
+    ESP_LOGI(TAG, "USB Manager deinitialized successfully");
 
     return ESP_OK;
 }

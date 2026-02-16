@@ -28,9 +28,8 @@
 
 /** @brief          Initialize the USB Manager and expose storage as USB Mass Storage Device.
  *                  This function initializes the TinyUSB stack, configures the USB descriptors,
- *                  and exposes the specified storage media (SD card or LittleFS) as a USB MSC device.
- *                  The storage must be mounted before calling this function.
- *  @note           Storage must be mounted at p_Config->p_MountPoint before calling this function.
+ *                  and exposes the storage via USB as a Mass Storage Device.
+ *  @note           Storage must be mounted at p_Config->MountPoint before calling this function.
  *                  This function blocks and starts the TinyUSB task.
  *  @warning        While USB MSC is active, the filesystem should not be accessed from the application
  *                  to avoid data corruption. The PC has exclusive access.
