@@ -28,7 +28,7 @@
 
 #include "usbTypes.h"
 
-/** @brief String Descriptor Index
+/** @brief String Descriptor Index.
  */
 enum {
     STRID_LANGID = 0,
