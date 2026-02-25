@@ -3,6 +3,10 @@
 
 #include "descriptors.h"
 
+#define USB_BCD_DEVICE(Major, Minor) \
+    ((((Major) / 10) << 12) | (((Major) % 10) << 8) | \
+    (((Minor) / 10) << 4)  |  ((Minor) % 10))
+
 /* MSC Endpoint numbers */
 #define EPNUM_MSC_OUT                   0x01
 #define EPNUM_MSC_IN                    0x81
@@ -180,19 +184,19 @@ const tusb_desc_device_t Device_Descriptor = {
     .bDeviceSubClass = MISC_SUBCLASS_COMMON,
     .bDeviceProtocol = MISC_PROTOCOL_IAD,
     .bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE,
-    .idVendor = TINYUSB_ESPRESSIF_VID,
-    .idProduct = 0x55AA,
-    .bcdDevice = CONFIG_TINYUSB_DESC_BCD_DEVICE,
-    .iManufacturer = 0x01,
-    .iProduct = 0x02,
-    .iSerialNumber = 0x03,
+    .idVendor = CONFIG_USB_VID,
+    .idProduct = CONFIG_USB_PID,
+    .bcdDevice = USB_BCD_DEVICE(PYROVISION_VERSION_MAJOR, PYROVISION_VERSION_MINOR),
+    .iManufacturer = STRID_MANUFACTURER,
+    .iProduct = STRID_PRODUCT,
+    .iSerialNumber = STRID_SERIAL,
     .bNumConfigurations = 0x01
 };
 
-/** @brief 	USB Configuration mit UVC Video + CDC Metadaten-Stream
+/** @brief 	USB Configuration Descriptor
  * 			Interface 0: Video Control
  * 			Interface 1: Video Streaming (Endpoint 0x81)
- * 			Interface 2: CDC Control (Endpoint 0x82 - Notification)
+ * 			Interface 2: CDC Control (Endpoint 0x82, NOTIFICATION)
  * 			Interface 3: CDC Data (Endpoint 0x83 OUT, 0x84 IN)
  * 			Interface 4: MSC Control (Endpoint 0x01 OUT, 0x84 IN)
  */

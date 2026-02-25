@@ -381,6 +381,20 @@ static void SettingsManager_LoadUSB(Settings_Manager_State_t *p_State, const cJS
         } else {
             p_State->Settings.USB.MSC_Enabled = SETTINGS_DEFAULT_USB_MSC_ENABLE;
         }
+
+        cJSON *uvc_enabled = cJSON_GetObjectItem(usb, "uvc-enabled");
+        if (cJSON_IsBool(uvc_enabled)) {
+            p_State->Settings.USB.UVC_Enabled = cJSON_IsTrue(uvc_enabled);
+        } else {
+            p_State->Settings.USB.UVC_Enabled = SETTINGS_DEFAULT_USB_UVC_ENABLE;
+        }
+
+        cJSON *cdc_enabled = cJSON_GetObjectItem(usb, "cdc-enabled");
+        if (cJSON_IsBool(cdc_enabled)) {
+            p_State->Settings.USB.CDC_Enabled = cJSON_IsTrue(cdc_enabled);
+        } else {
+            p_State->Settings.USB.CDC_Enabled = SETTINGS_DEFAULT_USB_CDC_ENABLE;
+        }
     } else {
         SettingsManager_InitDefaultUSB(&p_State->Settings);
     }

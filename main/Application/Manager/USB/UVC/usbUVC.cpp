@@ -107,7 +107,7 @@ static void on_UVC_StreamingStop(int itf, uvc_event_t *p_Event)
  */
 static bool on_UVC_FrameRequest(int itf, uint8_t **pp_Buffer, size_t *p_BufferSize)
 {
-    if (xSemaphoreTake(_UVC_State.BufferMutex, 10 / portTICK_PERIOD_MS) == pdFALSE) {
+    if (xSemaphoreTake(_UVC_State.BufferMutex, pdMS_TO_TICKS(10)) == pdFALSE) {
         return false;
     }
 
@@ -135,7 +135,7 @@ static bool on_UVC_FrameRequest(int itf, uint8_t **pp_Buffer, size_t *p_BufferSi
  */
 static void on_UVC_FrameReturn(int itf, uint8_t *p_Buffer)
 {
-    if (xSemaphoreTake(_UVC_State.BufferMutex, 10 / portTICK_PERIOD_MS) == pdFALSE) {
+    if (xSemaphoreTake(_UVC_State.BufferMutex, pdMS_TO_TICKS(10)) == pdFALSE) {
         return;
     }
 

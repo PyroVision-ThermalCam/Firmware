@@ -26,26 +26,28 @@
 
 #include "usbTypes.h"
 
-/** @brief          Initialize the USB Manager and expose storage as USB Mass Storage Device.
- *                  This function initializes the TinyUSB stack, configures the USB descriptors,
- *                  and exposes the storage via USB as a Mass Storage Device.
- *  @note           Storage must be mounted at p_Config->MountPoint before calling this function.
- *                  This function blocks and starts the TinyUSB task.
- *  @warning        While USB MSC is active, the filesystem should not be accessed from the application
- *                  to avoid data corruption. The PC has exclusive access.
- *                  Not thread-safe during initialization. Call once from main task.
+/** @brief          Initialize the USB Manager as a composite USB device.
+ *                  This function installs the TinyUSB driver with the composite descriptor
+ *                  (UVC + CDC + MSC) and initializes all enabled USB classes in parallel.
+ *                  Which classes are active depends on the flags in p_Config and the
+ *                  corresponding sdkconfig entries (CONFIG_TINYUSB_xxx_ENABLED).
+ *  @note           MSC requires a valid MountPoint when MSC_Enabled is true.
+ *                  Storage must be mounted before calling this function.
+ *                  Not thread-safe during initialization. Call once from USB control task.
+ *  @warning        While USB MSC is active, the filesystem should not be accessed from
+ *                  the application to avoid data corruption.
  *  @param p_Config Pointer to USB manager configuration structure
  *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_ARG if p_Config is NULL or contains invalid parameters
+ *                  ESP_ERR_INVALID_ARG if p_Config is NULL or MountPoint is NULL while MSC_Enabled
  *                  ESP_ERR_INVALID_STATE if already initialized
- *                  ESP_FAIL if USB initialization fails
+ *                  ESP_FAIL if TinyUSB driver installation fails
  */
 esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config);
 
-/** @brief      Deinitialize the USB Manager and stop USB Mass Storage Device.
- *              Stops the TinyUSB stack and releases all resources. After calling this function,
- *              the storage is no longer accessible via USB.
- *  @note       After deinitializing, the filesystem can be safely accessed by the application again.
+/** @brief      Deinitialize the USB Manager and stop all active USB classes.
+ *              Stops MSC, UVC, and CDC modules, disconnects from the USB bus,
+ *              and uninstalls the TinyUSB driver.
+ *  @note       After deinitialization, the filesystem can be safely accessed again.
  *  @warning    Ensure the PC has safely ejected the USB drive before calling this function.
  *  @return     ESP_OK on success
  *              ESP_ERR_INVALID_STATE if not initialized
@@ -53,9 +55,27 @@ esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config);
 esp_err_t USBManager_Deinit(void);
 
 /** @brief  Check if USB Manager is initialized and active.
- *  @return true if USB MSC is active
+ *  @return true if USB Manager is initialized
  *          false if not initialized
  */
 bool USBManager_IsInitialized(void);
+
+/** @brief  Check if UVC has been enabled in the current USB configuration.
+ *  @return true if UVC is enabled and initialized
+ *          false otherwise
+ */
+bool USBManager_IsUVCEnabled(void);
+
+/** @brief  Check if CDC has been enabled in the current USB configuration.
+ *  @return true if CDC is enabled and initialized
+ *          false otherwise
+ */
+bool USBManager_IsCDCEnabled(void);
+
+/** @brief  Check if MSC has been enabled in the current USB configuration.
+ *  @return true if MSC is enabled and initialized
+ *          false otherwise
+ */
+bool USBManager_IsMSCEnabled(void);
 
 #endif /* USB_MANAGER_H_ */

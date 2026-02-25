@@ -224,7 +224,9 @@ typedef struct {
  */
 typedef struct {
     bool MSC_Enabled;                           /**< Enable USB Mass Storage Class mode. */
-    uint8_t Reserved[7];                        /**< Reserved for future use. */
+    bool UVC_Enabled;                           /**< Enable USB Video Class (UVC) mode. */
+    bool CDC_Enabled;                           /**< Enable USB Communication Device Class (CDC-ACM) mode. */
+    uint8_t Reserved[5];                        /**< Reserved for future use. */
 } __attribute__((packed)) Settings_USB_t;
 
 /** @brief Complete application settings structure.

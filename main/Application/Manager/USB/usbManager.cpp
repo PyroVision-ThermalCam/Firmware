@@ -3,7 +3,7 @@
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: USB Manager implementation - Main coordinator for USB MSC module.
+ *  File info: USB Manager implementation - Composite USB device coordinator (MSC + UVC + CDC).
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,9 +29,10 @@
 #include <string.h>
 
 #include "usbManager.h"
-#include "descriptors.h"
 #include "MSC/usbMSC.h"
 #include "UVC/usbUVC.h"
+#include "CDC/usbCDC.h"
+#include "Descriptors/descriptors.h"
 
 ESP_EVENT_DEFINE_BASE(USB_EVENTS);
 
@@ -39,10 +40,10 @@ ESP_EVENT_DEFINE_BASE(USB_EVENTS);
  */
 typedef struct {
     bool isInitialized;                     /**< Initialization state. */
-    bool isUSBMounted;                      /**< USB host has mounted device. */
-    USB_Mode_t Mode;                        /**< Current USB mode. */
-    tusb_desc_device_t DeviceDescriptor;    /**< Custom device descriptor. */
-    const char *StringDescriptors[3];       /**< String descriptor pointers (0-2: LangID, Manufacturer, Product). */
+    bool MSC_Enabled;                       /**< MSC class is active. */
+    bool UVC_Enabled;                       /**< UVC class is active. */
+    bool CDC_Enabled;                       /**< CDC class is active. */
+    const char *StringDescriptors[4];       /**< String descriptor pointers (LangID, Manufacturer, Product, Serial). */
 } USB_Manager_State_t;
 
 static USB_Manager_State_t _USB_Manager_State;
@@ -67,54 +68,39 @@ esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config)
         return ESP_ERR_INVALID_STATE;
     }
 
-    /* Validate mode-specific parameters */
-    if (p_Config->Mode == USB_MODE_MSC) {
-        if (p_Config->MountPoint == NULL) {
-            ESP_LOGE(TAG, "MSC mode requires valid MountPoint!");
-            return ESP_ERR_INVALID_ARG;
-        }
-        ESP_LOGI(TAG, "Initializing USB Manager in MSC mode...");
-    } else if (p_Config->Mode == USB_MODE_UVC) {
-        ESP_LOGI(TAG, "Initializing USB Manager in UVC mode...");
-    } else {
-        ESP_LOGE(TAG, "Unsupported USB mode: %d", p_Config->Mode);
-        return ESP_ERR_NOT_SUPPORTED;
+    if (p_Config->MSC_Enabled && (p_Config->MountPoint == NULL)) {
+        ESP_LOGE(TAG, "MSC requires a valid MountPoint!");
+
+        return ESP_ERR_INVALID_ARG;
     }
+
+    ESP_LOGI(TAG, "Initializing USB Manager (composite mode: MSC=%d UVC=%d CDC=%d)...",
+             p_Config->MSC_Enabled, p_Config->UVC_Enabled, p_Config->CDC_Enabled);
 
     memset(&_USB_Manager_State, 0, sizeof(USB_Manager_State_t));
 
-    /* Store mode */
-    _USB_Manager_State.Mode = p_Config->Mode;
+    _USB_Manager_State.MSC_Enabled = p_Config->MSC_Enabled;
+    _USB_Manager_State.UVC_Enabled = p_Config->UVC_Enabled;
+    _USB_Manager_State.CDC_Enabled = p_Config->CDC_Enabled;
 
-    /* Configure the Device Descriptor */
-    memcpy(&_USB_Manager_State.DeviceDescriptor, get_Desc_Device(), sizeof(tusb_desc_device_t));
+    /* String descriptors: 0=LangID, 1=Manufacturer, 2=Product, 3=Serial */
+    _USB_Manager_State.StringDescriptors[0] = USB_LangID;
+    _USB_Manager_State.StringDescriptors[1] = CONFIG_DEVICE_MANUFACTURER;
+    _USB_Manager_State.StringDescriptors[2] = CONFIG_DEVICE_NAME;
+    _USB_Manager_State.StringDescriptors[3] = NULL;
 
-    /* Set up string descriptors */
-    _USB_Manager_State.StringDescriptors[0] = USB_LangID;                   // 0: Language ID (English US - 0x0409)
-    _USB_Manager_State.StringDescriptors[1] = CONFIG_DEVICE_MANUFACTURER;   // 1: Manufacturer
-    _USB_Manager_State.StringDescriptors[2] = CONFIG_DEVICE_NAME;           // 2: Product
+    ESP_LOGD(TAG, "USB Descriptors: VID:PID = 0x%04X:0x%04X",
+             get_Desc_Device()->idVendor,
+             get_Desc_Device()->idProduct);
+    ESP_LOGD(TAG, "  Manufacturer: %s, Product: %s",
+             _USB_Manager_State.StringDescriptors[1], _USB_Manager_State.StringDescriptors[2]);
 
-    ESP_LOGD(TAG, "USB Descriptors:");
-    ESP_LOGD(TAG, "  VID:PID = 0x%04X:0x%04X", _USB_Manager_State.DeviceDescriptor.idVendor,
-             _USB_Manager_State.DeviceDescriptor.idProduct);
-    ESP_LOGD(TAG, "  Manufacturer: %s", _USB_Manager_State.StringDescriptors[1]);
-    ESP_LOGD(TAG, "  Product: %s", _USB_Manager_State.StringDescriptors[2]);
-
-    /* Set descriptors in TinyUSB config */
-    USB_Config.descriptor.device = &_USB_Manager_State.DeviceDescriptor;
+    USB_Config.descriptor.device = get_Desc_Device();
+    USB_Config.descriptor.full_speed_config = get_Desc_Config();
     USB_Config.descriptor.string = _USB_Manager_State.StringDescriptors;
     USB_Config.descriptor.string_count = 3;
 
-    /* Set configuration descriptor based on mode */
-    if (p_Config->Mode == USB_MODE_MSC) {
-        USB_Config.descriptor.full_speed_config = get_Desc_Config_MSC();
-        ESP_LOGD(TAG, "  Mode: MSC (Mass Storage Class)");
-    } else if (p_Config->Mode == USB_MODE_UVC) {
-        USB_Config.descriptor.full_speed_config = get_Desc_Config_UVC();
-        ESP_LOGD(TAG, "  Mode: UVC (Video Class)");
-    }
-
-    ESP_LOGD(TAG, "Initializing TinyUSB...");
+    ESP_LOGD(TAG, "Installing TinyUSB driver...");
     Error = tinyusb_driver_install(&USB_Config);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to install TinyUSB driver: %d!", Error);
@@ -122,20 +108,30 @@ esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config)
         return Error;
     }
 
-    /* Initialize mode-specific module */
-    if (p_Config->Mode == USB_MODE_MSC) {
+    /* Initialize MSC class */
+    if (_USB_Manager_State.MSC_Enabled) {
+#if(defined CONFIG_TINYUSB_MSC_ENABLED) && (CONFIG_TINYUSB_MSC_ENABLED == 1)
         USB_MSC_Config_t MSC_Config = {
             .MountPoint = p_Config->MountPoint,
         };
 
         Error = USBMSC_Init(&MSC_Config);
         if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to initialize USB MSC module: %d!", Error);
+            ESP_LOGE(TAG, "Failed to initialize USB MSC: %d!", Error);
+            tinyusb_driver_uninstall();
+
             return Error;
         }
 
         ESP_LOGI(TAG, "USB Mass Storage Device ready");
-    } else if (p_Config->Mode == USB_MODE_UVC) {
+#else
+        ESP_LOGW(TAG, "MSC requested but CONFIG_TINYUSB_MSC_ENABLED is not set - skipping.");
+        _USB_Manager_State.MSC_Enabled = false;
+#endif
+    }
+
+    if (_USB_Manager_State.UVC_Enabled) {
+#ifdef CONFIG_TINYUSB_UVC_ENABLED
         USB_UVC_Config_t UVC_Config = {
             .Width = 160,
             .Height = 120,
@@ -144,26 +140,64 @@ esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config)
 
         Error = USBUVC_Init(&UVC_Config);
         if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to initialize USB UVC module: %d!", Error);
+            ESP_LOGE(TAG, "Failed to initialize USB UVC: %d!", Error);
+
+            if (_USB_Manager_State.MSC_Enabled) {
+                USBMSC_Deinit();
+            }
+
+            tinyusb_driver_uninstall();
+
             return Error;
         }
 
         ESP_LOGI(TAG, "USB Video Class Device ready");
+#else
+        ESP_LOGW(TAG, "UVC requested but CONFIG_TINYUSB_UVC_ENABLED is not set - skipping.");
+        _USB_Manager_State.UVC_Enabled = false;
+#endif
+    }
+
+    if (_USB_Manager_State.CDC_Enabled) {
+#ifdef CONFIG_TINYUSB_CDC_ENABLED
+        USB_CDC_Config_t CDC_Config = {
+            .Reserved = 0,
+        };
+
+        Error = USBCDC_Init(&CDC_Config);
+        if (Error != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize USB CDC: %d!", Error);
+
+            if (_USB_Manager_State.UVC_Enabled) {
+                USBUVC_Deinit();
+            }
+
+            if (_USB_Manager_State.MSC_Enabled) {
+                USBMSC_Deinit();
+            }
+
+            tinyusb_driver_uninstall();
+
+            return Error;
+        }
+
+        ESP_LOGI(TAG, "USB CDC-ACM Device ready");
+#else
+        ESP_LOGW(TAG, "CDC requested but CONFIG_TINYUSB_CDC_ENABLED is not set - skipping.");
+        _USB_Manager_State.CDC_Enabled = false;
+#endif
     }
 
     ESP_LOGI(TAG, "Connecting to USB bus...");
-    if (tud_connect()) {
-        ESP_LOGI(TAG, "USB connection established");
-    } else {
+    if (tud_connect() == false) {
         ESP_LOGW(TAG, "tud_connect() returned false (may already be connected)");
     }
 
     _USB_Manager_State.isInitialized = true;
 
-    esp_event_post(USB_EVENTS, USB_EVENT_INITIALIZED, &_USB_Manager_State.Mode, sizeof(USB_Mode_t), portMAX_DELAY);
+    esp_event_post(USB_EVENTS, USB_EVENT_INITIALIZED, NULL, 0, portMAX_DELAY);
 
-    /* Assume mounted after successful init */
-    _USB_Manager_State.isUSBMounted = true;
+    ESP_LOGI(TAG, "USB Manager initialized successfully");
 
     return ESP_OK;
 }
@@ -174,44 +208,57 @@ esp_err_t USBManager_Deinit(void)
 
     if (_USB_Manager_State.isInitialized == false) {
         ESP_LOGW(TAG, "USB Manager not initialized - nothing to deinit!");
+
         return ESP_ERR_INVALID_STATE;
     }
 
-    ESP_LOGI(TAG, "Starting USB deinitialization (synchronous)...");
+    ESP_LOGI(TAG, "Deinitializing USB Manager...");
 
     _USB_Manager_State.isInitialized = false;
 
-    ESP_LOGI(TAG, "Disconnecting from USB bus...");
-    if (tud_disconnect()) {
-        ESP_LOGI(TAG, "USB disconnect initiated successfully");
-    } else {
+    ESP_LOGD(TAG, "Disconnecting from USB bus...");
+    if (tud_disconnect() == false) {
         ESP_LOGW(TAG, "Failed to initiate USB disconnect");
     }
 
     vTaskDelay(pdMS_TO_TICKS(500));
 
-    /* Deinitialize mode-specific module */
-    if (_USB_Manager_State.Mode == USB_MODE_MSC) {
-        Error = USBMSC_Deinit();
+    /* Deinitialize CDC */
+    if (_USB_Manager_State.CDC_Enabled) {
+        Error = USBCDC_Deinit();
         if (Error != ESP_OK) {
-            ESP_LOGW(TAG, "Failed to deinitialize USB MSC module: %d!", Error);
+            ESP_LOGW(TAG, "Failed to deinitialize USB CDC: %d!", Error);
         } else {
-            ESP_LOGD(TAG, "USB MSC module deinitialized");
-        }
-    } else if (_USB_Manager_State.Mode == USB_MODE_UVC) {
-        Error = USBUVC_Deinit();
-        if (Error != ESP_OK) {
-            ESP_LOGW(TAG, "Failed to deinitialize USB UVC module: %d!", Error);
-        } else {
-            ESP_LOGD(TAG, "USB UVC module deinitialized");
+            ESP_LOGD(TAG, "USB CDC deinitialized");
         }
     }
 
-    /* Uninstall TinyUSB driver to allow re-initialization with different descriptors */
+    /* Deinitialize UVC */
+    if (_USB_Manager_State.UVC_Enabled) {
+        Error = USBUVC_Deinit();
+        if (Error != ESP_OK) {
+            ESP_LOGW(TAG, "Failed to deinitialize USB UVC: %d!", Error);
+        } else {
+            ESP_LOGD(TAG, "USB UVC deinitialized");
+        }
+    }
+
+    /* Deinitialize MSC */
+    if (_USB_Manager_State.MSC_Enabled) {
+        Error = USBMSC_Deinit();
+        if (Error != ESP_OK) {
+            ESP_LOGW(TAG, "Failed to deinitialize USB MSC: %d!", Error);
+        } else {
+            ESP_LOGD(TAG, "USB MSC deinitialized");
+        }
+    }
+
+    /* Uninstall TinyUSB driver */
     Error = tinyusb_driver_uninstall();
     if (Error != ESP_OK) {
         ESP_LOGW(TAG, "Failed to uninstall TinyUSB driver: %d!", Error);
         _USB_Manager_State.isInitialized = true;
+
         return Error;
     }
 
@@ -230,4 +277,19 @@ esp_err_t USBManager_Deinit(void)
 bool USBManager_IsInitialized(void)
 {
     return _USB_Manager_State.isInitialized;
+}
+
+bool USBManager_IsUVCEnabled(void)
+{
+    return _USB_Manager_State.isInitialized && _USB_Manager_State.UVC_Enabled;
+}
+
+bool USBManager_IsCDCEnabled(void)
+{
+    return _USB_Manager_State.isInitialized && _USB_Manager_State.CDC_Enabled;
+}
+
+bool USBManager_IsMSCEnabled(void)
+{
+    return _USB_Manager_State.isInitialized && _USB_Manager_State.MSC_Enabled;
 }

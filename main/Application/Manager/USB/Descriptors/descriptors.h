@@ -3,7 +3,7 @@
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: USB Descriptors definition.
+ *  File info: USB composite device descriptor definitions (UVC + CDC + MSC).
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,12 +21,10 @@
  * Errors and commissions should be reported to DanielKampert@kampis-elektroecke.de
  */
 
-#ifndef DESCRIPTORS_H_
-#define DESCRIPTORS_H_
+#ifndef USB_DESCRIPTORS_H_
+#define USB_DESCRIPTORS_H_
 
 #include <tinyusb.h>
-
-#include "usbTypes.h"
 
 /** @brief String Descriptor Index.
  */
@@ -37,14 +35,18 @@ enum {
     STRID_SERIAL,
 };
 
-/** @brief  Get the device descriptor. This is used by the USB Manager to provide the device descriptor to TinyUSB.
+/** @brief  Get the USB device descriptor.
+ *          Returns the device descriptor for the composite USB device
+ *          (MISC class with IAD protocol for UVC + CDC + MSC).
  *  @return Pointer to the device descriptor structure
  */
 const tusb_desc_device_t *get_Desc_Device(void);
 
-/** @brief  Get the MSC configuration descriptor.
- *  @return Pointer to the device descriptor structure
+/** @brief  Get the USB composite configuration descriptor.
+ *          Returns the full configuration descriptor including all enabled
+ *          class interfaces (UVC, CDC, MSC) as selected by sdkconfig.
+ *  @return Pointer to the configuration descriptor byte array
  */
 const uint8_t *get_Desc_Config(void);
 
-#endif /* DESCRIPTORS_H_ */
+#endif /* USB_DESCRIPTORS_H_ */

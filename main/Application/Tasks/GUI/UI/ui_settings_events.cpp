@@ -27,8 +27,6 @@
 
 #include "ui_settings_events.h"
 
-static USB_Manager_Config_t USB_Config;
-
 static const char *TAG = "ui_settings_events";
 
 void on_Lepton_Emissivity_Slider_Callback(lv_event_t *e)
@@ -170,35 +168,16 @@ void on_USB_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
 
     switch (ID) {
         case USB_EVENT_INITIALIZED: {
-            if (p_Data != NULL) {
-                USB_Mode_t Mode = *static_cast<USB_Mode_t *>(p_Data);
+            /* Reflect active state on MSC master switch */
+            lv_obj_add_state(usb_mode_switch, LV_STATE_CHECKED);
 
-                if (Mode == USB_MODE_MSC) {
-                    lv_obj_add_state(usb_mode_switch, LV_STATE_CHECKED);
-
-                    /* Lock UVC switch */
-                    lv_obj_remove_flag(usb_uvc_switch, LV_OBJ_FLAG_CLICKABLE);
-                    lv_obj_set_style_opa(usb_uvc_switch, LV_OPA_50, 0);
-                } else if (Mode == USB_MODE_UVC) {
-                    lv_obj_add_state(usb_uvc_switch, LV_STATE_CHECKED);
-
-                    /* Lock MSC switch */
-                    lv_obj_remove_flag(usb_mode_switch, LV_OBJ_FLAG_CLICKABLE);
-                    lv_obj_set_style_opa(usb_mode_switch, LV_OPA_50, 0);
-                }
-            }
+            ESP_LOGI(TAG, "USB composite device initialized (MSC=%d UVC=%d CDC=%d)",
+                     USBManager_IsMSCEnabled(), USBManager_IsUVCEnabled(), USBManager_IsCDCEnabled());
 
             break;
         }
         case USB_EVENT_UNINITIALIZED: {
-            /* Unlock both switches */
-            lv_obj_add_flag(usb_mode_switch, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_add_flag(usb_uvc_switch, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_set_style_opa(usb_mode_switch, LV_OPA_100, 0);
-            lv_obj_set_style_opa(usb_uvc_switch, LV_OPA_100, 0);
-
             lv_obj_clear_state(usb_mode_switch, LV_STATE_CHECKED);
-            lv_obj_clear_state(usb_uvc_switch, LV_STATE_CHECKED);
 
             break;
         }
@@ -301,9 +280,9 @@ void on_USB_Mode_Switch_Callback(lv_event_t *e)
     lv_obj_t *switch_obj = static_cast<lv_obj_t *>(lv_event_get_target(e));
 
     if (lv_obj_has_state(switch_obj, LV_STATE_CHECKED)) {
-        Settings_Info_t InfoSettings;
+        Settings_USB_t USBSettings;
 
-        ESP_LOGI(TAG, "Enabling USB Mass Storage...");
+        ESP_LOGI(TAG, "Enabling USB composite device...");
 
         if (USBManager_IsInitialized()) {
             ESP_LOGW(TAG, "USB already active!");
@@ -313,14 +292,13 @@ void on_USB_Mode_Switch_Callback(lv_event_t *e)
             return;
         }
 
-        /* Clear UVC switch if active */
-        lv_obj_clear_state(usb_uvc_switch, LV_STATE_CHECKED);
+        SettingsManager_GetUSB(&USBSettings);
 
-        SettingsManager_GetInfo(&InfoSettings);
-
-        /* Configure USB Mass Storage with auto-detected mount point */
-        USB_Config = {
-            .Mode = USB_MODE_MSC,
+        /* Build composite config from current settings */
+        USB_Manager_Config_t USB_Config = {
+            .MSC_Enabled = true,
+            .UVC_Enabled = USBSettings.UVC_Enabled,
+            .CDC_Enabled = USBSettings.CDC_Enabled,
             .MountPoint = MemoryManager_GetStoragePath(),
         };
 
@@ -329,13 +307,9 @@ void on_USB_Mode_Switch_Callback(lv_event_t *e)
             ESP_LOGE(TAG, "Failed to initialize USB Manager: %d!", Error);
 
             lv_obj_clear_state(switch_obj, LV_STATE_CHECKED);
-        } else {
-            /* Lock UVC switch to prevent mode conflict */
-            lv_obj_remove_flag(usb_uvc_switch, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_set_style_opa(usb_uvc_switch, LV_OPA_50, 0);
         }
     } else {
-        ESP_LOGI(TAG, "Disabling USB Mass Storage...");
+        ESP_LOGI(TAG, "Disabling USB...");
 
         if (USBManager_IsInitialized() == false) {
             ESP_LOGW(TAG, "USB not active!");
@@ -351,54 +325,30 @@ void on_USB_Mode_Switch_Callback(lv_event_t *e)
 
 void on_USB_UVC_Switch_Callback(lv_event_t *e)
 {
-    esp_err_t Error;
+    Settings_USB_t USBSettings;
     lv_obj_t *switch_obj = static_cast<lv_obj_t *>(lv_event_get_target(e));
 
-    if (lv_obj_has_state(switch_obj, LV_STATE_CHECKED)) {
-        Settings_Info_t InfoSettings;
+    SettingsManager_GetUSB(&USBSettings);
 
-        ESP_LOGI(TAG, "Enabling USB Video Class...");
+    USBSettings.UVC_Enabled = lv_obj_has_state(switch_obj, LV_STATE_CHECKED);
 
-        if (USBManager_IsInitialized()) {
-            ESP_LOGW(TAG, "USB already active!");
+    ESP_LOGI(TAG, "UVC %s in USB settings (takes effect on next USB enable).",
+             USBSettings.UVC_Enabled ? "enabled" : "disabled");
 
-            lv_obj_clear_state(switch_obj, LV_STATE_CHECKED);
+    SettingsManager_UpdateUSB(&USBSettings, NULL);
+}
 
-            return;
-        }
+void on_USB_CDC_Switch_Callback(lv_event_t *e)
+{
+    Settings_USB_t USBSettings;
+    lv_obj_t *switch_obj = static_cast<lv_obj_t *>(lv_event_get_target(e));
 
-        /* Clear MSC switch if active */
-        lv_obj_clear_state(usb_mode_switch, LV_STATE_CHECKED);
+    SettingsManager_GetUSB(&USBSettings);
 
-        SettingsManager_GetInfo(&InfoSettings);
+    USBSettings.CDC_Enabled = lv_obj_has_state(switch_obj, LV_STATE_CHECKED);
 
-        /* Configure USB Video Class */
-        USB_Config = {
-            .Mode = USB_MODE_UVC,
-            .MountPoint = nullptr,
-        };
+    ESP_LOGI(TAG, "CDC %s in USB settings (takes effect on next USB enable).",
+             USBSettings.CDC_Enabled ? "enabled" : "disabled");
 
-        Error = USBManager_Init(&USB_Config);
-        if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to initialize USB Manager: %d!", Error);
-
-            lv_obj_clear_state(switch_obj, LV_STATE_CHECKED);
-        } else {
-            /* Lock MSC switch to prevent mode conflict */
-            lv_obj_remove_flag(usb_mode_switch, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_set_style_opa(usb_mode_switch, LV_OPA_50, 0);
-        }
-    } else {
-        ESP_LOGI(TAG, "Disabling USB Video Class...");
-
-        if (USBManager_IsInitialized() == false) {
-            ESP_LOGW(TAG, "USB not active!");
-
-            lv_obj_clear_state(switch_obj, LV_STATE_CHECKED);
-
-            return;
-        }
-
-        USBManager_Deinit();
-    }
+    SettingsManager_UpdateUSB(&USBSettings, NULL);
 }
