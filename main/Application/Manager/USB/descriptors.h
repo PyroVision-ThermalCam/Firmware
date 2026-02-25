@@ -38,20 +38,13 @@ enum {
 };
 
 /** @brief  Get the device descriptor. This is used by the USB Manager to provide the device descriptor to TinyUSB.
- *  @return Pointer to the device descriptor structure.
+ *  @return Pointer to the device descriptor structure
  */
-uint8_t const *get_Desc_Device(void);
+const tusb_desc_device_t *get_Desc_Device(void);
 
-/** @brief          Get the MSC configuration descriptor.
- *  @return         Pointer to the MSC configuration descriptor.
+/** @brief  Get the MSC configuration descriptor.
+ *  @return Pointer to the device descriptor structure
  */
-uint8_t const *get_Desc_Config_MSC(void);
-
-/** @brief          Get the UVC configuration descriptor.
- *                  Returns a UVC-only configuration descriptor (MJPEG, Isochronous)
- *                  that does not include any MSC interfaces.
- *  @return         Pointer to the UVC configuration descriptor.
- */
-uint8_t const *get_Desc_Config_UVC(void);
+const uint8_t *get_Desc_Config(void);
 
 #endif /* DESCRIPTORS_H_ */
