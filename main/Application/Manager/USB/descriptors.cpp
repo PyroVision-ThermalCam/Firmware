@@ -170,8 +170,8 @@
     + _MSC_DESC_LEN     \
 )
 
-const tusb_desc_device_t descriptor_dev_default = {
-    .bLength = sizeof(descriptor_dev_default),
+const tusb_desc_device_t Device_Descriptor = {
+    .bLength = sizeof(Device_Descriptor),
     .bDescriptorType = TUSB_DESC_DEVICE,
     .bcdUSB = 0x0200,
     /* Use Interface Association Descriptor (IAD) for CDC or VIDEO
@@ -196,7 +196,7 @@ const tusb_desc_device_t descriptor_dev_default = {
  * 			Interface 3: CDC Data (Endpoint 0x83 OUT, 0x84 IN)
  * 			Interface 4: MSC Control (Endpoint 0x01 - OUT, 0x84 - IN)
  */
-uint8_t const descriptor_fs_cfg_default[] = {
+uint8_t const Config_Descriptor[] = {
     TUD_CONFIG_DESCRIPTOR(1, 5, 0,
 		DESCRIPTOR_TOTAL_LENGTH, TUSB_DESC_CONFIG_ATT_SELF_POWERED, 100),
 
@@ -217,10 +217,10 @@ uint8_t const descriptor_fs_cfg_default[] = {
 };
 
 const tusb_desc_device_t* get_Desc_Device(void) {
-    return &descriptor_dev_default;
+    return &Device_Descriptor;
 }
 
 const uint8_t* get_Desc_Config(void)
 {
-    return descriptor_fs_cfg_default;
+    return Config_Descriptor;
 }
