@@ -194,7 +194,7 @@ const tusb_desc_device_t Device_Descriptor = {
  * 			Interface 1: Video Streaming (Endpoint 0x81)
  * 			Interface 2: CDC Control (Endpoint 0x82 - Notification)
  * 			Interface 3: CDC Data (Endpoint 0x83 OUT, 0x84 IN)
- * 			Interface 4: MSC Control (Endpoint 0x01 - OUT, 0x84 - IN)
+ * 			Interface 4: MSC Control (Endpoint 0x01 OUT, 0x84 IN)
  */
 uint8_t const Config_Descriptor[] = {
     TUD_CONFIG_DESCRIPTOR(1, 5, 0,
