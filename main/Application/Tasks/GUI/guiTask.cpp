@@ -67,7 +67,7 @@ static void on_GUI_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
 
     switch (ID) {
         case GUI_EVENT_THERMAL_IMAGE_SAVED: {
-            ESP_LOGI(TAG, "Thermal image saved successfully");
+            ESP_LOGD(TAG, "Thermal image saved successfully");
 
             break;
         }
@@ -460,18 +460,18 @@ static void UI_Canvas_AddTempGradient(void)
     uint16_t *Buffer = reinterpret_cast<uint16_t *>(_GUI_Task_State.GradientCanvasBuffer);
 
     for (uint32_t y = 0; y < _GUI_Task_State.GradientImageDescriptor.header.h; y++) {
-        uint32_t index;
+        uint32_t Index;
 
         /* Map y position to palette index (0 = top/hot = white, 179 = bottom/cold = black)
          * Iron palette: index 0 = black (cold), index 255 = white (hot)
          * So we need to invert: top (y=0) should be index 255, bottom (y=179) should be index 0
          */
-        index = 255 - (y * 255 / (_GUI_Task_State.GradientImageDescriptor.header.h - 1));
+        Index = 255 - (y * 255 / (_GUI_Task_State.GradientImageDescriptor.header.h - 1));
 
         /* Get RGB888 values from palette */
-        uint8_t r8 = Lepton_Palette_Iron[index][0];
-        uint8_t g8 = Lepton_Palette_Iron[index][1];
-        uint8_t b8 = Lepton_Palette_Iron[index][2];
+        uint8_t r8 = Lepton_Palette_Iron[Index][0];
+        uint8_t g8 = Lepton_Palette_Iron[Index][1];
+        uint8_t b8 = Lepton_Palette_Iron[Index][2];
 
         /* Convert RGB888 to RGB565 */
         uint16_t r5 = (r8 >> 3) & 0x1F;
@@ -1004,11 +1004,11 @@ void Task_GUI(void *p_Parameters)
 
             xEventGroupClearBits(_GUI_Task_State.EventGroup, PROVISIONING_STATE_CHANGED);
         } else if (EventBits & SD_CARD_STATE_CHANGED) {
-            ESP_LOGI(TAG, "SD card state changed: %s", _GUI_Task_State.CardPresent ? "present" : "removed");
+            ESP_LOGD(TAG, "SD card state changed: %s", _GUI_Task_State.CardPresent ? "present" : "removed");
 
             xEventGroupClearBits(_GUI_Task_State.EventGroup, SD_CARD_STATE_CHANGED);
         } else if (EventBits & SD_CARD_MOUNTED) {
-            ESP_LOGI(TAG, "SD card mounted - updating GUI");
+            ESP_LOGD(TAG, "SD card mounted - updating GUI");
 
             xEventGroupClearBits(_GUI_Task_State.EventGroup, SD_CARD_MOUNTED);
         } else if (EventBits & SD_CARD_MOUNT_ERROR) {
@@ -1125,6 +1125,9 @@ void Task_GUI(void *p_Parameters)
 
 esp_err_t GUI_Task_Init(void)
 {
+    BaseType_t Error;
+    uint32_t Caps;
+
     if (_GUI_Task_State.isInitialized) {
         ESP_LOGW(TAG, "Already initialized");
 
@@ -1135,9 +1138,15 @@ esp_err_t GUI_Task_Init(void)
 
     ui_init();
 
-    _GUI_Task_State.ThermalCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(240 * 180 * 2, MALLOC_CAP_SPIRAM));
-    _GUI_Task_State.GradientCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(20 * 180 * 2, MALLOC_CAP_SPIRAM));
-    _GUI_Task_State.NetworkRGBBuffer = static_cast<uint8_t *>(heap_caps_malloc(240 * 180 * 3, MALLOC_CAP_SPIRAM));
+    #ifdef CONFIG_SPIRAM
+        Caps = MALLOC_CAP_SPIRAM;
+    #else
+        Caps = 0;
+    #endif
+
+    _GUI_Task_State.ThermalCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(240 * 180 * 2, Caps));
+    _GUI_Task_State.GradientCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(20 * 180 * 2, Caps));
+    _GUI_Task_State.NetworkRGBBuffer = static_cast<uint8_t *>(heap_caps_malloc(240 * 180 * 3, Caps));
 
     if (_GUI_Task_State.ThermalCanvasBuffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate thermal canvas buffer!");
@@ -1174,17 +1183,8 @@ esp_err_t GUI_Task_Init(void)
         return ESP_ERR_NO_MEM;
     }
 
-    BaseType_t Result = xTaskCreatePinnedToCore(
-                            Task_ImageSave,
-                            "Task_ImgSave",
-                            8192,
-                            NULL,
-                            CONFIG_GUI_TASK_PRIO - 1,  /* Lower priority than GUI */
-                            &_GUI_Task_State.ImageSaveTaskHandle,
-                            1
-                        );
-
-    if (Result != pdPASS) {
+    Error = xTaskCreatePinnedToCore(Task_ImageSave, "Task_ImgSave", 8192, NULL, CONFIG_GUI_TASK_PRIO - 1, &_GUI_Task_State.ImageSaveTaskHandle, 1);
+    if (Error != pdPASS) {
         ESP_LOGE(TAG, "Failed to create image save task!");
 
         vQueueDelete(_GUI_Task_State.ImageSaveQueue);
@@ -1220,7 +1220,6 @@ esp_err_t GUI_Task_Init(void)
 
     UI_Canvas_AddTempGradient();
 
-    /* Set the images */
     lv_img_set_src(ui_Image_Thermal, &_GUI_Task_State.ThermalImageDescriptor);
     lv_img_set_src(ui_Image_Gradient, &_GUI_Task_State.GradientImageDescriptor);
 
@@ -1286,7 +1285,7 @@ void GUI_Task_Deinit(void)
 
 esp_err_t GUI_Task_Start(App_Context_t *p_AppContext)
 {
-    BaseType_t ret;
+    BaseType_t Error;
 
     if (p_AppContext == NULL) {
         return ESP_ERR_INVALID_ARG;
@@ -1302,18 +1301,9 @@ esp_err_t GUI_Task_Start(App_Context_t *p_AppContext)
 
     ESP_LOGD(TAG, "Starting GUI Task");
 
-    ret = xTaskCreatePinnedToCore(
-              Task_GUI,
-              "Task_GUI",
-              CONFIG_GUI_TASK_STACKSIZE,
-              p_AppContext,
-              CONFIG_GUI_TASK_PRIO,
-              &_GUI_Task_State.TaskHandle,
-              CONFIG_GUI_TASK_CORE
-          );
-
-    if (ret != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create GUI task: %d!", ret);
+    Error = xTaskCreatePinnedToCore(Task_GUI, "Task_GUI", CONFIG_GUI_TASK_STACKSIZE, p_AppContext, CONFIG_GUI_TASK_PRIO, &_GUI_Task_State.TaskHandle, CONFIG_GUI_TASK_CORE);
+    if (Error != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create GUI task: %d!", Error);
 
         return ESP_ERR_NO_MEM;
     }
@@ -1348,7 +1338,7 @@ esp_err_t GUI_SaveThermalImage(void)
 
     /* Set flag to trigger save on next frame update */
     _GUI_Task_State.SaveNextFrameRequested = true;
-    ESP_LOGI(TAG, "Image save requested - will capture next frame");
+    ESP_LOGD(TAG, "Image save requested - will capture next frame");
 
     return ESP_OK;
 }

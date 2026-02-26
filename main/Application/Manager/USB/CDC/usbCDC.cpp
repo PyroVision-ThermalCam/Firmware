@@ -50,6 +50,7 @@ static USB_CDC_State_t _CDC_State;
  */
 static void on_CDC_LineStateChanged(int itf, cdcacm_event_t *p_Event)
 {
+    esp_err_t Error;
     bool Connected = p_Event->line_state_changed_data.dtr && p_Event->line_state_changed_data.rts;
 
     if (Connected == _CDC_State.isConnected) {
@@ -59,16 +60,16 @@ static void on_CDC_LineStateChanged(int itf, cdcacm_event_t *p_Event)
     _CDC_State.isConnected = Connected;
 
     if (Connected) {
-        ESP_LOGI(TAG, "CDC host terminal connected on interface %d", itf);
+        ESP_LOGD(TAG, "CDC host terminal connected on interface %d", itf);
 
-        esp_err_t Error = esp_event_post(USB_EVENTS, USB_EVENT_CDC_CONNECTED, NULL, 0, pdMS_TO_TICKS(100));
+        Error = esp_event_post(USB_EVENTS, USB_EVENT_CDC_CONNECTED, NULL, 0, pdMS_TO_TICKS(100));
         if (Error != ESP_OK) {
             ESP_LOGW(TAG, "Failed to post CDC connected event: %d", Error);
         }
     } else {
-        ESP_LOGI(TAG, "CDC host terminal disconnected on interface %d", itf);
+        ESP_LOGD(TAG, "CDC host terminal disconnected on interface %d", itf);
 
-        esp_err_t Error = esp_event_post(USB_EVENTS, USB_EVENT_CDC_DISCONNECTED, NULL, 0, pdMS_TO_TICKS(100));
+        Error = esp_event_post(USB_EVENTS, USB_EVENT_CDC_DISCONNECTED, NULL, 0, pdMS_TO_TICKS(100));
         if (Error != ESP_OK) {
             ESP_LOGW(TAG, "Failed to post CDC disconnected event: %d", Error);
         }
@@ -108,7 +109,7 @@ esp_err_t USBCDC_Init(const USB_CDC_Config_t *p_Config)
 
     _CDC_State.isInitialized = true;
 
-    ESP_LOGI(TAG, "CDC-ACM initialized");
+    ESP_LOGD(TAG, "CDC-ACM initialized");
 
     return ESP_OK;
 }
@@ -130,13 +131,15 @@ esp_err_t USBCDC_Deinit(void)
 
     memset(&_CDC_State, 0, sizeof(USB_CDC_State_t));
 
-    ESP_LOGI(TAG, "CDC-ACM deinitialized");
+    ESP_LOGD(TAG, "CDC-ACM deinitialized");
 
     return ESP_OK;
 }
 
 esp_err_t USBCDC_Write(const uint8_t *p_Data, size_t Size)
 {
+    esp_err_t Error;
+
     if (p_Data == NULL) {
         return ESP_ERR_INVALID_ARG;
     } else if (Size == 0) {
@@ -147,15 +150,14 @@ esp_err_t USBCDC_Write(const uint8_t *p_Data, size_t Size)
         return ESP_ERR_INVALID_STATE;
     }
 
-    size_t Queued = tinyusb_cdcacm_write_queue(TINYUSB_CDC_ACM_0, p_Data, Size);
-    if (Queued == 0) {
+    if (tinyusb_cdcacm_write_queue(TINYUSB_CDC_ACM_0, p_Data, Size) == 0) {
         ESP_LOGW(TAG, "Write queue full - data dropped!");
 
         return ESP_FAIL;
     }
 
     /* Non-blocking flush (timeout = 0) */
-    esp_err_t Error = tinyusb_cdcacm_write_flush(TINYUSB_CDC_ACM_0, 0);
+    Error = tinyusb_cdcacm_write_flush(TINYUSB_CDC_ACM_0, 0);
     if (Error != ESP_OK && Error != ESP_ERR_TIMEOUT) {
         ESP_LOGW(TAG, "CDC flush failed: %d", Error);
     }

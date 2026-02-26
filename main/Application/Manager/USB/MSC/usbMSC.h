@@ -27,25 +27,33 @@
 #include "usbMSCTypes.h"
 
 /** @brief          Initialize USB Mass Storage Class device.
- *                  Configures TinyUSB MSC interface and exposes storage to host PC.
- *                  Storage is auto-detected (SD card or internal flash).
- *  @note           Storage must be mounted before calling this function.
- *                  Filesystem will be locked during MSC operation.
- *  @warning        Not thread-safe. Call once during initialization.
+ *                  Locks the filesystem, soft-unmounts the VFS FAT layer, and creates a
+ *                  TinyUSB MSC storage with TINYUSB_MSC_STORAGE_MOUNT_USB to expose
+ *                  raw storage blocks to the USB host PC. The PC can then read and write
+ *                  the FAT filesystem directly. The application VFS path becomes
+ *                  inaccessible until USBMSC_Deinit() is called.
+ *  @note           Storage must be mounted via MemoryManager before calling this function.
+ *                  The storage type (SD card or internal flash) is auto-detected.
+ *                  On failure, VFS is automatically re-mounted and filesystem unlocked.
+ *  @warning        Not thread-safe. Call from the USB Manager task context only.
+ *                  Application file I/O will fail while MSC is active.
  *  @param p_Config Pointer to MSC configuration structure
  *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_ARG if p_Config is NULL or invalid
+ *                  ESP_ERR_INVALID_ARG if p_Config is NULL or MountPoint is NULL
  *                  ESP_ERR_INVALID_STATE if already initialized
- *                  ESP_FAIL if MSC initialization fails
+ *                  ESP_FAIL if MSC storage creation fails
  */
 esp_err_t USBMSC_Init(const USB_MSC_Config_t *p_Config);
 
-/** @brief      Deinitialize USB Mass Storage Class device.
- *              Stops MSC operation and unlocks filesystem.
- *  @note       Waits for host to safely eject device.
- *  @warning    Ensure host has ejected device before calling.
- *  @return     ESP_OK on success
- *              ESP_ERR_INVALID_STATE if not initialized
+/** @brief          Deinitialize USB Mass Storage Class device.
+ *                  Deletes the TinyUSB MSC storage, soft-remounts the VFS FAT layer to
+ *                  restore application file I/O access, and unlocks the filesystem.
+ *                  After this call, the camera can save images and access files again.
+ *  @note           Waits for host to safely eject device before calling.
+ *                  The storage handles (WL or SD card) remain valid throughout.
+ *  @warning        Ensure host has ejected the USB drive before calling.
+ *  @return         ESP_OK on success
+ *                  ESP_ERR_INVALID_STATE if not initialized
  */
 esp_err_t USBMSC_Deinit(void);
 

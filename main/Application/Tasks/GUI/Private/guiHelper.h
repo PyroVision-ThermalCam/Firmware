@@ -62,6 +62,8 @@ typedef struct {
     bool WiFiConnected;
     bool ProvisioningActive;
     bool CardPresent;
+    bool SaveNextFrameRequested;
+    bool isUVCStreaming;
     TaskHandle_t TaskHandle;
     TaskHandle_t ImageSaveTaskHandle;
     void *DisplayBuffer1;
@@ -72,18 +74,18 @@ typedef struct {
     esp_lcd_touch_handle_t TouchHandle;
     esp_lcd_panel_io_handle_t Panel_IO_Handle;
     esp_lcd_panel_io_handle_t Touch_IO_Handle;
+    lv_obj_t *UVCOverlayLabel;
     lv_display_t *Display;
     lv_indev_t *Touch;
     lv_img_dsc_t ThermalImageDescriptor;
     lv_img_dsc_t GradientImageDescriptor;
-    lv_timer_t *UpdateTimer[5];
+    lv_timer_t *UpdateTimer[6];
     _lock_t LVGL_API_Lock;
     App_Devices_Battery_t BatteryInfo;
     App_Lepton_ROI_Result_t ROIResult;
     App_Lepton_Device_t LeptonDeviceInfo;
     App_Lepton_Temperatures_t LeptonTemperatures;
     App_Context_t *AppContext;
-    Network_IP_Info_t IP_Info;
     EventGroupHandle_t EventGroup;
     uint8_t *ThermalCanvasBuffer;
     uint8_t *GradientCanvasBuffer;
@@ -91,10 +93,8 @@ typedef struct {
     uint32_t LeptonUptime;
     float SpotTemperature;
     QueueHandle_t ImageSaveQueue;
+    Network_IP_Info_t IP_Info;
     Network_Thermal_Frame_t NetworkFrame;
-    bool SaveNextFrameRequested;
-    bool isUVCStreaming;
-    lv_obj_t *UVCOverlayLabel;
 
 #ifdef CONFIG_GUI_TOUCH_DEBUG
     /* Touch debug visualization */
@@ -135,9 +135,14 @@ void GUI_Helper_Timer_SpotmeterUpdate(lv_timer_t *p_Timer);
  */
 void GUI_Helper_Timer_SceneStatisticsUpdate(lv_timer_t *p_Timer);
 
-/** @brief          LVGL timer callback to request RAM data update.
+/** @brief          LVGL timer callback to request RAM usage update.
  *  @param p_Timer  Pointer to the LVGL timer structure.
  */
 void GUI_Helper_Timer_RAMUpdate(lv_timer_t *p_Timer);
+
+/** @brief          LVGL timer callback to request Flash usage update.
+ *  @param p_Timer  Pointer to the LVGL timer structure.
+ */
+void GUI_Helper_Timer_MemoryUpdate(lv_timer_t *p_Timer);
 
 #endif /* GUI_HELPER_H_ */

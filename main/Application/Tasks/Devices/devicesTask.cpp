@@ -134,7 +134,6 @@ esp_err_t Devices_Task_Init(void)
         return ESP_OK;
     }
 
-    /* Create event group */
     _Devices_Task_State.EventGroup = xEventGroupCreate();
     if (_Devices_Task_State.EventGroup == NULL) {
         ESP_LOGE(TAG, "Failed to create event group!");
@@ -149,7 +148,6 @@ esp_err_t Devices_Task_Init(void)
         return Error;
     }
 
-    /* Use the event loop to receive control signals from other tasks */
     esp_event_handler_register(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler, NULL);
 
     _Devices_Task_State.isInitialized = true;
@@ -179,7 +177,7 @@ void Devices_Task_Deinit(void)
 
 esp_err_t Devices_Task_Start(App_Context_t *p_AppContext)
 {
-    BaseType_t ret;
+    BaseType_t Error;
 
     if (p_AppContext == NULL) {
         return ESP_ERR_INVALID_ARG;
@@ -195,18 +193,9 @@ esp_err_t Devices_Task_Start(App_Context_t *p_AppContext)
 
     ESP_LOGD(TAG, "Starting Devices Task");
 
-    ret = xTaskCreatePinnedToCore(
-              Task_Devices,
-              "Task_Devices",
-              CONFIG_DEVICES_TASK_STACKSIZE,
-              p_AppContext,
-              CONFIG_DEVICES_TASK_PRIO,
-              &_Devices_Task_State.TaskHandle,
-              CONFIG_DEVICES_TASK_CORE
-          );
-
-    if (ret != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create Devices Task: %d!", ret);
+    Error = xTaskCreatePinnedToCore(Task_Devices, "Task_Devices", CONFIG_DEVICES_TASK_STACKSIZE, p_AppContext, CONFIG_DEVICES_TASK_PRIO, &_Devices_Task_State.TaskHandle, CONFIG_DEVICES_TASK_CORE);
+    if (Error != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create Devices Task: %d!", Error);
 
         return ESP_ERR_NO_MEM;
     }

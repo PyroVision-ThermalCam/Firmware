@@ -54,7 +54,7 @@ void MessageBox_ImageSaveError(esp_err_t Error)
         lv_msgbox_add_title(Box, "Image Saved");
         lv_msgbox_add_text(Box, "Thermal image saved to storage");
 
-        ESP_LOGI(TAG, "Thermal image saved successfully");
+        ESP_LOGD(TAG, "Thermal image saved successfully");
     } else if (Error == ESP_ERR_INVALID_STATE) {
         lv_msgbox_add_title(Box, "USB Active");
         lv_msgbox_add_text(Box, "Cannot save - USB mode is active!\nDisable USB first.");

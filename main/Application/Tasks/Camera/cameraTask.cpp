@@ -61,7 +61,6 @@ static void Task_Camera(void *p_Parameters)
     ESP_LOGD(TAG, "Camera task started on core %d", xPortGetCoreID());
 
     while (_Camera_Task_State.isRunning) {
-
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 
@@ -86,7 +85,6 @@ esp_err_t Camera_Task_Init(void)
         return ESP_OK;
     }
 
-    /* Create event group */
     _Camera_Task_State.EventGroup = xEventGroupCreate();
     if (_Camera_Task_State.EventGroup == NULL) {
         ESP_LOGE(TAG, "Failed to create event group!");
@@ -126,7 +124,7 @@ void Camera_Task_Deinit(void)
 
 esp_err_t Camera_Task_Start(App_Context_t *p_AppContext)
 {
-    BaseType_t ret;
+    BaseType_t Error;
 
     if (p_AppContext == NULL) {
         return ESP_ERR_INVALID_ARG;
@@ -141,18 +139,9 @@ esp_err_t Camera_Task_Start(App_Context_t *p_AppContext)
 
     ESP_LOGD(TAG, "Starting Camera Task");
 
-    ret = xTaskCreatePinnedToCore(
-              Task_Camera,
-              "Task_Camera",
-              CONFIG_CAMERA_TASK_STACKSIZE,
-              p_AppContext,
-              CONFIG_CAMERA_TASK_PRIO,
-              &_Camera_Task_State.TaskHandle,
-              CONFIG_CAMERA_TASK_CORE
-          );
-
-    if (ret != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create Camera Task: %d!", ret);
+    Error = xTaskCreatePinnedToCore(Task_Camera, "Task_Camera", CONFIG_CAMERA_TASK_STACKSIZE, p_AppContext, CONFIG_CAMERA_TASK_PRIO, &_Camera_Task_State.TaskHandle, CONFIG_CAMERA_TASK_CORE);
+    if (Error != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create Camera Task: %d!", Error);
 
         return ESP_ERR_NO_MEM;
     }

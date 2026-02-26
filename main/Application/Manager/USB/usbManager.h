@@ -26,56 +26,72 @@
 
 #include "usbTypes.h"
 
-/** @brief          Initialize the USB Manager as a composite USB device.
- *                  This function installs the TinyUSB driver with the composite descriptor
- *                  (UVC + CDC + MSC) and initializes all enabled USB classes in parallel.
- *                  Which classes are active depends on the flags in p_Config and the
- *                  corresponding sdkconfig entries (CONFIG_TINYUSB_xxx_ENABLED).
- *  @note           MSC requires a valid MountPoint when MSC_Enabled is true.
- *                  Storage must be mounted before calling this function.
- *                  Not thread-safe during initialization. Call once from USB control task.
- *  @warning        While USB MSC is active, the filesystem should not be accessed from
- *                  the application to avoid data corruption.
- *  @param p_Config Pointer to USB manager configuration structure
+/** @brief          Initialize the USB Manager.
+ *                  Installs the TinyUSB driver with the composite descriptor, initializes the CDC
+ *                  class at boot time, creates an internal command queue and starts a monitoring
+ *                  task. The monitoring task polls the USB cable connection state and posts
+ *                  USB_EVENT_CABLE_CONNECTED or USB_EVENT_CABLE_DISCONNECTED via the ESP event
+ *                  system when the state changes. MSC and UVC classes are NOT enabled at init;
+ *                  use USBManager_EnableMSC() and USBManager_EnableUVC() to activate them.
+ *  @note           Must be called after MemoryManager_Init() so the storage path is available.
+ *                  Call once during boot before starting application tasks.
+ *  @warning        MSC requires the filesystem to be mounted before USBManager_EnableMSC(true)
+ *                  is called.
  *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_ARG if p_Config is NULL or MountPoint is NULL while MSC_Enabled
  *                  ESP_ERR_INVALID_STATE if already initialized
- *                  ESP_FAIL if TinyUSB driver installation fails
+ *                  ESP_ERR_NO_MEM if queue or task creation fails
+ *                  ESP_FAIL if TinyUSB driver installation or CDC initialization fails
  */
-esp_err_t USBManager_Init(const USB_Manager_Config_t *p_Config);
+esp_err_t USBManager_Init(void);
 
-/** @brief      Deinitialize the USB Manager and stop all active USB classes.
- *              Stops MSC, UVC, and CDC modules, disconnects from the USB bus,
- *              and uninstalls the TinyUSB driver.
- *  @note       After deinitialization, the filesystem can be safely accessed again.
- *  @warning    Ensure the PC has safely ejected the USB drive before calling this function.
- *  @return     ESP_OK on success
- *              ESP_ERR_INVALID_STATE if not initialized
+/** @brief          Deinitialize the USB Manager.
+ *                  Disables all active USB classes, disconnects from the USB bus, stops the
+ *                  internal monitoring task, and uninstalls the TinyUSB driver.
+ *  @note           After deinitialization the filesystem is accessible again.
+ *  @warning        Ensure the host has safely ejected the USB drive before calling this function.
+ *  @return         ESP_OK on success
+ *                  ESP_ERR_INVALID_STATE if not initialized
  */
 esp_err_t USBManager_Deinit(void);
 
-/** @brief  Check if USB Manager is initialized and active.
+/** @brief          Enable or disable the USB Mass Storage Class.
+ *                  Posts a command to the internal USB Manager task and returns immediately
+ *                  without blocking the caller. The actual USBMSC_Init() or USBMSC_Deinit()
+ *                  operation runs in the USB Manager task context.
+ *  @note           Call only when USBManager_IsInitialized() returns true.
+ *                  MSC requires a mounted filesystem at MemoryManager_GetStoragePath().
+ *                  Enable is silently ignored when the cable is not connected.
+ *  @warning        While MSC is active the application must not write to the filesystem.
+ *  @param Enable   true to enable MSC, false to disable
+ *  @return         ESP_OK if command was enqueued successfully
+ *                  ESP_ERR_INVALID_STATE if USB Manager is not initialized
+ *                  ESP_ERR_TIMEOUT if command queue is full
+ */
+esp_err_t USBManager_EnableMSC(bool Enable);
+
+/** @brief          Enable or disable the USB Video Class.
+ *                  Posts a command to the internal USB Manager task and returns immediately
+ *                  without blocking the caller. The actual USBUVC_Init() or USBUVC_Deinit()
+ *                  operation runs in the USB Manager task context.
+ *  @note           Call only when USBManager_IsInitialized() returns true.
+ *                  Enable is silently ignored when the cable is not connected.
+ *  @param Enable   true to enable UVC, false to disable
+ *  @return         ESP_OK if command was enqueued successfully
+ *                  ESP_ERR_INVALID_STATE if USB Manager is not initialized
+ *                  ESP_ERR_TIMEOUT if command queue is full
+ */
+esp_err_t USBManager_EnableUVC(bool Enable);
+
+/** @brief  Check if the USB Manager is initialized and the TinyUSB driver is active.
  *  @return true if USB Manager is initialized
  *          false if not initialized
  */
 bool USBManager_IsInitialized(void);
 
-/** @brief  Check if UVC has been enabled in the current USB configuration.
- *  @return true if UVC is enabled and initialized
- *          false otherwise
+/** @brief  Check if a USB cable is currently connected and enumerated by the host.
+ *  @return true if USB cable is connected and device has been enumerated by the host
+ *          false if cable is absent or device has not yet been enumerated
  */
-bool USBManager_IsUVCEnabled(void);
-
-/** @brief  Check if CDC has been enabled in the current USB configuration.
- *  @return true if CDC is enabled and initialized
- *          false otherwise
- */
-bool USBManager_IsCDCEnabled(void);
-
-/** @brief  Check if MSC has been enabled in the current USB configuration.
- *  @return true if MSC is enabled and initialized
- *          false otherwise
- */
-bool USBManager_IsMSCEnabled(void);
+bool USBManager_IsCableConnected(void);
 
 #endif /* USB_MANAGER_H_ */

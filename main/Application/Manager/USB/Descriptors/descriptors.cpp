@@ -3,9 +3,7 @@
 
 #include "descriptors.h"
 
-#define USB_BCD_DEVICE(Major, Minor) \
-    ((((Major) / 10) << 12) | (((Major) % 10) << 8) | \
-    (((Minor) / 10) << 4)  |  ((Minor) % 10))
+#define USB_BCD_DEVICE(Major, Minor) 	((((Major) / 10) << 12) | (((Major) % 10) << 8) | (((Minor) / 10) << 4)  |  ((Minor) % 10))
 
 /* MSC Endpoint numbers */
 #define EPNUM_MSC_OUT                   0x01
@@ -41,7 +39,7 @@
  */
 #define TUD_UVC_DESC_LEN ( \
     TUD_VIDEO_DESC_IAD_LEN \
-    /* control */ \
+    /* Control */ \
     + TUD_VIDEO_DESC_STD_VC_LEN \
     + TUD_VIDEO_DESC_CS_VC_LEN \
 	/* bInCollection */ \
@@ -149,24 +147,9 @@
 		/* Isochronous Video Data Endpoint */ \
 		TUD_VIDEO_DESC_EP_ISO(_epin, _epsize, 1)                         /* bInterval: 1 (one frame per microframe) */
 
-#ifdef CONFIG_TINYUSB_UVC_ENABLED
-	#define _UVC_DESC_LEN    TUD_UVC_DESC_LEN
-#else
-	#define _UVC_DESC_LEN    0
-#endif
-
-#ifdef CONFIG_TINYUSB_CDC_ENABLED
-	#define _CDC_DESC_LEN    TUD_CDC_DESC_LEN
-#else
-	#define _CDC_DESC_LEN    0
-#endif
-
-#if(defined CONFIG_TINYUSB_MSC_ENABLED) && (CONFIG_TINYUSB_MSC_ENABLED == 1)
-	#define _MSC_DESC_LEN    TUD_MSC_DESC_LEN
-#else
-	#define _MSC_DESC_LEN    0
-#endif
-
+#define _UVC_DESC_LEN    				TUD_UVC_DESC_LEN
+#define _CDC_DESC_LEN    				TUD_CDC_DESC_LEN
+#define _MSC_DESC_LEN    				TUD_MSC_DESC_LEN
 #define DESCRIPTOR_TOTAL_LENGTH ( \
     TUD_CONFIG_DESC_LEN \
     + _UVC_DESC_LEN     \
@@ -200,24 +183,18 @@ const tusb_desc_device_t Device_Descriptor = {
  * 			Interface 3: CDC Data (Endpoint 0x83 OUT, 0x84 IN)
  * 			Interface 4: MSC Control (Endpoint 0x01 OUT, 0x84 IN)
  */
-uint8_t const Config_Descriptor[] = {
+const uint8_t Config_Descriptor[] = {
     TUD_CONFIG_DESCRIPTOR(1, 5, 0,
 		DESCRIPTOR_TOTAL_LENGTH, TUSB_DESC_CONFIG_ATT_SELF_POWERED, 100),
 
-#ifdef CONFIG_TINYUSB_UVC_ENABLED
     /* UVC Video Interface (Interface 0 - 1) */
-    TUD_VIDEO_CAPTURE_DESCRIPTOR_MJPEG(0, 0, EPNUM_UVC_VIDEO_IN, 640, 480, 15, CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE),
-#endif
+    TUD_VIDEO_CAPTURE_DESCRIPTOR_MJPEG(0, 0, EPNUM_UVC_VIDEO_IN, 160, 120, 15, CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE),
 
-#ifdef CONFIG_TINYUSB_CDC_ENABLED
     /* CDC Metadata Interface (Interface 2 - 3) */
     TUD_CDC_DESCRIPTOR(2, 0, EPNUM_CDC_NOTIFY, 8, EPNUM_CDC_OUT, EPNUM_CDC_IN, 64),
-#endif
 
-#if(defined CONFIG_TINYUSB_MSC_ENABLED) && (CONFIG_TINYUSB_MSC_ENABLED == 1)
     /* MSC Interface (Interface 4) */
     TUD_MSC_DESCRIPTOR(4, 0, EPNUM_MSC_OUT, EPNUM_MSC_IN, 64),
-#endif
 };
 
 const tusb_desc_device_t* get_Desc_Device(void) {

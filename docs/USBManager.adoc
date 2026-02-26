@@ -81,19 +81,30 @@ The USB Manager is built on top of the TinyUSB stack provided by Espressif:
 
 === Storage Backend Selection
 
-USB Manager automatically detects and configures the appropriate storage backend:
+USB Manager automatically detects and configures the appropriate storage backend.
+When MSC is enabled, the VFS filesystem is soft-unmounted to give the USB host exclusive
+block-level access. When MSC is disabled, the VFS is soft-remounted so the application
+can resume file operations.
 
 [source]
 ----
-MemoryManager_GetStorageLocation()
+MSC Enable:
+  MemoryManager_LockFilesystem()
+  MemoryManager_SoftUnmountStorage()      ← VFS unmounted, raw handles preserved
+  MemoryManager_GetStorageLocation()
            │
            ├─► SD Card Detected
-           │   └─► tinyusb_msc_new_storage_sdmmc()
-           │       └─► Uses sdmmc_card_t handle
+           │   └─► tinyusb_msc_new_storage_sdmmc(MOUNT_USB)
+           │       └─► Uses sdmmc_card_t handle (block-level access)
            │
            └─► Internal Flash
-               └─► tinyusb_msc_new_storage_spiflash()
-                   └─► Uses wl_handle_t (Wear Leveling)
+               └─► tinyusb_msc_new_storage_spiflash(MOUNT_USB)
+                   └─► Uses wl_handle_t (block-level access)
+
+MSC Disable:
+  tinyusb_msc_delete_storage()             ← Release USB block access
+  MemoryManager_SoftRemountStorage()       ← VFS remounted for app
+  MemoryManager_UnlockFilesystem()
 ----
 
 === USB Lifecycle State Machine
@@ -171,8 +182,8 @@ typedef struct {
 * *Manufacturer*: Manufacturer name shown on PC (e.g., "Kampi's Elektroecke")
 * *Product*: Product name shown on PC (e.g., "PyroVision Thermal Camera")
 * *SerialNumber*: Serial number string
-* *FrameWidth*: Video frame width in pixels (UVC mode only, e.g., 640)
-* *FrameHeight*: Video frame height in pixels (UVC mode only, e.g., 480)
+* *FrameWidth*: Video frame width in pixels (UVC mode only, e.g., 160)
+* *FrameHeight*: Video frame height in pixels (UVC mode only, e.g., 120)
 * *FrameInterval*: Frame interval in 100ns units (UVC mode only, FPS = 10000000 / FrameInterval)
 
 **Example (MSC Mode):**
@@ -201,9 +212,9 @@ const USB_Manager_Config_t USB_UVC_Config = {
     .Manufacturer = "Kampi's Elektroecke",
     .Product = "PyroVision Thermal Webcam",
     .SerialNumber = "PV-12345678",
-    .FrameWidth = 640,      // VGA resolution
-    .FrameHeight = 480,
-    .FrameInterval = 333333, // 30 FPS (10000000 / 30)
+    .FrameWidth = 160,      // Lepton thermal camera resolution
+    .FrameHeight = 120,
+    .FrameInterval = 1111111, // 9 FPS (10000000 / 9)
 };
 ----
 
@@ -383,9 +394,9 @@ void EnableUSB_UVC_Mode(void)
         .Manufacturer = InfoSettings.Manufacturer,
         .Product = InfoSettings.Name,
         .SerialNumber = InfoSettings.Serial,
-        .FrameWidth = 640,
-        .FrameHeight = 480,
-        .FrameInterval = 333333,  // 30 FPS
+        .FrameWidth = 160,
+        .FrameHeight = 120,
+        .FrameInterval = 1111111,  // 9 FPS
     };
     
     // Initialize USB UVC
@@ -860,13 +871,15 @@ void TestUSB_Reinitialization(void)
 
 * *Order Matters*: Initialize Memory Manager before USB Manager
 * *Lock Filesystem*: Always lock filesystem before activating USB MSC
+* *Soft-Unmount for MSC*: Call `MemoryManager_SoftUnmountStorage()` after locking so the USB host gets exclusive block-level access
 * *Event Registration*: Register USB event handlers before initialization
 * *Configuration Validation*: Validate mount point matches Memory Manager
 
 === Deinitialization
 
-* *Async Operation*: Understand that `USBManager_Deinit()` returns immediately
-* *Wait for Event*: Always wait for `USB_EVENT_UNINITIALIZED` before writing files
+* *Delete MSC Storage*: Always call `tinyusb_msc_delete_storage()` to release the LUN before remounting
+* *Soft-Remount After MSC*: Call `MemoryManager_SoftRemountStorage()` to restore VFS file I/O
+* *Unlock Filesystem*: Call `MemoryManager_UnlockFilesystem()` after remounting
 * *Safe Ejection*: Ensure PC has ejected/unmounted drive before deactivating
 * *No Forced Disconnect*: Never unplug cable without proper deactivation
 
@@ -1067,19 +1080,26 @@ No special partition requirements. USB Manager uses existing storage partition d
 
 === Custom USB Descriptors
 
-To customize USB device descriptors, modify TinyUSB configuration:
+The project uses custom USB descriptors defined in `main/Application/Manager/USB/Descriptors/descriptors.cpp`.
+The composite device includes UVC (Video), CDC (Serial), and MSC (Mass Storage) interfaces.
 
-[source,cpp]
-----
-// In your component config or before tinyusb_driver_install()
+**Descriptor layout:**
 
-#define USB_DEVICE_VID  0x303A  // Espressif VID
-#define USB_DEVICE_PID  0x4002  // Custom PID
-#define USB_MANUFACTURER "PyroVision"
-#define USB_PRODUCT      "Thermal Camera"
-----
+* Interface 0: Video Control
+* Interface 1: Video Streaming (Endpoint 0x84 IN, Bulk)
+* Interface 2: CDC Control (Endpoint 0x82 NOTIFICATION)
+* Interface 3: CDC Data (Endpoint 0x02 OUT, 0x83 IN)
+* Interface 4: MSC (Endpoint 0x01 OUT, 0x81 IN)
 
-Note: USB Manager currently uses runtime configuration via `USB_Manager_Config_t`, not compile-time descriptors.
+**UVC Configuration:**
+
+* Transfer mode: Bulk (CONFIG_TINYUSB_UVC_CAM1_BULK_MODE=y)
+* Resolution: 160x120 pixels (matching Lepton thermal camera)
+* Frame rate: 9 FPS
+* Format: MJPEG
+
+IMPORTANT: The resolution and frame rate in the USB descriptor must match the values used
+by `USBUVC_Init()` and the actual frame data submitted via `USBUVC_SubmitFrame()`.
 
 === TinyUSB Callbacks
 

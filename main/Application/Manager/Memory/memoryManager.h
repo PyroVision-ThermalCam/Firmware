@@ -157,6 +157,37 @@ esp_err_t MemoryManager_UnlockFilesystem(void);
  */
 bool MemoryManager_IsFilesystemLocked(void);
 
+/** @brief          Soft-unmount the active storage VFS filesystem.
+ *                  Unmounts the FAT filesystem and unregisters the VFS path, but preserves
+ *                  the underlying storage handles (wear leveling handle or SD card handle).
+ *                  This allows USB Mass Storage to access the raw storage blocks while
+ *                  the VFS path is no longer accessible by the application.
+ *  @note           Must be called before USB MSC exposes the storage to the host.
+ *                  The storage handles remain valid and can be used by TinyUSB MSC.
+ *                  Call MemoryManager_SoftRemountStorage() to restore VFS access.
+ *  @warning        File I/O via VFS will fail after this call until remounted.
+ *                  Lock the filesystem before calling this to prevent concurrent writes.
+ *  @return         ESP_OK on success
+ *                  ESP_ERR_INVALID_STATE if not initialized or storage not mounted
+ *                  ESP_ERR_INVALID_ARG if unknown storage location
+ */
+esp_err_t MemoryManager_SoftUnmountStorage(void);
+
+/** @brief          Soft-remount the active storage VFS filesystem.
+ *                  Re-registers the storage with diskio, registers the VFS path, and mounts
+ *                  the FAT filesystem using the preserved storage handles from a previous
+ *                  MemoryManager_SoftUnmountStorage() call.
+ *  @note           Must be called after USB MSC releases the storage.
+ *                  Restores full VFS file I/O capability for the application.
+ *  @warning        Must only be called after a successful MemoryManager_SoftUnmountStorage().
+ *                  Do not call while USB MSC is still accessing the storage.
+ *  @return         ESP_OK on success
+ *                  ESP_ERR_INVALID_STATE if not initialized or handles are invalid
+ *                  ESP_ERR_INVALID_ARG if unknown storage location
+ *                  ESP_FAIL if FAT filesystem mount fails
+ */
+esp_err_t MemoryManager_SoftRemountStorage(void);
+
 /** @brief          Erase current storage location completely.
  *                  Deletes all files in the active storage filesystem (internal flash
  *                  or SD card) and reformats it.

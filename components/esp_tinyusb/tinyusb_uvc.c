@@ -112,7 +112,7 @@ static void video_task(void *arg)
 
     while (1) {
         esp_task_wdt_reset();
-        
+
         EventBits_t uxBits = xEventGroupGetBits(uvc->event_group);
         if (uxBits & UVC_EVENT_EXIT) {
             ESP_LOGD(TAG, "UVC task exit for interface %d", itf);

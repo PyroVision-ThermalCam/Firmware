@@ -248,7 +248,7 @@ static void Task_Network(void *p_Parameters)
 
     SettingsManager_GetWiFi(&WiFiSettings);
 
-    ESP_LOGI(TAG, "Autoconnect is %s", (WiFiSettings.AutoConnect) ? "enabled" : "disabled");
+    ESP_LOGD(TAG, "Autoconnect is %s", (WiFiSettings.AutoConnect) ? "enabled" : "disabled");
 
     /* If autoconnect is disabled, wait for explicit WiFi open request in main loop */
     bool WaitingForWiFiRequest = (WiFiSettings.AutoConnect == false);
@@ -315,7 +315,7 @@ static void Task_Network(void *p_Parameters)
 
             xEventGroupClearBits(_Network_Task_State.EventGroup, NETWORK_TASK_WIFI_DISCONNECTED);
         } else if (EventBits & NETWORK_TASK_PROV_SUCCESS) {
-            ESP_LOGI(TAG, "Provisioning success - stopping provisioning and connecting to WiFi");
+            ESP_LOGD(TAG, "Provisioning success - stopping provisioning and connecting to WiFi");
 
             /* Provisioning_Stop() calls esp_wifi_stop() which can block for several seconds.
              * NetworkManager_StartSTA() also performs blocking WiFi initialization.
@@ -325,12 +325,12 @@ static void Task_Network(void *p_Parameters)
             /* Stop provisioning (HTTP server on port 80 and DNS) */
             Provisioning_Stop();
 
-            ESP_LOGI(TAG, "Provisioning stopped, starting WiFi STA connection");
+            ESP_LOGD(TAG, "Provisioning stopped, starting WiFi STA connection");
 
             /* Connect to WiFi with the new credentials */
             NetworkManager_StartSTA();
 
-            ESP_LOGI(TAG, "WiFi STA connection initiated");
+            ESP_LOGD(TAG, "WiFi STA connection initiated");
 
             /* Re-register with WDT now that the long blocking operations are complete */
             esp_task_wdt_add(NULL);
@@ -522,7 +522,7 @@ void Network_Task_Deinit(void)
 
 esp_err_t Network_Task_Start(void)
 {
-    BaseType_t Ret;
+    BaseType_t Error;
 
     if (_Network_Task_State.isInitialized == false) {
         return ESP_ERR_INVALID_STATE;
@@ -535,18 +535,10 @@ esp_err_t Network_Task_Start(void)
 
     ESP_LOGD(TAG, "Starting Network Task");
 
-    Ret = xTaskCreatePinnedToCore(
-              Task_Network,
-              "Task_Network",
-              CONFIG_NETWORK_TASK_STACKSIZE,
-              NULL,
-              CONFIG_NETWORK_TASK_PRIO,
-              &_Network_Task_State.TaskHandle,
-              CONFIG_NETWORK_TASK_CORE
-          );
+    Error = xTaskCreatePinnedToCore(Task_Network, "Task_Network", CONFIG_NETWORK_TASK_STACKSIZE, NULL, CONFIG_NETWORK_TASK_PRIO, &_Network_Task_State.TaskHandle, CONFIG_NETWORK_TASK_CORE);
+    if (Error != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create Network Task: %d!", Error);
 
-    if (Ret != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create network task!");
         return ESP_ERR_NO_MEM;
     }
 

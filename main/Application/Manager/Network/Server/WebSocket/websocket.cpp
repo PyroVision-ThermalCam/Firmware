@@ -199,7 +199,7 @@ static esp_err_t WebSocket_SendBinary(int FD, const uint8_t *p_Data, size_t Leng
 
     /* Try to send with retry logic to handle queue congestion */
     Error = ESP_FAIL;
-    for (uint8_t retry = 0; retry < 3; retry++) {
+    for (uint8_t Retry = 0; Retry < 3; Retry++) {
         Error = httpd_ws_send_frame_async(WebSocket_State.ServerHandle, FD, &Frame);
 
         if (Error == ESP_OK) {
@@ -210,7 +210,7 @@ static esp_err_t WebSocket_SendBinary(int FD, const uint8_t *p_Data, size_t Leng
         }
 
         /* Queue might be full, wait and retry */
-        ESP_LOGW(TAG, "Failed to queue frame to fd=%d (retry %d): %d!", FD, retry + 1, Error);
+        ESP_LOGW(TAG, "Failed to queue frame to fd=%d (retry %d): %d!", FD, Retry + 1, Error);
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 
@@ -230,7 +230,6 @@ static void WebSocket_HandleStart(WS_Client_t *p_Client, cJSON *p_Data)
 {
     cJSON *fps = cJSON_GetObjectItem(p_Data, "fps");
 
-    /* Set FPS (default 8) */
     if (cJSON_IsNumber(fps)) {
         p_Client->stream_fps = static_cast<uint8_t>(fps->valueint);
         if (p_Client->stream_fps < 1) {
@@ -261,12 +260,14 @@ static void WebSocket_HandleStart(WS_Client_t *p_Client, cJSON *p_Data)
  */
 static void WebSocket_HandleStop(WS_Client_t *p_Client)
 {
+    cJSON *JSON;
+
     p_Client->stream_enabled = false;
     p_Client->last_frame_time = 0;
 
     ESP_LOGI(TAG, "Stream stopped for fd=%d", p_Client->fd);
 
-    cJSON *JSON = cJSON_CreateObject();
+    JSON = cJSON_CreateObject();
     cJSON_AddStringToObject(JSON, "status", "ok");
     WebSocket_SendJSON(p_Client->fd, "stopped", JSON);
     cJSON_Delete(JSON);
@@ -278,10 +279,11 @@ static void WebSocket_HandleStop(WS_Client_t *p_Client)
  */
 static void WebSocket_HandleTelemetrySubscribe(WS_Client_t *p_Client, cJSON *p_Data)
 {
-    cJSON *interval = cJSON_GetObjectItem(p_Data, "interval");
+    cJSON *JSON;
+    cJSON *Interval = cJSON_GetObjectItem(p_Data, "interval");
 
-    if (cJSON_IsNumber(interval)) {
-        p_Client->telemetry_interval_ms = static_cast<uint32_t>(interval->valueint);
+    if (cJSON_IsNumber(Interval)) {
+        p_Client->telemetry_interval_ms = static_cast<uint32_t>(Interval->valueint);
         if (p_Client->telemetry_interval_ms < 100) {
             p_Client->telemetry_interval_ms = 100;
         }
@@ -292,7 +294,7 @@ static void WebSocket_HandleTelemetrySubscribe(WS_Client_t *p_Client, cJSON *p_D
     ESP_LOGI(TAG, "Telemetry subscribed for fd=%d, interval=%lu ms",
              p_Client->fd, p_Client->telemetry_interval_ms);
 
-    cJSON *JSON = cJSON_CreateObject();
+    JSON = cJSON_CreateObject();
     cJSON_AddStringToObject(JSON, "status", "ok");
     WebSocket_SendJSON(p_Client->fd, "subscribed", JSON);
     cJSON_Delete(JSON);
@@ -303,11 +305,13 @@ static void WebSocket_HandleTelemetrySubscribe(WS_Client_t *p_Client, cJSON *p_D
  */
 static void WebSocket_HandleTelemetryUnsubscribe(WS_Client_t *p_Client)
 {
+    cJSON *JSON;
+
     p_Client->telemetry_enabled = false;
 
     ESP_LOGI(TAG, "Telemetry unsubscribed for fd=%d", p_Client->fd);
 
-    cJSON *JSON = cJSON_CreateObject();
+    JSON = cJSON_CreateObject();
     cJSON_AddStringToObject(JSON, "status", "ok");
     WebSocket_SendJSON(p_Client->fd, "unsubscribed", JSON);
     cJSON_Delete(JSON);
@@ -320,80 +324,85 @@ static void WebSocket_HandleTelemetryUnsubscribe(WS_Client_t *p_Client)
  */
 static void WebSocket_ProcessMessage(WS_Client_t *p_Client, const char *p_Data, size_t length)
 {
-    cJSON *json = cJSON_ParseWithLength(p_Data, length);
-    if (json == NULL) {
+    cJSON *JSON;
+    cJSON *Cmd;
+    cJSON *Data;
+    
+    JSON = cJSON_ParseWithLength(p_Data, length);
+    if (JSON == NULL) {
         ESP_LOGW(TAG, "Invalid JSON from fd=%d", p_Client->fd);
+
         return;
     }
 
-    cJSON *cmd = cJSON_GetObjectItem(json, "cmd");
-    cJSON *data = cJSON_GetObjectItem(json, "data");
+    Cmd = cJSON_GetObjectItem(JSON, "cmd");
+    Data = cJSON_GetObjectItem(JSON, "data");
 
-    if (cJSON_IsString(cmd) == false) {
+    if (cJSON_IsString(Cmd) == false) {
         ESP_LOGW(TAG, "Invalid message format from fd=%d", p_Client->fd);
 
-        cJSON_Delete(json);
+        cJSON_Delete(JSON);
 
         return;
     }
 
     /* Handle commands */
-    std::string cmd_str(cmd->valuestring);
-    if (cmd_str == "start") {
-        WebSocket_HandleStart(p_Client, data);
-    } else if (cmd_str == "stop") {
+    std::string Command(Cmd->valuestring);
+    if (Command == "start") {
+        WebSocket_HandleStart(p_Client, Data);
+    } else if (Command == "stop") {
         WebSocket_HandleStop(p_Client);
-    } else if (cmd_str == "subscribe") {
-        WebSocket_HandleTelemetrySubscribe(p_Client, data);
-    } else if (cmd_str == "unsubscribe") {
+    } else if (Command == "subscribe") {
+        WebSocket_HandleTelemetrySubscribe(p_Client, Data);
+    } else if (Command == "unsubscribe") {
         WebSocket_HandleTelemetryUnsubscribe(p_Client);
     }
     /* Remote Control Commands */
-    else if (cmd_str == "get_temperature") {
-        WebSocket_Handle_GetTemperature(p_Client->fd, data);
-    } else if (cmd_str == "get_time") {
-        WebSocket_Handle_GetTime(p_Client->fd, data);
-    } else if (cmd_str == "set_time") {
-        WebSocket_Handle_SetTime(p_Client->fd, data);
-    } else if (cmd_str == "get_battery") {
-        WebSocket_Handle_GetBattery(p_Client->fd, data);
-    } else if (cmd_str == "get_lepton_emissivity") {
-        WebSocket_Handle_GetLeptonEmissivity(p_Client->fd, data);
-    } else if (cmd_str == "set_lepton_emissivity") {
-        WebSocket_Handle_SetLeptonEmissivity(p_Client->fd, data);
-    } else if (cmd_str == "get_lepton_stats") {
-        WebSocket_Handle_GetLeptonStats(p_Client->fd, data);
-    } else if (cmd_str == "get_lepton_roi") {
-        WebSocket_Handle_GetLeptonROI(p_Client->fd, data);
-    } else if (cmd_str == "set_lepton_roi") {
-        WebSocket_Handle_SetLeptonROI(p_Client->fd, data);
-    } else if (cmd_str == "get_lepton_spotmeter") {
-        WebSocket_Handle_GetLeptonSpotmeter(p_Client->fd, data);
-    } else if (cmd_str == "get_flash") {
-        WebSocket_Handle_GetFlash(p_Client->fd, data);
-    } else if (cmd_str == "set_flash") {
-        WebSocket_Handle_SetFlash(p_Client->fd, data);
-    } else if (cmd_str == "get_image_format") {
-        WebSocket_Handle_GetImageFormat(p_Client->fd, data);
-    } else if (cmd_str == "set_image_format") {
-        WebSocket_Handle_SetImageFormat(p_Client->fd, data);
-    } else if (cmd_str == "set_status_led") {
-        WebSocket_Handle_SetStatusLED(p_Client->fd, data);
-    } else if (cmd_str == "get_sd_state") {
-        WebSocket_Handle_GetSDState(p_Client->fd, data);
-    } else if (cmd_str == "format_memory") {
-        WebSocket_Handle_FormatMemory(p_Client->fd, data);
-    } else if (cmd_str == "display_message") {
-        WebSocket_Handle_DisplayMessage(p_Client->fd, data);
-    } else if (cmd_str == "get_lock") {
-        WebSocket_Handle_GetLock(p_Client->fd, data);
-    } else if (cmd_str == "set_lock") {
-        WebSocket_Handle_SetLock(p_Client->fd, data);
+    else if (Command == "get_temperature") {
+        WebSocket_Handle_GetTemperature(p_Client->fd, Data);
+    } else if (Command == "get_time") {
+        WebSocket_Handle_GetTime(p_Client->fd, Data);
+    } else if (Command == "set_time") {
+        WebSocket_Handle_SetTime(p_Client->fd, Data);
+    } else if (Command == "get_battery") {
+        WebSocket_Handle_GetBattery(p_Client->fd, Data);
+    } else if (Command == "get_lepton_emissivity") {
+        WebSocket_Handle_GetLeptonEmissivity(p_Client->fd, Data);
+    } else if (Command == "set_lepton_emissivity") {
+        WebSocket_Handle_SetLeptonEmissivity(p_Client->fd, Data);
+    } else if (Command == "get_lepton_stats") {
+        WebSocket_Handle_GetLeptonStats(p_Client->fd, Data);
+    } else if (Command == "get_lepton_roi") {
+        WebSocket_Handle_GetLeptonROI(p_Client->fd, Data);
+    } else if (Command == "set_lepton_roi") {
+        WebSocket_Handle_SetLeptonROI(p_Client->fd, Data);
+    } else if (Command == "get_lepton_spotmeter") {
+        WebSocket_Handle_GetLeptonSpotmeter(p_Client->fd, Data);
+    } else if (Command == "get_flash") {
+        WebSocket_Handle_GetFlash(p_Client->fd, Data);
+    } else if (Command == "set_flash") {
+        WebSocket_Handle_SetFlash(p_Client->fd, Data);
+    } else if (Command == "get_image_format") {
+        WebSocket_Handle_GetImageFormat(p_Client->fd, Data);
+    } else if (Command == "set_image_format") {
+        WebSocket_Handle_SetImageFormat(p_Client->fd, Data);
+    } else if (Command == "set_status_led") {
+        WebSocket_Handle_SetStatusLED(p_Client->fd, Data);
+    } else if (Command == "get_sd_state") {
+        WebSocket_Handle_GetSDState(p_Client->fd, Data);
+    } else if (Command == "format_memory") {
+        WebSocket_Handle_FormatMemory(p_Client->fd, Data);
+    } else if (Command == "display_message") {
+        WebSocket_Handle_DisplayMessage(p_Client->fd, Data);
+    } else if (Command == "get_lock") {
+        WebSocket_Handle_GetLock(p_Client->fd, Data);
+    } else if (Command == "set_lock") {
+        WebSocket_Handle_SetLock(p_Client->fd, Data);
     } else {
-        ESP_LOGW(TAG, "Unknown command from fd=%d: %s", p_Client->fd, cmd_str.c_str());
+        ESP_LOGW(TAG, "Unknown command from fd=%d: %s", p_Client->fd, Command.c_str());
     }
 
-    cJSON_Delete(json);
+    cJSON_Delete(JSON);
 }
 
 /** @brief              WebSocket handler callback.
@@ -409,15 +418,16 @@ static esp_err_t WebSocket_Handler(httpd_req_t *p_Request)
 
     /* Handle new connection */
     if (p_Request->method == HTTP_GET) {
-        WS_Client_t *client = WebSocket_AddClient(httpd_req_to_sockfd(p_Request));
-
-        if (client == NULL) {
+        WS_Client_t *Client;
+        
+        Client = WebSocket_AddClient(httpd_req_to_sockfd(p_Request));
+        if (Client == NULL) {
             httpd_resp_send_err(p_Request, HTTPD_500_INTERNAL_SERVER_ERROR, "Max clients reached");
 
             return ESP_FAIL;
         }
 
-        ESP_LOGI(TAG, "WebSocket handshake with fd=%d", client->fd);
+        ESP_LOGI(TAG, "WebSocket handshake with fd=%d", Client->fd);
 
         return ESP_OK;
     }
@@ -434,7 +444,15 @@ static esp_err_t WebSocket_Handler(httpd_req_t *p_Request)
     }
 
     if (Frame.len > 0) {
-        Frame.payload = static_cast<uint8_t *>(heap_caps_malloc(Frame.len + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+        uint32_t Caps;
+
+        #ifdef CONFIG_SPIRAM
+            Caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+        #else
+            Caps = MALLOC_CAP_8BIT;
+        #endif
+
+        Frame.payload = static_cast<uint8_t *>(heap_caps_malloc(Frame.len + 1, Caps));
         if (Frame.payload == NULL) {
             ESP_LOGE(TAG, "Failed to allocate frame buffer!");
 
@@ -645,8 +663,9 @@ static void WebSocket_BroadcastTask(void *p_Param)
     while (WebSocket_State.isRunning) {
         /* Wait for frame ready notification (blocking, 100ms timeout) */
         if (xQueueReceive(WebSocket_State.FrameReadyQueue, &Signal, pdMS_TO_TICKS(100)) == pdTRUE) {
-            uint32_t Now = esp_timer_get_time() / 1000;
+            uint32_t Now;
 
+            Now = esp_timer_get_time() / 1000;
             if ((WebSocket_State.isInitialized == false) || (WebSocket_State.ThermalFrame == NULL) ||
                 (WebSocket_State.ClientCount == 0)) {
                 continue;
@@ -671,19 +690,20 @@ static void WebSocket_BroadcastTask(void *p_Param)
             /* Send to all active streaming clients */
             xSemaphoreTake(WebSocket_State.ClientsMutex, portMAX_DELAY);
             for (uint8_t i = 0; i < CONFIG_NETWORK_WEBSOCKET_CLIENTS; i++) {
-                WS_Client_t *client = &WebSocket_State.Clients[i];
-
-                if ((client->active == false) || (client->stream_enabled == false)) {
+                WS_Client_t *Client;
+                
+                Client = &WebSocket_State.Clients[i];
+                if ((Client->active == false) || (Client->stream_enabled == false)) {
                     continue;
                 }
 
                 /* Check frame rate limit */
-                if ((Now - client->last_frame_time) < (1000 / client->stream_fps)) {
+                if ((Now - Client->last_frame_time) < (1000 / Client->stream_fps)) {
                     continue;
                 }
 
                 /* Copy FD before releasing mutex */
-                int client_fd = client->fd;
+                int client_fd = Client->fd;
                 uint8_t client_idx = i;
 
                 xSemaphoreGive(WebSocket_State.ClientsMutex);
@@ -738,6 +758,7 @@ esp_err_t WebSocket_NotifyFrameReady(void)
 esp_err_t WebSocket_BroadcastTelemetry(void)
 {
     uint32_t Now;
+    cJSON *JSON;
 
     if (WebSocket_State.isInitialized == false) {
         return ESP_ERR_INVALID_STATE;
@@ -750,7 +771,7 @@ esp_err_t WebSocket_BroadcastTelemetry(void)
     Now = esp_timer_get_time() / 1000;
 
     /* Build telemetry data */
-    cJSON *JSON = cJSON_CreateObject();
+    JSON = cJSON_CreateObject();
 
     if (WebSocket_State.ThermalFrame != NULL) {
         // TODO
@@ -764,19 +785,20 @@ esp_err_t WebSocket_BroadcastTelemetry(void)
     }
 
     for (uint8_t i = 0; i < CONFIG_NETWORK_WEBSOCKET_CLIENTS; i++) {
-        WS_Client_t *client = &WebSocket_State.Clients[i];
-
-        if ((client->active == false) || (client->telemetry_enabled == false)) {
+        WS_Client_t *Client;
+        
+        Client = &WebSocket_State.Clients[i];
+        if ((Client->active == false) || (Client->telemetry_enabled == false)) {
             continue;
         }
 
         /* Check interval */
-        if ((Now - client->last_telemetry_time) < client->telemetry_interval_ms) {
+        if ((Now - Client->last_telemetry_time) < Client->telemetry_interval_ms) {
             continue;
         }
 
-        WebSocket_SendJSON(client->fd, "telemetry", JSON);
-        client->last_telemetry_time = Now;
+        WebSocket_SendJSON(Client->fd, "telemetry", JSON);
+        Client->last_telemetry_time = Now;
     }
 
     xSemaphoreGive(WebSocket_State.ClientsMutex);
@@ -788,10 +810,6 @@ esp_err_t WebSocket_BroadcastTelemetry(void)
 
 esp_err_t WebSocket_PingAll(void)
 {
-    if ((WebSocket_State.isInitialized == false) || (WebSocket_State.ServerHandle == NULL)) {
-        return ESP_ERR_INVALID_STATE;
-    }
-
     httpd_ws_frame_t Frame = {
         .final = true,
         .fragmented = false,
@@ -799,6 +817,10 @@ esp_err_t WebSocket_PingAll(void)
         .payload = NULL,
         .len = 0,
     };
+
+    if ((WebSocket_State.isInitialized == false) || (WebSocket_State.ServerHandle == NULL)) {
+        return ESP_ERR_INVALID_STATE;
+    }
 
     xSemaphoreTake(WebSocket_State.ClientsMutex, portMAX_DELAY);
 
@@ -815,6 +837,8 @@ esp_err_t WebSocket_PingAll(void)
 
 esp_err_t WebSocket_StartTask(void)
 {
+    BaseType_t Error;
+
     if (WebSocket_State.isInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     } else if (WebSocket_State.BroadcastTask != NULL) {
@@ -825,17 +849,8 @@ esp_err_t WebSocket_StartTask(void)
 
     WebSocket_State.isRunning = true;
 
-    BaseType_t ret = xTaskCreatePinnedToCore(
-                         WebSocket_BroadcastTask,
-                         "WS_Broadcast",
-                         4096,
-                         NULL,
-                         5,
-                         &WebSocket_State.BroadcastTask,
-                         1
-                     );
-
-    if (ret != pdPASS) {
+    Error = xTaskCreatePinnedToCore(WebSocket_BroadcastTask, "WS_Broadcast", 4096, NULL, 5, &WebSocket_State.BroadcastTask, 1);
+    if (Error != pdPASS) {
         ESP_LOGE(TAG, "Failed to create broadcast task!");
         WebSocket_State.isRunning = false;
 

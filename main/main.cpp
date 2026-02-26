@@ -53,8 +53,8 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(SettingsManager_Init());
     ESP_ERROR_CHECK(Devices_Task_Init());
     ESP_ERROR_CHECK(MemoryManager_Init());
+    ESP_ERROR_CHECK(USBManager_Init());
 
-    /* Initialize Time Manager (requires RTC from DevicesManager) */
     if (DevicesManager_GetRTCHandle(&RtcHandle) == ESP_OK) {
         if (TimeManager_Init(RtcHandle) == ESP_OK) {
             Settings_System_t SystemSettings;

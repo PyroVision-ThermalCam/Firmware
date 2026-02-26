@@ -144,8 +144,9 @@ static void VISA_HandleClient(int ClientSocket)
 
             ESP_LOGD(TAG, "Sent %d bytes", Sent);
         } else if (Length < 0) {
-            /* Error response */
-            std::string ErrorStr = "ERROR: " + std::to_string(Length) + "\n";
+            std::string ErrorStr;
+
+            ErrorStr = "ERROR: " + std::to_string(Length) + "\n";
             send(ClientSocket, ErrorStr.c_str(), ErrorStr.size(), 0);
         }
     }
@@ -159,7 +160,7 @@ static void VISA_HandleClient(int ClientSocket)
 /** @brief          VISA server task.
  *  @param p_Args   Task arguments (unused)
  */
-static void VISA_ServerTask(void *p_Args)
+static void Task_VisaServer(void *p_Args)
 {
     int opt = 1;
     int Error;
@@ -206,12 +207,12 @@ static void VISA_ServerTask(void *p_Args)
     ESP_LOGI(TAG, "VISA server listening on port %d", _VISA_Server_State.Port);
 
     while (_VISA_Server_State.isRunning) {
-        struct sockaddr_in source_addr;
-        socklen_t Length = sizeof(source_addr);
+        struct sockaddr_in Source;
+        socklen_t Length = sizeof(Source);
         int Socket;
-        std::string addr_str(16, '\0');
+        std::string Address(16, '\0');
 
-        Socket = accept(_VISA_Server_State.ListenSocket, (struct sockaddr *)&source_addr, &Length);
+        Socket = accept(_VISA_Server_State.ListenSocket, (struct sockaddr *)&Source, &Length);
         if (Socket < 0) {
             if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
                 continue;
@@ -222,9 +223,9 @@ static void VISA_ServerTask(void *p_Args)
             break;
         }
 
-        inet_ntop(AF_INET, &source_addr.sin_addr, &addr_str[0], addr_str.size());
-        addr_str.resize(strlen(addr_str.c_str()));
-        ESP_LOGI(TAG, "Client connected from %s:%d", addr_str.c_str(), ntohs(source_addr.sin_port));
+        inet_ntop(AF_INET, &Source.sin_addr, &Address[0], Address.size());
+        Address.resize(strlen(Address.c_str()));
+        ESP_LOGI(TAG, "Client connected from %s:%d", Address.c_str(), ntohs(Source.sin_port));
 
         esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_VISA_CLIENT_CONNECTED, NULL, 0, portMAX_DELAY);
 
@@ -309,6 +310,8 @@ bool VISAServer_IsRunning(void)
 
 esp_err_t VISAServer_Start(void)
 {
+    BaseType_t Error;
+
     if (_VISA_Server_State.isInitialized == false) {
         ESP_LOGE(TAG, "Not initialized!");
 
@@ -323,16 +326,8 @@ esp_err_t VISAServer_Start(void)
 
     _VISA_Server_State.isRunning = true;
 
-    BaseType_t result = xTaskCreate(
-                            VISA_ServerTask,
-                            "visa_server",
-                            4096,
-                            NULL,
-                            5,
-                            &_VISA_Server_State.ServerTask
-                        );
-
-    if (result != pdPASS) {
+    Error = xTaskCreate(Task_VisaServer, "visa_server", 4096, NULL, 5, &_VISA_Server_State.ServerTask);
+    if (Error != pdPASS) {
         ESP_LOGE(TAG, "Failed to create server task!");
 
         _VISA_Server_State.isRunning = false;

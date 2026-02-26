@@ -42,9 +42,11 @@ void Task_ImageSave(void *p_Param)
     App_Lepton_FrameReady_t Frame;
     char FilePath[128];
 
-    ESP_LOGI(TAG, "Image save task started");
+    ESP_LOGD(TAG, "Image save task started");
 
     while (true) {
+        uint32_t Caps;
+
         if (xQueueReceive(_GUI_Task_State.ImageSaveQueue, &Frame, portMAX_DELAY) != pdTRUE) {
             continue;
         }
@@ -72,7 +74,7 @@ void Task_ImageSave(void *p_Param)
         snprintf(FilePath, sizeof(FilePath), "%s/IMG_%03u.PNG", p_StoragePath, (unsigned int)(ImageCounter % 1000));
         ImageCounter++;
 
-        ESP_LOGI(TAG, "Saving PNG: %s (%dx%d)", FilePath, Frame.Width, Frame.Height);
+        ESP_LOGD(TAG, "Saving PNG: %s (%dx%d)", FilePath, Frame.Width, Frame.Height);
 
         /* Open file for writing PNG */
         FILE *PNGFile = fopen(FilePath, "wb");
@@ -106,8 +108,14 @@ void Task_ImageSave(void *p_Param)
             continue;
         }
 
+        #ifdef CONFIG_SPIRAM
+            Caps = MALLOC_CAP_SPIRAM ;
+        #else
+            Caps = 0;
+        #endif
+
         /* Allocate line buffer before setjmp (to avoid crossing initialization) */
-        uint8_t *LineBuffer = static_cast<uint8_t *>(heap_caps_malloc(Frame.Width * 3, MALLOC_CAP_SPIRAM));
+        uint8_t *LineBuffer = static_cast<uint8_t *>(heap_caps_malloc(Frame.Width * 3, Caps));
         if (LineBuffer == NULL) {
             ESP_LOGE(TAG, "Failed to allocate line buffer!");
 
@@ -171,9 +179,9 @@ void Task_ImageSave(void *p_Param)
         /* Get file size for logging */
         struct stat FileStat;
         if (stat(FilePath, &FileStat) == 0) {
-            ESP_LOGI(TAG, "PNG image saved: %s (%u bytes)", FilePath, static_cast<uint32_t>(FileStat.st_size));
+            ESP_LOGD(TAG, "PNG image saved: %s (%u bytes)", FilePath, static_cast<uint32_t>(FileStat.st_size));
         } else {
-            ESP_LOGI(TAG, "PNG image saved: %s", FilePath);
+            ESP_LOGD(TAG, "PNG image saved: %s", FilePath);
         }
 
         esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVED, NULL, 0, pdMS_TO_TICKS(100));

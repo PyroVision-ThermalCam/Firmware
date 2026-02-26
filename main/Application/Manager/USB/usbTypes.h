@@ -36,23 +36,14 @@ ESP_EVENT_DECLARE_BASE(USB_EVENTS);
 /** @brief USB Manager event IDs.
  */
 typedef enum {
-    USB_EVENT_INITIALIZED,              /**< USB subsystem initialized and ready (all enabled classes active). */
+    USB_EVENT_INITIALIZED,              /**< USB subsystem (TinyUSB driver + CDC) initialized and ready. */
     USB_EVENT_UNINITIALIZED,            /**< USB subsystem uninitialized and stopped. */
+    USB_EVENT_CABLE_CONNECTED,          /**< USB cable connected and enumerated by host. */
+    USB_EVENT_CABLE_DISCONNECTED,       /**< USB cable disconnected from host. */
     USB_EVENT_UVC_STREAMING_START,      /**< UVC streaming started by USB host. */
     USB_EVENT_UVC_STREAMING_STOP,       /**< UVC streaming stopped by USB host. */
     USB_EVENT_CDC_CONNECTED,            /**< CDC host terminal connected (DTR+RTS set). */
     USB_EVENT_CDC_DISCONNECTED,         /**< CDC host terminal disconnected. */
 } USB_Event_ID_t;
-
-/** @brief USB Manager configuration structure.
- *         Each class can be enabled independently. The composite USB descriptor
- *         will include all classes that are enabled in sdkconfig AND in this config.
- */
-typedef struct {
-    bool MSC_Enabled;               /**< Enable USB Mass Storage Class (MSC). Requires valid MountPoint. */
-    bool UVC_Enabled;               /**< Enable USB Video Class (UVC). */
-    bool CDC_Enabled;               /**< Enable USB Communication Device Class (CDC-ACM). */
-    const char *MountPoint;         /**< Mount point for MSC. Required if MSC_Enabled is true. */
-} USB_Manager_Config_t;
 
 #endif /* USB_TYPES_H_ */

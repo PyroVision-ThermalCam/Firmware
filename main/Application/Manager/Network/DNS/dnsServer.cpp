@@ -70,6 +70,8 @@ static void DNS_Server_Task(void *p_Arg)
     esp_netif_ip_info_t IP_Info;
     esp_netif_t *AP_NetIF;
 
+    _DNS_Server_State.isRunning = true;
+
     /* Get AP IP address */
     AP_NetIF = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
     if (AP_NetIF == NULL) {
@@ -84,7 +86,7 @@ static void DNS_Server_Task(void *p_Arg)
 
     esp_task_wdt_add(NULL);
 
-    ESP_LOGI(TAG, "DNS server started, redirecting all queries to " IPSTR, IP2STR(&IP_Info.ip));
+    ESP_LOGD(TAG, "DNS server started, redirecting all queries to " IPSTR, IP2STR(&IP_Info.ip));
 
     while (_DNS_Server_State.isRunning) {
         DNS_Header_t *Header;
@@ -141,7 +143,7 @@ static void DNS_Server_Task(void *p_Arg)
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 
-    ESP_LOGI(TAG, "DNS server task exiting");
+    ESP_LOGD(TAG, "DNS server task exiting");
 
     esp_task_wdt_delete(NULL);
 
@@ -158,7 +160,6 @@ esp_err_t DNS_Server_Start(void)
         return ESP_OK;
     }
 
-    /* Create UDP socket */
     _DNS_Server_State.Socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (_DNS_Server_State.Socket < 0) {
         ESP_LOGE(TAG, "Failed to create socket: %d!", errno);
@@ -174,7 +175,6 @@ esp_err_t DNS_Server_Start(void)
         ESP_LOGW(TAG, "Failed to set socket timeout: %d!", errno);
     }
 
-    /* Bind to DNS port */
     memset(&ServerAddr, 0, sizeof(ServerAddr));
     ServerAddr.sin_family = AF_INET;
     ServerAddr.sin_addr.s_addr = INADDR_ANY;
@@ -187,9 +187,6 @@ esp_err_t DNS_Server_Start(void)
 
         return ESP_FAIL;
     }
-
-    /* Start DNS server task on CPU 1 to avoid blocking IDLE0 */
-    _DNS_Server_State.isRunning = true;
 
     if (xTaskCreatePinnedToCore(DNS_Server_Task, "DNS_Server", 4096, NULL, 3, &_DNS_Server_State.Task, 1) != pdPASS) {
         ESP_LOGE(TAG, "Failed to create DNS server task!");

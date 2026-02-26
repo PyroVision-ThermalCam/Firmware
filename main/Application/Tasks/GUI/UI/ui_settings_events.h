@@ -28,12 +28,6 @@
 
 #include <stdint.h>
 
-/** @brief          Forward declaration for memory usage update function.
- *                  Implemented in ui_Settings.cpp to update storage and
- *                  coredump partition usage displays.
- */
-void ui_settings_update_flash_usage(void);
-
 /** @brief
  */
 typedef struct {
@@ -83,20 +77,26 @@ void on_WiFi_Autoconnect_Callback(lv_event_t *e);
  */
 void on_WiFi_Connect_Callback(lv_event_t *e);
 
+/** @brief          Forward declaration for memory usage update function.
+ *                  Implemented in ui_Settings.cpp to update storage and
+ *                  coredump partition usage displays.
+ */
+void ui_settings_update_memory_usage(void);
+
 /** @brief      Flash clear NVS button callback to reset all settings to factory defaults.
  *  @param e    Pointer to the event object
  */
-void on_Flash_ClearNVS_Callback(lv_event_t *e);
+void on_Memory_ClearNVS_Callback(lv_event_t *e);
 
-/** @brief      Flash clear storage button callback to erase storage partition.
+/** @brief      Memory clear storage button callback to erase storage partition.
  *  @param e    Pointer to the event object
  */
-void on_Flash_ClearStorage_Callback(lv_event_t *e);
+void on_Memory_ClearStorage_Callback(lv_event_t *e);
 
-/** @brief      Flash clear coredump button callback to erase coredump partition.
+/** @brief      Memory clear coredump button callback to erase coredump partition.
  *  @param e    Pointer to the event object
  */
-void on_Flash_ClearCoredump_Callback(lv_event_t *e);
+void on_Memory_ClearCoredump_Callback(lv_event_t *e);
 
 /** @brief      USB mode switch callback to enable/disable the composite USB device.
  *              Reads current UVC and CDC enable settings and starts all configured classes.

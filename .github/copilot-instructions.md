@@ -864,6 +864,7 @@ After every code change that affects public APIs, verify:
 | `Tasks/Network/` | `NetworkTask.adoc` |
 | `Tasks/Devices/` | `DevicesTask.adoc` |
 | `main.cpp` (main application) | `index.adoc` (overview section) |
+| Any file with `heap_caps_malloc` / `malloc` / task stack | `MemoryMap.adoc` |
 
 #### Documentation Style Guidelines
 
@@ -918,6 +919,95 @@ Documentation is automatically built and deployed via GitHub Actions workflow (`
 - Creates release artifacts with PDF documentation
 
 **Do not commit generated HTML/PDF files** - these are built automatically by the CI/CD pipeline.
+
+---
+
+## Memory Management Documentation
+
+### Overview
+
+The file `docs/MemoryMap.adoc` is the **single source of truth** for all memory
+allocations, task stacks, and DMA-relevant buffers in the firmware.
+It must be kept in sync with the code at all times.
+
+### ESP32-S3 Memory Regions (Quick Reference)
+
+| Region | DMA-capable? | Notes |
+|--------|-------------|-------|
+| Internal SRAM (`0x3FC88000`–`0x3FD00000`) | **YES** | Use for SPI buffers, task stacks |
+| PSRAM (`0x3C000000`+) | **NO** | Requires SPI bounce buffers for DMA |
+
+**SPI Bounce Buffer Rule:** Every PSRAM buffer used as SPI TX source causes the SPI
+driver to allocate an internal DMA bounce buffer of `CONFIG_SPI_TRANSFER_SIZE` (= 4,096 bytes)
+per queued transaction. With `trans_queue_depth=3` this is 12,288 bytes of internal DMA RAM.
+Do **NOT** increase `trans_queue_depth` above 6 without recalculating DMA RAM usage.
+
+### When to Update `docs/MemoryMap.adoc`
+
+**MANDATORY**: Update `docs/MemoryMap.adoc` in the **same session** as the code change
+whenever any of the following happens:
+
+- Adding a new `heap_caps_malloc()`, `malloc()`, or `calloc()` call
+- Removing or resizing an existing heap allocation
+- Adding a new FreeRTOS task (`xTaskCreate` / `xTaskCreatePinnedToCore`)
+- Changing an existing task's stack size (`CONFIG_*_TASK_STACKSIZE`)
+- Adding a new `xQueueCreate`, `xSemaphoreCreateMutex`, or `xEventGroupCreate`
+- Adding buffers that indirectly use SPI DMA (i.e., PSRAM buffers passed to `spi_device_queue_trans`)
+
+### What to Document
+
+For every new allocation, add a row to the appropriate section of `docs/MemoryMap.adoc`:
+
+**Heap allocations:**
+```
+| Buffer description + what it holds   | Size in bytes (formula preferred) | PSRAM or Internal | file:line |
+```
+
+**Task stacks:**
+```
+| Task name   | Stack bytes | Priority | Core | file:line |
+```
+
+**Always:**
+- State the **exact size formula** (e.g. `160 * 120 * 3 = 57,600 bytes`), not just a number
+- State the **heap type**: PSRAM (`MALLOC_CAP_SPIRAM`), Internal (`MALLOC_CAP_INTERNAL`),
+  DMA-capable internal (both `MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL`)
+- State whether the allocation is **permanent** (init-time) or **temporary** (freed after use)
+- For temporary allocations, state the **maximum possible size** and **when it is freed**
+- After adding the entry, **recalculate the section subtotal and the summary table**
+
+### Memory Documentation Checklist
+
+After every code change that adds or modifies memory usage, verify:
+
+```
+☐ New/modified allocation documented in docs/MemoryMap.adoc
+☐ Section subtotal recalculated (PSRAM permanent / task stacks / etc.)
+☐ Summary table updated (MemoryMap.adoc bottom section)
+☐ SPI DMA headroom rechecked: trans_queue_depth × 4096 < (free DMA RAM after all inits)
+☐ Conditional allocations (e.g. UVC, SD) clearly marked in documentation
+```
+
+### Automatic Memory Comment in Code
+
+Every `heap_caps_malloc` call **MUST** have an inline comment stating the allocation
+size with its formula:
+
+```cpp
+// ✅ CORRECT
+// RGB888 frame buffer: 160 × 120 × 3 = 57,600 bytes (PSRAM)
+_State.p_Buffer = static_cast<uint8_t *>(heap_caps_malloc(160 * 120 * 3, MALLOC_CAP_SPIRAM));
+
+// ❌ INCORRECT — no size documentation
+_State.p_Buffer = static_cast<uint8_t *>(heap_caps_malloc(BufferSize, MALLOC_CAP_SPIRAM));
+```
+
+If the size comes from a variable/config, document the **maximum possible value**:
+
+```cpp
+// JPEG output buffer: max = Width × Height × 3 = 160 × 120 × 3 = 57,600 bytes (PSRAM)
+p_JpegBuffer = static_cast<uint8_t *>(heap_caps_malloc(JpegBufferSize, MALLOC_CAP_SPIRAM));
+```
 
 ---
 
@@ -1090,5 +1180,5 @@ pio check
 
 ---
 
-**Last Updated**: January 15, 2026  
+**Last Updated**: February 26, 2026  
 **Maintainer**: Daniel Kampert (DanielKampert@kampis-elektroecke.de)
