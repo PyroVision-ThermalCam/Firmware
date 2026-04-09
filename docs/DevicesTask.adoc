@@ -1,6 +1,6 @@
 = PyroVision Devices Task Documentation
 Daniel Kampert <DanielKampert@kampis-elektroecke.de>
-v1.0, 2026-02-09
+v2.0, 2026-02-26
 :toc: left
 :toclevels: 3
 :sectnums:
@@ -8,15 +8,32 @@ v1.0, 2026-02-09
 
 == Overview
 
-The Devices Task monitors peripheral hardware including battery voltage (via ADC), RTC (Real-Time Clock), port expander, and other sensors. It performs periodic polling and posts events when significant changes occur.
+The Devices Task is a FreeRTOS task that drives two responsibilities:
+
+1. *Port expander interrupt handling* -- On every iteration it polls the
+   `DevicesManager_HandleExpanderInterrupt()` handler which checks for pending
+   mainboard PCAL6416AHF INT# signals and posts the corresponding `DEVICES_EVENTS`
+   events (battery alert, charging, SD-card detect, RTC/temp/range interrupts).
+
+2. *Displayboard input polling* -- At a fixed interval (configured via
+   `CONFIG_DEVICES_TASK_POLL_INTERVAL_MS`) it reads the displayboard PCAL6416AHF
+   (joystick + buttons) and, when the state differs from the previous reading,
+   posts a `DEVICES_EVENT_INPUT_CHANGED` event carrying `Devices_InputState_t`.
+
+The task also calls `DevicesManager_Init()` during initialization and
+`DevicesManager_Deinit()` on shutdown, so it owns the full hardware lifecycle.
 
 === Key Features
 
-* *Battery Monitoring*: ADC-based voltage measurement
-* *RTC Management*: Real-Time Clock synchronization
-* *Port Expander*: GPIO expansion and monitoring
-* *Sensor Polling*: Periodic updates of device states
-* *Event Generation*: Notifications for battery low, RTC sync, etc.
+* *Non-blocking interrupt processing*: Port expander INT# is handled in task context
+  without blocking on I2C; the ISR only signals a notification flag.
+* *Efficient input polling*: Both INPUT registers are read in a single I2C burst
+  transfer (one write + two-byte read).  Change detection avoids spurious event posts via
+  `memcmp`.
+* *Configurable poll interval*: Input polling rate is controlled by
+  `CONFIG_DEVICES_TASK_POLL_INTERVAL_MS` (Kconfig).
+* *Watchdog integration*: The task registers with the ESP Task Watchdog
+  (`esp_task_wdt_add`) and resets it on every iteration.
 
 ---
 
@@ -27,191 +44,325 @@ The Devices Task monitors peripheral hardware including battery voltage (via ADC
 [source]
 ----
 main/Application/Tasks/Devices/
-├── devicesTask.h            # Public API
-└── devicesTask.cpp          # Implementation
+|-- devicesTask.h            # Public API
+`-- devicesTask.cpp          # Implementation
 ----
 
-=== Task Architecture
+=== Task Parameters
 
-* *Task Name*: `"DevicesTask"`
-* *Priority*: Low (typically `tskIDLE_PRIORITY + 1`)
-* *Stack Size*: 4 KB
-* *Core Affinity*: Any (typically Core 0)
-* *Polling Interval*: 1 second (configurable)
+[cols="2,3", options="header"]
+|===
+| Parameter | Value
+
+| Task name
+| `"Task_Devices"`
+
+| Stack size
+| `CONFIG_DEVICES_TASK_STACKSIZE` bytes
+
+| Priority
+| `CONFIG_DEVICES_TASK_PRIO`
+
+| Core affinity
+| `CONFIG_DEVICES_TASK_CORE`
+
+| Main loop period
+| 10 ms (`vTaskDelay(pdMS_TO_TICKS(10))`)
+
+| Input poll interval
+| `CONFIG_DEVICES_TASK_POLL_INTERVAL_MS` ms
+|===
 
 ---
 
 == Public API
 
-=== DevicesTask_Init()
+=== Devices_Task_Init()
 
 [source,c]
 ----
-esp_err_t DevicesTask_Init(void);
+esp_err_t Devices_Task_Init(void);
 ----
 
-Initializes the devices task.
+Initializes the Devices Task.  Internally:
+
+1. Creates the `EventGroupHandle_t` used for stop signaling.
+2. Calls `DevicesManager_Init()` to bring up all hardware peripherals.
+3. Registers an event handler for `GUI_EVENTS`.
+
+NOTE: Must be called before `Devices_Task_Start()`.
+Calling this function when already initialized is a no-op that returns `ESP_OK`.
 
 **Return Values:**
 
-* `ESP_OK` - Initialization successful
-* `ESP_ERR_NO_MEM` - Memory allocation failed
-* `ESP_ERR_INVALID_STATE` - Already initialized
+* `ESP_OK` -- Success (or already initialized)
+* `ESP_ERR_NO_MEM` -- Event group creation failed
+* Any error from `DevicesManager_Init()`
 
 ---
 
-=== DevicesTask_Deinit()
+=== Devices_Task_Deinit()
 
 [source,c]
 ----
-void DevicesTask_Deinit(void);
+void Devices_Task_Deinit(void);
 ----
 
-Deinitializes the devices task.
+Deinitializes the Devices Task.  Unregisters the `GUI_EVENTS` handler and calls
+`DevicesManager_Deinit()`.
+
+NOTE: Do not call while the task is still running.  Call `Devices_Task_Stop()` first
+and wait for `Devices_Task_IsRunning()` to return `false`.
 
 ---
 
-=== DevicesTask_Start()
+=== Devices_Task_Start()
 
 [source,c]
 ----
-esp_err_t DevicesTask_Start(App_Context_t *p_AppContext);
+esp_err_t Devices_Task_Start(App_Context_t *p_AppContext);
 ----
 
-Starts the devices monitoring task.
+Creates and pins the `Task_Devices` FreeRTOS task using the Kconfig parameters.
 
 **Parameters:**
 
-* `p_AppContext` - Pointer to application context
+* `p_AppContext` -- Pointer to the application context structure
 
 **Return Values:**
 
-* `ESP_OK` - Task started
-* `ESP_ERR_INVALID_ARG` - NULL pointer
-* `ESP_ERR_INVALID_STATE` - Not initialized or already running
+* `ESP_OK` -- Task started (or already running)
+* `ESP_ERR_INVALID_ARG` -- `p_AppContext` is NULL
+* `ESP_ERR_INVALID_STATE` -- `Devices_Task_Init()` has not been called
+* `ESP_ERR_NO_MEM` -- `xTaskCreatePinnedToCore()` failed
 
 ---
 
-=== DevicesTask_Stop()
+=== Devices_Task_Stop()
 
 [source,c]
 ----
-esp_err_t DevicesTask_Stop(void);
+esp_err_t Devices_Task_Stop(void);
 ----
 
-Stops the devices task.
+Requests a graceful shutdown by setting the `DEVICES_TASK_STOP_REQUEST` bit in the
+internal event group.  The task checks this bit at the start of each iteration and exits
+its loop when it is set.
+
+NOTE: This function returns immediately; it does not block until the task has exited.
+Use `Devices_Task_IsRunning()` to poll for actual stop completion.
+
+**Return Values:**
+
+* `ESP_OK` -- Stop request sent (or task was already stopped)
 
 ---
 
-=== DevicesTask_isRunning()
+=== Devices_Task_IsRunning()
 
 [source,c]
 ----
-bool DevicesTask_isRunning(void);
+bool Devices_Task_IsRunning(void);
 ----
 
-Checks if the task is running.
-
----
-
-## Monitored Devices
-
-=== 1. Battery Monitor (ADC)
-
-**Functionality:**
-
-* Measures battery voltage via ADC
-* Calculates battery percentage
-* Detects low battery condition
-
-**Events:**
-
-* `DEVICE_EVENT_BATTERY_LOW` - Battery below threshold (e.g., 10%)
-* `DEVICE_EVENT_BATTERY_CRITICAL` - Battery critically low (e.g., 5%)
-
-=== 2. RTC (Real-Time Clock)
-
-**Functionality:**
-
-* Monitors RTC synchronization status
-* Checks RTC battery
-* Validates time accuracy
-
-**Events:**
-
-* `DEVICE_EVENT_RTC_SYNC` - RTC synchronized with NTP
-* `DEVICE_EVENT_RTC_BATTERY_LOW` - RTC backup battery low
-
-=== 3. Port Expander
-
-**Functionality:**
-
-* Reads GPIO states from I2C port expander
-* Detects button presses
-* Controls external LEDs
+Returns `true` while the task loop is executing, `false` after the task has exited.
 
 ---
 
 == Task Operation
 
-=== Polling Loop
+=== Main Loop
 
-[source,c]
+[source,cpp]
 ----
-while (running) {
-    // 1. Read battery voltage
-    float BatteryVoltage = ADC_ReadVoltage(ADC_CHANNEL_BATTERY);
-    uint8_t BatteryPercent = CalculateBatteryPercent(BatteryVoltage);
-    
-    if (BatteryPercent < LOW_BATTERY_THRESHOLD) {
-        esp_event_post(DEVICE_EVENTS, DEVICE_EVENT_BATTERY_LOW, 
-                       &BatteryPercent, sizeof(BatteryPercent), 0);
+while (_Devices_Task_State.isRunning) {
+    esp_task_wdt_reset();
+
+    /* 1. Check for stop request */
+    EventBits_t EventBits = xEventGroupGetBits(_Devices_Task_State.EventGroup);
+    if (EventBits & DEVICES_TASK_STOP_REQUEST) {
+        _Devices_Task_State.isRunning = false;
+        break;
     }
-    
-    // 2. Check RTC status
-    if (RTC_IsTimeValid()) {
-        // Update system time if necessary
+
+    /* 2. Process any pending port expander interrupt (non-blocking) */
+    DevicesManager_HandleExpanderInterrupt();
+
+    /* 3. Poll displayboard inputs at configured interval */
+    if ((xTaskGetTickCount() - LastInputPoll) >= pdMS_TO_TICKS(CONFIG_DEVICES_TASK_POLL_INTERVAL_MS)) {
+        LastInputPoll = xTaskGetTickCount();
+
+        if (DevicesManager_GetDisplayboardInputs(&InputState) == ESP_OK) {
+            if (memcmp(&InputState, &PrevInputState, sizeof(Devices_InputState_t)) != 0) {
+                esp_event_post(DEVICES_EVENTS, DEVICES_EVENT_INPUT_CHANGED,
+                               &InputState, sizeof(Devices_InputState_t),
+                               pdMS_TO_TICKS(100));
+                memcpy(&PrevInputState, &InputState, sizeof(Devices_InputState_t));
+            }
+        }
     }
-    
-    // 3. Read port expander inputs
-    uint8_t GPIO_States = PortExpander_ReadAll();
-    ProcessGPIOChanges(GPIO_States);
-    
-    vTaskDelay(pdMS_TO_TICKS(1000));  // 1 second interval
+
+    vTaskDelay(pdMS_TO_TICKS(10));
 }
+
+/* Shutdown */
+DevicesManager_Deinit();
+esp_task_wdt_delete(NULL);
+vTaskDelete(NULL);
 ----
+
+=== Port Expander Interrupt Flow
+
+[source]
+----
+GPIO ISR (INT# falling edge)
+    |
+    v
+Sets internal notification flag (no I2C inside ISR)
+    |
+    v
+Task iteration (every 10 ms)
+    |
+    v
+DevicesManager_HandleExpanderInterrupt()
+    |-- Reads  INT_STATUS0/1 from PCAL6416AHF (clears INT#)
+    |-- Reads  INPUT0/1     (refreshes change-detection snapshot)
+    |-- For each triggered pin, posts DEVICES_EVENTS event:
+    |       DEVICES_EVENT_BATTERY_ALERT    (P0.0)
+    |       DEVICES_EVENT_BATTERY_CHARGING (P0.1)
+    |       DEVICES_EVENT_RTC_INTERRUPT    (P0.5)
+    |       DEVICES_EVENT_TEMP_INTERRUPT   (P0.7)
+    |       DEVICES_EVENT_RANGE_INTERRUPT  (P1.0)
+    `--     DEVICES_EVENT_SD_DETECT        (P1.4)
+----
+
+=== Displayboard Input Polling Flow
+
+[source]
+----
+Every CONFIG_DEVICES_TASK_POLL_INTERVAL_MS ms
+    |
+    v
+DevicesManager_GetDisplayboardInputs(&InputState)
+    |-- PCAL6416AHF_ReadInputs() -- single I2C burst (1 write + 2-byte read)
+    |-- Extracts bits: P0.3=JoyUp P0.4=JoyDown P0.5=JoyLeft P0.6=JoyRight
+    |                  P0.7=JoyCenter P1.0=Button1 ... P1.3=Button4
+    |
+    v
+memcmp(InputState, PrevInputState)
+    |
+    +-- unchanged: continue
+    |
+    `-- changed:
+            esp_event_post(DEVICES_EVENTS, DEVICES_EVENT_INPUT_CHANGED,
+                           &InputState, sizeof(Devices_InputState_t), ...)
+            memcpy(PrevInputState, InputState)
+----
+
+---
+
+== Events
+
+The task posts events on the default event loop using the `DEVICES_EVENTS` base.
+
+[cols="2,1,3", options="header"]
+|===
+| Event ID | Data type | Description
+
+| `DEVICES_EVENT_BATTERY_ALERT`
+| `bool`
+| Battery alert state changed (true = alert active)
+
+| `DEVICES_EVENT_BATTERY_CHARGING`
+| `bool`
+| Battery charging state changed (true = charging)
+
+| `DEVICES_EVENT_RTC_INTERRUPT`
+| --
+| RTC alarm or timer interrupt asserted
+
+| `DEVICES_EVENT_TEMP_INTERRUPT`
+| --
+| TMP117 alert interrupt asserted
+
+| `DEVICES_EVENT_RANGE_INTERRUPT`
+| --
+| VL53L1X measurement interrupt asserted
+
+| `DEVICES_EVENT_SD_DETECT`
+| `bool`
+| SD-card detect state changed (true = inserted)
+
+| `DEVICES_EVENT_INPUT_CHANGED`
+| `Devices_InputState_t`
+| Joystick or button state changed on displayboard
+|===
+
+The `Devices_InputState_t` structure contains:
+
+[source,cpp]
+----
+typedef struct {
+    bool JoyUp;     /**< Joystick up. */
+    bool JoyDown;   /**< Joystick down. */
+    bool JoyLeft;   /**< Joystick left. */
+    bool JoyRight;  /**< Joystick right. */
+    bool JoyCenter; /**< Joystick center press. */
+    bool Button1;   /**< Push-button 1. */
+    bool Button2;   /**< Push-button 2. */
+    bool Button3;   /**< Push-button 3. */
+    bool Button4;   /**< Push-button 4. */
+} Devices_InputState_t;
+----
+
+All fields are `true` when the corresponding input is *pressed/active*.
 
 ---
 
 == Dependencies
 
-=== Required Managers
-
-* *Device Manager*: ADC, RTC, I2C port expander initialization
-* *Settings Manager*: Device configuration (thresholds, intervals)
+* *Device Manager* (`devicesManager.h`): Full hardware initialization and sensor access.
+  `Devices_Task_Init()` calls `DevicesManager_Init()` and `Devices_Task_Deinit()` calls
+  `DevicesManager_Deinit()`.
+* *Application Context* (`application.h`): `App_Context_t` passed to `Devices_Task_Start()`.
+* *ESP Event System*: Default event loop must be created before `Devices_Task_Init()`.
 
 ---
 
-## Configuration
+== Example: Consuming Input Events
 
-=== Battery Thresholds
+[source,cpp]
+----
+static void on_input_changed(void *p_Arg, esp_event_base_t Base, int32_t ID, void *p_Data)
+{
+    const Devices_InputState_t *p_State =
+        static_cast<const Devices_InputState_t *>(p_Data);
 
-* Low Battery: 10% (configurable)
-* Critical Battery: 5% (configurable)
-* Voltage Range: 3.0V - 4.2V (Li-Po)
+    if (p_State->JoyUp) {
+        /* Handle joystick up */
+    } else if (p_State->JoyDown) {
+        /* Handle joystick down */
+    }
 
-=== Polling Interval
+    if (p_State->Button1) {
+        /* Handle button 1 */
+    }
+}
 
-* Default: 1000 ms
-* Range: 100 ms - 10000 ms
+void setup_input_handler(void)
+{
+    esp_event_handler_register(DEVICES_EVENTS, DEVICES_EVENT_INPUT_CHANGED,
+                               on_input_changed, NULL);
+}
+----
 
 ---
 
 == Related Documentation
 
-* link:DeviceManager.adoc[Device Manager Documentation]
+* link:DeviceManager.adoc[Device Manager]
 
 ---
 
-**Last Updated**: February 9, 2026 +
+**Last Updated**: February 26, 2026 +
 **Maintainer**: Daniel Kampert (DanielKampert@kampis-elektroecke.de)

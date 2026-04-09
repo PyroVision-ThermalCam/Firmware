@@ -192,30 +192,29 @@ static const PCAL6416_IO_Conf_t _PCAL6416AHF_Mainboard_PinConfig[] = {
  *         LEDs are active low outputs; buttons and joystick are active high with pull-down.
  */
 static const PCAL6416_IO_Conf_t _PCAL6416AHF_Displayboard_PinConfig[] = {
-    /* LED red:     active low output; isInverted=false because POL register does not affect outputs;
-     *              the caller negates the logic level (see DevicesManager_SetLED)               */
+    /* LED red:   active low output (caller negates)                                            */
     { .Port = PCAL6416_PORT_0, .Pin = 0, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
-    /* LED green:   active low output (caller negates)                                           */
+    /* LED green:   active low output (caller negates)                                          */
     { .Port = PCAL6416_PORT_0, .Pin = 1, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
-    /* LED blue:    active low output (caller negates)                                           */
+    /* LED blue:    active low output (caller negates)                                          */
     { .Port = PCAL6416_PORT_0, .Pin = 2, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
-    /* Joystick up:     active high, pull-down input                                             */
+    /* Joystick up:     active high, pull-down input                                            */
     { .Port = PCAL6416_PORT_0, .Pin = 3, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
-    /* Joystick down:   active high, pull-down input                                             */
+    /* Joystick down:   active high, pull-down input                                            */
     { .Port = PCAL6416_PORT_0, .Pin = 4, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
-    /* Joystick left:   active high, pull-down input                                             */
+    /* Joystick left:   active high, pull-down input                                            */
     { .Port = PCAL6416_PORT_0, .Pin = 5, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
-    /* Joystick right:  active high, pull-down input                                             */
+    /* Joystick right:  active high, pull-down input                                            */
     { .Port = PCAL6416_PORT_0, .Pin = 6, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
-    /* Joystick center: active high, pull-down input                                             */
+    /* Joystick center: active high, pull-down input                                            */
     { .Port = PCAL6416_PORT_0, .Pin = 7, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
-    /* Button 1: active high, pull-down input                                                    */
+    /* Button 1: active high, pull-down input                                                   */
     { .Port = PCAL6416_PORT_1, .Pin = 0, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
-    /* Button 2: active high, pull-down input                                                    */
+    /* Button 2: active high, pull-down input                                                   */
     { .Port = PCAL6416_PORT_1, .Pin = 1, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
-    /* Button 3: active high, pull-down input                                                    */
+    /* Button 3: active high, pull-down input                                                   */
     { .Port = PCAL6416_PORT_1, .Pin = 2, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
-    /* Button 4: active high, pull-down input                                                    */
+    /* Button 4: active high, pull-down input                                                   */
     { .Port = PCAL6416_PORT_1, .Pin = 3, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
 };
 
@@ -328,8 +327,9 @@ esp_err_t DevicesManager_Init(void)
 
     _Devices_Manager_State.initialized = true;
 
-    if (DevicesManager_SetBrightness(BACKLIGHT_FLASH, 0) != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize backlight brightness!");
+    if ((DevicesManager_SetBrightness(BACKLIGHT_FLASH, 0) != ESP_OK) ||
+        (DevicesManager_SetBrightness(BACKLIGHT_DISPLAY, 0) != ESP_OK)) {
+        ESP_LOGE(TAG, "Failed to initialize brightness!");
 
         return ESP_FAIL;
     }
@@ -394,7 +394,7 @@ spi_host_device_t DevicesManager_GetSPIHost(void)
 
 esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, uint8_t *p_Percentage)
 {
-    float VoltageV;
+    float Voltage;
     float SOC;
 
     if (_Devices_Manager_State.initialized == false) {
@@ -403,15 +403,15 @@ esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, uint8_t *p_Percentage
         return ESP_ERR_INVALID_ARG;
     }
 
-    if ((MAX17048_GetVoltage(&_Devices_Manager_State.MAX17048, &VoltageV) != ESP_OK) ||
+    if ((MAX17048_GetVoltage(&_Devices_Manager_State.MAX17048, &Voltage) != ESP_OK) ||
         (MAX17048_GetSOC(&_Devices_Manager_State.MAX17048, &SOC) != ESP_OK)) {
         return ESP_FAIL;
     }
 
     *p_Percentage = static_cast<uint8_t>(SOC);
-    *p_Voltage = static_cast<int>(VoltageV * 1000.0f);
+    *p_Voltage = static_cast<int>(Voltage * 1000.0f);
 
-    ESP_LOGD(TAG, "Battery voltage: %.3f V, SOC: %.1f%%", VoltageV, SOC);
+    ESP_LOGD(TAG, "Battery voltage: %.3f V, SOC: %.1f%%", Voltage, SOC);
 
     return ESP_OK;
 }
@@ -493,15 +493,15 @@ esp_err_t DevicesManager_SetBrightness(Devices_BacklightID_t ID, uint8_t Brightn
         }
     } else if (ID == BACKLIGHT_DISPLAY) {
         if (Brightness > 0) {
-            if (PCA9633DP1_SetLEDState(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED2, PCA9633_LED_PWM) != ESP_OK) {
+            if (PCA9633DP1_SetLEDState(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED3, PCA9633_LED_PWM) != ESP_OK) {
                 return ESP_FAIL;
             }
 
-            if (PCA9633DP1_SetLEDBrightness(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED2, Brightness) != ESP_OK) {
+            if (PCA9633DP1_SetLEDBrightness(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED3, Brightness) != ESP_OK) {
                 return ESP_FAIL;
             }
         } else {
-            if (PCA9633DP1_SetLEDState(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED2, PCA9633_LED_OFF) != ESP_OK) {
+            if (PCA9633DP1_SetLEDState(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED3, PCA9633_LED_OFF) != ESP_OK) {
                 return ESP_FAIL;
             }
         }

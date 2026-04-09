@@ -1,24 +1,77 @@
 = PyroVision Device Manager Documentation
 Daniel Kampert <DanielKampert@kampis-elektroecke.de>
-v1.0, 2026-01-14
+v2.0, 2026-02-26
 :toc: left
-:toclevels: 3
+:toclevels: 4
 :sectnums:
 :source-highlighter: coderay
 
 == Overview
 
-The Device Manager is the central hardware abstraction component for the PyroVision firmware. It initializes and manages all peripheral hardware interfaces including I2C, SPI, ADC, RTC (Real-Time Clock), and port expander. The Device Manager provides a unified API for accessing hardware resources throughout the application.
+The Device Manager is the central hardware abstraction layer for the PyroVision firmware.
+It initializes and manages all peripheral I2C and SPI hardware, exposes a unified application
+API, and handles event posting for hardware state changes.  The following IC drivers are
+integrated and managed through this module:
+
+[cols="1,2,1,1", options="header"]
+|===
+| Driver | Device | Interface | I2C Address
+
+| TMP117
+| High-accuracy temperature sensor
+| I2C (main bus)
+| 0x48
+
+| RV8263-C8
+| Real-time clock (RTC)
+| I2C (main bus)
+| 0x51
+
+| PCA9633DP1
+| 4-channel PWM LED driver
+| I2C (main bus)
+| 0x62
+
+| MAX17048
+| Li-Ion/LiPo fuel gauge
+| I2C (main bus)
+| 0x36
+
+| PCAL6416AHF (mainboard)
+| 16-bit I/O port expander -- system signals
+| I2C (main bus)
+| 0x20
+
+| PCAL6416AHF (displayboard)
+| 16-bit I/O port expander -- joystick + buttons
+| I2C (main bus)
+| 0x21
+
+| VL53L1X
+| Time-of-Flight distance sensor
+| I2C (main bus)
+| 0x29
+
+| GT911
+| Capacitive touch controller
+| I2C (touch bus, I2C_NUM_1)
+| configured by driver
+|===
 
 === Key Features
 
-* *Bus Management*: Centralized I2C and SPI bus initialization
-* *Hardware Abstraction*: Unified interface for all peripherals
-* *Battery Monitoring*: ADC-based battery voltage and percentage measurement
-* *RTC Integration*: Real-time clock access for Time Manager
-* *Port Expander*: GPIO expansion via I2C for additional pins
-* *Power Management*: Controlled battery voltage measurement
-* *Resource Sharing*: Safe sharing of I2C/SPI buses across components
+* *Unified hardware init*: Single `DevicesManager_Init()` call brings up all peripherals.
+* *isInitialized guard*: Every low-level driver instance exposes an `isInitialized` flag.
+  All non-Init API calls return `ESP_ERR_INVALID_STATE` immediately when the instance has not
+  been successfully initialized.
+* *Event system*: Hardware state changes (battery alert, charging state, SD-card detect,
+  port expander interrupts, displayboard inputs) are communicated via the ESP event system
+  using the `DEVICES_EVENTS` base.
+* *Dual port expander*: Two PCAL6416AHF instances share the main I2C bus.  The mainboard
+  instance handles system-level signals.  The displayboard instance is optional and handles
+  joystick and button inputs.
+* *Thread-safe bus sharing*: All I2C transactions use individual dev-handles managed by the
+  ESP-IDF I2C master driver.
 
 ---
 
@@ -29,827 +82,1494 @@ The Device Manager is the central hardware abstraction component for the PyroVis
 [source]
 ----
 main/Application/Manager/Devices/
-├── devicesManager.h          # Public API
-├── devicesManager.cpp        # Implementation
-├── devices.h                 # Device definitions
-├── I2C/                      # I2C master driver
-│   ├── i2c.h
-│   └── i2c.cpp
-├── SPI/                      # SPI master driver
-│   ├── spi.h
-│   └── spi.cpp
-├── ADC/                      # ADC driver for battery
-│   ├── adc.h
-│   └── adc.cpp
-├── RTC/                      # RTC driver (DS3231/DS1307)
-│   ├── rtc.h
-│   └── rtc.cpp
-└── PortExpander/             # I2C port expander
-    ├── portexpander.h
-    └── portexpander.cpp
+|-- devicesManager.h            # Public API
+|-- devicesManager.cpp          # Implementation
+|-- devicesTypes.h              # Shared types and DEVICES_EVENTS base
+|-- I2C/                        # I2C master bus initialization wrapper
+|   |-- i2c.h
+|   `-- i2c.cpp
+|-- TMP117/                     # TMP117 temperature sensor driver
+|   |-- tmp117.h
+|   `-- tmp117.cpp
+|-- RV8263C8/                   # RV8263-C8 real-time clock driver
+|   |-- rv8263c8.h
+|   `-- rv8263c8.cpp
+|-- PCA9633DP1/                 # PCA9633DP1 LED driver
+|   |-- pca9633dp1.h
+|   `-- pca9633dp1.cpp
+|-- MAX17048/                   # MAX17048 fuel gauge driver
+|   |-- max17048.h
+|   `-- max17048.cpp
+|-- PCAL6416AHF/                # PCAL6416AHF 16-bit port expander driver
+|   |-- pcal6416ahf.h
+|   `-- pcal6416ahf.cpp
+`-- VL53L1X/                    # VL53L1X time-of-flight sensor driver
+    |-- vl53l1x.h
+    `-- vl53l1x.cpp
 ----
 
 === Hardware Buses
 
-==== I2C Bus
+==== Main I2C Bus (I2C_NUM_0)
 
-* *Port*: Configured via `CONFIG_DEVICES_I2C_HOST`
-* *SDA Pin*: Configured via `CONFIG_DEVICES_I2C_SDA`
-* *SCL Pin*: Configured via `CONFIG_DEVICES_I2C_SCL`
-* *Clock Source*: Default (typically APB)
-* *Pull-ups*: External (internal pull-ups disabled)
-* *Glitch Filter*: 7 cycles
+* *SDA / SCL*: Configured via `CONFIG_DEVICES_I2C_SDA` / `CONFIG_DEVICES_I2C_SCL`
+* *Clock speed*: 400 kHz (Fast-mode)
+* *Glitch filter*: 7 cycles
 
-*Connected Devices*:
+All seven I2C sensors listed in the overview table share this bus via individual
+`i2c_master_dev_handle_t` handles.
 
-* RTC (DS3231 or DS1307)
-* Port Expander (PCF8574/PCF8575 or similar)
-* Other I2C peripherals
+==== Touch I2C Bus (I2C_NUM_1)
 
-==== SPI Bus (SPI3)
+* Dedicated bus for the GT911 capacitive touch controller.
+* Prevents interference between high-speed touch polling and sensor communication.
+* Handle returned by `DevicesManager_GetTouchI2CBusHandle()`.
 
-* *Host*: SPI3_HOST
-* *MOSI Pin*: `CONFIG_SPI_MOSI`
-* *MISO Pin*: `CONFIG_SPI_MISO`
-* *SCLK Pin*: `CONFIG_SPI_SCLK`
-* *Max Transfer Size*: `CONFIG_SPI_TRANSFER_SIZE`
+==== SPI Bus (SPI2_HOST)
+
+* *MOSI / MISO / SCLK*: Configured via `CONFIG_SPI_MOSI` / `CONFIG_SPI_MISO` / `CONFIG_SPI_SCLK`
+* *Max transfer size*: `CONFIG_SPI_TRANSFER_SIZE` bytes
 * *DMA*: Auto-selected channel
-
-*Connected Devices*:
-
-* ILI9341 LCD Display
-* XPT2046 Touch Controller
-* SD Card (optional)
+* *Connected devices*: ILI9341 LCD display, optional SD card
 
 ==== ADC
 
-* *Purpose*: Battery voltage measurement
-* *Channel*: Configured for battery input
-* *Resolution*: 12-bit (configurable)
-* *Attenuation*: Configured for voltage range
+* Used exclusively for battery voltage measurement via an external resistor divider.
+* Measurement enable / disable is controlled through the mainboard PCAL6416AHF.
 
 ---
 
-== Internal State
+== Device Drivers
 
-=== State Structure
+=== TMP117 High-Accuracy Temperature Sensor
+
+The TMP117 is a high-precision digital temperature sensor with +/-0.1 degC accuracy (typ.)
+and a 0.0078125 degC resolution (7.8125 m degC per LSB).  It communicates over I2C at
+address 0x48.
+
+==== Device Instance
 
 [source,cpp]
 ----
 typedef struct {
-    bool initialized;                       // Manager initialization status
-    i2c_master_dev_handle_t RTC_Handle;     // RTC device handle
-    i2c_master_bus_handle_t I2C_Bus_Handle; // I2C bus handle
-} Devices_Manager_State_t;
+    bool isInitialized;                 /**< True after successful initialization. */
+    i2c_master_dev_handle_t Handle;     /**< I2C device handle. */
+} TMP117_Dev_t;
 ----
 
-The state is maintained privately within the module and accessed only through the public API.
+==== Types
+
+[source,cpp]
+----
+typedef enum {
+    TMP117_MODE_CONTINUOUS  = 0x00,     /**< Continuous conversion mode. */
+    TMP117_MODE_SHUTDOWN    = 0x01,     /**< Shutdown mode (low power). */
+    TMP117_MODE_ONE_SHOT    = 0x03,     /**< One-shot conversion mode. */
+} TMP117_ConversionMode_t;
+
+typedef enum {
+    TMP117_CYCLE_15_5MS     = 0x00,     /**< 15.5 ms conversion cycle. */
+    TMP117_CYCLE_125MS      = 0x01,     /**< 125 ms conversion cycle. */
+    TMP117_CYCLE_250MS      = 0x02,     /**< 250 ms conversion cycle. */
+    TMP117_CYCLE_500MS      = 0x03,     /**< 500 ms conversion cycle. */
+    TMP117_CYCLE_1S         = 0x04,     /**< 1 second conversion cycle. */
+    TMP117_CYCLE_4S         = 0x05,     /**< 4 seconds conversion cycle. */
+    TMP117_CYCLE_8S         = 0x06,     /**< 8 seconds conversion cycle. */
+    TMP117_CYCLE_16S        = 0x07,     /**< 16 seconds conversion cycle. */
+} TMP117_ConversionCycle_t;
+
+typedef enum {
+    TMP117_AVG_NONE         = 0x00,     /**< No averaging (1 conversion). */
+    TMP117_AVG_8            = 0x01,     /**< Average over 8 conversions. */
+    TMP117_AVG_32           = 0x02,     /**< Average over 32 conversions. */
+    TMP117_AVG_64           = 0x03,     /**< Average over 64 conversions. */
+} TMP117_AveragingMode_t;
+
+typedef struct {
+    TMP117_ConversionMode_t Mode;       /**< Conversion mode. */
+    TMP117_ConversionCycle_t Cycle;     /**< Conversion cycle time. */
+    TMP117_AveragingMode_t Averaging;   /**< Number of conversions to average. */
+} TMP117_Config_t;
+----
+
+==== API Reference
+
+===== TMP117_Init()
+
+[source,cpp]
+----
+esp_err_t TMP117_Init(i2c_master_bus_handle_t *p_Bus_Handle, TMP117_Dev_t *p_Device,
+                      const TMP117_Config_t *p_Config = NULL);
+----
+
+Registers the TMP117 on the I2C bus and applies the configuration.  When `p_Config` is
+NULL, continuous conversion mode with a 1-second cycle and no averaging is used.
+
+**Return Values:**
+
+* `ESP_OK` -- Success
+* `ESP_ERR_INVALID_ARG` -- Pointer argument is NULL
+* `ESP_ERR_NO_MEM` -- Device handle allocation failed
+* `ESP_FAIL` -- I2C communication failed
+
+===== TMP117_Deinit()
+
+[source,cpp]
+----
+esp_err_t TMP117_Deinit(TMP117_Dev_t *p_Device);
+----
+
+Removes the device from the I2C bus and marks the instance as uninitialized.
+
+**Return Values:**
+
+* `ESP_OK` -- Success
+* `ESP_ERR_INVALID_ARG` -- `p_Device` is NULL
+
+===== TMP117_Configure()
+
+[source,cpp]
+----
+esp_err_t TMP117_Configure(TMP117_Dev_t *p_Device, const TMP117_Config_t *p_Config);
+----
+
+Writes the configuration register.  Can be called after initialization to change the
+operating mode.
+
+**Return Values:**
+
+* `ESP_OK` -- Success
+* `ESP_ERR_INVALID_ARG` -- Any pointer is NULL
+* `ESP_ERR_INVALID_STATE` -- Device not initialized
+* `ESP_FAIL` -- I2C communication failed
+
+===== TMP117_ReadTemperature()
+
+[source,cpp]
+----
+esp_err_t TMP117_ReadTemperature(TMP117_Dev_t *p_Device, float *p_Temp);
+----
+
+Reads the temperature result register.  Resolution is 0.0078125 degC per LSB.
+Temperature range: -256 degC to +256 degC.
+
+**Return Values:**
+
+* `ESP_OK` -- Success
+* `ESP_ERR_INVALID_ARG` -- Any pointer is NULL
+* `ESP_ERR_INVALID_STATE` -- Device not initialized
+* `ESP_FAIL` -- I2C communication failed
+
+===== TMP117_TriggerOneShot()
+
+[source,cpp]
+----
+esp_err_t TMP117_TriggerOneShot(TMP117_Dev_t *p_Device);
+----
+
+Starts a single conversion.  Only valid when the sensor is configured for
+`TMP117_MODE_ONE_SHOT`.  Use `TMP117_IsDataReady()` to poll for completion.
+
+**Return Values:**
+
+* `ESP_OK` -- Success
+* `ESP_ERR_INVALID_ARG` -- `p_Device` is NULL
+* `ESP_ERR_INVALID_STATE` -- Device not initialized or not in one-shot mode
+* `ESP_FAIL` -- I2C communication failed
+
+===== TMP117_IsDataReady()
+
+[source,cpp]
+----
+esp_err_t TMP117_IsDataReady(TMP117_Dev_t *p_Device, bool *p_Ready);
+----
+
+Reads the `Data_Ready` flag from the configuration register.  The flag is automatically
+cleared when the temperature register is read.
+
+**Return Values:**
+
+* `ESP_OK` -- Success
+* `ESP_ERR_INVALID_ARG` -- Any pointer is NULL
+* `ESP_ERR_INVALID_STATE` -- Device not initialized
+* `ESP_FAIL` -- I2C communication failed
+
+===== TMP117_ReadDeviceID()
+
+[source,cpp]
+----
+esp_err_t TMP117_ReadDeviceID(TMP117_Dev_t *p_Device, uint16_t *p_DeviceID);
+----
+
+Reads the device-ID register.  The expected value for TMP117 is `0x0117`.
+
+**Return Values:**
+
+* `ESP_OK` -- Success
+* `ESP_ERR_INVALID_ARG` -- Any pointer is NULL
+* `ESP_ERR_INVALID_STATE` -- Device not initialized
+* `ESP_FAIL` -- I2C communication failed
 
 ---
 
-== API Reference
+=== RV8263-C8 Real-Time Clock
 
-=== Initialization and Lifecycle
+The RV-8263-C8 is an I2C real-time clock with calendar, alarm, and countdown timer
+functions.  It is accessible at address 0x51 on the main I2C bus.
 
-==== `DevicesManager_Init()`
+==== Device Instance
+
+[source,cpp]
+----
+typedef struct {
+    bool isInitialized;                 /**< True after successful initialization. */
+    i2c_master_dev_handle_t Handle;     /**< I2C device handle. */
+} RV8263C8_Dev_t;
+----
+
+==== Types
+
+[source,cpp]
+----
+typedef struct {
+    uint8_t Seconds;            /**< Alarm seconds (0-59). */
+    uint8_t Minutes;            /**< Alarm minutes (0-59). */
+    uint8_t Hours;              /**< Alarm hours (0-23). */
+    uint8_t Day;                /**< Alarm day of month (1-31). */
+    uint8_t Weekday;            /**< Alarm weekday (0-6). */
+    bool EnableSeconds;         /**< Enable seconds matching. */
+    bool EnableMinutes;         /**< Enable minutes matching. */
+    bool EnableHours;           /**< Enable hours matching. */
+    bool EnableDay;             /**< Enable day matching. */
+    bool EnableWeekday;         /**< Enable weekday matching. */
+} RV8263C8_Alarm_t;
+
+typedef enum {
+    RTC_TIMER_FREQ_4096HZ = 0,  /**< 4096 Hz (244 us resolution). */
+    RTC_TIMER_FREQ_64HZ   = 1,  /**< 64 Hz (15.625 ms resolution). */
+    RTC_TIMER_FREQ_1HZ    = 2,  /**< 1 Hz (1 second resolution). */
+    RTC_TIMER_FREQ_1_60HZ = 3,  /**< 1/60 Hz (1 minute resolution). */
+} RV8263C8_TimerFreq_t;
+----
+
+==== API Reference
+
+===== RV8263C8_Init()
+
+[source,cpp]
+----
+esp_err_t RV8263C8_Init(i2c_master_bus_handle_t *p_Bus_Handle, RV8263C8_Dev_t *p_Device);
+----
+
+Registers the RTC on the I2C bus and sets `isInitialized = true` on success.
+
+**Return Values:**
+
+* `ESP_OK` -- Success
+* `ESP_ERR_INVALID_ARG` -- Any pointer is NULL
+* `ESP_FAIL` -- I2C communication failed
+
+===== RV8263C8_Deinit()
+
+[source,cpp]
+----
+esp_err_t RV8263C8_Deinit(RV8263C8_Dev_t *p_Device);
+----
+
+Removes the device from the I2C bus and clears `isInitialized`.
+
+===== RV8263C8_GetTime()
+
+[source,cpp]
+----
+esp_err_t RV8263C8_GetTime(RV8263C8_Dev_t *p_Device, struct tm *p_Time);
+----
+
+Reads date and time registers and converts them to a `struct tm`.
+
+**Return Values:**
+
+* `ESP_OK` -- Success
+* `ESP_ERR_INVALID_ARG` -- Any pointer is NULL
+* `ESP_ERR_INVALID_STATE` -- Device not initialized
+* `ESP_FAIL` -- I2C communication failed
+
+===== RV8263C8_SetTime()
+
+[source,cpp]
+----
+esp_err_t RV8263C8_SetTime(RV8263C8_Dev_t *p_Device, const struct tm *p_Time);
+----
+
+Programs the date and time registers from a `struct tm`.
+
+===== RV8263C8_SetAlarm()
+
+[source,cpp]
+----
+esp_err_t RV8263C8_SetAlarm(RV8263C8_Dev_t *p_Device, const RV8263C8_Alarm_t *p_Alarm);
+----
+
+Programs the alarm registers.  Fields whose corresponding `Enable*` flag is `false` are
+masked out (alarm ignores that field).
+
+===== RV8263C8_EnableAlarmInterrupt()
+
+[source,cpp]
+----
+esp_err_t RV8263C8_EnableAlarmInterrupt(RV8263C8_Dev_t *p_Device, bool Enable);
+----
+
+Enables or disables the alarm IRQ output (INT# pin).
+
+===== RV8263C8_ClearAlarmFlag()
+
+[source,cpp]
+----
+esp_err_t RV8263C8_ClearAlarmFlag(RV8263C8_Dev_t *p_Device);
+----
+
+Clears the Alarm Flag (AF) in the status register.
+
+===== RV8263C8_IsAlarmTriggered()
+
+[source,cpp]
+----
+bool RV8263C8_IsAlarmTriggered(RV8263C8_Dev_t *p_Device);
+----
+
+Reads the Alarm Flag from the RTC status register.
+
+NOTE: This is the only driver function that returns `bool` rather than `esp_err_t`.
+Returns `false` on uninitialized device or I2C communication failure.
+
+**Return Values:**
+
+* `true` -- Alarm flag is set
+* `false` -- Alarm flag is clear, device not initialized, or I2C error
+
+===== RV8263C8_SetTimer()
+
+[source,cpp]
+----
+esp_err_t RV8263C8_SetTimer(RV8263C8_Dev_t *p_Device, uint8_t Value,
+                             RV8263C8_TimerFreq_t Frequency, bool InterruptEnable);
+----
+
+Configures and starts the countdown timer.  `Value` is the starting count (0--255).
+
+===== RV8263C8_StopTimer()
+
+[source,cpp]
+----
+esp_err_t RV8263C8_StopTimer(RV8263C8_Dev_t *p_Device);
+----
+
+Halts the countdown timer.
+
+===== RV8263C8_SoftwareReset()
+
+[source,cpp]
+----
+esp_err_t RV8263C8_SoftwareReset(RV8263C8_Dev_t *p_Device);
+----
+
+Issues a software reset command to the RTC.
+
+---
+
+=== PCA9633DP1 4-Channel PWM LED Driver
+
+The PCA9633DP1 is a 4-channel I2C LED driver with 8-bit PWM per channel.  It is used to
+drive the RGB status LED and a flash LED through NPN transistors.  The driver operates in
+totem-pole output mode (`OUTDRV = 1`) with polarity inversion enabled (`INVRT = 1`).
+
+NOTE: The output polarity inversion (`INVRT = 1`) combined with the NPN transistor topology
+means that writing a high PWM value drives the LED *on*.  A duty cycle of 0 turns the LED
+fully off; 255 drives it at full brightness.
+
+==== Device Instance
+
+[source,cpp]
+----
+typedef struct {
+    bool isInitialized;                     /**< True after successful initialization. */
+    i2c_master_dev_handle_t Handle;         /**< I2C device handle. */
+} PCA9633DP1_Dev_t;
+----
+
+==== Types
+
+[source,cpp]
+----
+typedef enum {
+    PCA9633_LED0 = 0,                       /**< LED channel 0. */
+    PCA9633_LED1 = 1,                       /**< LED channel 1. */
+    PCA9633_LED2 = 2,                       /**< LED channel 2. */
+    PCA9633_LED3 = 3,                       /**< LED channel 3. */
+} PCA9633_LED_t;
+
+typedef enum {
+    PCA9633_LED_OFF      = 0,               /**< LED driver off (default at power-up). */
+    PCA9633_LED_FULLY_ON = 1,               /**< LED driver fully on (not PWM-controlled). */
+    PCA9633_LED_PWM      = 2,               /**< LED driver individual PWM control. */
+} PCA9633_LED_State_t;
+----
+
+==== API Reference
+
+===== PCA9633DP1_Init()
+
+[source,cpp]
+----
+esp_err_t PCA9633DP1_Init(i2c_master_bus_handle_t *p_Bus_Handle, PCA9633DP1_Dev_t *p_Device);
+----
+
+Registers the device on the I2C bus at 0x62 and configures the operating mode.
+All LED channels start in the OFF state.
+
+**Return Values:**
+
+* `ESP_OK` -- Success
+* `ESP_ERR_INVALID_ARG` -- Any pointer is NULL
+* `ESP_ERR_NO_MEM` -- Device handle allocation failed
+* `ESP_FAIL` -- I2C communication failed
+
+===== PCA9633DP1_Deinit()
+
+[source,cpp]
+----
+esp_err_t PCA9633DP1_Deinit(PCA9633DP1_Dev_t *p_Device);
+----
+
+Removes the I2C device.  LED channels are left in their current output state.
+
+===== PCA9633DP1_SetLEDBrightness()
+
+[source,cpp]
+----
+esp_err_t PCA9633DP1_SetLEDBrightness(PCA9633DP1_Dev_t *p_Device, PCA9633_LED_t LED,
+                                       uint8_t Brightness);
+----
+
+Sets the PWM duty cycle for the given channel and switches it to `PCA9633_LED_PWM` mode.
+
+**Parameters:**
+
+* `LED` -- Target channel (`PCA9633_LED0` to `PCA9633_LED3`)
+* `Brightness` -- 0 (off) to 255 (full brightness)
+
+**Return Values:**
+
+* `ESP_OK` -- Success
+* `ESP_ERR_INVALID_ARG` -- Device NULL or invalid channel
+* `ESP_ERR_INVALID_STATE` -- Device not initialized
+* `ESP_FAIL` -- I2C communication failed
+
+===== PCA9633DP1_SetLEDState()
+
+[source,cpp]
+----
+esp_err_t PCA9633DP1_SetLEDState(PCA9633DP1_Dev_t *p_Device, PCA9633_LED_t LED,
+                                  PCA9633_LED_State_t State);
+----
+
+Sets the output state (off / fully-on / PWM) without altering the stored PWM value.
+
+===== PCA9633DP1_SetSleepMode()
+
+[source,cpp]
+----
+esp_err_t PCA9633DP1_SetSleepMode(PCA9633DP1_Dev_t *p_Device, bool Sleep);
+----
+
+Enables or disables the low-power sleep mode.  In sleep mode the internal oscillator is
+stopped and PWM generation ceases.  Register contents are preserved.
+
+NOTE: Wake-up time is approximately 500 us for the oscillator to stabilize.
+
+---
+
+=== MAX17048 Li-Ion / LiPo Fuel Gauge
+
+The MAX17048 is a compact fuel-gauge IC that uses the ModelGauge algorithm to estimate
+battery state of charge (SOC) without requiring a sense resistor.  It is accessible at
+I2C address 0x36.
+
+==== Device Instance
+
+[source,cpp]
+----
+typedef struct {
+    bool isInitialized;                 /**< True after successful initialization. */
+    i2c_master_dev_handle_t Handle;     /**< I2C device handle. */
+} MAX17048_Dev_t;
+----
+
+==== Types
+
+[source,cpp]
+----
+typedef enum {
+    MAX17048_ALERT_RESET      = 0x01,   /**< Device powered up or reset. */
+    MAX17048_ALERT_VOLT_HIGH  = 0x02,   /**< VCELL exceeded VALRT.MAX threshold. */
+    MAX17048_ALERT_VOLT_LOW   = 0x04,   /**< VCELL fell below VALRT.MIN threshold. */
+    MAX17048_ALERT_VOLT_RESET = 0x08,   /**< VCELL fell below VRESET threshold. */
+    MAX17048_ALERT_SOC_LOW    = 0x10,   /**< SOC crossed CONFIG.ATHD threshold. */
+    MAX17048_ALERT_SOC_CHANGE = 0x20,   /**< SOC changed by at least 1% (ALSC set). */
+} MAX17048_AlertFlag_t;
+----
+
+==== API Reference
+
+===== MAX17048_Init()
+
+[source,cpp]
+----
+esp_err_t MAX17048_Init(i2c_master_bus_handle_t *p_Bus_Handle, MAX17048_Dev_t *p_Device);
+----
+
+Registers the device on the I2C bus, verifies the IC version register, and clears the
+power-on reset alert flag.  No additional configuration is required for basic operation.
+
+**Return Values:**
+
+* `ESP_OK` -- Success
+* `ESP_ERR_INVALID_ARG` -- Any pointer is NULL
+* `ESP_ERR_NOT_FOUND` -- IC version verification failed (wrong device)
+* `ESP_FAIL` -- I2C communication failed
+
+===== MAX17048_Deinit()
+
+[source,cpp]
+----
+esp_err_t MAX17048_Deinit(MAX17048_Dev_t *p_Device);
+----
+
+Removes the device from the I2C bus.
+
+===== MAX17048_GetVoltage()
+
+[source,cpp]
+----
+esp_err_t MAX17048_GetVoltage(MAX17048_Dev_t *p_Device, float *p_Voltage);
+----
+
+Reads the VCELL register.  Resolution: 1.25 mV per LSB.  Range: 0 V to 5.11 V.
+Result is stored in volts.
+
+===== MAX17048_GetSOC()
+
+[source,cpp]
+----
+esp_err_t MAX17048_GetSOC(MAX17048_Dev_t *p_Device, float *p_SOC);
+----
+
+Reads the SOC register computed by the ModelGauge algorithm.  Resolution: 1%/256.
+Result is clamped to 0--100%.
+
+NOTE: Call `MAX17048_QuickStart()` after a fresh battery insertion to force immediate
+SOC re-calculation.
+
+===== MAX17048_GetChargeRate()
+
+[source,cpp]
+----
+esp_err_t MAX17048_GetChargeRate(MAX17048_Dev_t *p_Device, float *p_Rate);
+----
+
+Reads the CRATE register.  Positive values indicate charging; negative values indicate
+discharging.  Resolution: 0.208%/hr per LSB.
+
+===== MAX17048_GetICVersion()
+
+[source,cpp]
+----
+esp_err_t MAX17048_GetICVersion(MAX17048_Dev_t *p_Device, uint16_t *p_Version);
+----
+
+Reads the VERSION register.  The top 12 bits are always `0x001` for MAX17048.
+
+===== MAX17048_GetAlertFlags()
+
+[source,cpp]
+----
+esp_err_t MAX17048_GetAlertFlags(MAX17048_Dev_t *p_Device, uint8_t *p_Flags);
+----
+
+Returns the raw STATUS register (0x1A) as a bitmask of `MAX17048_AlertFlag_t` values.
+
+===== MAX17048_ClearAlertFlags()
+
+[source,cpp]
+----
+esp_err_t MAX17048_ClearAlertFlags(MAX17048_Dev_t *p_Device, uint8_t Flags);
+----
+
+Clears only the bits specified in `Flags`; other STATUS bits are preserved.
+
+===== MAX17048_QuickStart()
+
+[source,cpp]
+----
+esp_err_t MAX17048_QuickStart(MAX17048_Dev_t *p_Device);
+----
+
+Restarts the ModelGauge algorithm.
+
+WARNING: Quick-start causes a ~175 ms SOC reporting interruption.  Only call when SOC
+is clearly wrong, such as immediately after a battery swap.
+
+---
+
+=== PCAL6416AHF 16-Bit I2C Port Expander
+
+The PCAL6416AHF is a 16-bit I2C GPIO expander with built-in interrupt masking, input
+latching, and programmable pull resistors.  Two instances are used:
+
+[cols="2,1,3", options="header"]
+|===
+| Instance | I2C Address | Function
+
+| Mainboard
+| 0x20
+| System signals: battery alert, charging state, Lepton power/reset, camera power/reset,
+  backlight control, SD-card detect, RTC/temp/range interrupt pins
+
+| Displayboard (optional)
+| 0x21
+| User input: 5-way joystick (P0.3--P0.7) and four push-buttons (P1.0--P1.3)
+|===
+
+NOTE: The displayboard expander is optional.  If the displayboard is not connected,
+`DevicesManager_GetDisplayboardInputs()` returns `ESP_ERR_NOT_SUPPORTED`.
+
+==== Device Instance
+
+[source,cpp]
+----
+typedef struct {
+    bool isInitialized;             /**< True after successful initialization. */
+    i2c_master_dev_handle_t Handle; /**< I2C device handle. */
+} PCAL6416AHF_Dev_t;
+----
+
+==== Types
+
+[source,cpp]
+----
+typedef enum {
+    PCAL6416_PORT_0 = 0x00,     /**< Port 0 (P0.0 - P0.7). */
+    PCAL6416_PORT_1 = 0x01,     /**< Port 1 (P1.0 - P1.7). */
+} PCAL6416_Port_t;
+
+typedef enum {
+    PCAL6416_DIR_INPUT  = 0x00, /**< Pin configured as input. */
+    PCAL6416_DIR_OUTPUT = 0x01, /**< Pin configured as output. */
+} PCAL6416_Dir_t;
+
+typedef enum {
+    PCAL6416_PULL_NONE = 0x00,  /**< No pull resistor. */
+    PCAL6416_PULL_UP   = 0x01,  /**< Pull-up resistor enabled. */
+    PCAL6416_PULL_DOWN = 0x02,  /**< Pull-down resistor enabled. */
+} PCAL6416_Pull_t;
+
+typedef struct {
+    PCAL6416_Port_t Port;       /**< Port number. */
+    uint8_t Pin;                /**< Pin number within port (0-7). */
+    PCAL6416_Dir_t Direction;   /**< Input or output. */
+    PCAL6416_Pull_t Pull;       /**< Pull-up, pull-down, or none. */
+    bool isInverted;            /**< Polarity inversion enable. */
+    bool isLatched;             /**< Input latch enable (capture at interrupt edge). */
+} PCAL6416_IO_Conf_t;
+----
+
+==== API Reference
+
+===== PCAL6416AHF_Init()
+
+[source,cpp]
+----
+esp_err_t PCAL6416AHF_Init(i2c_master_bus_handle_t *p_Bus_Handle, uint8_t Address,
+                           const PCAL6416_IO_Conf_t *p_Config, size_t Count,
+                           PCAL6416AHF_Dev_t *p_Device);
+----
+
+Registers the device on the I2C bus at the given address, applies pin configuration
+(direction, polarity, pull resistors, input latch, interrupt mask), clears any pending
+INT_STATUS bits, and takes an initial INPUT0/1 snapshot for change-detection.
+
+**Return Values:**
+
+* `ESP_OK` -- Success
+* `ESP_ERR_INVALID_ARG` -- Any pointer is NULL
+* `ESP_FAIL` -- I2C bus registration or register configuration failed
+
+===== PCAL6416AHF_Deinit()
+
+[source,cpp]
+----
+esp_err_t PCAL6416AHF_Deinit(PCAL6416AHF_Dev_t *p_Device);
+----
+
+Removes the device from the I2C bus.
+
+===== PCAL6416AHF_ReadPin()
+
+[source,cpp]
+----
+esp_err_t PCAL6416AHF_ReadPin(PCAL6416AHF_Dev_t *p_Device, PCAL6416_Port_t Port, uint8_t Pin,
+                              bool *p_Level);
+----
+
+Reads the logical level of a single input pin.  Respects hardware polarity inversion
+configured during `PCAL6416AHF_Init()`.
+
+NOTE: For latched pins, this read clears the hardware latch.
+
+===== PCAL6416AHF_WritePin()
+
+[source,cpp]
+----
+esp_err_t PCAL6416AHF_WritePin(PCAL6416AHF_Dev_t *p_Device, PCAL6416_Port_t Port, uint8_t Pin,
+                               bool Level);
+----
+
+Sets the logical level of a single output pin via a read-modify-write on the OUTPUT register.
+
+===== PCAL6416AHF_ReadInputs()
+
+[source,cpp]
+----
+esp_err_t PCAL6416AHF_ReadInputs(PCAL6416AHF_Dev_t *p_Device,
+                                  uint8_t *p_Input0, uint8_t *p_Input1);
+----
+
+Reads both INPUT registers in a single I2C burst transfer (writes the INPUT0 register
+address once, then reads two bytes in the same transaction).  This is the preferred
+method for polling all input pins without saturating the bus.
+
+NOTE: Avoid interleaving `PCAL6416AHF_ReadInputs()` and `PCAL6416AHF_ReadIntStatus()` on
+the same device instance, as both update the chip's change-detection reference.
+
+===== PCAL6416AHF_ReadIntStatus()
+
+[source,cpp]
+----
+esp_err_t PCAL6416AHF_ReadIntStatus(PCAL6416AHF_Dev_t *p_Device,
+                                    uint8_t *p_Status0, uint8_t *p_Status1,
+                                    uint8_t *p_Input0, uint8_t *p_Input1);
+----
+
+Reads and clears both INT_STATUS registers (releasing INT#) and then reads both INPUT
+registers to refresh the change-detection snapshot and release any active input latches.
+
+NOTE: For latched input pins, the INPUT values returned reflect the captured state at
+interrupt time, not a later live read.
+
+---
+
+=== VL53L1X Time-of-Flight Distance Sensor
+
+The VL53L1CXV0FY1 is an ST SPAD-based Time-of-Flight ranging sensor supporting two
+distance modes: Short (up to ~1.3 m) and Long (up to ~4 m).  It communicates over I2C
+at address 0x29.
+
+==== Device Instance
+
+[source,cpp]
+----
+typedef struct {
+    bool isInitialized;                     /**< True after successful initialization. */
+    i2c_master_dev_handle_t Handle;         /**< I2C device handle. */
+    VL53L1X_DistanceMode_t DistanceMode;    /**< Current distance mode. */
+    uint16_t OscCalibrateVal;               /**< Oscillator calibration value (read at init). */
+    bool Calibrated;                        /**< True after first GetResult() calibration. */
+    uint8_t SavedVhvInit;                   /**< Saved VHV_CONFIG__INIT. */
+    uint8_t SavedVhvTimeout;                /**< Saved VHV timeout. */
+} VL53L1X_Dev_t;
+----
+
+==== Types
+
+[source,cpp]
+----
+typedef enum {
+    VL53L1X_DISTANCE_SHORT = 0x00,          /**< Short mode: up to ~1.3 m. */
+    VL53L1X_DISTANCE_LONG  = 0x01,          /**< Long mode: up to ~4 m. */
+} VL53L1X_DistanceMode_t;
+
+typedef enum {
+    VL53L1X_TIMING_15MS  = 15,              /**< 15 ms (Short mode only). */
+    VL53L1X_TIMING_20MS  = 20,              /**< 20 ms. */
+    VL53L1X_TIMING_33MS  = 33,              /**< 33 ms. */
+    VL53L1X_TIMING_50MS  = 50,              /**< 50 ms. */
+    VL53L1X_TIMING_100MS = 100,             /**< 100 ms (default). */
+    VL53L1X_TIMING_200MS = 200,             /**< 200 ms. */
+    VL53L1X_TIMING_500MS = 500,             /**< 500 ms. */
+} VL53L1X_TimingBudget_t;
+
+typedef enum {
+    VL53L1X_RANGE_VALID         = 0,        /**< Measurement is valid. */
+    VL53L1X_RANGE_SIGMA_FAIL    = 1,        /**< Signal sigma above limit. */
+    VL53L1X_RANGE_SIGNAL_FAIL   = 2,        /**< Signal strength below limit. */
+    VL53L1X_RANGE_OUT_OF_BOUNDS = 4,        /**< Target at inconsistent location. */
+    VL53L1X_RANGE_WRAP_FAIL     = 7,        /**< Target behind wrap-around zone. */
+    VL53L1X_RANGE_INVALID       = 14,       /**< Target not detected. */
+} VL53L1X_RangeStatus_t;
+
+typedef struct {
+    uint16_t Distance_mm;                   /**< Measured distance in mm. */
+    VL53L1X_RangeStatus_t Status;           /**< Range status; check before using Distance_mm. */
+    uint16_t SignalRateMCPS;                /**< Signal count rate in MCPS (9.7 fixed-point). */
+    uint16_t AmbientRateMCPS;              /**< Ambient count rate in MCPS (9.7 fixed-point). */
+    uint16_t EffectiveSPADs;               /**< Effective SPADs used for the measurement. */
+} VL53L1X_Result_t;
+
+typedef struct {
+    VL53L1X_DistanceMode_t DistanceMode;    /**< Distance measurement mode. */
+    VL53L1X_TimingBudget_t TimingBudget;    /**< Timing budget in ms. */
+    uint32_t InterMeasurementMs;            /**< Inter-measurement period (0 = use TimingBudget). */
+} VL53L1X_Config_t;
+----
+
+==== API Reference
+
+===== VL53L1X_Init()
+
+[source,cpp]
+----
+esp_err_t VL53L1X_Init(i2c_master_bus_handle_t *p_Bus_Handle, VL53L1X_Dev_t *p_Device,
+                       const VL53L1X_Config_t *p_Config = NULL);
+----
+
+Registers the device on the I2C bus, writes the ULD initialization blob, verifies the
+model ID (expected: 0xEA), and applies the configuration.  The sensor stays in standby
+after initialization; call `VL53L1X_StartContinuous()` or `VL53L1X_TriggerSingleShot()`
+to begin ranging.
+
+NOTE: XSHUT must be driven HIGH at least 1.2 ms before calling this function.
+If `p_Config` is NULL, Short distance mode with a 100 ms timing budget is used.
+
+**Return Values:**
+
+* `ESP_OK` -- Success
+* `ESP_ERR_INVALID_ARG` -- Pointer is NULL, or 15 ms budget requested in Long mode
+* `ESP_ERR_NOT_FOUND` -- Model ID verification failed
+* `ESP_FAIL` -- I2C communication failed
+
+===== VL53L1X_Deinit()
+
+[source,cpp]
+----
+esp_err_t VL53L1X_Deinit(VL53L1X_Dev_t *p_Device);
+----
+
+Stops any ongoing ranging and removes the device from the I2C bus.
+
+===== VL53L1X_SetDistanceMode()
+
+[source,cpp]
+----
+esp_err_t VL53L1X_SetDistanceMode(VL53L1X_Dev_t *p_Device, VL53L1X_DistanceMode_t Mode);
+----
+
+Switches the distance mode and re-applies the current timing budget.
+
+NOTE: Stop ranging before calling this function.  The 15 ms budget is only supported in
+Short mode.
+
+===== VL53L1X_SetTimingBudget()
+
+[source,cpp]
+----
+esp_err_t VL53L1X_SetTimingBudget(VL53L1X_Dev_t *p_Device, VL53L1X_TimingBudget_t Budget);
+----
+
+Sets the measurement timing budget.  Longer budgets improve accuracy and maximum range.
+
+===== VL53L1X_StartRanging()
+
+[source,cpp]
+----
+esp_err_t VL53L1X_StartRanging(VL53L1X_Dev_t *p_Device);
+----
+
+Starts back-to-back continuous ranging without a fixed inter-measurement period.
+
+===== VL53L1X_TriggerSingleShot()
+
+[source,cpp]
+----
+esp_err_t VL53L1X_TriggerSingleShot(VL53L1X_Dev_t *p_Device);
+----
+
+Triggers a single measurement; the sensor returns to standby afterwards.
+Use `VL53L1X_IsDataReady()` to poll for completion.
+
+===== VL53L1X_StartContinuous()
+
+[source,cpp]
+----
+esp_err_t VL53L1X_StartContinuous(VL53L1X_Dev_t *p_Device, uint32_t PeriodMs);
+----
+
+Starts timed continuous ranging with an explicit inter-measurement period.
+`PeriodMs` must be at least as large as the configured timing budget.
+
+===== VL53L1X_StopRanging()
+
+[source,cpp]
+----
+esp_err_t VL53L1X_StopRanging(VL53L1X_Dev_t *p_Device);
+----
+
+Stops continuous ranging and waits for the sensor to become idle.
+
+===== VL53L1X_StopContinuous()
+
+[source,cpp]
+----
+esp_err_t VL53L1X_StopContinuous(VL53L1X_Dev_t *p_Device);
+----
+
+Stops ranging started with `VL53L1X_StartContinuous()` and restores the VHV calibration
+state saved during the first `VL53L1X_GetResult()` call.
+
+===== VL53L1X_IsDataReady()
+
+[source,cpp]
+----
+esp_err_t VL53L1X_IsDataReady(VL53L1X_Dev_t *p_Device, bool *p_Ready);
+----
+
+Reads the GPIO interrupt flag.  Call `VL53L1X_ClearInterrupt()` after reading the result.
+
+===== VL53L1X_GetResult()
+
+[source,cpp]
+----
+esp_err_t VL53L1X_GetResult(VL53L1X_Dev_t *p_Device, VL53L1X_Result_t *p_Result);
+----
+
+Reads distance, range status, signal rate, ambient rate, and effective SPAD count.
+
+WARNING: Always check `p_Result->Status` before using `p_Result->Distance_mm`.
+Only `VL53L1X_RANGE_VALID` guarantees a meaningful distance reading.
+
+===== VL53L1X_ClearInterrupt()
+
+[source,cpp]
+----
+esp_err_t VL53L1X_ClearInterrupt(VL53L1X_Dev_t *p_Device);
+----
+
+Clears the measurement interrupt flag to allow the next measurement to be signaled.
+
+===== VL53L1X_GetModelID()
+
+[source,cpp]
+----
+esp_err_t VL53L1X_GetModelID(VL53L1X_Dev_t *p_Device, uint8_t *p_ModelID);
+----
+
+Reads the model ID register.  Expected value for VL53L1CXV0FY1 is `0xEA`.
+
+---
+
+== Devices Manager API
+
+The Devices Manager is the application-level interface.  It owns all device driver
+instances, orchestrates initialization, and exposes higher-level functions.
+
+=== Types
+
+[source,cpp]
+----
+/** @brief Backlight identifiers. */
+typedef enum {
+    BACKLIGHT_FLASH   = 0,              /**< Flash backlight. */
+    BACKLIGHT_DISPLAY,                  /**< Display backlight. */
+} Devices_BacklightID_t;
+
+/** @brief Input state of the displayboard controls. */
+typedef struct {
+    bool JoyUp;     /**< Joystick up     (P0.3, active high). */
+    bool JoyDown;   /**< Joystick down   (P0.4, active high). */
+    bool JoyLeft;   /**< Joystick left   (P0.5, active high). */
+    bool JoyRight;  /**< Joystick right  (P0.6, active high). */
+    bool JoyCenter; /**< Joystick center (P0.7, active high). */
+    bool Button1;   /**< Button 1        (P1.0, active high). */
+    bool Button2;   /**< Button 2        (P1.1, active high). */
+    bool Button3;   /**< Button 3        (P1.2, active high). */
+    bool Button4;   /**< Button 4        (P1.3, active high). */
+} Devices_InputState_t;
+----
+
+=== Events (DEVICES_EVENTS)
+
+Events are posted on the default event loop using the `DEVICES_EVENTS` event base.
+
+[cols="2,1,3", options="header"]
+|===
+| Event ID | Data type | Description
+
+| `DEVICES_EVENT_BATTERY_ALERT`
+| `bool`
+| Battery alert state changed (true = alert active; P0.0, polarity-inverted)
+
+| `DEVICES_EVENT_BATTERY_CHARGING`
+| `bool`
+| Battery charging state changed (true = charging; P0.1)
+
+| `DEVICES_EVENT_RTC_INTERRUPT`
+| --
+| RTC interrupt asserted (active-low; P0.5)
+
+| `DEVICES_EVENT_TEMP_INTERRUPT`
+| --
+| Temperature sensor interrupt asserted (active-low; P0.7)
+
+| `DEVICES_EVENT_RANGE_INTERRUPT`
+| --
+| Range sensor interrupt asserted (active-low; P1.0)
+
+| `DEVICES_EVENT_SD_DETECT`
+| `bool`
+| SD-card detection state changed (true = card inserted; P1.4, polarity-inverted)
+
+| `DEVICES_EVENT_INPUT_CHANGED`
+| `Devices_InputState_t`
+| Displayboard joystick or button state changed
+|===
+
+=== Lifecycle
+
+==== DevicesManager_Init()
 
 [source,cpp]
 ----
 esp_err_t DevicesManager_Init(void);
 ----
 
-*Description*: Initializes all peripheral hardware interfaces.
+Initializes all hardware peripherals: I2C buses, SPI bus, ADC, port expanders, RTC,
+temperature sensor, fuel gauge, LED driver, and ToF sensor.
 
-*Initialization Sequence*:
+NOTE: Must be called before any other DevicesManager function.
 
-1. Initialize I2C master bus
-2. Initialize SPI3 master bus
-3. Initialize ADC for battery measurement
-4. Initialize port expander via I2C
-5. Wait 2 seconds for camera power stabilization
-6. Initialize RTC via I2C
-7. Disable battery voltage measurement (default off)
+**Return Values:**
 
-*Return Value*:
+* `ESP_OK` -- All critical peripherals initialized successfully
+* `ESP_ERR_NO_MEM` -- Memory allocation failed
+* `ESP_FAIL` -- I2C or SPI bus initialization failed
 
-* `ESP_OK` on success
-* `ESP_FAIL` if any peripheral initialization fails
-
-*Important Notes*:
-
-* Must be called before any other device operations
-* Automatically waits for Lepton camera stabilization (~2 seconds)
-* Battery measurement is disabled by default to save power
-* All buses are configured from menuconfig settings
-
-*Example*:
-
-[source,cpp]
-----
-void app_main(void)
-{
-    ESP_LOGI(TAG, "Initializing Device Manager...");
-    
-    if (DevicesManager_Init() != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize devices!");
-        return;
-    }
-    
-    ESP_LOGI(TAG, "All devices initialized successfully");
-    
-    // Continue with application initialization...
-}
-----
-
-==== `DevicesManager_Deinit()`
+==== DevicesManager_Deinit()
 
 [source,cpp]
 ----
 esp_err_t DevicesManager_Deinit(void);
 ----
 
-*Description*: Deinitializes all peripheral hardware and releases resources.
+Deinitializes all device drivers and releases bus handles.
 
-*Deinitialization Sequence*:
+WARNING: All device handles become invalid after this call.
 
-1. Disable battery voltage measurement
-2. Deinitialize ADC
-3. Deinitialize RTC
-4. Deinitialize port expander
-5. Deinitialize I2C bus
-6. Deinitialize SPI3 bus
+=== Bus Handles
 
-*Return Value*:
-
-* `ESP_OK` on success
-* Error code from bus deinitialization (if any)
-
-*Example*:
-
-[source,cpp]
-----
-void shutdown_system(void)
-{
-    ESP_LOGI(TAG, "Shutting down device manager...");
-    DevicesManager_Deinit();
-    
-    // Continue with full system shutdown...
-}
-----
-
----
-
-=== Bus Access
-
-==== `DevicesManager_GetI2CBusHandle()`
+==== DevicesManager_GetI2CBusHandle()
 
 [source,cpp]
 ----
 i2c_master_bus_handle_t DevicesManager_GetI2CBusHandle(void);
 ----
 
-*Description*: Gets the I2C bus handle for adding additional I2C devices.
+Returns the main I2C bus handle (I2C_NUM_0, 400 kHz).
 
-*Return Value*:
+**Return Values:**
 
 * I2C bus handle on success
-* `NULL` if Device Manager not initialized
+* `NULL` if DevicesManager not initialized
 
-*Use Case*: When additional I2C devices need to be added to the bus dynamically.
-
-*Example*:
+==== DevicesManager_GetTouchI2CBusHandle()
 
 [source,cpp]
 ----
-// Add a custom I2C sensor
-i2c_master_bus_handle_t i2c_bus = DevicesManager_GetI2CBusHandle();
-if (i2c_bus != NULL) {
-    i2c_device_config_t sensor_cfg = {
-        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-        .device_address = 0x48,  // Custom sensor address
-        .scl_speed_hz = 100000,
-    };
-    
-    i2c_master_dev_handle_t sensor_handle;
-    ESP_ERROR_CHECK(i2c_master_bus_add_device(i2c_bus, &sensor_cfg, &sensor_handle));
-    
-    // Use sensor_handle for I2C transactions...
-}
+i2c_master_bus_handle_t DevicesManager_GetTouchI2CBusHandle(void);
 ----
 
----
+Returns the dedicated touch-controller I2C bus handle (I2C_NUM_1).
 
-=== Hardware Access
-
-==== `DevicesManager_GetBatteryVoltage()`
+==== DevicesManager_GetSPIHost()
 
 [source,cpp]
 ----
-esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, int *p_Percentage);
+spi_host_device_t DevicesManager_GetSPIHost(void);
 ----
 
-*Description*: Measures battery voltage and calculates remaining percentage.
+Returns the SPI host identifier (typically `SPI2_HOST`).
 
-*Process*:
+=== Sensor Readings
 
-1. Enables battery voltage measurement circuit (via port expander)
-2. Reads ADC value from battery measurement pin
-3. Calculates actual voltage using voltage divider compensation
-4. Calculates percentage based on LiPo voltage curve
-5. Disables battery voltage measurement circuit
-
-*Parameters*:
-
-* `p_Voltage`: Pointer to store voltage in millivolts (mV)
-* `p_Percentage`: Pointer to store percentage (0-100%)
-
-*Voltage Calculation*:
-
-[source]
-----
-Actual Voltage = ADC Reading × (R1 + R2) / R2
-
-R1 = 10kΩ (upper resistor)
-R2 = 3.3kΩ (lower resistor)
-----
-
-*Percentage Calculation*:
-
-[source]
-----
-Battery Range: 3.3V (0%) to 4.2V (100%)
-
-Percentage = (Voltage - 3300) × 100 / (4200 - 3300)
-            = (Voltage - 3300) × 100 / 900
-
-Clamped to [0, 100] range
-----
-
-*Return Value*:
-
-* `ESP_OK` on success
-* `ESP_ERR_INVALID_STATE` if Device Manager not initialized
-* `ESP_ERR_INVALID_ARG` if parameters are NULL
-* Error code from ADC read operation
-
-*Example*:
+==== DevicesManager_GetBatteryVoltage()
 
 [source,cpp]
 ----
-int voltage_mv, percentage;
-
-if (DevicesManager_GetBatteryVoltage(&voltage_mv, &percentage) == ESP_OK) {
-    ESP_LOGI(TAG, "Battery: %d mV (%d%%)", voltage_mv, percentage);
-    
-    if (percentage < 10) {
-        ESP_LOGW(TAG, "Low battery warning!");
-        display_low_battery_icon();
-    }
-} else {
-    ESP_LOGE(TAG, "Failed to read battery voltage");
-}
+esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, uint8_t *p_Percentage);
 ----
 
-==== `DevicesManager_GetRTCHandle()`
+Enables the battery voltage divider, reads the ADC, calculates voltage (mV) and
+estimated remaining percentage, then disables the voltage divider.
+
+**Return Values:**
+
+* `ESP_OK` -- Success
+* `ESP_ERR_INVALID_ARG` -- Any pointer is NULL
+* `ESP_FAIL` -- ADC read failed
+
+==== DevicesManager_GetRTCHandle()
 
 [source,cpp]
 ----
-esp_err_t DevicesManager_GetRTCHandle(i2c_master_dev_handle_t *p_Handle);
+esp_err_t DevicesManager_GetRTCHandle(RV8263C8_Dev_t *p_Handle);
 ----
 
-*Description*: Gets the RTC device handle for Time Manager integration.
+Returns the RV8263-C8 device instance.  Typically called only by the Time Manager.
 
-*Parameters*:
+**Return Values:**
 
-* `p_Handle`: Pointer to store the RTC device handle
+* `ESP_OK` -- Success
+* `ESP_ERR_INVALID_ARG` -- `p_Handle` is NULL
+* `ESP_ERR_INVALID_STATE` -- DevicesManager not initialized
 
-*Return Value*:
-
-* `ESP_OK` on success
-* `ESP_ERR_INVALID_STATE` if Device Manager not initialized
-* `ESP_ERR_INVALID_ARG` if `p_Handle` is NULL
-
-*Use Case*: Time Manager requires the RTC handle for time synchronization and backup.
-
-*Example*:
+==== DevicesManager_GetTime()
 
 [source,cpp]
 ----
-i2c_master_dev_handle_t rtc_handle;
-
-if (DevicesManager_GetRTCHandle(&rtc_handle) == ESP_OK) {
-    // Pass RTC handle to Time Manager
-    TimeManager_Init(&rtc_handle);
-} else {
-    ESP_LOGW(TAG, "RTC not available, Time Manager will use SNTP only");
-    TimeManager_Init(NULL);
-}
+esp_err_t DevicesManager_GetTime(struct tm *p_Time);
 ----
+
+Reads the current date and time from the RV8263-C8 RTC into a `struct tm`.
+
+==== DevicesManager_SetTime()
+
+[source,cpp]
+----
+esp_err_t DevicesManager_SetTime(const struct tm *p_Time);
+----
+
+Programs the RV8263-C8 RTC with the given date and time.
+
+==== DevicesManager_GetTemperature()
+
+[source,cpp]
+----
+esp_err_t DevicesManager_GetTemperature(float *p_Temperature);
+----
+
+Reads the current temperature from the TMP117 sensor in degrees Celsius.
+
+**Return Values:**
+
+* `ESP_OK` -- Success
+* `ESP_ERR_INVALID_ARG` -- `p_Temperature` is NULL
+* `ESP_ERR_INVALID_STATE` -- TMP117 not initialized
+* `ESP_FAIL` -- I2C communication failed
+
+==== DevicesManager_GetDistance()
+
+[source,cpp]
+----
+esp_err_t DevicesManager_GetDistance(uint16_t *p_Distance_mm, bool *p_IsValid);
+----
+
+Performs a blocking single-shot distance measurement with the VL53L1X sensor.
+Internally triggers single-shot mode, polls `VL53L1X_IsDataReady()` with a 500 ms
+timeout, reads the result, and clears the interrupt.
+
+NOTE: Blocks the calling task for the duration of the measurement (default: ~100 ms;
+maximum wait: 500 ms).
+
+**Return Values:**
+
+* `ESP_OK` -- Success
+* `ESP_ERR_INVALID_ARG` -- Any pointer is NULL
+* `ESP_ERR_INVALID_STATE` -- DevicesManager not initialized
+* `ESP_ERR_TIMEOUT` -- Measurement did not complete within 500 ms
+* `ESP_FAIL` -- I2C communication failed
+
+=== Port Expander Control
+
+==== DevicesManager_SetBrightness()
+
+[source,cpp]
+----
+esp_err_t DevicesManager_SetBrightness(Devices_BacklightID_t ID, uint8_t Brightness);
+----
+
+Sets PWM duty cycle for the selected backlight channel.  0 = off; 255 = full brightness.
+
+==== DevicesManager_LeptonReset()
+
+[source,cpp]
+----
+esp_err_t DevicesManager_LeptonReset(bool Reset);
+----
+
+Asserts (true) or releases (false) the Lepton thermal camera reset line (active low).
+
+==== DevicesManager_SetLeptonPower()
+
+[source,cpp]
+----
+esp_err_t DevicesManager_SetLeptonPower(bool Enable);
+----
+
+Powers the Lepton camera on or off via port expander P0.2 (active high).
+
+==== DevicesManager_SetCameraReset()
+
+[source,cpp]
+----
+esp_err_t DevicesManager_SetCameraReset(bool Reset);
+----
+
+Asserts (true) or releases (false) the camera reset line via P1.6 (active low).
+
+==== DevicesManager_EnableCamera()
+
+[source,cpp]
+----
+esp_err_t DevicesManager_EnableCamera(bool Enable);
+----
+
+Powers the camera module on or off via P1.7 (active high).
+
+==== DevicesManager_SetLED()
+
+[source,cpp]
+----
+esp_err_t DevicesManager_SetLED(bool R, bool G, bool B);
+----
+
+Sets the state of the RGB status LED.  Each channel is either on or off.
+
+=== Status Reads
+
+==== DevicesManager_GetBatteryAlert()
+
+[source,cpp]
+----
+esp_err_t DevicesManager_GetBatteryAlert(bool *p_Alert);
+----
+
+Reads the battery alert state.  `true` means alert is active (polarity-inverted P0.0).
+
+==== DevicesManager_GetBatteryCharging()
+
+[source,cpp]
+----
+esp_err_t DevicesManager_GetBatteryCharging(bool *p_Charging);
+----
+
+Reads the battery charging state.  `true` means charging is in progress (P0.1).
+
+==== DevicesManager_GetRTCInterrupt()
+
+[source,cpp]
+----
+esp_err_t DevicesManager_GetRTCInterrupt(bool *p_Triggered);
+----
+
+Reads the RTC interrupt state (active-low, polarity-inverted, P0.5).
+
+==== DevicesManager_GetTempInterrupt()
+
+[source,cpp]
+----
+esp_err_t DevicesManager_GetTempInterrupt(bool *p_Triggered);
+----
+
+Reads the temperature sensor interrupt state (active-low, polarity-inverted, P0.7).
+
+==== DevicesManager_GetRangeInterrupt()
+
+[source,cpp]
+----
+esp_err_t DevicesManager_GetRangeInterrupt(bool *p_Triggered);
+----
+
+Reads the ToF range sensor interrupt state (active-low, polarity-inverted, P1.0).
+
+==== DevicesManager_GetSDDetect()
+
+[source,cpp]
+----
+esp_err_t DevicesManager_GetSDDetect(bool *p_Inserted);
+----
+
+Reads the SD-card detect state.  `true` means a card is inserted (polarity-inverted P1.4).
+
+=== Interrupt and Input Handling
+
+==== DevicesManager_HandleExpanderInterrupt()
+
+[source,cpp]
+----
+esp_err_t DevicesManager_HandleExpanderInterrupt(void);
+----
+
+Non-blocking handler for mainboard PCAL6416AHF GPIO interrupts.  Checks whether the
+GPIO ISR signaled a new falling edge on INT#.  If so, reads and clears INT_STATUS0/1 and
+posts the corresponding `DEVICES_EVENTS` events.
+
+NOTE: Must be called from task context.  Returns `ESP_OK` immediately when no interrupt
+is pending.
+
+**Return Values:**
+
+* `ESP_OK` -- Success or no interrupt pending
+* `ESP_ERR_INVALID_STATE` -- DevicesManager not initialized
+* `ESP_FAIL` -- I2C communication failed
+
+==== DevicesManager_GetDisplayboardInputs()
+
+[source,cpp]
+----
+esp_err_t DevicesManager_GetDisplayboardInputs(Devices_InputState_t *p_State);
+----
+
+Reads the five joystick directions (P0.3--P0.7) and four push-buttons (P1.0--P1.3) from
+the displayboard PCAL6416AHF in a single I2C burst transfer.  All inputs are active-high
+with pull-down resistors; a field is `true` when the corresponding input is pressed.
+
+NOTE: Returns `ESP_ERR_NOT_SUPPORTED` if the displayboard expander was not detected during
+initialization.
+
+**Return Values:**
+
+* `ESP_OK` -- Success
+* `ESP_ERR_INVALID_ARG` -- `p_State` is NULL
+* `ESP_ERR_INVALID_STATE` -- DevicesManager not initialized
+* `ESP_ERR_NOT_SUPPORTED` -- Displayboard not present
+* `ESP_FAIL` -- I2C communication failed
 
 ---
 
 == Usage
 
-=== Basic Initialization Workflow
+=== Initialization Workflow
 
 [source,cpp]
 ----
 #include "devicesManager.h"
 #include "timeManager.h"
+#include "settingsManager.h"
 
 void app_main(void)
 {
-    // Initialize NVS (required for WiFi)
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    /* 1. NVS */
+    esp_err_t Error = nvs_flash_init();
+    if (Error == ESP_ERR_NVS_NO_FREE_PAGES || Error == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
+        Error = nvs_flash_init();
     }
-    ESP_ERROR_CHECK(ret);
-    
-    // Initialize event loop
+    ESP_ERROR_CHECK(Error);
+
+    /* 2. Event loop */
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-    
-    // Initialize Settings Manager
+
+    /* 3. Settings Manager */
     ESP_ERROR_CHECK(SettingsManager_Init());
-    
-    // Initialize Device Manager (MUST be before Time Manager)
+
+    /* 4. Device Manager -- MUST come before Time Manager */
     ESP_ERROR_CHECK(DevicesManager_Init());
-    
-    // Get RTC handle for Time Manager
-    i2c_master_dev_handle_t rtc_handle;
-    ESP_ERROR_CHECK(DevicesManager_GetRTCHandle(&rtc_handle));
-    
-    // Initialize Time Manager with RTC support
-    ESP_ERROR_CHECK(TimeManager_Init(&rtc_handle));
-    
-    // Continue with other initializations...
+
+    /* 5. Time Manager -- requires RTC handle */
+    RV8263C8_Dev_t RTCHandle;
+    ESP_ERROR_CHECK(DevicesManager_GetRTCHandle(&RTCHandle));
+    ESP_ERROR_CHECK(TimeManager_Init(&RTCHandle));
 }
 ----
 
----
-
-=== Battery Monitoring Task
+=== Reading Sensor Data
 
 [source,cpp]
 ----
-void battery_monitor_task(void *pvParameters)
+/* Temperature */
+float Temp;
+if (DevicesManager_GetTemperature(&Temp) == ESP_OK) {
+    ESP_LOGI(TAG, "Temperature: %.2f degC", Temp);
+}
+
+/* Battery */
+int Voltage;
+uint8_t Percentage;
+if (DevicesManager_GetBatteryVoltage(&Voltage, &Percentage) == ESP_OK) {
+    ESP_LOGI(TAG, "Battery: %d mV (%u%%)", Voltage, Percentage);
+}
+
+/* Single-shot distance */
+uint16_t Distance;
+bool Valid;
+if (DevicesManager_GetDistance(&Distance, &Valid) == ESP_OK && Valid) {
+    ESP_LOGI(TAG, "Distance: %u mm", Distance);
+}
+----
+
+=== Handling Displayboard Inputs via Events
+
+[source,cpp]
+----
+static void on_devices_event(void *p_Arg, esp_event_base_t Base, int32_t ID, void *p_Data)
 {
-    int voltage_mv, percentage;
-    int last_percentage = -1;
-    
-    while (1) {
-        if (DevicesManager_GetBatteryVoltage(&voltage_mv, &percentage) == ESP_OK) {
-            // Only update display if percentage changed
-            if (percentage != last_percentage) {
-                ESP_LOGI(TAG, "Battery: %d mV (%d%%)", voltage_mv, percentage);
-                update_battery_indicator(percentage);
-                last_percentage = percentage;
-            }
-            
-            // Check critical battery level
-            if (percentage <= 5) {
-                ESP_LOGE(TAG, "Critical battery level! Shutting down...");
-                initiate_safe_shutdown();
-                break;
-            }
-            
-            // Low battery warning
-            if (percentage <= 15) {
-                ESP_LOGW(TAG, "Low battery warning");
-                enable_power_saving_mode();
-            }
+    if (Base == DEVICES_EVENTS && ID == DEVICES_EVENT_INPUT_CHANGED) {
+        const Devices_InputState_t *p_State =
+            static_cast<const Devices_InputState_t *>(p_Data);
+
+        if (p_State->JoyUp) {
+            ESP_LOGI(TAG, "Joystick UP");
         }
-        
-        // Check battery every 30 seconds
-        vTaskDelay(pdMS_TO_TICKS(30000));
-    }
-    
-    vTaskDelete(NULL);
-}
 
-// Create task
-xTaskCreate(battery_monitor_task, "BatteryMonitor", 2048, NULL, 5, NULL);
-----
-
----
-
-=== Adding Custom I2C Devices
-
-[source,cpp]
-----
-typedef struct {
-    i2c_master_dev_handle_t handle;
-    uint8_t address;
-} CustomSensor_t;
-
-esp_err_t CustomSensor_Init(CustomSensor_t *p_Sensor, uint8_t address)
-{
-    i2c_master_bus_handle_t i2c_bus = DevicesManager_GetI2CBusHandle();
-    if (i2c_bus == NULL) {
-        ESP_LOGE(TAG, "I2C bus not available!");
-        return ESP_ERR_INVALID_STATE;
-    }
-    
-    i2c_device_config_t dev_cfg = {
-        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-        .device_address = address,
-        .scl_speed_hz = 100000,
-    };
-    
-    esp_err_t ret = i2c_master_bus_add_device(i2c_bus, &dev_cfg, &p_Sensor->handle);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to add I2C device: %d", ret);
-        return ret;
-    }
-    
-    p_Sensor->address = address;
-    ESP_LOGI(TAG, "Custom sensor initialized at address 0x%02X", address);
-    
-    return ESP_OK;
-}
-
-esp_err_t CustomSensor_Read(CustomSensor_t *p_Sensor, uint8_t reg, uint8_t *p_Data, size_t len)
-{
-    return i2c_master_transmit_receive(p_Sensor->handle, 
-                                       &reg, 1, 
-                                       p_Data, len, 
-                                       1000);
-}
-----
-
----
-
-=== Battery Voltage Calculation Example
-
-For understanding the voltage measurement:
-
-[source,cpp]
-----
-/*
- * Hardware Setup:
- * 
- *   VBAT (4.2V max)
- *       |
- *       R1 (10kΩ)
- *       |
- *       +---- ADC Input (measures this point)
- *       |
- *       R2 (3.3kΩ)
- *       |
- *      GND
- *
- * Voltage at ADC = VBAT × R2 / (R1 + R2)
- *                = VBAT × 3300 / 13300
- *                = VBAT × 0.248
- *
- * So for 4.2V battery: ADC sees ~1.04V (safe for ESP32 ADC)
- */
-
-// Internal calculation in DevicesManager_GetBatteryVoltage():
-int adc_voltage_mv = 1040;  // Example: ADC reads 1.04V
-
-// Compensate for voltage divider
-int actual_voltage_mv = adc_voltage_mv * (10000 + 3300) / 3300;
-// actual_voltage_mv = 1040 × 13300 / 3300 = 4193 mV ≈ 4.2V
-
-// Calculate percentage (LiPo: 3.3V = empty, 4.2V = full)
-int percentage = (actual_voltage_mv - 3300) * 100 / (4200 - 3300);
-// percentage = (4193 - 3300) × 100 / 900 = 99%
-----
-
----
-
-== Configuration
-
-=== Menuconfig Settings
-
-Device Manager uses several menuconfig settings (defined in `Kconfig.projbuild` or component configs):
-
-==== I2C Configuration
-
-[source]
-----
-CONFIG_DEVICES_I2C_HOST       # I2C port number (0 or 1)
-CONFIG_DEVICES_I2C_SDA        # SDA GPIO pin
-CONFIG_DEVICES_I2C_SCL        # SCL GPIO pin
-----
-
-*Example*:
-[source]
-----
-CONFIG_DEVICES_I2C_HOST=1
-CONFIG_DEVICES_I2C_SDA=21
-CONFIG_DEVICES_I2C_SCL=22
-----
-
-==== SPI Configuration
-
-[source]
-----
-CONFIG_SPI_MOSI               # MOSI GPIO pin
-CONFIG_SPI_MISO               # MISO GPIO pin
-CONFIG_SPI_SCLK               # Clock GPIO pin
-CONFIG_SPI_TRANSFER_SIZE      # Max transfer size (bytes)
-----
-
-*Example*:
-[source]
-----
-CONFIG_SPI_MOSI=23
-CONFIG_SPI_MISO=19
-CONFIG_SPI_SCLK=18
-CONFIG_SPI_TRANSFER_SIZE=32768
-----
-
-==== Battery Voltage Divider
-
-If you use different resistor values, update in `devicesManager.cpp`:
-
-[source,cpp]
-----
-#define BATTERY_R1    10000   // Upper resistor (Ω)
-#define BATTERY_R2    3300    // Lower resistor (Ω)
-#define BATTERY_MIN_VOLTAGE  3300   // Empty voltage (mV)
-#define BATTERY_MAX_VOLTAGE  4200   // Full voltage (mV)
-----
-
----
-
-== Hardware Dependencies
-
-=== Required Components
-
-[cols="2,3,2"]
-|===
-|Component |Purpose |Interface
-
-|ESP32-S3
-|Main controller
-|N/A
-
-|DS3231/DS1307
-|Real-time clock with battery backup
-|I2C
-
-|PCF8574/PCF8575
-|GPIO port expander
-|I2C
-
-|ILI9341
-|LCD display
-|SPI
-
-|XPT2046
-|Touch controller
-|SPI
-
-|Voltage Divider
-|Battery voltage measurement (10kΩ + 3.3kΩ)
-|ADC
-
-|Lepton Camera
-|Thermal imaging sensor
-|SPI (via separate component)
-|===
-
-=== Pin Assignments
-
-Typical pin configuration (adjust via menuconfig):
-
-[cols="2,2,3"]
-|===
-|Function |Pin |Notes
-
-|I2C SDA
-|GPIO 21
-|External 4.7kΩ pull-up recommended
-
-|I2C SCL
-|GPIO 22
-|External 4.7kΩ pull-up recommended
-
-|SPI MOSI
-|GPIO 23
-|Shared by LCD, Touch, SD
-
-|SPI MISO
-|GPIO 19
-|Shared by LCD, Touch, SD
-
-|SPI CLK
-|GPIO 18
-|Shared by LCD, Touch, SD
-
-|Battery ADC
-|GPIO 34-39
-|ADC1 channel (varies by design)
-|===
-
----
-
-== Best Practices
-
-=== DO's
-
-* ✓ Initialize Device Manager early (after NVS, before Time Manager)
-* ✓ Check return values from all API calls
-* ✓ Use `DevicesManager_GetI2CBusHandle()` for additional I2C devices
-* ✓ Monitor battery periodically (not continuously to save power)
-* ✓ Implement low battery warnings and automatic shutdown
-* ✓ Use external pull-ups on I2C bus for reliability
-
-=== DON'Ts
-
-* ✗ Don't directly access hardware buses without Device Manager
-* ✗ Don't call device APIs before `DevicesManager_Init()`
-* ✗ Don't continuously poll battery voltage (wastes power)
-* ✗ Don't exceed I2C bus speed for slowest device
-* ✗ Don't forget 2-second camera stabilization is automatic
-
----
-
-== Troubleshooting
-
-=== I2C Communication Failures
-
-*Symptom*: Device Manager initialization fails with I2C errors
-
-*Possible Causes*:
-
-* Missing external pull-ups (4.7kΩ recommended)
-* Wrong GPIO pins configured
-* Device address conflict
-* Faulty hardware or loose connections
-
-*Solution*:
-
-[source,cpp]
-----
-// Enable I2C debugging
-esp_log_level_set("i2c", ESP_LOG_DEBUG);
-
-// Check I2C bus with scanner
-void i2c_scanner(void)
-{
-    i2c_master_bus_handle_t bus = DevicesManager_GetI2CBusHandle();
-    ESP_LOGI(TAG, "Scanning I2C bus...");
-    
-    for (uint8_t addr = 1; addr < 127; addr++) {
-        i2c_device_config_t dev_cfg = {
-            .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-            .device_address = addr,
-            .scl_speed_hz = 100000,
-        };
-        
-        i2c_master_dev_handle_t temp_handle;
-        if (i2c_master_bus_add_device(bus, &dev_cfg, &temp_handle) == ESP_OK) {
-            uint8_t dummy;
-            if (i2c_master_receive(temp_handle, &dummy, 1, 100) == ESP_OK) {
-                ESP_LOGI(TAG, "Found device at 0x%02X", addr);
-            }
-            i2c_master_bus_rm_device(temp_handle);
+        if (p_State->Button1) {
+            ESP_LOGI(TAG, "Button 1 pressed");
         }
     }
 }
+
+/* Register handler */
+esp_event_handler_register(DEVICES_EVENTS, DEVICES_EVENT_INPUT_CHANGED,
+                           on_devices_event, NULL);
 ----
 
----
-
-=== RTC Not Found
-
-*Symptom*: Warning "Failed to initialize RTC"
-
-*Possible Causes*:
-
-* RTC not connected
-* Wrong I2C address
-* Faulty RTC module
-* Insufficient power
-
-*Solution*:
-
-* Verify RTC is DS3231 or DS1307 compatible
-* Check I2C address (typically 0x68)
-* Verify VCC (3.3V or 5V) and GND connections
-* Check battery in RTC module
-
-Time Manager will still work using SNTP only if RTC fails.
-
----
-
-=== Battery Voltage Reads Zero
-
-*Symptom*: Battery voltage always returns 0 or very low values
-
-*Possible Causes*:
-
-* Port expander not enabling measurement circuit
-* Wrong ADC channel configured
-* Voltage divider resistors incorrect
-* ADC pin not connected
-
-*Solution*:
+=== RGB LED and Backlight Control
 
 [source,cpp]
 ----
-// Test ADC directly
-int voltage, percentage;
-for (int i = 0; i < 10; i++) {
-    DevicesManager_GetBatteryVoltage(&voltage, &percentage);
-    ESP_LOGI(TAG, "Test %d: %d mV (%d%%)", i, voltage, percentage);
-    vTaskDelay(pdMS_TO_TICKS(500));
-}
+/* Red LED */
+DevicesManager_SetLED(true, false, false);
 
-// Check if port expander is working
-PortExpander_EnableBatteryVoltage(true);
-vTaskDelay(pdMS_TO_TICKS(100));
-// Manually read ADC here
-PortExpander_EnableBatteryVoltage(false);
+/* Green LED */
+DevicesManager_SetLED(false, true, false);
+
+/* LED off */
+DevicesManager_SetLED(false, false, false);
+
+/* Display backlight at 50% */
+DevicesManager_SetBrightness(BACKLIGHT_DISPLAY, 128);
+
+/* Flash backlight at full brightness */
+DevicesManager_SetBrightness(BACKLIGHT_FLASH, 255);
 ----
 
 ---
 
-=== SPI Display Issues
+== Related Documentation
 
-*Symptom*: Display not working or garbled output
-
-*Possible Causes*:
-
-* Wrong SPI pins
-* Insufficient DMA buffer size
-* CS/DC/RST pins misconfigured (not managed by Device Manager)
-
-*Solution*:
-
-* Verify `CONFIG_SPI_TRANSFER_SIZE` is large enough (≥32768)
-* Check SPI3_HOST is not used by other peripherals
-* Increase `CONFIG_SPI_TRANSFER_SIZE` if needed for large displays
+* link:DevicesTask.adoc[Devices Task]
+* link:TimeManager.adoc[Time Manager]
+* link:MemoryMap.adoc[Memory Map]
 
 ---
 
-== Technical Details
-
-=== I2C Bus Sharing
-
-The I2C bus is shared among multiple devices:
-
-* RTC (typically 0x68)
-* Port Expander (typically 0x20-0x27)
-* Additional sensors (if added)
-
-All devices use the same bus handle, and the ESP-IDF I2C master driver handles arbitration and locking automatically.
-
-=== Power Sequencing
-
-Device Manager ensures proper power-up sequence:
-
-1. Initialize I2C/SPI buses (fast, <10ms)
-2. Initialize ADC and Port Expander
-3. **Wait 2 seconds** for camera power stabilization
-4. Initialize RTC (time-critical component last)
-
-This sequence ensures the Lepton camera has adequate boot time (~1.5 seconds required).
-
-=== Battery Percentage Accuracy
-
-The percentage calculation is linear and optimized for LiPo batteries:
-
-* Uses 3.3V as "empty" (safe cutoff for LiPo)
-* Uses 4.2V as "full" (fully charged LiPo)
-* Provides reasonable accuracy for most applications
-* Does not account for battery aging or temperature
-
-For improved accuracy, implement a lookup table based on actual discharge curve.
-
----
-
-== Dependencies
-
-Device Manager depends on:
-
-* ESP-IDF I2C Master Driver (`driver/i2c_master.h`)
-* ESP-IDF SPI Master Driver (`driver/spi_master.h`)
-* ESP-IDF ADC Driver (`driver/adc.h`)
-* FreeRTOS (`freertos/FreeRTOS.h`, `freertos/task.h`)
-
-Device Manager is required by:
-
-* Time Manager (needs RTC handle)
-* GUI Task (needs SPI for display)
-* Application tasks (needs battery monitoring)
-
----
-
-== License
-
-Copyright (C) Daniel Kampert, 2026
-
-This software is licensed under the GNU General Public License v3.0.  
-Website: www.kampis-elektroecke.de
-
----
-
-== Contact
-
-Please report bugs and suggestions to: DanielKampert@kampis-elektroecke.de
+**Last Updated**: February 26, 2026 +
+**Maintainer**: Daniel Kampert (DanielKampert@kampis-elektroecke.de)
