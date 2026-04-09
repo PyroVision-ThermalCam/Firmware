@@ -188,7 +188,7 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
                     break;
             }
 
-            ESP_LOGW(TAG, "Disconnected from AP, reason: %d (%s)", Event->reason, ReasonStr);
+            ESP_LOGW(TAG, "Disconnected from AP, reason: 0x%X (%s)", Event->reason, ReasonStr);
 
             _Network_Manager_State.State = NETWORK_STATE_DISCONNECTED;
             esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_WIFI_DISCONNECTED, p_Data, sizeof(wifi_event_sta_disconnected_t),
@@ -337,7 +337,7 @@ esp_err_t NetworkManager_Init(void)
 
     Error = esp_wifi_init(&WifiInitConfig);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to init WiFi: %d!", Error);
+        ESP_LOGE(TAG, "Failed to init WiFi: 0x%X!", Error);
 
         esp_netif_destroy(_Network_Manager_State.AP_NetIF);
         esp_netif_destroy(_Network_Manager_State.STA_NetIF);
@@ -432,14 +432,14 @@ esp_err_t NetworkManager_StartSTA(void)
     /* Set STA mode - WiFi might still be in APSTA mode from provisioning */
     Error = esp_wifi_set_mode(WIFI_MODE_STA);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set WiFi mode: %d!", Error);
+        ESP_LOGE(TAG, "Failed to set WiFi mode: 0x%X!", Error);
 
         return Error;
     }
 
     Error = esp_wifi_set_config(WIFI_IF_STA, &WifiConfig);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set WiFi config: %d!", Error);
+        ESP_LOGE(TAG, "Failed to set WiFi config: 0x%X!", Error);
 
         return Error;
     }
@@ -447,7 +447,7 @@ esp_err_t NetworkManager_StartSTA(void)
     /* Start WiFi if not already running */
     Error = esp_wifi_start();
     if ((Error != ESP_OK) && (Error != ESP_ERR_WIFI_STATE)) {
-        ESP_LOGE(TAG, "Failed to start WiFi: %d!", Error);
+        ESP_LOGE(TAG, "Failed to start WiFi: 0x%X!", Error);
 
         return Error;
     }
@@ -457,7 +457,7 @@ esp_err_t NetworkManager_StartSTA(void)
     /* Explicitly connect - STA_START event may not fire if WiFi was already running */
     Error = esp_wifi_connect();
     if ((Error != ESP_OK) && (Error != ESP_ERR_WIFI_CONN)) {
-        ESP_LOGW(TAG, "esp_wifi_connect returned: %d!", Error);
+        ESP_LOGW(TAG, "esp_wifi_connect returned: 0x%X!", Error);
     }
 
     _Network_Manager_State.State = NETWORK_STATE_CONNECTING;
@@ -473,14 +473,14 @@ esp_err_t NetworkManager_StartServer(void)
 
     Error = Server_Init();
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize server: %d!", Error);
+        ESP_LOGE(TAG, "Failed to initialize server: 0x%X!", Error);
 
         return Error;
     }
 
     Error = Server_Start();
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to start server: %d!", Error);
+        ESP_LOGE(TAG, "Failed to start server: 0x%X!", Error);
 
         return Error;
     }

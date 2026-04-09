@@ -405,7 +405,7 @@ esp_err_t VL53L1X_Init(i2c_master_bus_handle_t *p_Bus_Handle, VL53L1X_Dev_t *p_D
 
     Error = i2c_master_bus_add_device(*p_Bus_Handle, &_VL53L1X_I2C_Config, &p_Device->Handle);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to add I2C device: %d!", Error);
+        ESP_LOGE(TAG, "Failed to add I2C device: 0x%X!", Error);
 
         return Error;
     }
@@ -416,7 +416,7 @@ esp_err_t VL53L1X_Init(i2c_master_bus_handle_t *p_Bus_Handle, VL53L1X_Dev_t *p_D
     /* Verify model ID before soft reset (register 0x010F = 0xEA for VL53L1CXV0FY1) */
     Error = VL53L1X_GetModelID(p_Device, &ModelID);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read model ID: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read model ID: 0x%X!", Error);
 
         i2c_master_bus_rm_device(p_Device->Handle);
 
@@ -455,7 +455,7 @@ esp_err_t VL53L1X_Init(i2c_master_bus_handle_t *p_Bus_Handle, VL53L1X_Dev_t *p_D
     }
 
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to poll boot status: %d!", Error);
+        ESP_LOGE(TAG, "Failed to poll boot status: 0x%X!", Error);
 
         i2c_master_bus_rm_device(p_Device->Handle);
 
@@ -513,7 +513,7 @@ esp_err_t VL53L1X_Init(i2c_master_bus_handle_t *p_Bus_Handle, VL53L1X_Dev_t *p_D
     /* Apply distance mode and timing budget from config (or defaults) */
     Error = VL53L1X_SetDistanceMode(p_Device, DistanceMode);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set distance mode: %d!", Error);
+        ESP_LOGE(TAG, "Failed to set distance mode: 0x%X!", Error);
 
         i2c_master_bus_rm_device(p_Device->Handle);
 
@@ -522,7 +522,7 @@ esp_err_t VL53L1X_Init(i2c_master_bus_handle_t *p_Bus_Handle, VL53L1X_Dev_t *p_D
 
     Error = VL53L1X_SetTimingBudget(p_Device, TimingBudget);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set timing budget: %d!", Error);
+        ESP_LOGE(TAG, "Failed to set timing budget: 0x%X!", Error);
 
         i2c_master_bus_rm_device(p_Device->Handle);
 
@@ -544,6 +544,8 @@ esp_err_t VL53L1X_Init(i2c_master_bus_handle_t *p_Bus_Handle, VL53L1X_Dev_t *p_D
     ESP_LOGD(TAG, "Fast oscillator frequency: %u (4.12 fixed-point)", FastOscFrequency);
     ESP_LOGD(TAG, "Oscillator calibration value: 0x%04X", p_Device->OscCalibrateVal);
 
+    p_Device->isInitialized = true;
+
     return ESP_OK;
 }
 
@@ -557,19 +559,22 @@ esp_err_t VL53L1X_Deinit(VL53L1X_Dev_t *p_Device)
 
     Error = VL53L1X_StopContinuous(p_Device);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to stop continuous mode: %d!", Error);
+        ESP_LOGE(TAG, "Failed to stop continuous mode: 0x%X!", Error);
 
         return Error;
     }
 
     Error = i2c_master_bus_rm_device(p_Device->Handle);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to remove I2C device: %d!", Error);
+        ESP_LOGE(TAG, "Failed to remove I2C device: 0x%X!", Error);
 
         return Error;
     }
 
     ESP_LOGD(TAG, "VL53L1X deinitialized");
+
+    p_Device->isInitialized = false;
+    p_Device->Handle = NULL;
 
     return ESP_OK;
 }
@@ -583,7 +588,7 @@ esp_err_t VL53L1X_SetDistanceMode(VL53L1X_Dev_t *p_Device, VL53L1X_DistanceMode_
     }
 
     if (Mode == VL53L1X_DISTANCE_SHORT) {
-        /* Short mode: VCSEL period A=7, B=5; phase guard ~0x38 */
+        /* Short mode: VCSEL period A = 7, B = 5; phase guard ~0x38 */
         Error = VL53L1X_Write_Register8(&p_Device->Handle, VL53L1X_REG_RANGE_VCSEL_PERIOD_A, 0x07);
         if (Error != ESP_OK) {
             return Error;
@@ -619,7 +624,7 @@ esp_err_t VL53L1X_SetDistanceMode(VL53L1X_Dev_t *p_Device, VL53L1X_DistanceMode_
             return Error;
         }
     } else {
-        /* Long mode: VCSEL period A=15, B=10; phase guard ~0xB8 */
+        /* Long mode: VCSEL period A = 15, B = 10; phase guard ~0xB8 */
         Error = VL53L1X_Write_Register8(&p_Device->Handle, VL53L1X_REG_RANGE_VCSEL_PERIOD_A, 0x0F);
         if (Error != ESP_OK) {
             return Error;
@@ -688,14 +693,14 @@ esp_err_t VL53L1X_SetTimingBudget(VL53L1X_Dev_t *p_Device, VL53L1X_TimingBudget_
 
     Error = VL53L1X_Write_Register16(&p_Device->Handle, VL53L1X_REG_RANGE_TIMEOUT_A_HI, p_Table[Index].MacropA);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to write TIMEOUT_MACROP_A: %d!", Error);
+        ESP_LOGE(TAG, "Failed to write TIMEOUT_MACROP_A: 0x%X!", Error);
 
         return Error;
     }
 
     Error = VL53L1X_Write_Register16(&p_Device->Handle, VL53L1X_REG_RANGE_TIMEOUT_B_HI, p_Table[Index].MacropB);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to write TIMEOUT_MACROP_B: %d!", Error);
+        ESP_LOGE(TAG, "Failed to write TIMEOUT_MACROP_B: 0x%X!", Error);
 
         return Error;
     }
@@ -712,26 +717,28 @@ esp_err_t VL53L1X_StartContinuous(VL53L1X_Dev_t *p_Device, uint32_t PeriodMs)
 
     if (p_Device == NULL) {
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     }
 
     Error = VL53L1X_Write_Register32(&p_Device->Handle, VL53L1X_REG_SYSTEM_INTERMEASUREMENT_PERIOD,
                                      static_cast<uint32_t>(PeriodMs * p_Device->OscCalibrateVal));
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to write inter-measurement period: %d!", Error);
+        ESP_LOGE(TAG, "Failed to write inter-measurement period: 0x%X!", Error);
 
         return Error;
     }
 
     Error = VL53L1X_Write_Register8(&p_Device->Handle, VL53L1X_REG_SYSTEM_INTERRUPT_CLEAR, static_cast<uint8_t>(0x01));
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to clear interrupt: %d!", Error);
+        ESP_LOGE(TAG, "Failed to clear interrupt: 0x%X!", Error);
 
         return Error;
     }
 
     Error = VL53L1X_Write_Register8(&p_Device->Handle, VL53L1X_REG_SYSTEM_MODE_START, VL53L1X_MODE_CONTINUOUS);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to start continuous ranging: %d!", Error);
+        ESP_LOGE(TAG, "Failed to start continuous ranging: 0x%X!", Error);
 
         return Error;
     }
@@ -747,20 +754,19 @@ esp_err_t VL53L1X_StopContinuous(VL53L1X_Dev_t *p_Device)
 
     if (p_Device == NULL) {
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     }
 
-    /* mode_range__abort: immediately halts continuous ranging */
     Error = VL53L1X_Write_Register8(&p_Device->Handle, VL53L1X_REG_SYSTEM_MODE_START, static_cast<uint8_t>(0x80));
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to abort ranging: %d!", Error);
+        ESP_LOGE(TAG, "Failed to abort ranging: 0x%X!", Error);
 
         return Error;
     }
 
-    /* VL53L1_low_power_auto_data_stop_range() begin */
     p_Device->Calibrated = false;
 
-    /* "restore vhv configs" saved during first-measurement manual calibration */
     if (p_Device->SavedVhvInit != 0x00) {
         VL53L1X_Write_Register8(&p_Device->Handle, VL53L1X_REG_INIT_RANGING, p_Device->SavedVhvInit);
     }
@@ -769,10 +775,8 @@ esp_err_t VL53L1X_StopContinuous(VL53L1X_Dev_t *p_Device)
         VL53L1X_Write_Register8(&p_Device->Handle, VL53L1X_REG_VHV_CONFIG_TIMEOUT, p_Device->SavedVhvTimeout);
     }
 
-    /* "remove phasecal override" */
     VL53L1X_Write_Register8(&p_Device->Handle, VL53L1X_REG_PHASECAL_CONFIG_OVERRIDE, static_cast<uint8_t>(0x00));
 
-    /* VL53L1_low_power_auto_data_stop_range() end */
     ESP_LOGD(TAG, "Continuous ranging stopped");
 
     return ESP_OK;
@@ -787,11 +791,13 @@ esp_err_t VL53L1X_IsDataReady(VL53L1X_Dev_t *p_Device, bool *p_Ready)
 
     if ((p_Device == NULL) || (p_Ready == NULL)) {
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     }
 
     Error = VL53L1X_Write_Register8(&p_Device->Handle, VL53L1X_REG_GPIO_HV_MUX_CTRL, &MuxCtrl);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read GPIO_HV_MUX_CTRL: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read GPIO_HV_MUX_CTRL: 0x%X!", Error);
 
         return Error;
     }
@@ -800,7 +806,7 @@ esp_err_t VL53L1X_IsDataReady(VL53L1X_Dev_t *p_Device, bool *p_Ready)
 
     Error = VL53L1X_Write_Register8(&p_Device->Handle, VL53L1X_REG_GPIO_TIO_HV_STATUS, &Status);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read GPIO_TIO_HV_STATUS: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read GPIO_TIO_HV_STATUS: 0x%X!", Error);
 
         return Error;
     }
@@ -818,6 +824,8 @@ esp_err_t VL53L1X_GetResult(VL53L1X_Dev_t *p_Device, VL53L1X_Result_t *p_Result)
 
     if ((p_Device == NULL) || (p_Result == NULL)) {
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     }
 
     AddrBuffer[0] = static_cast<uint8_t>((VL53L1X_REG_RESULT_RANGE_STATUS >> 8) & 0xFF);
@@ -825,14 +833,14 @@ esp_err_t VL53L1X_GetResult(VL53L1X_Dev_t *p_Device, VL53L1X_Result_t *p_Result)
 
     Error = I2CM_Write(&p_Device->Handle, AddrBuffer, sizeof(AddrBuffer));
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set result register address: %d!", Error);
+        ESP_LOGE(TAG, "Failed to set result register address: 0x%X!", Error);
 
         return Error;
     }
 
     Error = I2CM_Read(&p_Device->Handle, Buffer, sizeof(Buffer));
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read result registers: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read result registers: 0x%X!", Error);
 
         return Error;
     }
@@ -840,7 +848,7 @@ esp_err_t VL53L1X_GetResult(VL53L1X_Dev_t *p_Device, VL53L1X_Result_t *p_Result)
     if (p_Device->Calibrated == false) {
         Error = VL53L1X_Setup_Manual_Calibration(p_Device);
         if (Error != ESP_OK) {
-            ESP_LOGW(TAG, "Manual calibration setup failed: %d", Error);
+            ESP_LOGW(TAG, "Manual calibration setup failed: 0x%X", Error);
         }
 
         p_Device->Calibrated = true;
@@ -852,11 +860,11 @@ esp_err_t VL53L1X_GetResult(VL53L1X_Dev_t *p_Device, VL53L1X_Result_t *p_Result)
      * [5..6]   = SIGNAL_RATE (16-bit big-endian)
      * [7..8]   = AMBIENT_RATE (16-bit big-endian)
      * [13..14] = DISTANCE_MM (16-bit big-endian) at offset 0x0096 - 0x0089 = 13 */
-    p_Result->Status         = VL53L1X_Map_Range_Status(Buffer[0] & 0x1F);
+    p_Result->Status = VL53L1X_Map_Range_Status(Buffer[0] & 0x1F);
     p_Result->EffectiveSPADs = (static_cast<uint16_t>(Buffer[3]) << 8) | static_cast<uint16_t>(Buffer[4]);
     p_Result->SignalRateMCPS = (static_cast<uint16_t>(Buffer[5]) << 8) | static_cast<uint16_t>(Buffer[6]);
     p_Result->AmbientRateMCPS = (static_cast<uint16_t>(Buffer[7]) << 8) | static_cast<uint16_t>(Buffer[8]);
-    p_Result->Distance_mm    = (static_cast<uint16_t>(Buffer[13]) << 8) | static_cast<uint16_t>(Buffer[14]);
+    p_Result->Distance_mm = (static_cast<uint16_t>(Buffer[13]) << 8) | static_cast<uint16_t>(Buffer[14]);
 
     ESP_LOGD(TAG, "Range: %d mm | Status: %d | Signal: %u | Ambient: %u | SPADs: %u",
              p_Result->Distance_mm, static_cast<int>(p_Result->Status),
@@ -869,6 +877,8 @@ esp_err_t VL53L1X_ClearInterrupt(VL53L1X_Dev_t *p_Device)
 {
     if (p_Device == NULL) {
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     }
 
     return VL53L1X_Write_Register8(&p_Device->Handle, VL53L1X_REG_SYSTEM_INTERRUPT_CLEAR, 0x01);
@@ -884,7 +894,7 @@ esp_err_t VL53L1X_GetModelID(VL53L1X_Dev_t *p_Device, uint8_t *p_ModelID)
 
     Error = VL53L1X_Write_Register8(&p_Device->Handle, VL53L1X_REG_MODEL_ID, p_ModelID);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read MODEL_ID register: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read MODEL_ID register: 0x%X!", Error);
 
         return Error;
     }

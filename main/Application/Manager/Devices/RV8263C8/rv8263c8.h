@@ -35,6 +35,7 @@
 /** @brief RTC device instance.
  */
 typedef struct {
+    bool isInitialized;                 /**< True after successful initialization. */
     i2c_master_dev_handle_t Handle;     /**< I2C device handle. */
 } RV8263C8_Dev_t;
 

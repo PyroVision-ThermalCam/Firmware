@@ -79,14 +79,14 @@ esp_err_t USBMSC_Init(const USB_MSC_Config_t *p_Config)
     /* Lock filesystem to prevent application writes during MSC operation */
     Error = MemoryManager_LockFilesystem();
     if (Error != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to lock filesystem: %d!", Error);
+        ESP_LOGW(TAG, "Failed to lock filesystem: 0x%X!", Error);
     }
 
     /* Soft-unmount VFS so USB host gets exclusive block-level access.
        The underlying storage handles (WL handle or sdmmc_card) are preserved. */
     Error = MemoryManager_SoftUnmountStorage();
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to soft-unmount storage for MSC: %d!", Error);
+        ESP_LOGE(TAG, "Failed to soft-unmount storage for MSC: 0x%X!", Error);
 
         MemoryManager_UnlockFilesystem();
 
@@ -101,7 +101,7 @@ esp_err_t USBMSC_Init(const USB_MSC_Config_t *p_Config)
 
         Error = MemoryManager_GetSDCardHandle(&Card);
         if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to get SD card handle: %d!", Error);
+            ESP_LOGE(TAG, "Failed to get SD card handle: 0x%X!", Error);
 
             MemoryManager_SoftRemountStorage();
             MemoryManager_UnlockFilesystem();
@@ -117,7 +117,7 @@ esp_err_t USBMSC_Init(const USB_MSC_Config_t *p_Config)
 
         Error = tinyusb_msc_new_storage_sdmmc(&Storage_Config, &_USBMSC_State.Storage);
         if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to create SD card MSC storage: %d!", Error);
+            ESP_LOGE(TAG, "Failed to create SD card MSC storage: 0x%X!", Error);
 
             MemoryManager_SoftRemountStorage();
             MemoryManager_UnlockFilesystem();
@@ -132,7 +132,7 @@ esp_err_t USBMSC_Init(const USB_MSC_Config_t *p_Config)
 
         Error = MemoryManager_GetWearLevelingHandle(&WL_Handle);
         if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to get wear leveling handle: %d!", Error);
+            ESP_LOGE(TAG, "Failed to get wear leveling handle: 0x%X!", Error);
 
             MemoryManager_SoftRemountStorage();
             MemoryManager_UnlockFilesystem();
@@ -140,7 +140,7 @@ esp_err_t USBMSC_Init(const USB_MSC_Config_t *p_Config)
             return Error;
         }
 
-        ESP_LOGD(TAG, "Using existing wear leveling handle: %d", WL_Handle);
+        ESP_LOGD(TAG, "Using existing wear leveling handle: 0x%X", WL_Handle);
 
         memset(&Storage_Config, 0, sizeof(tinyusb_msc_storage_config_t));
         Storage_Config.medium.wl_handle = WL_Handle;
@@ -148,7 +148,7 @@ esp_err_t USBMSC_Init(const USB_MSC_Config_t *p_Config)
 
         Error = tinyusb_msc_new_storage_spiflash(&Storage_Config, &_USBMSC_State.Storage);
         if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to create internal flash MSC storage: %d!", Error);
+            ESP_LOGE(TAG, "Failed to create internal flash MSC storage: 0x%X!", Error);
 
             MemoryManager_SoftRemountStorage();
             MemoryManager_UnlockFilesystem();
@@ -156,7 +156,7 @@ esp_err_t USBMSC_Init(const USB_MSC_Config_t *p_Config)
             return Error;
         }
     } else {
-        ESP_LOGE(TAG, "Unknown storage location: %d!", StorageLocation);
+        ESP_LOGE(TAG, "Unknown storage location: 0x%X!", StorageLocation);
 
         MemoryManager_SoftRemountStorage();
         MemoryManager_UnlockFilesystem();
@@ -187,7 +187,7 @@ esp_err_t USBMSC_Deinit(void)
     if (_USBMSC_State.Storage != NULL) {
         Error = tinyusb_msc_delete_storage(_USBMSC_State.Storage);
         if (Error != ESP_OK) {
-            ESP_LOGW(TAG, "Failed to delete MSC storage: %d!", Error);
+            ESP_LOGW(TAG, "Failed to delete MSC storage: 0x%X!", Error);
         } else {
             ESP_LOGD(TAG, "MSC storage deleted successfully");
         }
@@ -197,14 +197,14 @@ esp_err_t USBMSC_Deinit(void)
 
     Error = MemoryManager_SoftRemountStorage();
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to soft-remount storage after MSC: %d!", Error);
+        ESP_LOGE(TAG, "Failed to soft-remount storage after MSC: 0x%X!", Error);
     } else {
         ESP_LOGD(TAG, "Filesystem remounted for application");
     }
 
     Error = MemoryManager_UnlockFilesystem();
     if (Error != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to unlock filesystem: %d!", Error);
+        ESP_LOGW(TAG, "Failed to unlock filesystem: 0x%X!", Error);
     } else {
         ESP_LOGD(TAG, "Filesystem unlocked for application");
     }

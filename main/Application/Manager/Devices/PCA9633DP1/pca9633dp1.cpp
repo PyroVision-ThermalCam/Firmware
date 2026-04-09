@@ -162,7 +162,7 @@ esp_err_t PCA9633DP1_Init(i2c_master_bus_handle_t *p_Bus_Handle, PCA9633DP1_Dev_
 
     Error = i2c_master_bus_add_device(*p_Bus_Handle, &_PCA9633DP1_I2C_Config, &p_Device->Handle);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to add I2C device: %d!", Error);
+        ESP_LOGE(TAG, "Failed to add I2C device: 0x%X!", Error);
 
         return Error;
     }
@@ -175,7 +175,7 @@ esp_err_t PCA9633DP1_Init(i2c_master_bus_handle_t *p_Bus_Handle, PCA9633DP1_Dev_
      *   LEDOUT = 0 (off-state) = High-Z regardless of INVRT; NPN may float ON */
     Error = PCA9633_Write_Register(&p_Device->Handle, PCA9633_REG_MODE2, PCA9633_MODE2_OUTDRV | PCA9633_MODE2_INVRT);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to configure MODE2: %d!", Error);
+        ESP_LOGE(TAG, "Failed to configure MODE2: 0x%X!", Error);
 
         i2c_master_bus_rm_device(p_Device->Handle);
 
@@ -186,7 +186,7 @@ esp_err_t PCA9633DP1_Init(i2c_master_bus_handle_t *p_Bus_Handle, PCA9633DP1_Dev_
     Error = PCA9633_Write_Register(&p_Device->Handle, PCA9633_REG_MODE1,
                                    PCA9633_MODE1_SLEEP | PCA9633_MODE1_ALLCALL);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to configure MODE1 (sleep): %d!", Error);
+        ESP_LOGE(TAG, "Failed to configure MODE1 (sleep): 0x%X!", Error);
 
         i2c_master_bus_rm_device(p_Device->Handle);
 
@@ -204,7 +204,7 @@ esp_err_t PCA9633DP1_Init(i2c_master_bus_handle_t *p_Bus_Handle, PCA9633DP1_Dev_
                                                         (PCA9633_LEDOUT_PWM << 4) |
                                                         (PCA9633_LEDOUT_PWM << 6)));
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set LEDOUT: %d!", Error);
+        ESP_LOGE(TAG, "Failed to set LEDOUT: 0x%X!", Error);
 
         i2c_master_bus_rm_device(p_Device->Handle);
 
@@ -214,7 +214,7 @@ esp_err_t PCA9633DP1_Init(i2c_master_bus_handle_t *p_Bus_Handle, PCA9633DP1_Dev_
     /* Set all PWM duty cycles to 0 % (output LOW -> NPN off -> LED off). */
     Error = PCA9633_Write_Registers(&p_Device->Handle, PCA9633_REG_PWM0, Zeros, 4);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize PWM values: %d!", Error);
+        ESP_LOGE(TAG, "Failed to initialize PWM values: 0x%X!", Error);
 
         i2c_master_bus_rm_device(p_Device->Handle);
 
@@ -224,7 +224,7 @@ esp_err_t PCA9633DP1_Init(i2c_master_bus_handle_t *p_Bus_Handle, PCA9633DP1_Dev_
     /* Wake oscillator; outputs immediately driven LOW (PWM=0 %, totem-pole). */
     Error = PCA9633_Write_Register(&p_Device->Handle, PCA9633_REG_MODE1, PCA9633_MODE1_ALLCALL);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to wake PCA9633DP1: %d!", Error);
+        ESP_LOGE(TAG, "Failed to wake PCA9633DP1: 0x%X!", Error);
 
         i2c_master_bus_rm_device(p_Device->Handle);
 
@@ -235,6 +235,8 @@ esp_err_t PCA9633DP1_Init(i2c_master_bus_handle_t *p_Bus_Handle, PCA9633DP1_Dev_
     vTaskDelay(pdMS_TO_TICKS(1));
 
     ESP_LOGD(TAG, "PCA9633DP1 initialized successfully");
+
+    p_Device->isInitialized = true;
 
     return ESP_OK;
 }
@@ -254,18 +256,20 @@ esp_err_t PCA9633DP1_Deinit(PCA9633DP1_Dev_t *p_Device)
     /* Set all PWM duty cycles to 0 (output LOW -> NPN off) before removing device */
     Error = PCA9633_Write_Registers(&p_Device->Handle, PCA9633_REG_PWM0, Zeros, 4);
     if (Error != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to turn off LEDs: %d", Error);
+        ESP_LOGW(TAG, "Failed to turn off LEDs: 0x%X", Error);
     }
 
-    /* Remove device from bus */
     Error = i2c_master_bus_rm_device(p_Device->Handle);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to remove I2C device: %d!", Error);
+        ESP_LOGE(TAG, "Failed to remove I2C device: 0x%X!", Error);
 
         return Error;
     }
 
     ESP_LOGD(TAG, "PCA9633DP1 deinitialized");
+
+    p_Device->isInitialized = false;
+    p_Device->Handle = NULL;
 
     return ESP_OK;
 }
@@ -280,6 +284,8 @@ esp_err_t PCA9633DP1_SetLEDBrightness(PCA9633DP1_Dev_t *p_Device, PCA9633_LED_t 
         ESP_LOGE(TAG, "Invalid device handle!");
 
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     } else if (LED > PCA9633_LED3) {
         ESP_LOGE(TAG, "Invalid LED index!");
 
@@ -292,7 +298,7 @@ esp_err_t PCA9633DP1_SetLEDBrightness(PCA9633DP1_Dev_t *p_Device, PCA9633_LED_t 
     /* Write brightness: PWM = 0 -> output LOW -> NPN off; PWM = 255 -> output HIGH -> NPN on */
     Error = PCA9633_Write_Register(&p_Device->Handle, RegAddr, Brightness);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set LED%d brightness: %d!", static_cast<int>(LED), Error);
+        ESP_LOGE(TAG, "Failed to set LED%d brightness: 0x%X!", static_cast<int>(LED), Error);
 
         return Error;
     }
@@ -300,7 +306,7 @@ esp_err_t PCA9633DP1_SetLEDBrightness(PCA9633DP1_Dev_t *p_Device, PCA9633_LED_t 
     /* Read current LEDOUT configuration */
     Error = PCA9633_Read_Register(&p_Device->Handle, PCA9633_REG_LEDOUT, &LEDOUT_Value);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read LEDOUT: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read LEDOUT: 0x%X!", Error);
 
         return Error;
     }
@@ -311,7 +317,7 @@ esp_err_t PCA9633DP1_SetLEDBrightness(PCA9633DP1_Dev_t *p_Device, PCA9633_LED_t 
 
     Error = PCA9633_Write_Register(&p_Device->Handle, PCA9633_REG_LEDOUT, LEDOUT_Value);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to update LEDOUT: %d!", Error);
+        ESP_LOGE(TAG, "Failed to update LEDOUT: 0x%X!", Error);
 
         return Error;
     }
@@ -326,6 +332,8 @@ esp_err_t PCA9633DP1_SetLEDState(PCA9633DP1_Dev_t *p_Device, PCA9633_LED_t LED, 
 
     if (p_Device == NULL) {
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     } else if (LED > PCA9633_LED3) {
         return ESP_ERR_INVALID_ARG;
     }
@@ -333,7 +341,7 @@ esp_err_t PCA9633DP1_SetLEDState(PCA9633DP1_Dev_t *p_Device, PCA9633_LED_t LED, 
     /* Read current LEDOUT configuration */
     Error = PCA9633_Read_Register(&p_Device->Handle, PCA9633_REG_LEDOUT, &LEDOUT_Value);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read LEDOUT: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read LEDOUT: 0x%X!", Error);
 
         return Error;
     }
@@ -344,7 +352,7 @@ esp_err_t PCA9633DP1_SetLEDState(PCA9633DP1_Dev_t *p_Device, PCA9633_LED_t LED, 
 
     Error = PCA9633_Write_Register(&p_Device->Handle, PCA9633_REG_LEDOUT, LEDOUT_Value);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to update LEDOUT: %d!", Error);
+        ESP_LOGE(TAG, "Failed to update LEDOUT: 0x%X!", Error);
 
         return Error;
     }
@@ -359,12 +367,14 @@ esp_err_t PCA9633DP1_SetSleepMode(PCA9633DP1_Dev_t *p_Device, bool Sleep)
 
     if (p_Device == NULL) {
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     }
 
     /* Read-modify-write MODE1 to set or clear the sleep bit */
     Error = PCA9633_Read_Register(&p_Device->Handle, PCA9633_REG_MODE1, &MODE1_Value);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read MODE1: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read MODE1: 0x%X!", Error);
 
         return Error;
     }
@@ -377,7 +387,7 @@ esp_err_t PCA9633DP1_SetSleepMode(PCA9633DP1_Dev_t *p_Device, bool Sleep)
 
     Error = PCA9633_Write_Register(&p_Device->Handle, PCA9633_REG_MODE1, MODE1_Value);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to update MODE1: %d!", Error);
+        ESP_LOGE(TAG, "Failed to update MODE1: 0x%X!", Error);
 
         return Error;
     }

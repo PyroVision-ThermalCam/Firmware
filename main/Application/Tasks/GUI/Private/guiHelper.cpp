@@ -39,16 +39,13 @@
 
 /* Partial render buffer: 1/5 of the screen (2 * 320 * 24 * 2 = 30720 bytes) in PSRAM.
  *
- * IMPORTANT: PSRAM is NOT in the ESP32-S3 DMA-capable address range (0x3FC88000-0x3FD00000),
- * so the SPI driver allocates an internal DMA bounce buffer for EACH queued transaction
+ * IMPORTANT: The SPI driver allocates (by default) an internal DMA bounce buffer for EACH queued transaction
  * (chunk_size = CONFIG_SPI_TRANSFER_SIZE = 4096 bytes each). The trans_queue_depth MUST be
  * kept low (currently 3) to limit simultaneous bounce buffer allocations (3 * 4096 = 12 KB),
  * because internal DMA RAM is scarce (~28 KB free after USB init). A higher queue depth
  * (e.g. 10 = 8 chunks * 4096 = 32 KB) would exceed free internal DMA RAM and cause
  * ESP_ERR_NO_MEM in spi_device_queue_trans, freezing the display.
- *
- * With ISR-based flush_ready (on_lcd_color_trans_done), LVGL correctly sequences
- * partial flushes without tearing. */
+ */
 #define GUI_DRAW_BUFFER_SIZE                (2 * CONFIG_GUI_WIDTH * CONFIG_GUI_HEIGHT * sizeof(uint16_t) / 10)
 
 /** @brief          LCD color transfer done callback (called from ISR context after DMA transfer completes).

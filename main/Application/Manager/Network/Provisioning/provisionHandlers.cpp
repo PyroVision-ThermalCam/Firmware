@@ -136,7 +136,7 @@ esp_err_t Provision_Handler_Scan(httpd_req_t *p_Request)
     if (Error != ESP_OK) {
         cJSON *Response;
 
-        ESP_LOGW(TAG, "Scan start failed: %d", Error);
+        ESP_LOGW(TAG, "Scan start failed: 0x%X", Error);
 
         Response = cJSON_CreateObject();
         cJSON_AddArrayToObject(Response, "networks");
@@ -282,7 +282,7 @@ esp_err_t Provision_Handler_Connect(httpd_req_t *p_Request)
 
         esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_PROV_SUCCESS, NULL, 0, portMAX_DELAY);
     } else {
-        ESP_LOGE(TAG, "Failed to save credentials to NVS: %d!", Error);
+        ESP_LOGE(TAG, "Failed to save credentials to NVS: 0x%X!", Error);
 
         cJSON_AddBoolToObject(Response, "success", false);
         cJSON_AddStringToObject(Response, "error", "NVS storage full, please reset device");

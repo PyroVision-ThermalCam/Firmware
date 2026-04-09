@@ -228,21 +228,21 @@ esp_err_t Provisioning_Start(void)
     /* Set APSTA mode to allow WiFi scanning while AP is active */
     Error = esp_wifi_set_mode(WIFI_MODE_APSTA);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set APSTA mode: %d!", Error);
+        ESP_LOGE(TAG, "Failed to set APSTA mode: 0x%X!", Error);
 
         return Error;
     }
 
     Error = esp_wifi_set_config(WIFI_IF_AP, &Config);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set AP config: %d!", Error);
+        ESP_LOGE(TAG, "Failed to set AP config: 0x%X!", Error);
 
         return Error;
     }
 
     Error = esp_wifi_start();
     if ((Error != ESP_OK) && (Error != ESP_ERR_WIFI_STATE)) {
-        ESP_LOGE(TAG, "Failed to start WiFi: %d!", Error);
+        ESP_LOGE(TAG, "Failed to start WiFi: 0x%X!", Error);
 
         return Error;
     }
@@ -278,7 +278,7 @@ esp_err_t Provisioning_Start(void)
     /* Start DNS server for captive portal */
     Error = DNS_Server_Start();
     if (Error != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to start DNS server: %d!", Error);
+        ESP_LOGW(TAG, "Failed to start DNS server: 0x%X!", Error);
         /* Continue anyway, DNS is not critical */
     }
 

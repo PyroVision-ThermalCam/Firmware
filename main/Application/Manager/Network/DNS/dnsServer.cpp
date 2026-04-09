@@ -105,7 +105,7 @@ static void DNS_Server_Task(void *p_Arg)
                 continue;
             }
 
-            ESP_LOGW(TAG, "recvfrom error: %d", errno);
+            ESP_LOGW(TAG, "recvfrom error: 0x%X", errno);
 
             continue;
         }
@@ -162,7 +162,7 @@ esp_err_t DNS_Server_Start(void)
 
     _DNS_Server_State.Socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (_DNS_Server_State.Socket < 0) {
-        ESP_LOGE(TAG, "Failed to create socket: %d!", errno);
+        ESP_LOGE(TAG, "Failed to create socket: 0x%X!", errno);
 
         return ESP_FAIL;
     }
@@ -172,7 +172,7 @@ esp_err_t DNS_Server_Start(void)
     Timeout.tv_sec = 1;
     Timeout.tv_usec = 0;
     if (setsockopt(_DNS_Server_State.Socket, SOL_SOCKET, SO_RCVTIMEO, &Timeout, sizeof(Timeout)) < 0) {
-        ESP_LOGW(TAG, "Failed to set socket timeout: %d!", errno);
+        ESP_LOGW(TAG, "Failed to set socket timeout: 0x%X!", errno);
     }
 
     memset(&ServerAddr, 0, sizeof(ServerAddr));
@@ -181,7 +181,7 @@ esp_err_t DNS_Server_Start(void)
     ServerAddr.sin_port = htons(DNS_PORT);
 
     if (bind(_DNS_Server_State.Socket, (struct sockaddr *)&ServerAddr, sizeof(ServerAddr)) < 0) {
-        ESP_LOGE(TAG, "Failed to bind socket: %d!", errno);
+        ESP_LOGE(TAG, "Failed to bind socket: 0x%X!", errno);
 
         close(_DNS_Server_State.Socket);
 

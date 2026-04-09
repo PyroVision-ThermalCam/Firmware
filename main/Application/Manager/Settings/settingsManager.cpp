@@ -117,7 +117,7 @@ esp_err_t SettingsManager_Init(void)
 
         nvs_flash_init_partition("settings");
     } else if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize settings partition: %d!", Error);
+        ESP_LOGE(TAG, "Failed to initialize settings partition: 0x%X!", Error);
 
         return Error;
     }
@@ -132,7 +132,7 @@ esp_err_t SettingsManager_Init(void)
     Error = nvs_open_from_partition("settings", CONFIG_SETTINGS_NAMESPACE, NVS_READWRITE,
                                     &_Settings_Manager_State.NVS_Handle);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to open NVS handle: %d!", Error);
+        ESP_LOGE(TAG, "Failed to open NVS handle: 0x%X!", Error);
 
         vSemaphoreDelete(_Settings_Manager_State.Mutex);
 
@@ -146,7 +146,7 @@ esp_err_t SettingsManager_Init(void)
     /* Get the serial from NVS. Use a temporary variable to prevent alignment errors. */
     Error = nvs_get_u16(_Settings_Manager_State.NVS_Handle, "serial", &Serial);
     if (Error != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to get serial number from NVS: %d!. Using 0", Error);
+        ESP_LOGW(TAG, "Failed to get serial number from NVS: 0x%X!. Using 0", Error);
 
         Serial = 0;
     }
@@ -171,7 +171,7 @@ esp_err_t SettingsManager_Init(void)
     ESP_LOGI(TAG, "Device Name: %s", _Settings_Manager_State.Info.Name);
     ESP_LOGI(TAG, "Serial: %s", _Settings_Manager_State.Info.Serial);
 
-    /* Read bootloader information */
+    /* Read the bootloader information */
     const esp_partition_t *p_BootloaderPartition = esp_partition_find_first(ESP_PARTITION_TYPE_APP,
                                                                             ESP_PARTITION_SUBTYPE_APP_FACTORY,
                                                                             NULL);
@@ -183,7 +183,7 @@ esp_err_t SettingsManager_Init(void)
                      _Settings_Manager_State.Info.Bootloader.time);
             ESP_LOGD(TAG, "Bootloader IDF version: %s", _Settings_Manager_State.Info.Bootloader.idf_ver);
         } else {
-            ESP_LOGW(TAG, "Failed to read bootloader description: %d!", Error);
+            ESP_LOGW(TAG, "Failed to read bootloader description: 0x%X!", Error);
         }
     } else {
         ESP_LOGW(TAG, "Bootloader partition not found");
@@ -250,7 +250,7 @@ esp_err_t SettingsManager_LoadFromNVS(Settings_t *p_Settings)
     /* Check if the config is valid */
     Error = nvs_get_u8(_Settings_Manager_State.NVS_Handle, "config_valid", &ConfigValid);
     if ((Error != ESP_OK) || (ConfigValid != 1)) {
-        ESP_LOGE(TAG, "Failed to read config_valid flag: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read config_valid flag: 0x%X!", Error);
 
         Error = ESP_ERR_NVS_INVALID_STATE;
 
@@ -268,7 +268,7 @@ esp_err_t SettingsManager_LoadFromNVS(Settings_t *p_Settings)
 
             goto SettingsManager_LoadFromNVS_Exit;
         } else if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to get settings size: %d!", Error);
+            ESP_LOGE(TAG, "Failed to get settings size: 0x%X!", Error);
 
             xSemaphoreGive(_Settings_Manager_State.Mutex);
 
@@ -290,7 +290,7 @@ esp_err_t SettingsManager_LoadFromNVS(Settings_t *p_Settings)
 
         Error = nvs_get_blob(_Settings_Manager_State.NVS_Handle, "settings", &_Settings_Manager_State.Settings, &RequiredSize);
         if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to read settings: %d!", Error);
+            ESP_LOGE(TAG, "Failed to read settings: 0x%X!", Error);
 
             goto SettingsManager_LoadFromNVS_Exit;
         }
@@ -328,7 +328,7 @@ esp_err_t SettingsManager_Save(void)
     /* Save the version number first */
     Error = nvs_set_u32(_Settings_Manager_State.NVS_Handle, "version", _Settings_Manager_State.Settings.Version);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to write version: %d!", Error);
+        ESP_LOGE(TAG, "Failed to write version: 0x%X!", Error);
 
         goto SettingsManager_Save_Error;
     }
@@ -336,7 +336,7 @@ esp_err_t SettingsManager_Save(void)
     Error = nvs_set_blob(_Settings_Manager_State.NVS_Handle, "settings", &_Settings_Manager_State.Settings,
                          sizeof(Settings_t));
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to write settings: %d!", Error);
+        ESP_LOGE(TAG, "Failed to write settings: 0x%X!", Error);
 
         goto SettingsManager_Save_Error;
     }
@@ -344,14 +344,14 @@ esp_err_t SettingsManager_Save(void)
     /* Mark config as valid */
     Error = nvs_set_u8(_Settings_Manager_State.NVS_Handle, "config_valid", true);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set config_valid flag: %d!", Error);
+        ESP_LOGE(TAG, "Failed to set config_valid flag: 0x%X!", Error);
 
         goto SettingsManager_Save_Error;
     }
 
     Error = nvs_commit(_Settings_Manager_State.NVS_Handle);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to commit settings: %d!", Error);
+        ESP_LOGE(TAG, "Failed to commit settings: 0x%X!", Error);
 
         goto SettingsManager_Save_Error;
     }
@@ -367,7 +367,7 @@ esp_err_t SettingsManager_Save(void)
 SettingsManager_Save_Error:
     xSemaphoreGive(_Settings_Manager_State.Mutex);
 
-    ESP_LOGE(TAG, "Failed to save settings to NVS: %d!", Error);
+    ESP_LOGE(TAG, "Failed to save settings to NVS: 0x%X!", Error);
 
     return Error;
 }
@@ -501,7 +501,7 @@ esp_err_t SettingsManager_ResetToDefaults(void)
 
     Error = nvs_erase_key(_Settings_Manager_State.NVS_Handle, "settings");
     if (Error != ESP_OK && Error != ESP_ERR_NVS_NOT_FOUND) {
-        ESP_LOGE(TAG, "Failed to erase settings: %d!", Error);
+        ESP_LOGE(TAG, "Failed to erase settings: 0x%X!", Error);
 
         xSemaphoreGive(_Settings_Manager_State.Mutex);
 
@@ -510,7 +510,7 @@ esp_err_t SettingsManager_ResetToDefaults(void)
 
     Error = nvs_commit(_Settings_Manager_State.NVS_Handle);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to commit erase: %d!", Error);
+        ESP_LOGE(TAG, "Failed to commit erase: 0x%X!", Error);
 
         xSemaphoreGive(_Settings_Manager_State.Mutex);
 
@@ -520,7 +520,7 @@ esp_err_t SettingsManager_ResetToDefaults(void)
     /* Reset config_valid flag to allow reloading default config */
     Error = nvs_set_u8(_Settings_Manager_State.NVS_Handle, "config_valid", false);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set config_valid flag: %d!", Error);
+        ESP_LOGE(TAG, "Failed to set config_valid flag: 0x%X!", Error);
 
         xSemaphoreGive(_Settings_Manager_State.Mutex);
 

@@ -296,7 +296,7 @@ static void on_Lepton_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, 
             break;
         }
         default: {
-            ESP_LOGW(TAG, "Unhandled Lepton event ID: %d", ID);
+            ESP_LOGW(TAG, "Unhandled Lepton event ID: 0x%X", ID);
 
             break;
         }
@@ -398,7 +398,7 @@ static void GUI_Update_ROI(Settings_ROI_t ROI)
             break;
         }
         default: {
-            ESP_LOGW(TAG, "Invalid GUI ROI type: %d", ROI.Type);
+            ESP_LOGW(TAG, "Invalid GUI ROI type: 0x%X", ROI.Type);
 
             return;
         }
@@ -1290,7 +1290,7 @@ esp_err_t GUI_Task_Start(App_Context_t *p_AppContext)
     Error = xTaskCreatePinnedToCore(Task_GUI, "Task_GUI", CONFIG_GUI_TASK_STACKSIZE, p_AppContext, CONFIG_GUI_TASK_PRIO,
                                     &_GUI_Task_State.TaskHandle, CONFIG_GUI_TASK_CORE);
     if (Error != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create GUI task: %d!", Error);
+        ESP_LOGE(TAG, "Failed to create GUI task: 0x%X!", Error);
 
         return ESP_ERR_NO_MEM;
     }

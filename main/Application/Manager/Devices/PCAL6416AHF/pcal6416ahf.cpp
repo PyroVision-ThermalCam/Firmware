@@ -167,16 +167,16 @@ esp_err_t PCAL6416AHF_Init(i2c_master_bus_handle_t *p_Bus_Handle, uint8_t Addres
 
     Error = i2c_master_bus_add_device(*p_Bus_Handle, &Config, &p_Device->Handle);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to add I2C device (addr=0x%02X): %d!", Address, Error);
+        ESP_LOGE(TAG, "Failed to add I2C device (addr=0x%02X): 0x%X!", Address, Error);
 
         return Error;
     }
 
-    ESP_LOGI(TAG, "Configure Port Expander (addr=0x%02X)...", Address);
+    ESP_LOGD(TAG, "Configure Port Expander (addr=0x%02X)...", Address);
 
     Error = PCAL6416AHF_Apply_PinConfig(&p_Device->Handle, p_Config, Count);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to apply pin configuration: %d!", Error);
+        ESP_LOGE(TAG, "Failed to apply pin configuration: 0x%X!", Error);
 
         i2c_master_bus_rm_device(p_Device->Handle);
 
@@ -184,30 +184,49 @@ esp_err_t PCAL6416AHF_Init(i2c_master_bus_handle_t *p_Bus_Handle, uint8_t Addres
     }
 
     Temp[0] = PORT_EXPANDER_REG_INT_STATUS0;
-    I2CM_Write(&p_Device->Handle, &Temp[0], 1);
-    I2CM_Read(&p_Device->Handle, Temp, 2);
+    if ((I2CM_Write(&p_Device->Handle, &Temp[0], 1) != ESP_OK) ||
+        (I2CM_Read(&p_Device->Handle, Temp, 2) != ESP_OK)) {
+        ESP_LOGE(TAG, "Failed to read initial interrupt status: 0x%X!", Error);
+
+        i2c_master_bus_rm_device(p_Device->Handle);
+
+        return Error;
+    }
 
     Temp[0] = PORT_EXPANDER_REG_INPUT0;
-    I2CM_Write(&p_Device->Handle, &Temp[0], 1);
-    I2CM_Read(&p_Device->Handle, Temp, 2);
+    if ((I2CM_Write(&p_Device->Handle, &Temp[0], 1) != ESP_OK) ||
+        (I2CM_Read(&p_Device->Handle, Temp, 2) != ESP_OK)) {
+        ESP_LOGE(TAG, "Failed to read initial input status: 0x%X!", Error);
+
+        i2c_master_bus_rm_device(p_Device->Handle);
+
+        return Error;
+    }
+
+    p_Device->isInitialized = true;
 
     return ESP_OK;
 }
 
 esp_err_t PCAL6416AHF_Deinit(PCAL6416AHF_Dev_t *p_Device)
 {
-    if (p_Device->Handle != NULL) {
-        esp_err_t Error;
+    esp_err_t Error;
 
-        Error = i2c_master_bus_rm_device(p_Device->Handle);
-        if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to remove I2C device: %d!", Error);
-
-            return Error;
-        }
-
-        p_Device->Handle = NULL;
+    if ((p_Device == NULL) || (p_Device->Handle == NULL)) {
+        return ESP_ERR_INVALID_ARG;
     }
+
+    Error = i2c_master_bus_rm_device(p_Device->Handle);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to remove I2C device: 0x%X!", Error);
+
+        return Error;
+    }
+
+    ESP_LOGD(TAG, "PCAL6416AHF deinitialized");
+
+    p_Device->isInitialized = false;
+    p_Device->Handle = NULL;
 
     return ESP_OK;
 }
@@ -220,6 +239,8 @@ esp_err_t PCAL6416AHF_ReadPin(PCAL6416AHF_Dev_t *p_Device, PCAL6416_Port_t Port,
 
     if ((p_Device == NULL) || (p_Level == NULL)) {
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     }
 
     Temp = static_cast<uint8_t>(PORT_EXPANDER_REG_INPUT0 + static_cast<uint8_t>(Port));
@@ -247,6 +268,8 @@ esp_err_t PCAL6416AHF_WritePin(PCAL6416AHF_Dev_t *p_Device, PCAL6416_Port_t Port
 
     if (p_Device == NULL) {
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     }
 
     return I2CM_ModifyRegister(&p_Device->Handle,
@@ -262,6 +285,8 @@ esp_err_t PCAL6416AHF_ReadInputs(PCAL6416AHF_Dev_t *p_Device, uint8_t *p_Input0,
 
     if ((p_Device == NULL) || (p_Input0 == NULL) || (p_Input1 == NULL)) {
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     }
 
     Error = I2CM_Write(&p_Device->Handle, &Reg, 1);
@@ -291,6 +316,8 @@ esp_err_t PCAL6416AHF_ReadIntStatus(PCAL6416AHF_Dev_t *p_Device,
     if ((p_Device == NULL) || (p_Status0 == NULL) || (p_Status1 == NULL) ||
         (p_Input0 == NULL) || (p_Input1 == NULL)) {
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     }
 
     /* Read INT_STATUS0/1: clears all pending bits and releases INT# (open-drain goes high). */

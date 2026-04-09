@@ -204,7 +204,7 @@ esp_err_t Devices_Task_Start(App_Context_t *p_AppContext)
     Error = xTaskCreatePinnedToCore(Task_Devices, "Task_Devices", CONFIG_DEVICES_TASK_STACKSIZE, p_AppContext,
                                     CONFIG_DEVICES_TASK_PRIO, &_Devices_Task_State.TaskHandle, CONFIG_DEVICES_TASK_CORE);
     if (Error != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create Devices Task: %d!", Error);
+        ESP_LOGE(TAG, "Failed to create Devices Task: 0x%X!", Error);
 
         _Devices_Task_State.isRunning = false;
 

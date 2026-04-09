@@ -143,7 +143,7 @@ esp_err_t MAX17048_Init(i2c_master_bus_handle_t *p_Bus_Handle, MAX17048_Dev_t *p
 
     Error = i2c_master_bus_add_device(*p_Bus_Handle, &_MAX17048_I2C_Config, &p_Device->Handle);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to add I2C device: %d!", Error);
+        ESP_LOGE(TAG, "Failed to add I2C device: 0x%X!", Error);
 
         return Error;
     }
@@ -163,7 +163,7 @@ esp_err_t MAX17048_Init(i2c_master_bus_handle_t *p_Bus_Handle, MAX17048_Dev_t *p
     /* Verify IC version: top 12 bits must always equal 0x001 */
     Error = MAX17048_GetICVersion(p_Device, &Version);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read IC version: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read IC version: 0x%X!", Error);
 
         i2c_master_bus_rm_device(p_Device->Handle);
 
@@ -181,12 +181,14 @@ esp_err_t MAX17048_Init(i2c_master_bus_handle_t *p_Bus_Handle, MAX17048_Dev_t *p
     /* Clear the power-on reset alert flag set automatically at each power-up */
     Error = MAX17048_ClearAlertFlags(p_Device, MAX17048_ALERT_RESET);
     if (Error != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to clear reset alert flag: %d!", Error);
+        ESP_LOGW(TAG, "Failed to clear reset alert flag: 0x%X!", Error);
 
         return Error;
     }
 
     ESP_LOGD(TAG, "MAX17048 initialized (version: 0x%04X)", Version);
+
+    p_Device->isInitialized = true;
 
     return ESP_OK;
 }
@@ -201,12 +203,15 @@ esp_err_t MAX17048_Deinit(MAX17048_Dev_t *p_Device)
 
     Error = i2c_master_bus_rm_device(p_Device->Handle);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to remove I2C device: %d!", Error);
+        ESP_LOGE(TAG, "Failed to remove I2C device: 0x%X!", Error);
 
         return Error;
     }
 
     ESP_LOGD(TAG, "MAX17048 deinitialized");
+
+    p_Device->isInitialized = false;
+    p_Device->Handle = NULL;
 
     return ESP_OK;
 }
@@ -218,11 +223,13 @@ esp_err_t MAX17048_GetVoltage(MAX17048_Dev_t *p_Device, float *p_Voltage)
 
     if ((p_Device == NULL) || (p_Voltage == NULL)) {
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     }
 
     Error = MAX17048_Read_Register(&p_Device->Handle, MAX17048_REG_VCELL, &Raw);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read VCELL register: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read VCELL register: 0x%X!", Error);
 
         return Error;
     }
@@ -243,11 +250,13 @@ esp_err_t MAX17048_GetSOC(MAX17048_Dev_t *p_Device, float *p_SOC)
 
     if ((p_Device == NULL) || (p_SOC == NULL)) {
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     }
 
     Error = MAX17048_Read_Register(&p_Device->Handle, MAX17048_REG_SOC, &Raw);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read SOC register: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read SOC register: 0x%X!", Error);
 
         return Error;
     }
@@ -276,11 +285,13 @@ esp_err_t MAX17048_GetChargeRate(MAX17048_Dev_t *p_Device, float *p_Rate)
 
     if ((p_Device == NULL) || (p_Rate == NULL)) {
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     }
 
     Error = MAX17048_Read_Register(&p_Device->Handle, MAX17048_REG_CRATE, &Raw);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read CRATE register: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read CRATE register: 0x%X!", Error);
 
         return Error;
     }
@@ -303,7 +314,7 @@ esp_err_t MAX17048_GetICVersion(MAX17048_Dev_t *p_Device, uint16_t *p_Version)
 
     Error = MAX17048_Read_Register(&p_Device->Handle, MAX17048_REG_VERSION, p_Version);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read VERSION register: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read VERSION register: 0x%X!", Error);
 
         return Error;
     }
@@ -318,11 +329,13 @@ esp_err_t MAX17048_GetAlertFlags(MAX17048_Dev_t *p_Device, uint8_t *p_Flags)
 
     if ((p_Device == NULL) || (p_Flags == NULL)) {
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     }
 
     Error = MAX17048_Read_Register(&p_Device->Handle, MAX17048_REG_STATUS, &StatusReg);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read STATUS register: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read STATUS register: 0x%X!", Error);
 
         return Error;
     }
@@ -344,17 +357,16 @@ esp_err_t MAX17048_ClearAlertFlags(MAX17048_Dev_t *p_Device, uint8_t Flags)
 
     Error = MAX17048_Read_Register(&p_Device->Handle, MAX17048_REG_STATUS, &StatusReg);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read STATUS register: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read STATUS register: 0x%X!", Error);
 
         return Error;
     }
 
-    /* Clear only the requested flags in the high byte */
     StatusReg &= ~(static_cast<uint16_t>(Flags & MAX17048_STATUS_ALERT_MASK) << 8);
 
     Error = MAX17048_Write_Register(&p_Device->Handle, MAX17048_REG_STATUS, StatusReg);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to write STATUS register: %d!", Error);
+        ESP_LOGE(TAG, "Failed to write STATUS register: 0x%X!", Error);
 
         return Error;
     }
@@ -369,11 +381,13 @@ esp_err_t MAX17048_QuickStart(MAX17048_Dev_t *p_Device)
 
     if (p_Device == NULL) {
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     }
 
     Error = MAX17048_Read_Register(&p_Device->Handle, MAX17048_REG_MODE, &ModeReg);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read MODE register: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read MODE register: 0x%X!", Error);
 
         return Error;
     }
@@ -382,12 +396,12 @@ esp_err_t MAX17048_QuickStart(MAX17048_Dev_t *p_Device)
 
     Error = MAX17048_Write_Register(&p_Device->Handle, MAX17048_REG_MODE, ModeReg);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to trigger quick-start: %d!", Error);
+        ESP_LOGE(TAG, "Failed to trigger quick-start: 0x%X!", Error);
 
         return Error;
     }
 
-    ESP_LOGI(TAG, "Quick-start triggered");
+    ESP_LOGD(TAG, "Quick-start triggered");
 
     return ESP_OK;
 }

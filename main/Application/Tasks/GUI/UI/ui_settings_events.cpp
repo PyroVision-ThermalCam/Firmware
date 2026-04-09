@@ -216,7 +216,7 @@ void on_Memory_ClearNVS_Callback(lv_event_t *e)
         vTaskDelay(pdMS_TO_TICKS(500));
         esp_restart();
     } else {
-        ESP_LOGE(TAG, "Failed to reset settings: %d!", Error);
+        ESP_LOGE(TAG, "Failed to reset settings: 0x%X!", Error);
     }
 }
 
@@ -240,7 +240,7 @@ void on_Image_Format_Dropdown_Callback(lv_event_t *e)
         lv_obj_add_flag(lv_obj_get_parent(jpeg_quality_row), LV_OBJ_FLAG_HIDDEN);
     }
 
-    ESP_LOGI(TAG, "Image format changed to: %d", SystemSettings.ImageFormat);
+    ESP_LOGI(TAG, "Image format changed to: 0x%X", SystemSettings.ImageFormat);
 }
 
 void on_Image_JpegQuality_Slider_Callback(lv_event_t *e)
@@ -272,7 +272,7 @@ void on_Memory_ClearStorage_Callback(lv_event_t *e)
 
         ui_settings_update_memory_usage();
     } else {
-        ESP_LOGE(TAG, "Failed to erase storage partition: %d!", Error);
+        ESP_LOGE(TAG, "Failed to erase storage partition: 0x%X!", Error);
     }
 }
 
@@ -288,7 +288,7 @@ void on_Memory_ClearCoredump_Callback(lv_event_t *e)
 
         ui_settings_update_memory_usage();
     } else {
-        ESP_LOGE(TAG, "Failed to erase coredump partition: %d!", Error);
+        ESP_LOGE(TAG, "Failed to erase coredump partition: 0x%X!", Error);
     }
 }
 
@@ -302,7 +302,7 @@ void on_USB_Mode_Switch_Callback(lv_event_t *e)
 
     Error = USBManager_EnableMSC(Enable);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to enqueue MSC command: %d!", Error);
+        ESP_LOGE(TAG, "Failed to enqueue MSC command: 0x%X!", Error);
 
         if (Enable) {
             lv_obj_clear_state(Switch, LV_STATE_CHECKED);
@@ -322,7 +322,7 @@ void on_USB_UVC_Switch_Callback(lv_event_t *e)
 
     Error = USBManager_EnableUVC(Enable);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to enqueue UVC command: %d!", Error);
+        ESP_LOGE(TAG, "Failed to enqueue UVC command: 0x%X!", Error);
 
         if (Enable) {
             lv_obj_clear_state(Switch, LV_STATE_CHECKED);

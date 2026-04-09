@@ -150,7 +150,7 @@ typedef struct {
 /** @brief Application context aggregating shared resources.
  */
 typedef struct {
-    QueueHandle_t Lepton_FrameEventQueue;               /**< Queue for Lepton frame ready events. */
+    QueueHandle_t Lepton_FrameEventQueue;       /**< Queue for Lepton frame ready events. */
 } App_Context_t;
 
 #endif /* APPLICATION_H_ */

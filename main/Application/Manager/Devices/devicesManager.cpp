@@ -328,10 +328,15 @@ esp_err_t DevicesManager_Init(void)
 
     _Devices_Manager_State.initialized = true;
 
-    DevicesManager_SetBrightness(BACKLIGHT_FLASH, 0);
+    if (DevicesManager_SetBrightness(BACKLIGHT_FLASH, 0) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize backlight brightness!");
+
+        return ESP_FAIL;
+    }
 
     if (DevicesManager_SetLED(false, false, false) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize LEDs!");
+
         return ESP_FAIL;
     }
 
@@ -341,8 +346,6 @@ esp_err_t DevicesManager_Init(void)
 esp_err_t DevicesManager_Deinit(void)
 {
     if (_Devices_Manager_State.initialized == false) {
-        ESP_LOGE(TAG, "Devices Manager not initialized yet!");
-
         return ESP_OK;
     }
 
@@ -365,8 +368,6 @@ esp_err_t DevicesManager_Deinit(void)
 i2c_master_bus_handle_t DevicesManager_GetI2CBusHandle(void)
 {
     if (_Devices_Manager_State.initialized == false) {
-        ESP_LOGE(TAG, "Devices Manager not initialized yet!");
-
         return NULL;
     }
 
@@ -376,8 +377,6 @@ i2c_master_bus_handle_t DevicesManager_GetI2CBusHandle(void)
 i2c_master_bus_handle_t DevicesManager_GetTouchI2CBusHandle(void)
 {
     if (_Devices_Manager_State.initialized == false) {
-        ESP_LOGE(TAG, "Devices Manager not initialized yet!");
-
         return NULL;
     }
 
@@ -399,25 +398,20 @@ esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, uint8_t *p_Percentage
     float SOC;
 
     if (_Devices_Manager_State.initialized == false) {
-        ESP_LOGE(TAG, "Devices Manager not initialized yet!");
-
         return ESP_ERR_INVALID_STATE;
     } else if ((p_Voltage == NULL) || (p_Percentage == NULL)) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    if (MAX17048_GetVoltage(&_Devices_Manager_State.MAX17048, &VoltageV) != ESP_OK) {
-        return ESP_FAIL;
-    }
-
-    /* Convert V to mV */
-    *p_Voltage = static_cast<int>(VoltageV * 1000.0f);
-
-    if (MAX17048_GetSOC(&_Devices_Manager_State.MAX17048, &SOC) != ESP_OK) {
+    if ((MAX17048_GetVoltage(&_Devices_Manager_State.MAX17048, &VoltageV) != ESP_OK) ||
+        (MAX17048_GetSOC(&_Devices_Manager_State.MAX17048, &SOC) != ESP_OK)) {
         return ESP_FAIL;
     }
 
     *p_Percentage = static_cast<uint8_t>(SOC);
+    *p_Voltage = static_cast<int>(VoltageV * 1000.0f);
+
+    ESP_LOGD(TAG, "Battery voltage: %.3f V, SOC: %.1f%%", VoltageV, SOC);
 
     return ESP_OK;
 }
@@ -425,8 +419,6 @@ esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, uint8_t *p_Percentage
 esp_err_t DevicesManager_GetRTCHandle(RV8263C8_Dev_t *p_Handle)
 {
     if (_Devices_Manager_State.initialized == false) {
-        ESP_LOGE(TAG, "Devices Manager not initialized yet!");
-
         return ESP_ERR_INVALID_STATE;
     } else if (p_Handle == NULL) {
         return ESP_ERR_INVALID_ARG;
@@ -439,17 +431,41 @@ esp_err_t DevicesManager_GetRTCHandle(RV8263C8_Dev_t *p_Handle)
 
 esp_err_t DevicesManager_GetTime(struct tm *p_Time)
 {
+    if (_Devices_Manager_State.initialized == false) {
+        return ESP_ERR_INVALID_STATE;
+    } else if (p_Time == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
     return RV8263C8_GetTime(&_Devices_Manager_State.RTC, p_Time);
 }
 
 esp_err_t DevicesManager_SetTime(const struct tm *p_Time)
 {
+    if (_Devices_Manager_State.initialized == false) {
+        return ESP_ERR_INVALID_STATE;
+    } else if (p_Time == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
     return RV8263C8_SetTime(&_Devices_Manager_State.RTC, p_Time);
 }
 
 esp_err_t DevicesManager_GetTemperature(float *p_Temperature)
 {
-    return TMP117_ReadTemperature(&_Devices_Manager_State.TMP117, p_Temperature);
+    if (_Devices_Manager_State.initialized == false) {
+        return ESP_ERR_INVALID_STATE;
+    } else if (p_Temperature == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (TMP117_ReadTemperature(&_Devices_Manager_State.TMP117, p_Temperature) != ESP_OK) {
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "Current temperature: %.2f °C", *p_Temperature);
+
+    return ESP_OK;
 }
 
 esp_err_t DevicesManager_SetBrightness(Devices_BacklightID_t ID, uint8_t Brightness)
@@ -498,14 +514,25 @@ esp_err_t DevicesManager_SetBrightness(Devices_BacklightID_t ID, uint8_t Brightn
 
 esp_err_t DevicesManager_LeptonReset(bool Reset)
 {
-    /* Lepton reset is active low: assert reset when Reset=true → drive pin low */
+    if (_Devices_Manager_State.initialized == false) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
     return PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard,
                                 PCAL6416_PORT_1, 5, (Reset == false));
 }
 
+esp_err_t DevicesManager_SetLeptonPower(bool Enable)
+{
+    if (_Devices_Manager_State.initialized == false) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    return PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_0, 2, Enable);
+}
+
 esp_err_t DevicesManager_HandleExpanderInterrupt(void)
 {
-    esp_err_t Error;
     uint8_t Status0, Status1, In0, In1;
     bool Level;
 
@@ -518,29 +545,22 @@ esp_err_t DevicesManager_HandleExpanderInterrupt(void)
         return ESP_OK;
     }
 
-    ESP_LOGI(TAG, "Expander: processing pin changes");
-
-    Error = PCAL6416AHF_ReadIntStatus(&_Devices_Manager_State.Expander_Mainboard,
-                                      &Status0, &Status1, &In0, &In1);
-    if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read expander interrupt status: 0x%x! Attempting I2C bus recovery.", Error);
-
-        i2c_master_bus_reset(_Devices_Manager_State.I2C_Bus_Handle);
-
-        return Error;
+    if (PCAL6416AHF_ReadIntStatus(&_Devices_Manager_State.Expander_Mainboard, &Status0, &Status1, &In0, &In1) != ESP_OK) {
+        return ESP_FAIL;
     }
 
     if (Status0 & (1 << 0)) {
-        /* Battery alert: HW polarity-inverted (POL0.0 set) → bit=1 in In0 means alert active */
         Level = ((In0 & (1 << 0)) != 0);
-        ESP_LOGI(TAG, "Battery alert state changed! Level: %d", static_cast<int>(Level));
+
+        ESP_LOGI(TAG, "Battery alert state changed! Level: 0x%X", static_cast<int>(Level));
 
         esp_event_post(DEVICES_EVENTS, DEVICES_EVENT_BATTERY_ALERT, &Level, sizeof(Level), pdMS_TO_TICKS(100));
     }
 
     if (Status0 & (1 << 1)) {
         Level = ((In0 & (1 << 1)) != 0);
-        ESP_LOGI(TAG, "Battery charging state changed! Level: %d", static_cast<int>(Level));
+
+        ESP_LOGI(TAG, "Battery charging state changed! Level: 0x%X", static_cast<int>(Level));
 
         esp_event_post(DEVICES_EVENTS, DEVICES_EVENT_BATTERY_CHARGING, &Level, sizeof(Level), pdMS_TO_TICKS(100));
     }
@@ -564,23 +584,14 @@ esp_err_t DevicesManager_HandleExpanderInterrupt(void)
     }
 
     if (Status1 & (1 << 4)) {
-        /* SD detect: active low, no HW inversion → bit=0 in In1 means card inserted */
         Level = ((In1 & (1 << 4)) == 0);
-        ESP_LOGI(TAG, "SD card detect changed! Inserted: %d", static_cast<int>(Level));
+
+        ESP_LOGI(TAG, "SD card detect changed! Inserted: 0x%X", static_cast<int>(Level));
 
         esp_event_post(DEVICES_EVENTS, DEVICES_EVENT_SD_DETECT, &Level, sizeof(Level), pdMS_TO_TICKS(100));
     }
 
     return ESP_OK;
-}
-
-esp_err_t DevicesManager_SetLeptonPower(bool Enable)
-{
-    if (_Devices_Manager_State.initialized == false) {
-        return ESP_ERR_INVALID_STATE;
-    }
-
-    return PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_0, 2, Enable);
 }
 
 esp_err_t DevicesManager_SetCameraReset(bool Reset)
@@ -589,9 +600,7 @@ esp_err_t DevicesManager_SetCameraReset(bool Reset)
         return ESP_ERR_INVALID_STATE;
     }
 
-    /* Camera reset is active low: assert reset when Reset=true → drive pin low */
-    return PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard,
-                                PCAL6416_PORT_1, 6, (Reset == false));
+    return PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 6, (Reset == false));
 }
 
 esp_err_t DevicesManager_EnableCamera(bool Enable)
@@ -609,7 +618,6 @@ esp_err_t DevicesManager_GetBatteryAlert(bool *p_Alert)
         return ESP_ERR_INVALID_STATE;
     }
 
-    /* Battery alert is HW polarity-inverted: ReadPin returns true when alert is active (pin low) */
     return PCAL6416AHF_ReadPin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_0, 0, p_Alert);
 }
 
@@ -624,19 +632,16 @@ esp_err_t DevicesManager_GetBatteryCharging(bool *p_Charging)
 
 esp_err_t DevicesManager_GetRTCInterrupt(bool *p_Triggered)
 {
+    bool Level;
+
     if (_Devices_Manager_State.initialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
-    esp_err_t Error;
-    bool Level;
-
-    Error = PCAL6416AHF_ReadPin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_0, 5, &Level);
-    if (Error != ESP_OK) {
-        return Error;
+    if (PCAL6416AHF_ReadPin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_0, 5, &Level) != ESP_OK) {
+        return ESP_FAIL;
     }
 
-    /* Active low: pin low (Level == false) means interrupt is asserted */
     *p_Triggered = (Level == false);
 
     return ESP_OK;
@@ -644,19 +649,16 @@ esp_err_t DevicesManager_GetRTCInterrupt(bool *p_Triggered)
 
 esp_err_t DevicesManager_GetTempInterrupt(bool *p_Triggered)
 {
+    bool Level;
+
     if (_Devices_Manager_State.initialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
-    esp_err_t Error;
-    bool Level;
-
-    Error = PCAL6416AHF_ReadPin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_0, 7, &Level);
-    if (Error != ESP_OK) {
-        return Error;
+    if (PCAL6416AHF_ReadPin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_0, 7, &Level) != ESP_OK) {
+        return ESP_FAIL;
     }
 
-    /* Active low: pin low (Level == false) means interrupt is asserted */
     *p_Triggered = (Level == false);
 
     return ESP_OK;
@@ -664,19 +666,16 @@ esp_err_t DevicesManager_GetTempInterrupt(bool *p_Triggered)
 
 esp_err_t DevicesManager_GetRangeInterrupt(bool *p_Triggered)
 {
+    bool Level;
+
     if (_Devices_Manager_State.initialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
-    esp_err_t Error;
-    bool Level;
-
-    Error = PCAL6416AHF_ReadPin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 0, &Level);
-    if (Error != ESP_OK) {
-        return Error;
+    if (PCAL6416AHF_ReadPin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 0, &Level) != ESP_OK) {
+        return ESP_FAIL;
     }
 
-    /* Active low: pin low (Level == false) means interrupt is asserted */
     *p_Triggered = (Level == false);
 
     return ESP_OK;
@@ -684,19 +683,16 @@ esp_err_t DevicesManager_GetRangeInterrupt(bool *p_Triggered)
 
 esp_err_t DevicesManager_GetSDDetect(bool *p_Inserted)
 {
+    bool Level;
+
     if (_Devices_Manager_State.initialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
-    esp_err_t Error;
-    bool Level;
-
-    Error = PCAL6416AHF_ReadPin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 4, &Level);
-    if (Error != ESP_OK) {
-        return Error;
+    if (PCAL6416AHF_ReadPin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 4, &Level) != ESP_OK) {
+        return ESP_FAIL;
     }
 
-    /* SD detect is active low: pin low (Level == false) means card is inserted */
     *p_Inserted = (Level == false);
 
     return ESP_OK;
@@ -704,8 +700,7 @@ esp_err_t DevicesManager_GetSDDetect(bool *p_Inserted)
 
 esp_err_t DevicesManager_GetDistance(uint16_t *p_Distance_mm, bool *p_IsValid)
 {
-    esp_err_t Error;
-    bool Ready = false;
+    bool Ready;
     VL53L1X_Result_t Result;
 
     if ((p_Distance_mm == NULL) || (p_IsValid == NULL)) {
@@ -716,17 +711,15 @@ esp_err_t DevicesManager_GetDistance(uint16_t *p_Distance_mm, bool *p_IsValid)
 
     /* Sensor runs in continuous mode. Poll until the next measurement is ready
      * (inter-measurement period = 100 ms, timeout = 50 × 10 ms = 500 ms max).
-     * VL53L1X_ClearInterrupt() re-arms the sensor for the next cycle after reading. */
+     * VL53L1X_ClearInterrupt() re-arms the sensor for the next cycle after reading.
+     */
     for (uint32_t Retry = 0; Retry < 50; Retry++) {
-        /* Reset the task WDT on each retry: the loop can run for up to 500 ms which
-         * would otherwise push the calling task close to the 5-second WDT boundary
-         * when combined with other work in the same iteration. */
         esp_task_wdt_reset();
+
         vTaskDelay(pdMS_TO_TICKS(10));
 
-        Error = VL53L1X_IsDataReady(&_Devices_Manager_State.VL53L1X, &Ready);
-        if (Error != ESP_OK) {
-            return Error;
+        if (VL53L1X_IsDataReady(&_Devices_Manager_State.VL53L1X, &Ready) != ESP_OK) {
+            return ESP_FAIL;
         }
 
         if (Ready) {
@@ -735,17 +728,16 @@ esp_err_t DevicesManager_GetDistance(uint16_t *p_Distance_mm, bool *p_IsValid)
     }
 
     if (Ready == false) {
-        VL53L1X_ClearInterrupt(&_Devices_Manager_State.VL53L1X);
+        if (VL53L1X_ClearInterrupt(&_Devices_Manager_State.VL53L1X) != ESP_OK) {
+            return ESP_FAIL;
+        }
 
         return ESP_ERR_TIMEOUT;
     }
 
-    Error = VL53L1X_GetResult(&_Devices_Manager_State.VL53L1X, &Result);
-    VL53L1X_ClearInterrupt(&_Devices_Manager_State.VL53L1X);
-    if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read VL53L1X result: 0x%x!", Error);
-
-        return Error;
+    if ((VL53L1X_GetResult(&_Devices_Manager_State.VL53L1X, &Result) != ESP_OK) ||
+        (VL53L1X_ClearInterrupt(&_Devices_Manager_State.VL53L1X) != ESP_OK)) {
+        return ESP_FAIL;
     }
 
     *p_Distance_mm = Result.Distance_mm;
@@ -759,8 +751,8 @@ esp_err_t DevicesManager_GetDistance(uint16_t *p_Distance_mm, bool *p_IsValid)
 
 esp_err_t DevicesManager_GetDisplayboardInputs(Devices_InputState_t *p_State)
 {
-    uint8_t In0, In1;
-    esp_err_t Error;
+    uint8_t In0;
+    uint8_t In1;
 
     if (_Devices_Manager_State.initialized == false) {
         return ESP_ERR_INVALID_STATE;
@@ -770,9 +762,8 @@ esp_err_t DevicesManager_GetDisplayboardInputs(Devices_InputState_t *p_State)
         return ESP_ERR_NOT_SUPPORTED;
     }
 
-    Error = PCAL6416AHF_ReadInputs(&_Devices_Manager_State.Expander_Displayboard, &In0, &In1);
-    if (Error != ESP_OK) {
-        return Error;
+    if (PCAL6416AHF_ReadInputs(&_Devices_Manager_State.Expander_Displayboard, &In0, &In1) != ESP_OK) {
+        return ESP_FAIL;
     }
 
     p_State->JoyUp = ((In0 & (1 << 3)) != 0);
@@ -790,33 +781,11 @@ esp_err_t DevicesManager_GetDisplayboardInputs(Devices_InputState_t *p_State)
 
 esp_err_t DevicesManager_SetLED(bool R, bool G, bool B)
 {
-    esp_err_t Error;
-
     if (_Devices_Manager_State.initialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
-    /* LEDs are active low: negate the logical level before writing to the output register */
-    Error = PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Displayboard, PCAL6416_PORT_0, 0, (B == false));
-    if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to write LED pin (B): 0x%x!", Error);
-
-        return Error;
-    }
-
-    Error = PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Displayboard, PCAL6416_PORT_0, 1, (G == false));
-    if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to write LED pin (G): 0x%x!", Error);
-
-        return Error;
-    }
-
-    Error = PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Displayboard, PCAL6416_PORT_0, 2, (R == false));
-    if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to write LED pin (R): 0x%x!", Error);
-
-        return Error;
-    }
-
-    return ESP_OK;
+    return PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Displayboard, PCAL6416_PORT_0, 0, (B == false)) ||
+           PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Displayboard, PCAL6416_PORT_0, 1, (G == false)) ||
+           PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Displayboard, PCAL6416_PORT_0, 2, (R == false));
 }

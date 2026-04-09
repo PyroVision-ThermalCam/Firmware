@@ -63,7 +63,7 @@ esp_err_t JPEGEncoder_Encode(const uint8_t *p_RGB, uint16_t Width, uint16_t Heig
 
     Error = jpeg_enc_open(&EncoderConfig, &Encoder);
     if (Error != JPEG_ERR_OK) {
-        ESP_LOGE(TAG, "Failed to open JPEG encoder: %d!", Error);
+        ESP_LOGE(TAG, "Failed to open JPEG encoder: 0x%X!", Error);
 
         return ESP_FAIL;
     }
@@ -88,7 +88,7 @@ esp_err_t JPEGEncoder_Encode(const uint8_t *p_RGB, uint16_t Width, uint16_t Heig
     jpeg_enc_close(Encoder);
 
     if (Error != JPEG_ERR_OK) {
-        ESP_LOGE(TAG, "JPEG encoding failed: %d!", Error);
+        ESP_LOGE(TAG, "JPEG encoding failed: 0x%X!", Error);
 
         heap_caps_free(*p_Output);
         *p_Output = NULL;

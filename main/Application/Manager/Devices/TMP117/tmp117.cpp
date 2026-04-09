@@ -66,7 +66,7 @@
  */
 #define TMP117_RESOLUTION                   0.0078125f
 
-/** @brief
+/** @brief TMP117 I2C device configuration (7-bit address, 400 kHz, ACK check enabled).
  */
 static const i2c_device_config_t _TMP117_I2C_Config = {
     .dev_addr_length = I2C_ADDR_BIT_LEN_7,
@@ -147,14 +147,14 @@ esp_err_t TMP117_Init(i2c_master_bus_handle_t *p_Bus_Handle, TMP117_Dev_t *p_Dev
 
     Error = i2c_master_bus_add_device(*p_Bus_Handle, &_TMP117_I2C_Config, &p_Device->Handle);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to add I2C device: %d!", Error);
+        ESP_LOGE(TAG, "Failed to add I2C device: 0x%X!", Error);
 
         return Error;
     }
 
     Error = TMP117_Read_Register(&p_Device->Handle, TMP117_REG_CONFIGURATION, &Temp);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read configuration register: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read configuration register: 0x%X!", Error);
 
         return Error;
     }
@@ -162,17 +162,17 @@ esp_err_t TMP117_Init(i2c_master_bus_handle_t *p_Bus_Handle, TMP117_Dev_t *p_Dev
     Temp |= TMP117_CFG_SOFT_RESET;
     Error = TMP117_Write_Register(&p_Device->Handle, TMP117_REG_CONFIGURATION, Temp);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to write soft reset: %d!", Error);
+        ESP_LOGE(TAG, "Failed to write soft reset: 0x%X!", Error);
 
         return Error;
     }
 
-    /* Wait for reset to complete (minimum 2ms) */
+    /* Wait for reset to complete (minimum 2 ms) */
     vTaskDelay(pdMS_TO_TICKS(5));
 
     Error = TMP117_ReadDeviceID(p_Device, &Temp);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read device ID: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read device ID: 0x%X!", Error);
 
         i2c_master_bus_rm_device(p_Device->Handle);
 
@@ -199,12 +199,14 @@ esp_err_t TMP117_Init(i2c_master_bus_handle_t *p_Bus_Handle, TMP117_Dev_t *p_Dev
 
     Error = TMP117_Configure(p_Device, Config);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to configure default settings: %d!", Error);
+        ESP_LOGE(TAG, "Failed to configure default settings: 0x%X!", Error);
 
         i2c_master_bus_rm_device(p_Device->Handle);
 
         return Error;
     }
+
+    p_Device->isInitialized = true;
 
     return ESP_OK;
 }
@@ -219,12 +221,15 @@ esp_err_t TMP117_Deinit(TMP117_Dev_t *p_Device)
 
     Error = i2c_master_bus_rm_device(p_Device->Handle);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to remove I2C device: %d!", Error);
+        ESP_LOGE(TAG, "Failed to remove I2C device: 0x%X!", Error);
 
         return Error;
     }
 
     ESP_LOGD(TAG, "TMP117 deinitialized");
+
+    p_Device->isInitialized = false;
+    p_Device->Handle = NULL;
 
     return ESP_OK;
 }
@@ -240,7 +245,7 @@ esp_err_t TMP117_Configure(TMP117_Dev_t *p_Device, const TMP117_Config_t *p_Conf
 
     Error = TMP117_Read_Register(&p_Device->Handle, TMP117_REG_CONFIGURATION, &ConfigReg);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read configuration register: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read configuration register: 0x%X!", Error);
 
         return Error;
     }
@@ -254,7 +259,7 @@ esp_err_t TMP117_Configure(TMP117_Dev_t *p_Device, const TMP117_Config_t *p_Conf
 
     Error = TMP117_Write_Register(&p_Device->Handle, TMP117_REG_CONFIGURATION, ConfigReg);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to write configuration register: %d!", Error);
+        ESP_LOGE(TAG, "Failed to write configuration register: 0x%X!", Error);
 
         return Error;
     }
@@ -273,12 +278,13 @@ esp_err_t TMP117_ReadTemperature(TMP117_Dev_t *p_Device, float *p_Temp)
 
     if ((p_Device == NULL) || (p_Temp == NULL)) {
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     }
 
-    /* Read temperature register */
     Error = TMP117_Read_Register(&p_Device->Handle, TMP117_REG_TEMP_RESULT, &TempRaw);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read temperature register: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read temperature register: 0x%X!", Error);
 
         return Error;
     }
@@ -302,12 +308,13 @@ esp_err_t TMP117_TriggerOneShot(TMP117_Dev_t *p_Device)
 
     if (p_Device == NULL) {
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     }
 
-    /* Read current configuration */
     Error = TMP117_Read_Register(&p_Device->Handle, TMP117_REG_CONFIGURATION, &ConfigReg);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read configuration register: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read configuration register: 0x%X!", Error);
 
         return Error;
     }
@@ -326,7 +333,7 @@ esp_err_t TMP117_TriggerOneShot(TMP117_Dev_t *p_Device)
 
     Error = TMP117_Write_Register(&p_Device->Handle, TMP117_REG_CONFIGURATION, ConfigReg);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to trigger one-shot conversion: %d!", Error);
+        ESP_LOGE(TAG, "Failed to trigger one-shot conversion: 0x%X!", Error);
 
         return Error;
     }
@@ -343,11 +350,13 @@ esp_err_t TMP117_IsDataReady(TMP117_Dev_t *p_Device, bool *p_Ready)
 
     if ((p_Device == NULL) || (p_Ready == NULL)) {
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     }
 
     Error = TMP117_Read_Register(&p_Device->Handle, TMP117_REG_CONFIGURATION, &Temp);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read configuration register: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read configuration register: 0x%X!", Error);
 
         return Error;
     }
@@ -367,7 +376,7 @@ esp_err_t TMP117_ReadDeviceID(TMP117_Dev_t *p_Device, uint16_t *p_DeviceID)
 
     Error = TMP117_Read_Register(&p_Device->Handle, TMP117_REG_DEVICE_ID, p_DeviceID);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read device ID register: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read device ID register: 0x%X!", Error);
 
         return Error;
     }

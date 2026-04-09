@@ -131,7 +131,7 @@ static void USB_Monitoring_Task(void *p_Arg)
 
                     Error = USBMSC_Init(&MSC_Config);
                     if (Error != ESP_OK) {
-                        ESP_LOGE(TAG, "Failed to initialize USB MSC: %d!", Error);
+                        ESP_LOGE(TAG, "Failed to initialize USB MSC: 0x%X!", Error);
                     } else {
                         ESP_LOGD(TAG, "USB MSC enabled");
                     }
@@ -147,7 +147,7 @@ static void USB_Monitoring_Task(void *p_Arg)
 
                     Error = USBMSC_Deinit();
                     if (Error != ESP_OK) {
-                        ESP_LOGE(TAG, "Failed to deinitialize USB MSC: %d!", Error);
+                        ESP_LOGE(TAG, "Failed to deinitialize USB MSC: 0x%X!", Error);
                     } else {
                         ESP_LOGD(TAG, "USB MSC disabled");
                     }
@@ -169,7 +169,7 @@ static void USB_Monitoring_Task(void *p_Arg)
 
                     Error = USBUVC_Init(&UVC_Config);
                     if (Error != ESP_OK) {
-                        ESP_LOGE(TAG, "Failed to initialize USB UVC: %d!", Error);
+                        ESP_LOGE(TAG, "Failed to initialize USB UVC: 0x%X!", Error);
                     } else {
                         ESP_LOGD(TAG, "USB UVC enabled");
                     }
@@ -185,7 +185,7 @@ static void USB_Monitoring_Task(void *p_Arg)
 
                     Error = USBUVC_Deinit();
                     if (Error != ESP_OK) {
-                        ESP_LOGE(TAG, "Failed to deinitialize USB UVC: %d!", Error);
+                        ESP_LOGE(TAG, "Failed to deinitialize USB UVC: 0x%X!", Error);
                     } else {
                         ESP_LOGD(TAG, "USB UVC disabled");
                     }
@@ -193,7 +193,7 @@ static void USB_Monitoring_Task(void *p_Arg)
                     break;
                 }
                 default: {
-                    ESP_LOGW(TAG, "Unknown USB Manager command: %d", static_cast<int>(Cmd.ID));
+                    ESP_LOGW(TAG, "Unknown USB Manager command: 0x%X", static_cast<int>(Cmd.ID));
 
                     break;
                 }
@@ -243,14 +243,14 @@ esp_err_t USBManager_Init(void)
     ESP_LOGD(TAG, "Installing TinyUSB driver...");
     USB_Error = tinyusb_driver_install(&USB_Config);
     if (USB_Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to install TinyUSB driver: %d!", USB_Error);
+        ESP_LOGE(TAG, "Failed to install TinyUSB driver: 0x%X!", USB_Error);
 
         return USB_Error;
     }
 
     USB_Error = USBCDC_Init(&CDC_Config);
     if (USB_Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize USB CDC: %d!", USB_Error);
+        ESP_LOGE(TAG, "Failed to initialize USB CDC: 0x%X!", USB_Error);
 
         tinyusb_driver_uninstall();
 
@@ -269,7 +269,7 @@ esp_err_t USBManager_Init(void)
 
     Error = xTaskCreate(USB_Monitoring_Task, "USBMonTask", 4096, NULL, 5, &_USB_Manager_State.MonitoringTask);
     if (Error != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create USB monitoring task: %d!", Error);
+        ESP_LOGE(TAG, "Failed to create USB monitoring task: 0x%X!", Error);
 
         vQueueDelete(_USB_Manager_State.CommandQueue);
         _USB_Manager_State.CommandQueue = NULL;
@@ -325,28 +325,28 @@ esp_err_t USBManager_Deinit(void)
 
     Error = USBCDC_Deinit();
     if (Error != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to deinitialize USB CDC: %d!", Error);
+        ESP_LOGW(TAG, "Failed to deinitialize USB CDC: 0x%X!", Error);
     } else {
         ESP_LOGD(TAG, "USB CDC deinitialized");
     }
 
     Error = USBUVC_Deinit();
     if (Error != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to deinitialize USB UVC: %d!", Error);
+        ESP_LOGW(TAG, "Failed to deinitialize USB UVC: 0x%X!", Error);
     } else {
         ESP_LOGD(TAG, "USB UVC deinitialized");
     }
 
     Error = USBMSC_Deinit();
     if (Error != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to deinitialize USB MSC: %d!", Error);
+        ESP_LOGW(TAG, "Failed to deinitialize USB MSC: 0x%X!", Error);
     } else {
         ESP_LOGD(TAG, "USB MSC deinitialized");
     }
 
     Error = tinyusb_driver_uninstall();
     if (Error != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to uninstall TinyUSB driver: %d!", Error);
+        ESP_LOGW(TAG, "Failed to uninstall TinyUSB driver: 0x%X!", Error);
 
         return Error;
     }

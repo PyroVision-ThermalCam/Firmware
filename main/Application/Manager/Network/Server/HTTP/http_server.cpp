@@ -397,7 +397,7 @@ static esp_err_t HTTP_Handler_Update(httpd_req_t *p_Request)
 
     Error = esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &ota_handle);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "esp_ota_begin failed: %d!", Error);
+        ESP_LOGE(TAG, "esp_ota_begin failed: 0x%X!", Error);
 
         return HTTP_Server_SendError(p_Request, 500, "OTA begin failed");
     }
@@ -433,7 +433,7 @@ static esp_err_t HTTP_Handler_Update(httpd_req_t *p_Request)
 
         Error = esp_ota_write(ota_handle, Buffer, Received);
         if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "esp_ota_write failed: %d!", Error);
+            ESP_LOGE(TAG, "esp_ota_write failed: 0x%X!", Error);
 
             heap_caps_free(Buffer);
             esp_ota_abort(ota_handle);
@@ -449,14 +449,14 @@ static esp_err_t HTTP_Handler_Update(httpd_req_t *p_Request)
 
     Error = esp_ota_end(ota_handle);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "esp_ota_end failed: %d", Error);
+        ESP_LOGE(TAG, "esp_ota_end failed: 0x%X", Error);
 
         return HTTP_Server_SendError(p_Request, 500, "OTA end failed");
     }
 
     Error = esp_ota_set_boot_partition(update_partition);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "esp_ota_set_boot_partition failed: %d!", Error);
+        ESP_LOGE(TAG, "esp_ota_set_boot_partition failed: 0x%X!", Error);
 
         return HTTP_Server_SendError(p_Request, 500, "Set boot partition failed");
     }
@@ -677,7 +677,7 @@ esp_err_t HTTP_Server_Start(void)
 
     Error = httpd_start(&_HTTP_Server_State.Handle, &config);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to start HTTP server: %d!", Error);
+        ESP_LOGE(TAG, "Failed to start HTTP server: 0x%X!", Error);
 
         return Error;
     }
@@ -721,7 +721,7 @@ esp_err_t HTTP_Server_Stop(void)
     if (_HTTP_Server_State.Handle != NULL) {
         Error = httpd_stop(_HTTP_Server_State.Handle);
         if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to stop HTTP server: %d", Error);
+            ESP_LOGE(TAG, "Failed to stop HTTP server: 0x%X", Error);
         }
         _HTTP_Server_State.Handle = NULL;
     }

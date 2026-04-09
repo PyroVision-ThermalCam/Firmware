@@ -125,13 +125,13 @@ static esp_err_t MemoryManager_Mount_Internal_Storage(void)
 
     Error = esp_vfs_fat_spiflash_mount_rw_wl("/storage", "storage", &MountConfig, &_Memory_Manager_State.WL_Handle);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to mount FAT filesystem: %d", Error);
+        ESP_LOGE(TAG, "Failed to mount FAT filesystem: 0x%X", Error);
 
         return Error;
     }
 
     ESP_LOGD(TAG, "Internal storage mounted successfully at /storage");
-    ESP_LOGD(TAG, "Wear leveling handle: %d", _Memory_Manager_State.WL_Handle);
+    ESP_LOGD(TAG, "Wear leveling handle: 0x%X", _Memory_Manager_State.WL_Handle);
 
     return ESP_OK;
 }
@@ -170,7 +170,7 @@ static esp_err_t MemoryManager_Mount_SD_Card(void)
         if (Error == ESP_FAIL) {
             ESP_LOGW(TAG, "Failed to mount SD card filesystem");
         } else {
-            ESP_LOGW(TAG, "Failed to initialize SD card: %d!", Error);
+            ESP_LOGW(TAG, "Failed to initialize SD card: 0x%X!", Error);
         }
 
         return Error;
@@ -209,7 +209,7 @@ esp_err_t MemoryManager_Init(void)
         /* Mount internal flash with FAT32 */
         Error = MemoryManager_Mount_Internal_Storage();
         if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to mount internal storage: %d!", Error);
+            ESP_LOGE(TAG, "Failed to mount internal storage: 0x%X!", Error);
 
             return Error;
         }
@@ -434,7 +434,7 @@ esp_err_t MemoryManager_EraseStorage(void)
 
         Error = esp_vfs_fat_spiflash_mount_rw_wl("/storage", "storage", &MountConfig, &_Memory_Manager_State.WL_Handle);
         if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to remount storage: %d!", Error);
+            ESP_LOGE(TAG, "Failed to remount storage: 0x%X!", Error);
 
             return ESP_FAIL;
         }
@@ -462,7 +462,7 @@ esp_err_t MemoryManager_EraseCoredump(void)
 
     Error = esp_partition_erase_range(Partition, 0, Partition->size);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to erase coredump partition: %d!", Error);
+        ESP_LOGE(TAG, "Failed to erase coredump partition: 0x%X!", Error);
 
         return ESP_FAIL;
     }
@@ -645,7 +645,7 @@ esp_err_t MemoryManager_SoftRemountStorage(void)
 
         Error = ff_diskio_register_wl_partition(Pdrv, _Memory_Manager_State.WL_Handle);
         if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to register WL partition to diskio: %d!", Error);
+            ESP_LOGE(TAG, "Failed to register WL partition to diskio: 0x%X!", Error);
 
             return Error;
         }
@@ -657,7 +657,7 @@ esp_err_t MemoryManager_SoftRemountStorage(void)
 
         Error = esp_vfs_fat_register_cfg(&VFS_Conf, &p_FS);
         if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to register VFS FAT for internal storage: %d!", Error);
+            ESP_LOGE(TAG, "Failed to register VFS FAT for internal storage: 0x%X!", Error);
 
             ff_diskio_unregister(Pdrv);
 
@@ -666,7 +666,7 @@ esp_err_t MemoryManager_SoftRemountStorage(void)
 
         FResult = f_mount(p_FS, Drive, 1);
         if (FResult != FR_OK) {
-            ESP_LOGE(TAG, "Failed to mount FAT filesystem on internal storage: %d!", FResult);
+            ESP_LOGE(TAG, "Failed to mount FAT filesystem on internal storage: 0x%X!", FResult);
 
             esp_vfs_fat_unregister_path("/storage");
             ff_diskio_unregister(Pdrv);
@@ -695,7 +695,7 @@ esp_err_t MemoryManager_SoftRemountStorage(void)
 
         Error = esp_vfs_fat_register_cfg(&VFS_Conf, &p_FS);
         if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to register VFS FAT for SD card: %d!", Error);
+            ESP_LOGE(TAG, "Failed to register VFS FAT for SD card: 0x%X!", Error);
 
             ff_diskio_unregister(Pdrv);
 
@@ -704,7 +704,7 @@ esp_err_t MemoryManager_SoftRemountStorage(void)
 
         FResult = f_mount(p_FS, Drive, 1);
         if (FResult != FR_OK) {
-            ESP_LOGE(TAG, "Failed to mount FAT filesystem on SD card: %d!", FResult);
+            ESP_LOGE(TAG, "Failed to mount FAT filesystem on SD card: 0x%X!", FResult);
 
             esp_vfs_fat_unregister_path("/sdcard");
             ff_diskio_unregister(Pdrv);
@@ -761,7 +761,7 @@ esp_err_t MemoryManager_FormatActiveStorage(void)
 
         Error = esp_vfs_fat_sdspi_mount("/sdcard", &Host, &SlotConfig, &MountConfig, &_Memory_Manager_State.SDCard);
         if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to format and remount SD card: %d!", Error);
+            ESP_LOGE(TAG, "Failed to format and remount SD card: 0x%X!", Error);
             _Memory_Manager_State.hasSDCard = false;
             _Memory_Manager_State.SDCard = NULL;
 
@@ -794,14 +794,14 @@ esp_err_t MemoryManager_FormatActiveStorage(void)
         /* Format and remount */
         Error = esp_vfs_fat_spiflash_format_rw_wl("/storage", "storage");
         if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to format internal storage: %d!", Error);
+            ESP_LOGE(TAG, "Failed to format internal storage: 0x%X!", Error);
 
             return Error;
         }
 
         Error = esp_vfs_fat_spiflash_mount_rw_wl("/storage", "storage", &MountConfig, &_Memory_Manager_State.WL_Handle);
         if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to remount internal storage after formatting: %d!", Error);
+            ESP_LOGE(TAG, "Failed to remount internal storage after formatting: 0x%X!", Error);
 
             return Error;
         }

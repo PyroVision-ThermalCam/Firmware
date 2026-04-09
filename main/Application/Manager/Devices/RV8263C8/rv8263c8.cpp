@@ -200,7 +200,9 @@ esp_err_t RV8263C8_Init(i2c_master_bus_handle_t *p_Bus_Handle, RV8263C8_Dev_t *p
 
     Error = i2c_master_bus_add_device(*p_Bus_Handle, &_RV8263C8_I2C_Config, &p_Device->Handle);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to add I2C device: %d!", Error);
+        ESP_LOGE(TAG, "Failed to add I2C device: 0x%X!", Error);
+
+        i2c_master_bus_rm_device(p_Device->Handle);
 
         return Error;
     }
@@ -210,7 +212,9 @@ esp_err_t RV8263C8_Init(i2c_master_bus_handle_t *p_Bus_Handle, RV8263C8_Dev_t *p
     /* Check oscillator stop flag */
     Error = RV8263C8_Read_Register(&p_Device->Handle, RV8263_REG_SECONDS, &Seconds);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read seconds register: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read seconds register: 0x%X!", Error);
+
+        i2c_master_bus_rm_device(p_Device->Handle);
 
         return Error;
     }
@@ -221,6 +225,8 @@ esp_err_t RV8263C8_Init(i2c_master_bus_handle_t *p_Bus_Handle, RV8263C8_Dev_t *p
         /* Clear OS flag by writing seconds register */
         Error = RV8263C8_Write_Register(&p_Device->Handle, RV8263_REG_SECONDS, Seconds & ~RV8263_SECONDS_OS);
         if (Error != ESP_OK) {
+            i2c_master_bus_rm_device(p_Device->Handle);
+
             return Error;
         }
     }
@@ -228,7 +234,9 @@ esp_err_t RV8263C8_Init(i2c_master_bus_handle_t *p_Bus_Handle, RV8263C8_Dev_t *p
     /* Read Control1 register */
     Error = RV8263C8_Read_Register(&p_Device->Handle, RV8263_REG_CONTROL1, &Control1);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read control register: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read control register: 0x%X!", Error);
+
+        i2c_master_bus_rm_device(p_Device->Handle);
 
         return Error;
     }
@@ -241,29 +249,38 @@ esp_err_t RV8263C8_Init(i2c_master_bus_handle_t *p_Bus_Handle, RV8263C8_Dev_t *p
 
         Error = RV8263C8_Write_Register(&p_Device->Handle, RV8263_REG_CONTROL1, Control1);
         if (Error != ESP_OK) {
+            i2c_master_bus_rm_device(p_Device->Handle);
+
             return Error;
         }
     }
 
     ESP_LOGD(TAG, "RV8263-C8 RTC initialized successfully");
 
+    p_Device->isInitialized = true;
+
     return ESP_OK;
 }
 
 esp_err_t RV8263C8_Deinit(RV8263C8_Dev_t *p_Device)
 {
-    if (p_Device != NULL) {
-        esp_err_t Error;
+    esp_err_t Error;
 
-        Error = i2c_master_bus_rm_device(p_Device->Handle);
-        if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to remove I2C device: %d!", Error);
-
-            return Error;
-        }
-
-        p_Device->Handle = NULL;
+    if ((p_Device == NULL) || (p_Device->Handle == NULL)) {
+        return ESP_ERR_INVALID_ARG;
     }
+
+    Error = i2c_master_bus_rm_device(p_Device->Handle);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to remove I2C device: 0x%X!", Error);
+
+        return Error;
+    }
+
+    ESP_LOGD(TAG, "RV8263C8 deinitialized");
+
+    p_Device->isInitialized = false;
+    p_Device->Handle = NULL;
 
     return ESP_OK;
 }
@@ -275,12 +292,14 @@ esp_err_t RV8263C8_GetTime(RV8263C8_Dev_t *p_Device, struct tm *p_Time)
 
     if ((p_Time == NULL) || (p_Device == NULL)) {
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     }
 
     /* Read time registers (Seconds to Year) */
     Error = RV8263C8_Read_Registers(&p_Device->Handle, RV8263_REG_SECONDS, Buffer, sizeof(Buffer));
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read time: %d!", Error);
+        ESP_LOGE(TAG, "Failed to read time: 0x%X!", Error);
 
         return Error;
     }
@@ -316,6 +335,8 @@ esp_err_t RV8263C8_SetTime(RV8263C8_Dev_t *p_Device, const struct tm *p_Time)
 
     if ((p_Time == NULL) || (p_Device == NULL)) {
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     }
 
     /* Convert struct tm format to RTC values */
@@ -358,6 +379,8 @@ esp_err_t RV8263C8_SetAlarm(RV8263C8_Dev_t *p_Device, const RV8263C8_Alarm_t *p_
 
     if ((p_Alarm == NULL) || (p_Device == NULL)) {
         return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
     }
 
     /* Configure alarm registers - set AE bit to 1 to disable, 0 to enable */
@@ -372,18 +395,36 @@ esp_err_t RV8263C8_SetAlarm(RV8263C8_Dev_t *p_Device, const RV8263C8_Alarm_t *p_
 
 esp_err_t RV8263C8_EnableAlarmInterrupt(RV8263C8_Dev_t *p_Device, bool Enable)
 {
+    if (p_Device == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
     return I2CM_ModifyRegister(&p_Device->Handle, RV8263_REG_CONTROL2, RV8263_CTRL2_AIE,
                                Enable ? RV8263_CTRL2_AIE : 0);
 }
 
 esp_err_t RV8263C8_ClearAlarmFlag(RV8263C8_Dev_t *p_Device)
 {
+    if (p_Device == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
     return I2CM_ModifyRegister(&p_Device->Handle, RV8263_REG_CONTROL2, RV8263_CTRL2_AF, 0);
 }
 
 bool RV8263C8_IsAlarmTriggered(RV8263C8_Dev_t *p_Device)
 {
     uint8_t Control2;
+
+    if (p_Device == NULL) {
+        return false;
+    } else if (p_Device->isInitialized == false) {
+        return false;
+    }
 
     if (RV8263C8_Read_Register(&p_Device->Handle, RV8263_REG_CONTROL2, &Control2) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read Control2 register for alarm status!");
@@ -401,6 +442,8 @@ esp_err_t RV8263C8_SetTimer(RV8263C8_Dev_t *p_Device, uint8_t Value, RV8263C8_Ti
     uint8_t TimerMode;
 
     if (p_Device == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -421,11 +464,23 @@ esp_err_t RV8263C8_SetTimer(RV8263C8_Dev_t *p_Device, uint8_t Value, RV8263C8_Ti
 
 esp_err_t RV8263C8_StopTimer(RV8263C8_Dev_t *p_Device)
 {
+    if (p_Device == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
     return RV8263C8_Write_Register(&p_Device->Handle, RV8263_REG_TIMER_MODE, 0);
 }
 
 esp_err_t RV8263C8_SoftwareReset(RV8263C8_Dev_t *p_Device)
 {
+    if (p_Device == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    } else if (p_Device->isInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
     ESP_LOGD(TAG, "Performing software reset...");
 
     return RV8263C8_Write_Register(&p_Device->Handle, RV8263_REG_CONTROL1, RV8263_CTRL1_SR);

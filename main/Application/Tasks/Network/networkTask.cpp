@@ -210,7 +210,7 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
             memcpy(&Changed, p_Data, sizeof(SettingsManager_ChangeNotification_t));
 
             if (Changed.ID == SETTINGS_ID_WIFI_SSID) {
-                ESP_LOGD(TAG, "WiFi settings changed, ID: %d", Changed.ID);
+                ESP_LOGD(TAG, "WiFi settings changed, ID: 0x%X", Changed.ID);
 
                 xEventGroupSetBits(_Network_Task_State.EventGroup, NETWORK_TASK_WIFI_DATA_CHANGE);
             }
@@ -218,8 +218,6 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
             break;
         }
         case SETTINGS_EVENT_SYSTEM_CHANGED: {
-            /* Defer to network task - SettingsManager_GetSystem() acquires a mutex.
-             * Calling it here (event loop task context) can block the entire event loop. */
             xEventGroupSetBits(_Network_Task_State.EventGroup, NETWORK_TASK_SETTINGS_CHANGED);
 
             break;
@@ -403,7 +401,7 @@ static void Task_Network(void *p_Parameters)
             SettingsManager_GetSystem(&SystemSettings);
             ImageEncoder_SetQuality(SystemSettings.JpegQuality);
 
-            ESP_LOGD(TAG, "System settings applied - JPEG quality: %d", SystemSettings.JpegQuality);
+            ESP_LOGD(TAG, "System settings applied - JPEG quality: 0x%X", SystemSettings.JpegQuality);
 
             xEventGroupClearBits(_Network_Task_State.EventGroup, NETWORK_TASK_SETTINGS_CHANGED);
         }
@@ -459,7 +457,7 @@ esp_err_t Network_Task_Init(App_Context_t *p_AppContext)
         (esp_event_handler_register(SNTP_EVENTS, SNTP_EVENT_SNTP_SYNCED, on_SNTP_Event_Handler, NULL) != ESP_OK) ||
         (esp_event_handler_register(LEPTON_EVENTS, LEPTON_EVENT_RESPONSE_SPOTMETER, on_Lepton_Event_Handler, NULL) != ESP_OK) ||
         (esp_event_handler_register(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler, NULL) != ESP_OK)) {
-        ESP_LOGE(TAG, "Failed to register event handler: %d!", Error);
+        ESP_LOGE(TAG, "Failed to register event handler: 0x%X!", Error);
 
         vEventGroupDelete(_Network_Task_State.EventGroup);
 
@@ -538,7 +536,7 @@ esp_err_t Network_Task_Start(void)
     Error = xTaskCreatePinnedToCore(Task_Network, "Task_Network", CONFIG_NETWORK_TASK_STACKSIZE, NULL,
                                     CONFIG_NETWORK_TASK_PRIO, &_Network_Task_State.TaskHandle, CONFIG_NETWORK_TASK_CORE);
     if (Error != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create Network Task: %d!", Error);
+        ESP_LOGE(TAG, "Failed to create Network Task: 0x%X!", Error);
 
         return ESP_ERR_NO_MEM;
     }

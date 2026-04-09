@@ -69,7 +69,7 @@ void MessageBox_ImageSaveError(esp_err_t Error)
         lv_msgbox_add_title(Box, "Save Failed");
         lv_msgbox_add_text(Box, "Failed to save image");
 
-        ESP_LOGE(TAG, "Failed to save thermal image: %d!", Error);
+        ESP_LOGE(TAG, "Failed to save thermal image: 0x%X!", Error);
     }
 
     /* Auto-close message box after 2 seconds */

@@ -87,7 +87,7 @@ static void TimeManager_SNTP_Sync_Callback(struct timeval *tv)
 
             _TimeManager_State.lastRTC_Backup = Now;
         } else {
-            ESP_LOGW(TAG, "Failed to backup time to RTC: %d!", Error);
+            ESP_LOGW(TAG, "Failed to backup time to RTC: 0x%X!", Error);
         }
     }
 }
@@ -174,7 +174,7 @@ esp_err_t TimeManager_Init(void *p_RTC_Handle)
                      RtcTime.tm_year + 1900);
         }
     } else {
-        ESP_LOGW(TAG, "Failed to read time from RTC: %d!", Error);
+        ESP_LOGW(TAG, "Failed to read time from RTC: 0x%X!", Error);
     }
 
     /* Set timezone to UTC by default */
@@ -192,7 +192,7 @@ esp_err_t TimeManager_Init(void *p_RTC_Handle)
 
     Error = esp_timer_create(&TimerArgs, &_TimeManager_State.syncTimer);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to create sync timer: %d!", Error);
+        ESP_LOGE(TAG, "Failed to create sync timer: 0x%X!", Error);
 
         return Error;
     }
@@ -200,7 +200,7 @@ esp_err_t TimeManager_Init(void *p_RTC_Handle)
     /* Start timer with 60 second period */
     Error = esp_timer_start_periodic(_TimeManager_State.syncTimer, 60 * 1000000ULL);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to start sync timer: %d!", Error);
+        ESP_LOGE(TAG, "Failed to start sync timer: 0x%X!", Error);
 
         esp_timer_delete(_TimeManager_State.syncTimer);
 

@@ -210,12 +210,12 @@ static esp_err_t WebSocket_SendBinary(int FD, const uint8_t *p_Data, size_t Leng
         }
 
         /* Queue might be full, wait and retry */
-        ESP_LOGW(TAG, "Failed to queue frame to fd=%d (retry %d): %d!", FD, Retry + 1, Error);
+        ESP_LOGW(TAG, "Failed to queue frame to fd=%d (retry %d): 0x%X!", FD, Retry + 1, Error);
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to send binary frame to fd=%d after retries: %d (len=%zu)!",
+        ESP_LOGE(TAG, "Failed to send binary frame to fd=%d after retries: 0x%X (len=%zu)!",
                  FD, Error, Length);
     }
 
@@ -438,7 +438,7 @@ static esp_err_t WebSocket_Handler(httpd_req_t *p_Request)
     /* Get frame info */
     Error = httpd_ws_recv_frame(p_Request, &Frame, 0);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to get frame info: %d!", Error);
+        ESP_LOGE(TAG, "Failed to get frame info: 0x%X!", Error);
 
         return Error;
     }
@@ -461,7 +461,7 @@ static esp_err_t WebSocket_Handler(httpd_req_t *p_Request)
 
         Error = httpd_ws_recv_frame(p_Request, &Frame, Frame.len);
         if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to receive frame: %d!", Error);
+            ESP_LOGE(TAG, "Failed to receive frame: 0x%X!", Error);
 
             free(Frame.payload);
 
@@ -502,13 +502,13 @@ static esp_err_t WebSocket_Handler(httpd_req_t *p_Request)
 
             Error = httpd_ws_send_frame_async(WebSocket_State.ServerHandle, FD, &pong_frame);
             if (Error != ESP_OK) {
-                ESP_LOGW(TAG, "Failed to send Pong to fd=%d: %d, retrying...", FD, Error);
+                ESP_LOGW(TAG, "Failed to send Pong to fd=%d: 0x%X, retrying...", FD, Error);
 
                 /* Pong fails sometimes. So we simply try again */
                 vTaskDelay(pdMS_TO_TICKS(10));
                 Error = httpd_ws_send_frame_async(WebSocket_State.ServerHandle, FD, &pong_frame);
                 if (Error != ESP_OK) {
-                    ESP_LOGW(TAG, "Failed to send Pong to fd=%d again: %d, removing client!", FD, Error);
+                    ESP_LOGW(TAG, "Failed to send Pong to fd=%d again: 0x%X, removing client!", FD, Error);
 
                     WebSocket_RemoveClient(FD);
                 }
@@ -622,7 +622,7 @@ esp_err_t WebSocket_Register(httpd_handle_t p_ServerHandle)
 
     Error = httpd_register_uri_handler(p_ServerHandle, &_URI_WebSocket);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to register WebSocket URI: %d!", Error);
+        ESP_LOGE(TAG, "Failed to register WebSocket URI: 0x%X!", Error);
 
         return Error;
     }
@@ -678,7 +678,7 @@ static void WebSocket_BroadcastTask(void *p_Param)
                 xSemaphoreGive(WebSocket_State.ThermalFrame->Mutex);
 
                 if (Error != ESP_OK) {
-                    ESP_LOGW(TAG, "Failed to encode frame: %d!", Error);
+                    ESP_LOGW(TAG, "Failed to encode frame: 0x%X!", Error);
 
                     continue;
                 }

@@ -102,7 +102,7 @@ int32_t I2CM_Write(i2c_master_dev_handle_t *p_Dev_Handle, const uint8_t *p_Data,
         xSemaphoreGive(_I2C_Mutex);
 
         if (Error != ESP_OK) {
-            ESP_LOGW(TAG, "I2C transmit failed: %d", Error);
+            ESP_LOGW(TAG, "I2C transmit failed: 0x%X", Error);
         }
     } else {
         ESP_LOGE(TAG, "I2C Write: Mutex timeout!");
@@ -145,7 +145,7 @@ int32_t I2CM_Read(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t *p_Data, uint32
         xSemaphoreGive(_I2C_Mutex);
 
         if (Error != ESP_OK) {
-            ESP_LOGW(TAG, "I2C receive failed: %d!", Error);
+            ESP_LOGW(TAG, "I2C receive failed: 0x%X!", Error);
         }
     } else {
         ESP_LOGE(TAG, "I2C Read: Mutex timeout!");
@@ -178,7 +178,7 @@ int32_t I2CM_ModifyRegister(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Regis
     /* Write register address */
     Error = i2c_master_transmit(*p_Dev_Handle, &RegAddr, 1, I2C_WAIT);
     if (Error != ESP_OK) {
-        ESP_LOGW(TAG, "I2C ModifyRegister: transmit failed: %d", Error);
+        ESP_LOGW(TAG, "I2C ModifyRegister: transmit failed: 0x%X", Error);
 
         xSemaphoreGive(_I2C_Mutex);
 
@@ -188,7 +188,7 @@ int32_t I2CM_ModifyRegister(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Regis
     /* Read current register value */
     Error = i2c_master_receive(*p_Dev_Handle, &RegValue, 1, I2C_WAIT);
     if (Error != ESP_OK) {
-        ESP_LOGW(TAG, "I2C ModifyRegister: receive failed: %d", Error);
+        ESP_LOGW(TAG, "I2C ModifyRegister: receive failed: 0x%X", Error);
 
         xSemaphoreGive(_I2C_Mutex);
 
@@ -208,7 +208,7 @@ int32_t I2CM_ModifyRegister(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Regis
     xSemaphoreGive(_I2C_Mutex);
 
     if (Error != ESP_OK) {
-        ESP_LOGW(TAG, "I2C ModifyRegister: write-back failed: %d", Error);
+        ESP_LOGW(TAG, "I2C ModifyRegister: write-back failed: 0x%X", Error);
     }
 
     return Error;

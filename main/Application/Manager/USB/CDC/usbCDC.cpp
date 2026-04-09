@@ -64,14 +64,14 @@ static void on_CDC_LineStateChanged(int itf, cdcacm_event_t *p_Event)
 
         Error = esp_event_post(USB_EVENTS, USB_EVENT_CDC_CONNECTED, NULL, 0, pdMS_TO_TICKS(100));
         if (Error != ESP_OK) {
-            ESP_LOGW(TAG, "Failed to post CDC connected event: %d", Error);
+            ESP_LOGW(TAG, "Failed to post CDC connected event: 0x%X", Error);
         }
     } else {
         ESP_LOGD(TAG, "CDC host terminal disconnected on interface %d", itf);
 
         Error = esp_event_post(USB_EVENTS, USB_EVENT_CDC_DISCONNECTED, NULL, 0, pdMS_TO_TICKS(100));
         if (Error != ESP_OK) {
-            ESP_LOGW(TAG, "Failed to post CDC disconnected event: %d", Error);
+            ESP_LOGW(TAG, "Failed to post CDC disconnected event: 0x%X", Error);
         }
     }
 }
@@ -102,7 +102,7 @@ esp_err_t USBCDC_Init(const USB_CDC_Config_t *p_Config)
 
     Error = tinyusb_cdcacm_init(&CDC_Config);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize TinyUSB CDC-ACM: %d!", Error);
+        ESP_LOGE(TAG, "Failed to initialize TinyUSB CDC-ACM: 0x%X!", Error);
 
         return Error;
     }
@@ -126,7 +126,7 @@ esp_err_t USBCDC_Deinit(void)
 
     Error = tinyusb_cdcacm_deinit(TINYUSB_CDC_ACM_0);
     if (Error != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to deinitialize TinyUSB CDC-ACM: %d!", Error);
+        ESP_LOGW(TAG, "Failed to deinitialize TinyUSB CDC-ACM: 0x%X!", Error);
     }
 
     memset(&_CDC_State, 0, sizeof(USB_CDC_State_t));
@@ -159,7 +159,7 @@ esp_err_t USBCDC_Write(const uint8_t *p_Data, size_t Size)
     /* Non-blocking flush (timeout = 0) */
     Error = tinyusb_cdcacm_write_flush(TINYUSB_CDC_ACM_0, 0);
     if (Error != ESP_OK && Error != ESP_ERR_TIMEOUT) {
-        ESP_LOGW(TAG, "CDC flush failed: %d", Error);
+        ESP_LOGW(TAG, "CDC flush failed: 0x%X", Error);
     }
 
     return ESP_OK;

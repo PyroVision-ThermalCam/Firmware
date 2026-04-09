@@ -386,7 +386,7 @@ esp_err_t RemoteControl_SetImageFormat(Settings_Image_Format_t Format)
     Changed.Value = Format;
     System.ImageFormat = static_cast<Settings_Image_Format_t>(Format);
 
-    ESP_LOGI(TAG, "Set image format to: %d", System.ImageFormat);
+    ESP_LOGI(TAG, "Set image format to: 0x%X", System.ImageFormat);
 
     return SettingsManager_UpdateSystem(&System, &Changed);
 }

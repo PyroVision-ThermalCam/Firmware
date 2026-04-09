@@ -73,7 +73,7 @@ esp_err_t SPIM_Init(const spi_bus_config_t *p_Config, spi_host_device_t Host, in
     /* Initialize the SPI bus */
     Error = spi_bus_initialize(Host, p_Config, DMA_Channel);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize SPI%d bus: %d", Host + 1, Error);
+        ESP_LOGE(TAG, "Failed to initialize SPI%d bus: 0x%X", Host + 1, Error);
 
         vSemaphoreDelete(_SPI_State[Host].Mutex);
         _SPI_State[Host].Mutex = NULL;
@@ -108,7 +108,7 @@ esp_err_t SPIM_Deinit(spi_host_device_t Host)
     xSemaphoreTake(_SPI_State[Host].Mutex, portMAX_DELAY);
     Error = spi_bus_free(Host);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to free SPI%d bus: %d!", Host + 1, Error);
+        ESP_LOGE(TAG, "Failed to free SPI%d bus: 0x%X!", Host + 1, Error);
         xSemaphoreGive(_SPI_State[Host].Mutex);
         return Error;
     }
@@ -135,7 +135,7 @@ esp_err_t SPIM_AddDevice(spi_host_device_t Host, const spi_device_interface_conf
     if ((p_Dev_Config == NULL) || (p_Handle == NULL) || (Host >= SOC_SPI_PERIPH_NUM)) {
         return ESP_ERR_INVALID_ARG;
     } else if (Host >= SOC_SPI_PERIPH_NUM) {
-        ESP_LOGE(TAG, "Invalid SPI host: %d", Host);
+        ESP_LOGE(TAG, "Invalid SPI host: 0x%X", Host);
 
         return ESP_ERR_INVALID_ARG;
     } else if (_SPI_State[Host].isInitialized == false) {
@@ -147,7 +147,7 @@ esp_err_t SPIM_AddDevice(spi_host_device_t Host, const spi_device_interface_conf
     xSemaphoreTake(_SPI_State[Host].Mutex, portMAX_DELAY);
     Error = spi_bus_add_device(Host, p_Dev_Config, p_Handle);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to add device to SPI%d: %d!", Host + 1, Error);
+        ESP_LOGE(TAG, "Failed to add device to SPI%d: 0x%X!", Host + 1, Error);
 
         xSemaphoreGive(_SPI_State[Host].Mutex);
 
@@ -173,7 +173,7 @@ esp_err_t SPIM_RemoveDevice(spi_host_device_t Host, spi_device_handle_t Handle)
     xSemaphoreTake(_SPI_State[Host].Mutex, portMAX_DELAY);
     Error = spi_bus_remove_device(Handle);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to remove SPI device: %d!", Error);
+        ESP_LOGE(TAG, "Failed to remove SPI device: 0x%X!", Error);
 
         xSemaphoreGive(_SPI_State[Host].Mutex);
 
@@ -218,7 +218,7 @@ esp_err_t SPIM_Transmit(spi_host_device_t Host, spi_device_handle_t Handle, uint
     xSemaphoreTake(_SPI_State[Host].Mutex, portMAX_DELAY);
     Error = spi_device_polling_transmit(Handle, &trans);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "SPI transmit failed: %d!", Error);
+        ESP_LOGE(TAG, "SPI transmit failed: 0x%X!", Error);
 
         xSemaphoreGive(_SPI_State[Host].Mutex);
 

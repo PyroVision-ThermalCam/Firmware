@@ -115,7 +115,7 @@ static void VISA_HandleClient(int ClientSocket)
                 continue;
             }
 
-            ESP_LOGE(TAG, "recv failed: errno %d!", errno);
+            ESP_LOGE(TAG, "recv failed: errno 0x%X!", errno);
 
             break;
         } else if (Length == 0) {
@@ -137,7 +137,7 @@ static void VISA_HandleClient(int ClientSocket)
             /* Send response */
             Sent = send(ClientSocket, TxBuffer, Length, 0);
             if (Sent < 0) {
-                ESP_LOGE(TAG, "send failed: %d!", errno);
+                ESP_LOGE(TAG, "send failed: 0x%X!", errno);
 
                 break;
             }
@@ -172,7 +172,7 @@ static void Task_VisaServer(void *p_Args)
 
     _VISA_Server_State.ListenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
     if (_VISA_Server_State.ListenSocket < 0) {
-        ESP_LOGE(TAG, "Unable to create socket: %d!", errno);
+        ESP_LOGE(TAG, "Unable to create socket: 0x%X!", errno);
 
         _VISA_Server_State.isRunning = false;
         vTaskDelete(NULL);
@@ -184,7 +184,7 @@ static void Task_VisaServer(void *p_Args)
 
     Error = bind(_VISA_Server_State.ListenSocket, (struct sockaddr *)&Addr, sizeof(Addr));
     if (Error != 0) {
-        ESP_LOGE(TAG, "Socket unable to bind: %d!", errno);
+        ESP_LOGE(TAG, "Socket unable to bind: 0x%X!", errno);
 
         close(_VISA_Server_State.ListenSocket);
         _VISA_Server_State.isRunning = false;
@@ -195,7 +195,7 @@ static void Task_VisaServer(void *p_Args)
 
     Error = listen(_VISA_Server_State.ListenSocket, CONFIG_NETWORK_VISA_MAX_CLIENTS);
     if (Error != 0) {
-        ESP_LOGE(TAG, "Error occurred during listen: %d!", errno);
+        ESP_LOGE(TAG, "Error occurred during listen: 0x%X!", errno);
 
         close(_VISA_Server_State.ListenSocket);
         _VISA_Server_State.isRunning = false;
@@ -218,7 +218,7 @@ static void Task_VisaServer(void *p_Args)
                 continue;
             }
 
-            ESP_LOGE(TAG, "Unable to accept connection: errno %d!", errno);
+            ESP_LOGE(TAG, "Unable to accept connection: errno 0x%X!", errno);
 
             break;
         }

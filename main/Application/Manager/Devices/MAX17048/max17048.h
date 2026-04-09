@@ -34,6 +34,7 @@
 /** @brief MAX17048 device instance.
  */
 typedef struct {
+    bool isInitialized;                 /**< True after successful initialization. */
     i2c_master_dev_handle_t Handle;     /**< I2C device handle. */
 } MAX17048_Dev_t;
 

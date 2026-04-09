@@ -74,7 +74,7 @@ static void on_UVC_StreamingStart(int itf, uvc_event_t *p_Event)
 
         esp_err_t Error = esp_event_post(USB_EVENTS, USB_EVENT_UVC_STREAMING_START, NULL, 0, 0);
         if (Error != ESP_OK) {
-            ESP_LOGW(TAG, "Failed to post streaming start event: %d", Error);
+            ESP_LOGW(TAG, "Failed to post streaming start event: 0x%X", Error);
         }
     } else if (p_Event->type == UVC_EVENT_FRAME_END) {
         ESP_LOGD(TAG, "Frame transfer complete on interface %d", itf);
@@ -94,7 +94,7 @@ static void on_UVC_StreamingStop(int itf, uvc_event_t *p_Event)
 
         esp_err_t Error = esp_event_post(USB_EVENTS, USB_EVENT_UVC_STREAMING_STOP, NULL, 0, 0);
         if (Error != ESP_OK) {
-            ESP_LOGW(TAG, "Failed to post streaming stop event: %d", Error);
+            ESP_LOGW(TAG, "Failed to post streaming stop event: 0x%X", Error);
         }
     }
 }
@@ -228,7 +228,7 @@ esp_err_t USBUVC_Init(const USB_UVC_Config_t *p_Config)
     Error = tinyusb_uvc_init(&UVC_Config);
 
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize TinyUSB UVC: %d!", Error);
+        ESP_LOGE(TAG, "Failed to initialize TinyUSB UVC: 0x%X!", Error);
 
         for (uint8_t i = 0; i < UVC_NUM_BUFFERS; i++) {
             heap_caps_free(_UVC_State.Buffers[i].p_Buffer);

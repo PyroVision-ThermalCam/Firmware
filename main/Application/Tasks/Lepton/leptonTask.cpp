@@ -168,7 +168,7 @@ static void on_GUI_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
             break;
         }
         default: {
-            ESP_LOGW(TAG, "Unhandled GUI event ID: %d", ID);
+            ESP_LOGW(TAG, "Unhandled GUI event ID: 0x%X", ID);
 
             break;
         }
@@ -221,7 +221,7 @@ static void Lepton_LoadSettings(void)
     SettingsManager_GetLepton(&LeptonSettings);
 
     ESP_LOGI(TAG, "Loading Lepton settings...");
-    ESP_LOGI(TAG, "Emissivity: %d", LeptonSettings.CurrentEmissivity);
+    ESP_LOGI(TAG, "Emissivity: 0x%X", LeptonSettings.CurrentEmissivity);
 
     Lepton_SetEmissivity(&_Lepton_Task_State.Lepton, static_cast<Lepton_Emissivity_t>(LeptonSettings.CurrentEmissivity));
 }
@@ -255,7 +255,7 @@ static void Task_Lepton(void *p_Parameters)
 
     Lepton_Error = Lepton_Init(&_Lepton_Task_State.Lepton, &_Lepton_Task_State.LeptonConf);
     if (Lepton_Error != LEPTON_ERR_OK) {
-        ESP_LOGE(TAG, "Lepton initialization failed with error: %d!", Lepton_Error);
+        ESP_LOGE(TAG, "Lepton initialization failed with error: 0x%X!", Lepton_Error);
 
         esp_event_post(LEPTON_EVENTS, LEPTON_EVENT_CAMERA_ERROR, NULL, 0, pdMS_TO_TICKS(500));
         esp_task_wdt_delete(NULL);
@@ -431,17 +431,17 @@ static void Task_Lepton(void *p_Parameters)
 
                                 ESP_LOGI(TAG, "UVC stream no longer active - resuming GUI frames");
                             } else if (UVCError != ESP_OK) {
-                                ESP_LOGW(TAG, "Failed to submit frame to UVC: %d", UVCError);
+                                ESP_LOGW(TAG, "Failed to submit frame to UVC: 0x%X", UVCError);
                             } else {
                                 ESP_LOGD(TAG, "UVC frame submitted: %d bytes JPEG", JpegSize);
                             }
                         } else {
-                            ESP_LOGW(TAG, "JPEG encoding failed: %d", JpegError);
+                            ESP_LOGW(TAG, "JPEG encoding failed: 0x%X", JpegError);
                         }
 
                         jpeg_enc_close(JpegEncoder);
                     } else {
-                        ESP_LOGW(TAG, "Failed to open JPEG encoder: %d", JpegError);
+                        ESP_LOGW(TAG, "Failed to open JPEG encoder: 0x%X", JpegError);
                     }
                 }
             }
@@ -495,7 +495,7 @@ static void Task_Lepton(void *p_Parameters)
                     break;
                 }
                 default: {
-                    ESP_LOGW(TAG, "Invalid ROI type in GUI event: %d", _Lepton_Task_State.ROI.Type);
+                    ESP_LOGW(TAG, "Invalid ROI type in GUI event: 0x%X", _Lepton_Task_State.ROI.Type);
 
                     return;
                 }
@@ -831,7 +831,7 @@ esp_err_t Lepton_Task_Start(App_Context_t *p_AppContext)
     Error = xTaskCreatePinnedToCore(Task_Lepton, "Task_Lepton", CONFIG_LEPTON_TASK_STACKSIZE, p_AppContext,
                                     CONFIG_LEPTON_TASK_PRIO, &_Lepton_Task_State.TaskHandle, CONFIG_LEPTON_TASK_CORE);
     if (Error != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create Lepton Task: %d!", Error);
+        ESP_LOGE(TAG, "Failed to create Lepton Task: 0x%X!", Error);
 
         return ESP_ERR_NO_MEM;
     }

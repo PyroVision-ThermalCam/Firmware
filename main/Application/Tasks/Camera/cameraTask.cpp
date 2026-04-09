@@ -142,7 +142,7 @@ esp_err_t Camera_Task_Start(App_Context_t *p_AppContext)
     Error = xTaskCreatePinnedToCore(Task_Camera, "Task_Camera", CONFIG_CAMERA_TASK_STACKSIZE, p_AppContext,
                                     CONFIG_CAMERA_TASK_PRIO, &_Camera_Task_State.TaskHandle, CONFIG_CAMERA_TASK_CORE);
     if (Error != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create Camera Task: %d!", Error);
+        ESP_LOGE(TAG, "Failed to create Camera Task: 0x%X!", Error);
 
         return ESP_ERR_NO_MEM;
     }
