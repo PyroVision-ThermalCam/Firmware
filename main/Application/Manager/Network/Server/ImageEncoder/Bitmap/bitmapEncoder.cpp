@@ -64,6 +64,7 @@ esp_err_t BitmapEncoder_Encode(const uint8_t *p_RGB, uint16_t Width, uint16_t He
     uint32_t RowSize;
     uint32_t PixelDataSize;
     uint32_t TotalSize;
+    uint32_t Caps;
     uint8_t *p_BMP;
     uint8_t *p_Dest;
     const uint8_t *p_Src;
@@ -79,8 +80,14 @@ esp_err_t BitmapEncoder_Encode(const uint8_t *p_RGB, uint16_t Width, uint16_t He
     PixelDataSize = RowSize * Height;
     TotalSize = sizeof(BMP_FileHeader_t) + sizeof(BMP_InfoHeader_t) + PixelDataSize;
 
+#ifdef CONFIG_SPIRAM
+    Caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+#else
+    Caps = MALLOC_CAP_8BIT;
+#endif
+
     /* Allocate output buffer */
-    p_BMP = static_cast<uint8_t *>(heap_caps_malloc(TotalSize, MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM));
+    p_BMP = static_cast<uint8_t *>(heap_caps_malloc(TotalSize, Caps));
     if (p_BMP == NULL) {
         ESP_LOGE(TAG, "Failed to allocate BMP output buffer (%lu bytes)!", TotalSize);
 

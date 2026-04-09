@@ -52,7 +52,7 @@ esp_err_t SNTP_Init(const char *p_Timezone, const char *p_Server, uint32_t SyncI
     SNTP_SetTimezone(p_Timezone);
 
     /* Setup automatic sync timer if interval is specified */
-    esp_sntp_set_sync_interval(3600);
+    esp_sntp_set_sync_interval(SyncInterval);
 
     return ESP_OK;
 }
@@ -68,12 +68,13 @@ esp_err_t SNTP_GetTime(uint8_t Retries)
 {
     time_t Now;
     struct tm TimeInfo;
-    uint8_t Retry = 0;
+    uint8_t Retry;
 
     ESP_LOGD(TAG, "Initializing SNTP");
 
     memset(&TimeInfo, 0, sizeof(struct tm));
 
+    Retry = 0;
     while ((TimeInfo.tm_year < (2016 - 1900)) && (++Retry < Retries)) {
         ESP_LOGD(TAG, "Waiting for system time... (%d/%d)", Retry, Retries);
         vTaskDelay(pdMS_TO_TICKS(2000));

@@ -302,7 +302,8 @@ static void SettingsManager_LoadHTTPServer(Settings_Manager_State_t *p_State, co
         if (cJSON_IsString(apiKey)) {
             strncpy(p_State->Settings.HTTPServer.APIKey, apiKey->valuestring, sizeof(p_State->Settings.HTTPServer.APIKey));
         } else {
-            strncpy(p_State->Settings.HTTPServer.APIKey, SETTINGS_DEFAULT_HTTP_API_KEY, sizeof(p_State->Settings.HTTPServer.APIKey));
+            strncpy(p_State->Settings.HTTPServer.APIKey, SETTINGS_DEFAULT_HTTP_API_KEY,
+                    sizeof(p_State->Settings.HTTPServer.APIKey));
         }
     } else {
         SettingsManager_InitDefaultHTTPServer(&p_State->Settings);
@@ -381,6 +382,20 @@ static void SettingsManager_LoadUSB(Settings_Manager_State_t *p_State, const cJS
         } else {
             p_State->Settings.USB.MSC_Enabled = SETTINGS_DEFAULT_USB_MSC_ENABLE;
         }
+
+        cJSON *uvc_enabled = cJSON_GetObjectItem(usb, "uvc-enabled");
+        if (cJSON_IsBool(uvc_enabled)) {
+            p_State->Settings.USB.UVC_Enabled = cJSON_IsTrue(uvc_enabled);
+        } else {
+            p_State->Settings.USB.UVC_Enabled = SETTINGS_DEFAULT_USB_UVC_ENABLE;
+        }
+
+        cJSON *cdc_enabled = cJSON_GetObjectItem(usb, "cdc-enabled");
+        if (cJSON_IsBool(cdc_enabled)) {
+            p_State->Settings.USB.CDC_Enabled = cJSON_IsTrue(cdc_enabled);
+        } else {
+            p_State->Settings.USB.CDC_Enabled = SETTINGS_DEFAULT_USB_CDC_ENABLE;
+        }
     } else {
         SettingsManager_InitDefaultUSB(&p_State->Settings);
     }
@@ -394,6 +409,7 @@ esp_err_t SettingsManager_LoadFromJSON(Settings_Manager_State_t *p_State, const 
     size_t BytesRead;
     cJSON *JSON = NULL;
     esp_err_t Error;
+    uint32_t Caps;
 
     ESP_LOGD(TAG, "Loading JSON settings from: %s", p_FilePath);
 
@@ -427,8 +443,14 @@ esp_err_t SettingsManager_LoadFromJSON(Settings_Manager_State_t *p_State, const 
 
     ESP_LOGD(TAG, "File size: %ld bytes", FileSize);
 
+#ifdef CONFIG_SPIRAM
+    Caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+#else
+    Caps = MALLOC_CAP_8BIT;
+#endif
+
     /* Allocate buffer for file content */
-    Buffer = static_cast<char *>(heap_caps_malloc(FileSize + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    Buffer = static_cast<char *>(heap_caps_malloc(FileSize + 1, Caps));
     if (Buffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate memory for file buffer!");
 

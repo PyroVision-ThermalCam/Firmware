@@ -382,7 +382,8 @@ esp_err_t SettingsManager_GetLepton(Settings_Lepton_t *p_Settings)
     return SettingsManager_Get(p_Settings, &_Settings_Manager_State.Settings.Lepton, sizeof(Settings_Lepton_t));
 }
 
-esp_err_t SettingsManager_UpdateLepton(Settings_Lepton_t *p_Settings, SettingsManager_ChangeNotification_t *p_ChangedSetting)
+esp_err_t SettingsManager_UpdateLepton(Settings_Lepton_t *p_Settings,
+                                       SettingsManager_ChangeNotification_t *p_ChangedSetting)
 {
     return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.Lepton, sizeof(Settings_Lepton_t),
                                   SETTINGS_EVENT_LEPTON_CHANGED, p_ChangedSetting);
@@ -393,7 +394,8 @@ esp_err_t SettingsManager_GetWiFi(Settings_WiFi_t *p_Settings)
     return SettingsManager_Get(p_Settings, &_Settings_Manager_State.Settings.WiFi, sizeof(Settings_WiFi_t));
 }
 
-esp_err_t SettingsManager_UpdateWiFi(Settings_WiFi_t *p_Settings, SettingsManager_ChangeNotification_t *p_ChangedSetting)
+esp_err_t SettingsManager_UpdateWiFi(Settings_WiFi_t *p_Settings,
+                                     SettingsManager_ChangeNotification_t *p_ChangedSetting)
 {
     return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.WiFi, sizeof(Settings_WiFi_t),
                                   SETTINGS_EVENT_WIFI_CHANGED, p_ChangedSetting);
@@ -404,7 +406,8 @@ esp_err_t SettingsManager_GetProvisioning(Settings_Provisioning_t *p_Settings)
     return SettingsManager_Get(p_Settings, &_Settings_Manager_State.Settings.Provisioning, sizeof(Settings_Provisioning_t));
 }
 
-esp_err_t SettingsManager_UpdateProvisioning(Settings_Provisioning_t *p_Settings, SettingsManager_ChangeNotification_t *p_ChangedSetting)
+esp_err_t SettingsManager_UpdateProvisioning(Settings_Provisioning_t *p_Settings,
+                                             SettingsManager_ChangeNotification_t *p_ChangedSetting)
 {
     return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.Provisioning,
                                   sizeof(Settings_Provisioning_t),
@@ -416,7 +419,8 @@ esp_err_t SettingsManager_GetDisplay(Settings_Display_t *p_Settings)
     return SettingsManager_Get(p_Settings, &_Settings_Manager_State.Settings.Display, sizeof(Settings_Display_t));
 }
 
-esp_err_t SettingsManager_UpdateDisplay(Settings_Display_t *p_Settings, SettingsManager_ChangeNotification_t *p_ChangedSetting)
+esp_err_t SettingsManager_UpdateDisplay(Settings_Display_t *p_Settings,
+                                        SettingsManager_ChangeNotification_t *p_ChangedSetting)
 {
     return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.Display, sizeof(Settings_Display_t),
                                   SETTINGS_EVENT_DISPLAY_CHANGED, p_ChangedSetting);
@@ -427,7 +431,8 @@ esp_err_t SettingsManager_GetHTTPServer(Settings_HTTP_Server_t *p_Settings)
     return SettingsManager_Get(p_Settings, &_Settings_Manager_State.Settings.HTTPServer, sizeof(Settings_HTTP_Server_t));
 }
 
-esp_err_t SettingsManager_UpdateHTTPServer(Settings_HTTP_Server_t *p_Settings, SettingsManager_ChangeNotification_t *p_ChangedSetting)
+esp_err_t SettingsManager_UpdateHTTPServer(Settings_HTTP_Server_t *p_Settings,
+                                           SettingsManager_ChangeNotification_t *p_ChangedSetting)
 {
     return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.HTTPServer,
                                   sizeof(Settings_HTTP_Server_t),
@@ -439,7 +444,8 @@ esp_err_t SettingsManager_GetVISAServer(Settings_VISA_Server_t *p_Settings)
     return SettingsManager_Get(p_Settings, &_Settings_Manager_State.Settings.VISAServer, sizeof(Settings_VISA_Server_t));
 }
 
-esp_err_t SettingsManager_UpdateVISAServer(Settings_VISA_Server_t *p_Settings, SettingsManager_ChangeNotification_t *p_ChangedSetting)
+esp_err_t SettingsManager_UpdateVISAServer(Settings_VISA_Server_t *p_Settings,
+                                           SettingsManager_ChangeNotification_t *p_ChangedSetting)
 {
     return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.VISAServer,
                                   sizeof(Settings_VISA_Server_t),
@@ -451,7 +457,8 @@ esp_err_t SettingsManager_GetSystem(Settings_System_t *p_Settings)
     return SettingsManager_Get(p_Settings, &_Settings_Manager_State.Settings.System, sizeof(Settings_System_t));
 }
 
-esp_err_t SettingsManager_UpdateSystem(Settings_System_t *p_Settings, SettingsManager_ChangeNotification_t *p_ChangedSetting)
+esp_err_t SettingsManager_UpdateSystem(Settings_System_t *p_Settings,
+                                       SettingsManager_ChangeNotification_t *p_ChangedSetting)
 {
     return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.System, sizeof(Settings_System_t),
                                   SETTINGS_EVENT_SYSTEM_CHANGED, p_ChangedSetting);
@@ -462,7 +469,8 @@ esp_err_t SettingsManager_GetLEDFlash(Settings_LED_Flash_t *p_Settings)
     return SettingsManager_Get(p_Settings, &_Settings_Manager_State.Settings.LEDFlash, sizeof(Settings_LED_Flash_t));
 }
 
-esp_err_t SettingsManager_UpdateLEDFlash(Settings_LED_Flash_t *p_Settings, SettingsManager_ChangeNotification_t *p_ChangedSetting)
+esp_err_t SettingsManager_UpdateLEDFlash(Settings_LED_Flash_t *p_Settings,
+                                         SettingsManager_ChangeNotification_t *p_ChangedSetting)
 {
     return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.LEDFlash, sizeof(Settings_LED_Flash_t),
                                   SETTINGS_EVENT_LED_FLASH_CHANGED, p_ChangedSetting);

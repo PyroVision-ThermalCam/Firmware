@@ -94,8 +94,7 @@ static esp_err_t HTTP_Server_SendJSON(httpd_req_t *p_Request, cJSON *p_JSON, int
     }
 
     if (StatusCode != 200) {
-        std::string status_str = std::to_string(StatusCode);
-        httpd_resp_set_status(p_Request, status_str.c_str());
+        httpd_resp_set_status(p_Request, std::to_string(StatusCode).c_str());
     }
 
     httpd_resp_set_type(p_Request, "application/json");
@@ -145,12 +144,19 @@ static cJSON *HTTP_Server_ParseJSON(httpd_req_t *p_Request)
 {
     char *Buffer;
     cJSON *JSON;
+    uint32_t Caps;
 
     if ((p_Request->content_len <= 0) || (p_Request->content_len > 4096)) {
         return NULL;
     }
 
-    Buffer = static_cast<char *>(heap_caps_malloc(p_Request->content_len + 1, MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM));
+#ifdef CONFIG_SPIRAM
+    Caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+#else
+    Caps = MALLOC_CAP_8BIT;
+#endif
+
+    Buffer = static_cast<char *>(heap_caps_malloc(p_Request->content_len + 1, Caps));
     if (Buffer == NULL) {
         return NULL;
     }
@@ -232,7 +238,7 @@ static esp_err_t HTTP_Handler_Image(httpd_req_t *p_Request)
 {
     esp_err_t Error;
     Network_Encoded_Image_t Encoded;
-    std::string query(128, '\0');
+    std::string Query(128, '\0');
     Settings_Image_Format_t Format = IMAGE_FORMAT_JPEG;
     Server_Palette_t Palette = PALETTE_IRON;
 
@@ -244,22 +250,26 @@ static esp_err_t HTTP_Handler_Image(httpd_req_t *p_Request)
         return HTTP_Server_SendError(p_Request, 503, "No thermal data available");
     }
 
-    if (httpd_req_get_url_query_str(p_Request, &query[0], query.size()) == ESP_OK) {
-        query.resize(strlen(query.c_str()));
-        std::string param(32, '\0');
-        if (httpd_query_key_value(query.c_str(), "format", &param[0], param.size()) == ESP_OK) {
-            param.resize(strlen(param.c_str()));
-            if (param == "png") {
+    if (httpd_req_get_url_query_str(p_Request, &Query[0], Query.size()) == ESP_OK) {
+        std::string Param(32, '\0');
+
+        Query.resize(strlen(Query.c_str()));
+        if (httpd_query_key_value(Query.c_str(), "format", &Param[0], Param.size()) == ESP_OK) {
+            Param.resize(strlen(Param.c_str()));
+
+            if (Param == "png") {
                 Format = IMAGE_FORMAT_PNG;
-            } else if (param == "raw") {
+            } else if (Param == "raw") {
                 Format = IMAGE_FORMAT_RAW;
             }
         }
-        if (httpd_query_key_value(query.c_str(), "palette", &param[0], param.size()) == ESP_OK) {
-            param.resize(strlen(param.c_str()));
-            if (param == "gray") {
+
+        if (httpd_query_key_value(Query.c_str(), "palette", &Param[0], Param.size()) == ESP_OK) {
+            Param.resize(strlen(Param.c_str()));
+
+            if (Param == "gray") {
                 Palette = PALETTE_GRAY;
-            } else if (param == "rainbow") {
+            } else if (Param == "rainbow") {
                 Palette = PALETTE_RAINBOW;
             }
         }
@@ -285,7 +295,7 @@ static esp_err_t HTTP_Handler_Image(httpd_req_t *p_Request)
         }
         case IMAGE_FORMAT_PNG: {
             httpd_resp_set_type(p_Request, "image/png");
-    
+
             break;
         }
         case IMAGE_FORMAT_RAW: {
@@ -319,6 +329,8 @@ static esp_err_t HTTP_Handler_Telemetry(httpd_req_t *p_Request)
 {
     esp_err_t Error;
     cJSON *JSON;
+    cJSON *Card;
+    wifi_ap_record_t Info;
 
     _HTTP_Server_State.RequestCount++;
 
@@ -338,17 +350,16 @@ static esp_err_t HTTP_Handler_Telemetry(httpd_req_t *p_Request)
 
     cJSON_AddNumberToObject(JSON, "supply_voltage_v", 0);
 
-    wifi_ap_record_t ap_info;
-    if (esp_wifi_sta_get_ap_info(&ap_info) == ESP_OK) {
-        cJSON_AddNumberToObject(JSON, "wifi_rssi_dbm", ap_info.rssi);
+    if (esp_wifi_sta_get_ap_info(&Info) == ESP_OK) {
+        cJSON_AddNumberToObject(JSON, "wifi_rssi_dbm", Info.rssi);
     } else {
         cJSON_AddNumberToObject(JSON, "wifi_rssi_dbm", 0);
     }
 
-    cJSON *sdcard = cJSON_CreateObject();
-    cJSON_AddBoolToObject(sdcard, "present", false);
-    cJSON_AddNumberToObject(sdcard, "free_mb", 0);
-    cJSON_AddItemToObject(JSON, "sdcard", sdcard);
+    Card = cJSON_CreateObject();
+    cJSON_AddBoolToObject(Card, "present", false);
+    cJSON_AddNumberToObject(Card, "free_mb", 0);
+    cJSON_AddItemToObject(JSON, "sdcard", Card);
 
     Error = HTTP_Server_SendJSON(p_Request, JSON, 200);
     cJSON_Delete(JSON);
@@ -362,6 +373,7 @@ static esp_err_t HTTP_Handler_Telemetry(httpd_req_t *p_Request)
  */
 static esp_err_t HTTP_Handler_Update(httpd_req_t *p_Request)
 {
+    uint32_t Caps;
     int Received;
     int Total_Received;
     esp_err_t Error;
@@ -390,8 +402,14 @@ static esp_err_t HTTP_Handler_Update(httpd_req_t *p_Request)
         return HTTP_Server_SendError(p_Request, 500, "OTA begin failed");
     }
 
+#ifdef CONFIG_SPIRAM
+    Caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+#else
+    Caps = MALLOC_CAP_8BIT;
+#endif
+
     /* Receive firmware data */
-    Buffer = static_cast<char *>(heap_caps_malloc(1024, MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM));
+    Buffer = static_cast<char *>(heap_caps_malloc(1024, Caps));
     if (Buffer == NULL) {
         esp_ota_abort(ota_handle);
 
@@ -588,9 +606,7 @@ esp_err_t HTTP_Server_Init(const Network_HTTP_Server_Config_t *p_Config)
 {
     if (p_Config == NULL) {
         return ESP_ERR_INVALID_ARG;
-    }
-
-    if (_HTTP_Server_State.isInitialized) {
+    } else if (_HTTP_Server_State.isInitialized) {
         ESP_LOGW(TAG, "Already initialized, updating config");
 
         memcpy(&_HTTP_Server_State.Config, p_Config, sizeof(Network_HTTP_Server_Config_t));

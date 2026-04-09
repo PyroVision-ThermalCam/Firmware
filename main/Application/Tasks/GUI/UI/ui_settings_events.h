@@ -28,12 +28,6 @@
 
 #include <stdint.h>
 
-/** @brief          Forward declaration for memory usage update function.
- *                  Implemented in ui_Settings.cpp to update storage and
- *                  coredump partition usage displays.
- */
-void ui_settings_update_flash_usage(void);
-
 /** @brief
  */
 typedef struct {
@@ -54,6 +48,7 @@ extern Slider_Widgets_t jpeg_quality_widgets;
 
 extern lv_obj_t *usb_mode_switch;
 extern lv_obj_t *usb_uvc_switch;
+extern lv_obj_t *usb_cdc_switch;
 extern lv_obj_t *image_format_dropdown;
 extern lv_obj_t *jpeg_quality_row;
 
@@ -82,30 +77,44 @@ void on_WiFi_Autoconnect_Callback(lv_event_t *e);
  */
 void on_WiFi_Connect_Callback(lv_event_t *e);
 
+/** @brief          Forward declaration for memory usage update function.
+ *                  Implemented in ui_Settings.cpp to update storage and
+ *                  coredump partition usage displays.
+ */
+void ui_settings_update_memory_usage(void);
+
 /** @brief      Flash clear NVS button callback to reset all settings to factory defaults.
  *  @param e    Pointer to the event object
  */
-void on_Flash_ClearNVS_Callback(lv_event_t *e);
+void on_Memory_ClearNVS_Callback(lv_event_t *e);
 
-/** @brief      Flash clear storage button callback to erase storage partition.
+/** @brief      Memory clear storage button callback to erase storage partition.
  *  @param e    Pointer to the event object
  */
-void on_Flash_ClearStorage_Callback(lv_event_t *e);
+void on_Memory_ClearStorage_Callback(lv_event_t *e);
 
-/** @brief      Flash clear coredump button callback to erase coredump partition.
+/** @brief      Memory clear coredump button callback to erase coredump partition.
  *  @param e    Pointer to the event object
  */
-void on_Flash_ClearCoredump_Callback(lv_event_t *e);
+void on_Memory_ClearCoredump_Callback(lv_event_t *e);
 
-/** @brief      USB mode switch callback to enable/disable USB Mass Storage.
+/** @brief      USB mode switch callback to enable/disable the composite USB device.
+ *              Reads current UVC and CDC enable settings and starts all configured classes.
  *  @param e    Pointer to the event object
  */
 void on_USB_Mode_Switch_Callback(lv_event_t *e);
 
-/** @brief      USB UVC switch callback to enable/disable USB Video Class.
+/** @brief      USB UVC switch callback to enable/disable UVC in USB settings.
+ *              Changes take effect on the next USB enable/disable cycle.
  *  @param e    Pointer to the event object
  */
 void on_USB_UVC_Switch_Callback(lv_event_t *e);
+
+/** @brief      USB CDC switch callback to enable/disable CDC-ACM in USB settings.
+ *              Changes take effect on the next USB enable/disable cycle.
+ *  @param e    Pointer to the event object
+ */
+void on_USB_CDC_Switch_Callback(lv_event_t *e);
 
 /** @brief      Image format dropdown callback to change image format setting.
  *  @param e    Pointer to the event object

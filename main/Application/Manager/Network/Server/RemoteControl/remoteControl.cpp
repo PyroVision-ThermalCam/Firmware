@@ -44,9 +44,7 @@ esp_err_t RemoteControl_GetTemperature(float *p_Temperature)
 {
     if (p_Temperature == NULL) {
         return ESP_ERR_INVALID_ARG;
-    }
-
-    if (DevicesManager_GetTemperature(p_Temperature) != ESP_OK) {
+    } else if (DevicesManager_GetTemperature(p_Temperature) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get temperature from DevicesManager!");
 
         return ESP_FAIL;
@@ -109,34 +107,9 @@ esp_err_t RemoteControl_SetTime(const char *p_TimeStr)
     return ESP_OK;
 }
 
-esp_err_t RemoteControl_GetBatteryVoltage(int *p_Voltage)
+esp_err_t RemoteControl_GetBatteryVoltage(int *p_Voltage, uint8_t *p_SOC)
 {
-    if (p_Voltage == NULL) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    if (DevicesManager_GetBatteryVoltage(p_Voltage, NULL) != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to get battery voltage from DevicesManager!");
-
-        return ESP_FAIL;
-    }
-
-    return ESP_OK;
-}
-
-esp_err_t RemoteControl_GetStateOfCharge(uint8_t *p_SOC)
-{
-    if (p_SOC == NULL) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    if (DevicesManager_GetStateOfCharge(p_SOC) != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to get state of charge from DevicesManager!");
-
-        return ESP_FAIL;
-    }
-
-    return ESP_OK;
+    return DevicesManager_GetBatteryVoltage(p_Voltage, p_SOC);
 }
 
 esp_err_t RemoteControl_GetOV5640Image(uint8_t **pp_Buffer, size_t *p_Size, Settings_Image_Format_t Format)
@@ -193,7 +166,7 @@ esp_err_t RemoteControl_SetLeptonEmissivity(uint8_t Emissivity)
     }
 
     Error = SettingsManager_GetLepton(&Lepton);
-    if(Error != ESP_OK) {
+    if (Error != ESP_OK) {
         return Error;
     }
 
@@ -293,10 +266,7 @@ esp_err_t RemoteControl_GetLeptonSpotmeter(cJSON *p_JSON)
 {
     if (p_JSON == NULL) {
         return ESP_ERR_INVALID_ARG;
-    }
-
-    /* Check if data is available */
-    if (_RemoteControl_State.isValid == false) {
+    } else if (_RemoteControl_State.isValid == false) {
         ESP_LOGW(TAG, "No spotmeter data available yet");
 
         return ESP_ERR_NOT_FOUND;
@@ -447,7 +417,7 @@ esp_err_t RemoteControl_GetSDCardState(bool *p_Available)
     }
 
     Location = MemoryManager_GetStorageLocation();
-    if(Location == MEMORY_LOCATION_SD_CARD) {
+    if (Location == MEMORY_LOCATION_SD_CARD) {
         *p_Available = true;
     } else {
         *p_Available = false;

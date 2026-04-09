@@ -28,6 +28,7 @@
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <freertos/queue.h>
 #include <freertos/event_groups.h>
 
 #include <string.h>
@@ -35,7 +36,6 @@
 
 #include "devicesTask.h"
 #include "Application/application.h"
-#include "Application/Manager/Time/timeTypes.h"
 
 #define DEVICES_TASK_STOP_REQUEST           BIT0
 #define DEVICES_TASK_TIME_SYNCED            BIT1
@@ -47,9 +47,6 @@ typedef struct {
     bool isRunning;
     TaskHandle_t TaskHandle;
     EventGroupHandle_t EventGroup;
-    uint32_t LastBatteryUpdate;
-    uint32_t LastTimeUpdate;
-    struct timeval TimeOfDay;
 } Devices_Task_State_t;
 
 static Devices_Task_State_t _Devices_Task_State;
@@ -72,8 +69,6 @@ static void on_GUI_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
  */
 static void Task_Devices(void *p_Parameters)
 {
-    uint32_t Now;
-
     esp_task_wdt_add(NULL);
 
     ESP_LOGD(TAG, "Devices task started on core %d", xPortGetCoreID());
@@ -94,28 +89,13 @@ static void Task_Devices(void *p_Parameters)
             break;
         }
 
-        Now = esp_timer_get_time() / 1000;
-
-        if ((Now - _Devices_Task_State.LastBatteryUpdate) >= (60 * 1000)) {
-            App_Devices_Battery_t BatteryInfo;
-
-            ESP_LOGD(TAG, "Updating battery voltage...");
-
-            if (DevicesManager_GetBatteryVoltage(&BatteryInfo.Voltage, &BatteryInfo.Percentage) == ESP_OK) {
-                if (esp_event_post(DEVICE_EVENTS, DEVICE_EVENT_RESPONSE_BATTERY_VOLTAGE, &BatteryInfo, sizeof(BatteryInfo), pdMS_TO_TICKS(100)) != ESP_OK) {
-                    ESP_LOGW(TAG, "Failed to post battery event - event queue full!");
-                }
-            } else {
-                ESP_LOGE(TAG, "Failed to read battery voltage!");
-            }
-
-            _Devices_Task_State.LastBatteryUpdate = esp_timer_get_time() / 1000;
-        }
+        DevicesManager_HandleExpanderInterrupt();
 
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 
     ESP_LOGD(TAG, "Devices task shutting down");
+
     DevicesManager_Deinit();
 
     _Devices_Task_State.TaskHandle = NULL;
@@ -134,7 +114,6 @@ esp_err_t Devices_Task_Init(void)
         return ESP_OK;
     }
 
-    /* Create event group */
     _Devices_Task_State.EventGroup = xEventGroupCreate();
     if (_Devices_Task_State.EventGroup == NULL) {
         ESP_LOGE(TAG, "Failed to create event group!");
@@ -149,7 +128,6 @@ esp_err_t Devices_Task_Init(void)
         return Error;
     }
 
-    /* Use the event loop to receive control signals from other tasks */
     esp_event_handler_register(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler, NULL);
 
     _Devices_Task_State.isInitialized = true;
@@ -167,11 +145,6 @@ void Devices_Task_Deinit(void)
 
     DevicesManager_Deinit();
 
-    if (_Devices_Task_State.EventGroup != NULL) {
-        vEventGroupDelete(_Devices_Task_State.EventGroup);
-        _Devices_Task_State.EventGroup = NULL;
-    }
-
     _Devices_Task_State.isInitialized = false;
 
     return;
@@ -179,7 +152,7 @@ void Devices_Task_Deinit(void)
 
 esp_err_t Devices_Task_Start(App_Context_t *p_AppContext)
 {
-    BaseType_t ret;
+    BaseType_t Error;
 
     if (p_AppContext == NULL) {
         return ESP_ERR_INVALID_ARG;
@@ -195,18 +168,12 @@ esp_err_t Devices_Task_Start(App_Context_t *p_AppContext)
 
     ESP_LOGD(TAG, "Starting Devices Task");
 
-    ret = xTaskCreatePinnedToCore(
-              Task_Devices,
-              "Task_Devices",
-              CONFIG_DEVICES_TASK_STACKSIZE,
-              p_AppContext,
-              CONFIG_DEVICES_TASK_PRIO,
-              &_Devices_Task_State.TaskHandle,
-              CONFIG_DEVICES_TASK_CORE
-          );
+    Error = xTaskCreatePinnedToCore(Task_Devices, "Task_Devices", CONFIG_DEVICES_TASK_STACKSIZE, p_AppContext,
+                                    CONFIG_DEVICES_TASK_PRIO, &_Devices_Task_State.TaskHandle, CONFIG_DEVICES_TASK_CORE);
+    if (Error != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create Devices Task: %d!", Error);
 
-    if (ret != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create Devices Task: %d!", ret);
+        _Devices_Task_State.isRunning = false;
 
         return ESP_ERR_NO_MEM;
     }

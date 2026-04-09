@@ -84,7 +84,7 @@ enum {
     SETTINGS_ID_LED_FLASH_ENABLE,              /**< LED flash enable setting changed.
                                                      Data contains bool with new enabled state. */
     SETTINGS_ID_LED_FLASH_POWER,                /**< LED flash power setting changed.
-                                                     Data contains uint8_t with new power value. */ 
+                                                     Data contains uint8_t with new power value. */
 };
 
 /** @brief GUI ROI types.
@@ -224,7 +224,9 @@ typedef struct {
  */
 typedef struct {
     bool MSC_Enabled;                           /**< Enable USB Mass Storage Class mode. */
-    uint8_t Reserved[7];                        /**< Reserved for future use. */
+    bool UVC_Enabled;                           /**< Enable USB Video Class (UVC) mode. */
+    bool CDC_Enabled;                           /**< Enable USB Communication Device Class (CDC-ACM) mode. */
+    uint8_t Reserved[5];                        /**< Reserved for future use. */
 } __attribute__((packed)) Settings_USB_t;
 
 /** @brief Complete application settings structure.

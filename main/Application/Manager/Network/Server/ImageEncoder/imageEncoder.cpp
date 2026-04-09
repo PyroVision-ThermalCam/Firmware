@@ -103,9 +103,10 @@ esp_err_t ImageEncoder_Encode(const Network_Thermal_Frame_t *p_Frame,
 {
     esp_err_t Error;
     size_t PixelCount;
+    size_t EncodedSize;
     uint8_t *p_RGB;
     uint8_t *p_EncodedData;
-    size_t EncodedSize;
+    uint32_t Caps;
 
     if ((p_Frame == NULL) || (p_Encoded == NULL)) {
         return ESP_ERR_INVALID_ARG;
@@ -115,8 +116,14 @@ esp_err_t ImageEncoder_Encode(const Network_Thermal_Frame_t *p_Frame,
 
     PixelCount = p_Frame->Width * p_Frame->Height;
 
+#ifdef CONFIG_SPIRAM
+    Caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+#else
+    Caps = MALLOC_CAP_8BIT;
+#endif
+
     /* Allocate temporary RGB buffer for palette application */
-    p_RGB = static_cast<uint8_t *>(heap_caps_malloc(PixelCount * 3, MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM));
+    p_RGB = static_cast<uint8_t *>(heap_caps_malloc(PixelCount * 3, Caps));
     if (p_RGB == NULL) {
         ESP_LOGE(TAG, "Failed to allocate RGB buffer!");
 
@@ -144,6 +151,7 @@ esp_err_t ImageEncoder_Encode(const Network_Thermal_Frame_t *p_Frame,
                 p_Encoded->Width = p_Frame->Width;
                 p_Encoded->Height = p_Frame->Height;
             }
+
             break;
         }
         case IMAGE_FORMAT_PNG: {
@@ -155,6 +163,7 @@ esp_err_t ImageEncoder_Encode(const Network_Thermal_Frame_t *p_Frame,
                 p_Encoded->Format = IMAGE_FORMAT_PNG;
                 p_Encoded->Width = p_Frame->Width;
                 p_Encoded->Height = p_Frame->Height;
+
                 break;
             } else if (Error == ESP_ERR_NOT_SUPPORTED) {
                 ESP_LOGW(TAG, "PNG format not supported, falling back to RAW");
@@ -182,11 +191,11 @@ esp_err_t ImageEncoder_Encode(const Network_Thermal_Frame_t *p_Frame,
                 p_Encoded->Width = p_Frame->Width;
                 p_Encoded->Height = p_Frame->Height;
             }
+
             break;
         }
         case IMAGE_FORMAT_RAW:
         default: {
-            /* Return raw RGB data */
             p_Encoded->Data = p_RGB;
             p_Encoded->Size = PixelCount * 3;
             p_Encoded->Format = IMAGE_FORMAT_RAW;

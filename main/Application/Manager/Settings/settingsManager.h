@@ -118,7 +118,7 @@ esp_err_t SettingsManager_GetWiFi(Settings_WiFi_t *p_Settings);
  *  @return                 ESP_OK on success, ESP_ERR_* on failure
  */
 esp_err_t SettingsManager_UpdateWiFi(Settings_WiFi_t *p_Settings,
-                                       SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
+                                     SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
 
 /** @brief              Get the Provisioning settings from the Settings Manager RAM.
  *  @param p_Settings   Pointer to Provisioning settings structure to populate
@@ -133,7 +133,7 @@ esp_err_t SettingsManager_GetProvisioning(Settings_Provisioning_t *p_Settings);
  *  @return                 ESP_OK on success, ESP_ERR_* on failure
  */
 esp_err_t SettingsManager_UpdateProvisioning(Settings_Provisioning_t *p_Settings,
-                                       SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
+                                             SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
 
 /** @brief              Get the Display settings from the Settings Manager RAM.
  *  @param p_Settings   Pointer to Display settings structure to populate
@@ -148,7 +148,7 @@ esp_err_t SettingsManager_GetDisplay(Settings_Display_t *p_Settings);
  *  @return                 ESP_OK on success, ESP_ERR_* on failure
  */
 esp_err_t SettingsManager_UpdateDisplay(Settings_Display_t *p_Settings,
-                                       SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
+                                        SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
 
 /** @brief              Get the HTTP Server settings from the Settings Manager RAM.
  *  @param p_Settings   Pointer to HTTP Server settings structure to populate
@@ -163,7 +163,7 @@ esp_err_t SettingsManager_GetHTTPServer(Settings_HTTP_Server_t *p_Settings);
  *  @return                 ESP_OK on success, ESP_ERR_* on failure
  */
 esp_err_t SettingsManager_UpdateHTTPServer(Settings_HTTP_Server_t *p_Settings,
-                                       SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
+                                           SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
 
 /** @brief              Get the VISA Server settings from the Settings Manager RAM.
  *  @param p_Settings   Pointer to VISA Server settings structure to populate
@@ -178,7 +178,7 @@ esp_err_t SettingsManager_GetVISAServer(Settings_VISA_Server_t *p_Settings);
  *  @return                 ESP_OK on success, ESP_ERR_* on failure
  */
 esp_err_t SettingsManager_UpdateVISAServer(Settings_VISA_Server_t *p_Settings,
-                                       SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
+                                           SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
 
 /** @brief              Get the System settings from the Settings Manager RAM.
  *  @param p_Settings   Pointer to System settings structure to populate
@@ -200,7 +200,7 @@ esp_err_t SettingsManager_UpdateSystem(Settings_System_t *p_Settings,
  *  @return             ESP_OK on success, ESP_ERR_* on failure
 */
 esp_err_t SettingsManager_GetLEDFlash(Settings_LED_Flash_t *p_Settings);
-    
+
 /** @brief                  Update LED Flash settings in the Settings Manager RAM.
  *                          This function triggers the SETTINGS_EVENT_LED_FLASH_CHANGED event.
  *  @param p_Settings       Pointer to LED Flash settings structure
@@ -208,7 +208,7 @@ esp_err_t SettingsManager_GetLEDFlash(Settings_LED_Flash_t *p_Settings);
  *  @return                 ESP_OK on success, ESP_ERR_* on failure
  */
 esp_err_t SettingsManager_UpdateLEDFlash(Settings_LED_Flash_t *p_Settings,
-                                       SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
+                                         SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
 
 /** @brief              Get the USB settings from the Settings Manager RAM.
  *  @param p_Settings   Pointer to USB settings structure to populate
@@ -223,7 +223,7 @@ esp_err_t SettingsManager_GetUSB(Settings_USB_t *p_Settings);
  *  @return                 ESP_OK on success, ESP_ERR_* on failure
  */
 esp_err_t SettingsManager_UpdateUSB(Settings_USB_t *p_Settings,
-                                       SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
+                                    SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
 
 /** @brief  Reset all settings to factory defaults.
  *          Erases NVS partition and reloads defaults.

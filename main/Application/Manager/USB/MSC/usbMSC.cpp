@@ -76,36 +76,35 @@ esp_err_t USBMSC_Init(const USB_MSC_Config_t *p_Config)
     ESP_LOGD(TAG, "  Storage type: %s (auto-detected)", p_StorageTypeName);
     ESP_LOGD(TAG, "  Mount point: %s", p_Config->MountPoint);
 
-    /* Lock filesystem for USB access */
+    /* Lock filesystem to prevent application writes during MSC operation */
     Error = MemoryManager_LockFilesystem();
     if (Error != ESP_OK) {
         ESP_LOGW(TAG, "Failed to lock filesystem: %d!", Error);
     }
 
-    /* Clean up old storage handle if it still exists from previous session */
-    if (_USBMSC_State.Storage != NULL) {
-        ESP_LOGD(TAG, "Cleaning up old storage handle from previous session...");
+    /* Soft-unmount VFS so USB host gets exclusive block-level access.
+       The underlying storage handles (WL handle or sdmmc_card) are preserved. */
+    Error = MemoryManager_SoftUnmountStorage();
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to soft-unmount storage for MSC: %d!", Error);
 
-        Error = tinyusb_msc_delete_storage(_USBMSC_State.Storage);
-        if (Error != ESP_OK) {
-            ESP_LOGW(TAG, "Failed to delete old storage: %d (continuing anyway)!", Error);
-        }
+        MemoryManager_UnlockFilesystem();
 
-        _USBMSC_State.Storage = NULL;
-
-        vTaskDelay(pdMS_TO_TICKS(200));
+        return Error;
     }
 
-    /* Initialize MSC storage based on detected storage location */
     if (StorageLocation == MEMORY_LOCATION_SD_CARD) {
-        sdmmc_card_t *p_Card = NULL;
+        sdmmc_card_t *Card;
         tinyusb_msc_storage_config_t Storage_Config;
 
         ESP_LOGD(TAG, "Configuring SD Card MSC...");
 
-        Error = MemoryManager_GetSDCardHandle(&p_Card);
+        Error = MemoryManager_GetSDCardHandle(&Card);
         if (Error != ESP_OK) {
             ESP_LOGE(TAG, "Failed to get SD card handle: %d!", Error);
+
+            MemoryManager_SoftRemountStorage();
+            MemoryManager_UnlockFilesystem();
 
             return Error;
         }
@@ -113,11 +112,15 @@ esp_err_t USBMSC_Init(const USB_MSC_Config_t *p_Config)
         ESP_LOGD(TAG, "Using SD card from MemoryManager");
 
         memset(&Storage_Config, 0, sizeof(tinyusb_msc_storage_config_t));
-        Storage_Config.medium.card = p_Card;
+        Storage_Config.medium.card = Card;
+        Storage_Config.mount_point = TINYUSB_MSC_STORAGE_MOUNT_USB;
 
         Error = tinyusb_msc_new_storage_sdmmc(&Storage_Config, &_USBMSC_State.Storage);
         if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to create SD card storage: %d!", Error);
+            ESP_LOGE(TAG, "Failed to create SD card MSC storage: %d!", Error);
+
+            MemoryManager_SoftRemountStorage();
+            MemoryManager_UnlockFilesystem();
 
             return Error;
         }
@@ -131,6 +134,9 @@ esp_err_t USBMSC_Init(const USB_MSC_Config_t *p_Config)
         if (Error != ESP_OK) {
             ESP_LOGE(TAG, "Failed to get wear leveling handle: %d!", Error);
 
+            MemoryManager_SoftRemountStorage();
+            MemoryManager_UnlockFilesystem();
+
             return Error;
         }
 
@@ -138,15 +144,22 @@ esp_err_t USBMSC_Init(const USB_MSC_Config_t *p_Config)
 
         memset(&Storage_Config, 0, sizeof(tinyusb_msc_storage_config_t));
         Storage_Config.medium.wl_handle = WL_Handle;
+        Storage_Config.mount_point = TINYUSB_MSC_STORAGE_MOUNT_USB;
 
         Error = tinyusb_msc_new_storage_spiflash(&Storage_Config, &_USBMSC_State.Storage);
         if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to create internal flash storage: %d!", Error);
+            ESP_LOGE(TAG, "Failed to create internal flash MSC storage: %d!", Error);
+
+            MemoryManager_SoftRemountStorage();
+            MemoryManager_UnlockFilesystem();
 
             return Error;
         }
     } else {
         ESP_LOGE(TAG, "Unknown storage location: %d!", StorageLocation);
+
+        MemoryManager_SoftRemountStorage();
+        MemoryManager_UnlockFilesystem();
 
         return ESP_ERR_INVALID_ARG;
     }
@@ -170,6 +183,24 @@ esp_err_t USBMSC_Deinit(void)
     }
 
     ESP_LOGD(TAG, "Deinitializing USB MSC...");
+
+    if (_USBMSC_State.Storage != NULL) {
+        Error = tinyusb_msc_delete_storage(_USBMSC_State.Storage);
+        if (Error != ESP_OK) {
+            ESP_LOGW(TAG, "Failed to delete MSC storage: %d!", Error);
+        } else {
+            ESP_LOGD(TAG, "MSC storage deleted successfully");
+        }
+
+        _USBMSC_State.Storage = NULL;
+    }
+
+    Error = MemoryManager_SoftRemountStorage();
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to soft-remount storage after MSC: %d!", Error);
+    } else {
+        ESP_LOGD(TAG, "Filesystem remounted for application");
+    }
 
     Error = MemoryManager_UnlockFilesystem();
     if (Error != ESP_OK) {

@@ -39,11 +39,8 @@
 
 static const char *TAG = "Provision-Handlers";
 
-/* Embed HTML file */
 extern const uint8_t provision_html_start[] asm("_binary_provision_html_start");
 extern const uint8_t provision_html_end[] asm("_binary_provision_html_end");
-
-/* Embed logo PNG */
 extern const uint8_t logo_png_start[] asm("_binary_logo_png_start");
 extern const uint8_t logo_png_end[] asm("_binary_logo_png_end");
 
@@ -56,8 +53,9 @@ extern const uint8_t logo_png_end[] asm("_binary_logo_png_end");
 static esp_err_t Provision_Handler_Send_JSON_Response(httpd_req_t *p_Request, cJSON *p_JSON, int StatusCode)
 {
     esp_err_t Error;
+    char *ResponseStr;
 
-    char *ResponseStr = cJSON_PrintUnformatted(p_JSON);
+    ResponseStr = cJSON_PrintUnformatted(p_JSON);
     if (ResponseStr == NULL) {
         httpd_resp_send_500(p_Request);
         return ESP_ERR_NO_MEM;
@@ -93,7 +91,7 @@ esp_err_t Provision_Handler_Logo(httpd_req_t *p_Request)
 
 esp_err_t Provision_Handler_CaptivePortal(httpd_req_t *p_Request)
 {
-    char address[26] = {0};
+    char address[26] = { 0 };
     esp_netif_t *ap_netif;
 
     ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
@@ -121,10 +119,11 @@ esp_err_t Provision_Handler_CaptivePortal(httpd_req_t *p_Request)
 
 esp_err_t Provision_Handler_Scan(httpd_req_t *p_Request)
 {
+    esp_err_t Error;
     wifi_scan_config_t ScanConfig;
     uint16_t APCount = 0;
-    uint16_t MaxAPCount = 50; /* Increased from default 20 to support more networks */
-    esp_err_t Error;
+    uint16_t MaxAPCount = 50;
+    wifi_ap_record_t *APList;
 
     memset(&ScanConfig, 0, sizeof(ScanConfig));
     ScanConfig.show_hidden = true;  /* Also scan for hidden networks */
@@ -173,7 +172,7 @@ esp_err_t Provision_Handler_Scan(httpd_req_t *p_Request)
         APCount = MaxAPCount;
     }
 
-    wifi_ap_record_t *APList = static_cast<wifi_ap_record_t *>(malloc(sizeof(wifi_ap_record_t) * APCount));
+    APList = static_cast<wifi_ap_record_t *>(malloc(sizeof(wifi_ap_record_t) * APCount));
     if (APList == NULL) {
         httpd_resp_send_500(p_Request);
 
@@ -209,26 +208,32 @@ esp_err_t Provision_Handler_Connect(httpd_req_t *p_Request)
     cJSON *Password_JSON = NULL;
     cJSON *Response = NULL;
     esp_err_t Error = ESP_OK;
+    uint32_t Caps;
     int Received;
     Settings_WiFi_t WiFiSettings;
-    int ContentLen = p_Request->content_len;
 
-    if (ContentLen > 512) {
+    if (p_Request->content_len > 512) {
         httpd_resp_send_err(p_Request, HTTPD_400_BAD_REQUEST, "Request too large");
 
         return ESP_FAIL;
     }
 
-    Buffer = static_cast<char *>(heap_caps_malloc(ContentLen + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+#ifdef CONFIG_SPIRAM
+    Caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+#else
+    Caps = MALLOC_CAP_8BIT;
+#endif
+
+    Buffer = static_cast<char *>(heap_caps_malloc(p_Request->content_len + 1, Caps));
     if (Buffer == NULL) {
         httpd_resp_send_500(p_Request);
 
         return ESP_ERR_NO_MEM;
     }
 
-    Received = httpd_req_recv(p_Request, Buffer, ContentLen);
+    Received = httpd_req_recv(p_Request, Buffer, p_Request->content_len);
     if (Received <= 0) {
-        free(Buffer);
+        heap_caps_free(Buffer);
         httpd_resp_send_err(p_Request, HTTPD_400_BAD_REQUEST, "Failed to read request");
 
         return ESP_FAIL;
@@ -255,17 +260,14 @@ esp_err_t Provision_Handler_Connect(httpd_req_t *p_Request)
         return ESP_FAIL;
     }
 
-    const char *SSID = SSID_JSON->valuestring;
-    const char *Password = Password_JSON->valuestring;
-
-    ESP_LOGI(TAG, "Provisioning request: SSID=%s", SSID);
+    ESP_LOGI(TAG, "Provisioning request: SSID=%s", SSID_JSON->valuestring);
 
     Response = cJSON_CreateObject();
 
     SettingsManager_GetWiFi(&WiFiSettings);
 
-    strncpy(WiFiSettings.SSID, SSID, sizeof(WiFiSettings.SSID) - 1);
-    strncpy(WiFiSettings.Password, Password, sizeof(WiFiSettings.Password) - 1);
+    strncpy(WiFiSettings.SSID, SSID_JSON->valuestring, sizeof(WiFiSettings.SSID) - 1);
+    strncpy(WiFiSettings.Password, Password_JSON->valuestring, sizeof(WiFiSettings.Password) - 1);
 
     SettingsManager_UpdateWiFi(&WiFiSettings);
 
@@ -278,7 +280,6 @@ esp_err_t Provision_Handler_Connect(httpd_req_t *p_Request)
 
         Provision_Handler_Send_JSON_Response(p_Request, Response, 200);
 
-        /* Post event with short timeout to avoid blocking HTTP task */
         esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_PROV_SUCCESS, NULL, 0, portMAX_DELAY);
     } else {
         ESP_LOGE(TAG, "Failed to save credentials to NVS: %d!", Error);

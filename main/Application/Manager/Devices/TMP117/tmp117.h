@@ -31,6 +31,12 @@
 
 #include "../I2C/i2c.h"
 
+/** @brief TMP117 device instance.
+ */
+typedef struct {
+    i2c_master_dev_handle_t Handle;     /**< I2C device handle. */
+} TMP117_Dev_t;
+
 /** @brief TMP117 conversion mode options.
  */
 typedef enum {
@@ -75,32 +81,34 @@ typedef struct {
  *                      Call TMP117_ReadTemperature() to retrieve temperature readings.
  *  @param p_Bus_Handle Pointer to I2C bus handle
  *  @param p_Dev_Handle Pointer to store the created device handle
+ *  @param p_Config     Optional pointer to configuration structure (if NULL, defaults are used)
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if pointers are NULL
  *                      ESP_ERR_NO_MEM if device handle allocation fails
  *                      ESP_FAIL if I2C communication fails
  */
-esp_err_t TMP117_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_handle_t *p_Dev_Handle);
+esp_err_t TMP117_Init(i2c_master_bus_handle_t *p_Bus_Handle, TMP117_Dev_t *p_Device,
+                      const TMP117_Config_t *p_Config = NULL);
 
 /** @brief              Deinitializes the TMP117 driver and frees resources.
- *  @note               After calling this function, the device handle becomes invalid.
- *  @param p_Dev_Handle Pointer to device handle
+ *  @note               After calling this function, the device instance is invalid.
+ *  @param p_Device     Pointer to device instance
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if pointer is NULL
  */
-esp_err_t TMP117_Deinit(i2c_master_dev_handle_t *p_Dev_Handle);
+esp_err_t TMP117_Deinit(TMP117_Dev_t *p_Device);
 
 /** @brief              Configure the TMP117 sensor.
  *                      Allows customization of conversion mode, cycle time, and averaging.
  *  @note               Configuration is written to the device immediately.
  *                      In One-Shot mode, call TMP117_TriggerOneShot() to start conversion.
- *  @param p_Dev_Handle Pointer to device handle
+ *  @param p_Device     Pointer to device instance
  *  @param p_Config     Pointer to configuration structure
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if pointers are NULL
  *                      ESP_FAIL if I2C communication fails
  */
-esp_err_t TMP117_Configure(i2c_master_dev_handle_t *p_Dev_Handle, const TMP117_Config_t *p_Config);
+esp_err_t TMP117_Configure(TMP117_Dev_t *p_Device, const TMP117_Config_t *p_Config);
 
 /** @brief              Read temperature from TMP117 sensor.
  *                      Reads the current temperature value from the sensor's result register.
@@ -108,63 +116,51 @@ esp_err_t TMP117_Configure(i2c_master_dev_handle_t *p_Dev_Handle, const TMP117_C
  *  @note               In continuous mode, returns the latest conversion result.
  *                      In one-shot mode, returns the result of the last triggered conversion.
  *                      Temperature range: -256°C to +256°C.
- *  @param p_Dev_Handle Pointer to device handle
+ *  @param p_Device     Pointer to device instance
  *  @param p_Temp       Pointer to store temperature in degrees Celsius
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if pointers are NULL
  *                      ESP_FAIL if I2C communication fails
  */
-esp_err_t TMP117_ReadTemperature(i2c_master_dev_handle_t *p_Dev_Handle, float *p_Temp);
+esp_err_t TMP117_ReadTemperature(TMP117_Dev_t *p_Device, float *p_Temp);
 
 /** @brief              Trigger a one-shot temperature conversion.
  *                      Only applicable in One-Shot mode. Initiates a single temperature conversion.
  *  @note               Conversion time depends on averaging setting (15.5ms to ~1 second).
  *                      Wait for conversion to complete before reading temperature.
  *                      Use TMP117_IsDataReady() to check if conversion is complete.
- *  @param p_Dev_Handle Pointer to device handle
+ *  @param p_Device     Pointer to device instance
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if pointer is NULL
  *                      ESP_ERR_INVALID_STATE if not in One-Shot mode
  *                      ESP_FAIL if I2C communication fails
  */
-esp_err_t TMP117_TriggerOneShot(i2c_master_dev_handle_t *p_Dev_Handle);
+esp_err_t TMP117_TriggerOneShot(TMP117_Dev_t *p_Device);
 
 /** @brief              Check if new temperature data is ready.
  *                      Reads the Data_Ready flag from the configuration register.
  *  @note               In continuous mode, flag is set after each conversion completes.
  *                      In one-shot mode, flag is set after the triggered conversion completes.
  *                      Flag is cleared automatically when temperature register is read.
- *  @param p_Dev_Handle Pointer to device handle
+ *  @param p_Device     Pointer to device instance
  *  @param p_Ready      Pointer to store ready status (true if data is ready)
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if pointers are NULL
  *                      ESP_FAIL if I2C communication fails
  */
-esp_err_t TMP117_IsDataReady(i2c_master_dev_handle_t *p_Dev_Handle, bool *p_Ready);
+esp_err_t TMP117_IsDataReady(TMP117_Dev_t *p_Device, bool *p_Ready);
 
 /** @brief              Read the TMP117 device ID.
  *                      Reads the device ID register to verify sensor identity.
  *                      Expected value: 0x0117
  *  @note               Use this function to verify correct I2C communication.
  *                      Device ID should always read 0x0117.
- *  @param p_Dev_Handle Pointer to device handle
+ *  @param p_Device     Pointer to device instance
  *  @param p_DeviceID   Pointer to store device ID
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if pointers are NULL
  *                      ESP_FAIL if I2C communication fails
  */
-esp_err_t TMP117_ReadDeviceID(i2c_master_dev_handle_t *p_Dev_Handle, uint16_t *p_DeviceID);
-
-/** @brief              Perform a soft reset of the TMP117.
- *                      Resets the device to power-on default state. All configuration is lost.
- *  @note               After reset, device returns to default configuration.
- *                      Wait at least 2ms after reset before accessing the device.
- *  @warning            All custom configuration will be lost after reset.
- *  @param p_Dev_Handle Pointer to device handle
- *  @return             ESP_OK on success
- *                      ESP_ERR_INVALID_ARG if pointer is NULL
- *                      ESP_FAIL if I2C communication fails
- */
-esp_err_t TMP117_SoftReset(i2c_master_dev_handle_t *p_Dev_Handle);
+esp_err_t TMP117_ReadDeviceID(TMP117_Dev_t *p_Device, uint16_t *p_DeviceID);
 
 #endif /* TMP117_H_ */

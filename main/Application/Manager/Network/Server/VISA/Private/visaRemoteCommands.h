@@ -56,13 +56,6 @@ int VISA_Cmd_SetTime(char **pp_Tokens, int Count, char *p_Response, size_t MaxLe
  */
 int VISA_Cmd_GetBatteryVoltage(char *p_Response, size_t MaxLen);
 
-/** @brief          Handle SENS:BATT:SOC? - Get state of charge.
- *  @param p_Response Response buffer
- *  @param MaxLen   Maximum response length
- *  @return         Response length or negative error code
- */
-int VISA_Cmd_GetStateOfCharge(char *p_Response, size_t MaxLen);
-
 /** @brief          Handle SENS:IMG:LEP:EMIS? - Get Lepton emissivity.
  *  @param p_Response Response buffer
  *  @param MaxLen   Maximum response length

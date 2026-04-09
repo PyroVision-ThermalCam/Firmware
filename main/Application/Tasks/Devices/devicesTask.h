@@ -27,6 +27,8 @@
 #include <esp_err.h>
 #include <esp_event.h>
 
+#include <freertos/FreeRTOS.h>
+
 #include <stdint.h>
 
 #include "Application/application.h"

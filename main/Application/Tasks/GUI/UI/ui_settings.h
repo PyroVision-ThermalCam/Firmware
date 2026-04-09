@@ -42,6 +42,6 @@ void ui_settings_init(lv_obj_t *p_Parent);
  *  @note   This function queries the FlashManager for current partition usage
  *          and updates the UI labels accordingly.
  */
-void ui_settings_update_flash_usage(void);
+void ui_settings_update_memory_usage(void);
 
 #endif /* UI_SETTINGS_H_ */

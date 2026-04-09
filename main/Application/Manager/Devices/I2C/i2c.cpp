@@ -23,6 +23,8 @@
 
 #include <esp_log.h>
 
+#include <stdio.h>
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/event_groups.h>
@@ -197,7 +199,7 @@ int32_t I2CM_ModifyRegister(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Regis
     RegValue &= ~Mask;
     RegValue |= Value;
 
-    uint8_t Data[2] = {Register, RegValue};
+    uint8_t Data[2] = { Register, RegValue };
 
     ESP_LOGD(TAG, "Modify Register 0x%02X with mask 0x%02X: 0x%02X", Register, Mask, RegValue);
 
@@ -210,4 +212,58 @@ int32_t I2CM_ModifyRegister(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Regis
     }
 
     return Error;
+}
+
+int32_t I2CM_Scan(i2c_master_bus_handle_t Bus_Handle)
+{
+    /* I2C reserved address ranges: 0x00-0x07 and 0x78-0x7F */
+    const uint8_t I2C_SCAN_ADDR_MIN = 0x08;
+    const uint8_t I2C_SCAN_ADDR_MAX = 0x77;
+
+    uint8_t DevicesFound = 0;
+
+    if (Bus_Handle == NULL) {
+        ESP_LOGE(TAG, "I2C Scan: Invalid bus handle!");
+
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    ESP_LOGI(TAG, "Scanning I2C bus...");
+    ESP_LOGI(TAG, "     0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F");
+
+    for (uint8_t Row = 0; Row < 8; Row++) {
+        char Line[52];
+        int Offset = 0;
+
+        for (uint8_t Col = 0; Col < 16; Col++) {
+            uint8_t Addr;
+
+            Addr = static_cast<uint8_t>((Row * 16) + Col);
+            if ((Addr < I2C_SCAN_ADDR_MIN) || (Addr > I2C_SCAN_ADDR_MAX)) {
+                Offset += snprintf(Line + Offset, sizeof(Line) - static_cast<size_t>(Offset), "-- ");
+            } else {
+                esp_err_t Error;
+
+                Error = i2c_master_probe(Bus_Handle, Addr, 50);
+                if (Error == ESP_OK) {
+                    Offset += snprintf(Line + Offset, sizeof(Line) - static_cast<size_t>(Offset), "%02X ", Addr);
+                    DevicesFound++;
+                } else {
+                    Offset += snprintf(Line + Offset, sizeof(Line) - static_cast<size_t>(Offset), "-- ");
+                }
+            }
+        }
+
+        ESP_LOGI(TAG, "%02X: %s", Row * 16, Line);
+    }
+
+    ESP_LOGI(TAG, "I2C scan complete. %u device(s) found.", static_cast<unsigned int>(DevicesFound));
+
+    /* Reset bus to recover from any timeout states that occurred during probing.
+     * A short delay after the reset allows the I2C driver to complete its internal
+     * state machine recovery before the next transfer is queued. */
+    i2c_master_bus_reset(Bus_Handle);
+    vTaskDelay(pdMS_TO_TICKS(20));
+
+    return ESP_OK;
 }

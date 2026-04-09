@@ -55,10 +55,6 @@ enum {
 /** @brief Device status event identifiers.
  */
 enum {
-    DEVICE_EVENT_RESPONSE_BATTERY_VOLTAGE,      /**< New battery voltage reading available.
-                                                     Data is transmitted in a App_Devices_Battery_t structure. */
-    DEVICE_EVENT_RESPONSE_CHARGING,             /**< Charging state changed.
-                                                     Data is transmitted as a bool. */
     DEVICE_EVENT_RESPONSE_TIME,                 /**< Device RTC time has been updated.
                                                      Data is transmitted in a struct tm structure. */
 };
@@ -97,6 +93,19 @@ typedef struct {
     int Voltage;                                /**< Battery voltage in millivolts. */
     uint8_t Percentage;                         /**< Battery percentage (0-100%). */
 } App_Devices_Battery_t;
+
+/** @brief Structure representing a VL53L1X distance measurement.
+ */
+typedef struct {
+    uint16_t Distance_mm;                       /**< Measured distance in millimeters. */
+    bool IsValid;                               /**< True if the measurement status is VL53L1X_RANGE_VALID. */
+} App_Devices_Distance_t;
+
+/** @brief Structure representing a temperature measurement.
+ */
+typedef struct {
+    float Temperature;                          /**< Measured temperature in degrees Celsius. */
+} App_Devices_Temperature_t;
 
 /** @brief Structure representing a ready frame from the Lepton camera.
  */

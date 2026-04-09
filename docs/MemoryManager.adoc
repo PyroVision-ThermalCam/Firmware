@@ -561,6 +561,74 @@ void SaveImage(uint8_t *p_ImageData, size_t ImageSize)
 }
 ----
 
+==== MemoryManager_SoftUnmountStorage()
+
+[source,cpp]
+----
+esp_err_t MemoryManager_SoftUnmountStorage(void);
+----
+
+Soft-unmount the active storage VFS filesystem. Unmounts the FAT filesystem and unregisters the VFS path, but preserves the underlying storage handles (wear leveling handle or SD card handle). This allows USB Mass Storage to access the raw storage blocks while the VFS path is no longer accessible by the application.
+
+**Return Values:**
+
+* `ESP_OK` - Storage soft-unmounted successfully
+* `ESP_ERR_INVALID_STATE` - Not initialized or storage not mounted
+* `ESP_ERR_INVALID_ARG` - Unknown storage location
+
+**Thread Safety:** Not thread-safe. Call from the USB Manager task context only.
+
+**Example:**
+
+[source,cpp]
+----
+// Prepare storage for USB MSC access
+MemoryManager_LockFilesystem();
+
+esp_err_t Error = MemoryManager_SoftUnmountStorage();
+if (Error != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to unmount storage for USB: %d", Error);
+    MemoryManager_UnlockFilesystem();
+    
+    return Error;
+}
+
+// VFS path is now inaccessible, raw storage available for USB MSC
+----
+
+==== MemoryManager_SoftRemountStorage()
+
+[source,cpp]
+----
+esp_err_t MemoryManager_SoftRemountStorage(void);
+----
+
+Soft-remount the active storage VFS filesystem. Re-registers the storage with diskio, registers the VFS path, and mounts the FAT filesystem using the preserved storage handles from a previous `MemoryManager_SoftUnmountStorage()` call.
+
+**Return Values:**
+
+* `ESP_OK` - Storage remounted successfully
+* `ESP_ERR_INVALID_STATE` - Not initialized or handles are invalid
+* `ESP_ERR_INVALID_ARG` - Unknown storage location
+* `ESP_FAIL` - FAT filesystem mount failed
+
+**Thread Safety:** Not thread-safe. Call from the USB Manager task context only.
+
+**Example:**
+
+[source,cpp]
+----
+// Restore VFS access after USB MSC is done
+esp_err_t Error = MemoryManager_SoftRemountStorage();
+if (Error != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to remount storage: %d", Error);
+}
+
+MemoryManager_UnlockFilesystem();
+
+// Application can now write files again
+----
+
 ---
 
 === Partition Management
@@ -837,6 +905,8 @@ esp_err_t SaveThermalImage(uint8_t *p_ImageData, size_t ImageSize)
 
 === Use Case 3: USB Mass Storage Activation
 
+The USB MSC workflow uses soft-unmount/remount to give the USB host exclusive block-level access to the storage while preserving the underlying storage handles for later remount.
+
 [source,cpp]
 ----
 esp_err_t EnableUSB_MassStorage(void)
@@ -848,41 +918,37 @@ esp_err_t EnableUSB_MassStorage(void)
         return Error;
     }
     
-    ESP_LOGW(TAG, "Filesystem locked - Application cannot write!");
-    
-    // Configure USB MSC
-    const USB_Manager_Config_t USB_Config = {
-        .p_MountPoint = MemoryManager_GetStoragePath(),
-        .p_VendorID = "PyroVis",
-        .p_ProductID = "ThermalCam",
-        .p_ProductRevision = "1.0",
-    };
-    
-    // Initialize USB Manager
-    Error = USBManager_Init(&USB_Config);
+    // Soft-unmount VFS so USB host gets exclusive raw block access
+    Error = MemoryManager_SoftUnmountStorage();
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize USB Manager: %d", Error);
-        
-        // Unlock on failure
+        ESP_LOGE(TAG, "Failed to soft-unmount storage: %d", Error);
         MemoryManager_UnlockFilesystem();
         return Error;
     }
-
+    
+    // Create TinyUSB MSC storage with TINYUSB_MSC_STORAGE_MOUNT_USB
+    // (actual implementation in USBMSC_Init)
+    
     return ESP_OK;
 }
 
-void DisableUSB_MassStorage_Callback(void *p_HandlerArgs, esp_event_base_t Base, 
-                                      int32_t ID, void *p_Data)
+esp_err_t DisableUSB_MassStorage(void)
 {
-    if (ID == USB_EVENT_UNINITIALIZED) {
-        // USB has been safely deactivated
-        esp_err_t Error = MemoryManager_UnlockFilesystem();
-        if (Error == ESP_OK) {
-            ESP_LOGI(TAG, "Filesystem unlocked - Application can write again!");
-        } else {
-            ESP_LOGE(TAG, "Failed to unlock filesystem: %d", Error);
-        }
+    // Delete TinyUSB MSC storage
+    // (actual implementation in USBMSC_Deinit)
+    
+    // Soft-remount VFS to restore application file I/O
+    esp_err_t Error = MemoryManager_SoftRemountStorage();
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to soft-remount storage: %d", Error);
     }
+    
+    Error = MemoryManager_UnlockFilesystem();
+    if (Error == ESP_OK) {
+        ESP_LOGI(TAG, "Filesystem unlocked - Application can write again!");
+    }
+    
+    return Error;
 }
 ----
 
@@ -955,7 +1021,9 @@ void PrintStorageDiagnostics(void)
 === USB Integration
 
 * *Lock Before USB*: Always lock filesystem with `MemoryManager_LockFilesystem()` before activating USB MSC
-* *Unlock After USB*: Always unlock filesystem with `MemoryManager_UnlockFilesystem()` after deactivating USB MSC
+* *Soft-Unmount for MSC*: Call `MemoryManager_SoftUnmountStorage()` after locking to give USB host exclusive block access
+* *Soft-Remount After MSC*: Call `MemoryManager_SoftRemountStorage()` after MSC is done to restore VFS file I/O
+* *Unlock After USB*: Always unlock filesystem with `MemoryManager_UnlockFilesystem()` after remounting
 * *Safe Ejection*: Ensure PC has ejected/unmounted the USB drive before deactivating USB MSC
 * *No Writes During USB*: Never write to filesystem while USB MSC is active
 

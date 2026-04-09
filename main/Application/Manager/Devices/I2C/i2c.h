@@ -93,4 +93,18 @@ int32_t I2CM_Read(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t *p_Data, uint32
  */
 int32_t I2CM_ModifyRegister(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Register, uint8_t Mask, uint8_t Value);
 
+/** @brief              Scan the I2C bus for connected devices.
+ *                      Probes all valid 7-bit addresses (0x08–0x77) and logs each responding
+ *                      device address via ESP_LOGI. Addresses 0x00–0x07 and 0x78–0x7F are
+ *                      reserved by the I2C specification and are skipped.
+ *  @note               This function is intended for debugging only and should not be called
+ *                      in production code. The scan temporarily occupies the I2C bus mutex
+ *                      for each probe, so other I2C operations are blocked during the scan.
+ *  @warning            Do not call while time-critical I2C transfers are running.
+ *  @param Bus_Handle   I2C master bus handle to scan on
+ *  @return             ESP_OK on success (regardless of how many devices were found)
+ *                      ESP_ERR_INVALID_ARG if Bus_Handle is NULL
+ */
+int32_t I2CM_Scan(i2c_master_bus_handle_t Bus_Handle);
+
 #endif /* I2C_H_ */

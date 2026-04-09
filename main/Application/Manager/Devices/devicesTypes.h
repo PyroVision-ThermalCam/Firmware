@@ -42,7 +42,12 @@ ESP_EVENT_DECLARE_BASE(DEVICES_EVENTS);
 /** @brief Devices Manager event identifiers.
  */
 enum {
-
+    DEVICES_EVENT_BATTERY_ALERT,    /**< Battery alert state changed. Data: bool (true = alert active). */
+    DEVICES_EVENT_BATTERY_CHARGING, /**< Battery charging state changed. Data: bool (true = charging). */
+    DEVICES_EVENT_RTC_INTERRUPT,    /**< RTC interrupt asserted. No payload. */
+    DEVICES_EVENT_TEMP_INTERRUPT,   /**< Temperature sensor interrupt asserted. No payload. */
+    DEVICES_EVENT_RANGE_INTERRUPT,  /**< Range sensor interrupt asserted. No payload. */
+    DEVICES_EVENT_SD_DETECT,        /**< SD-card detection state changed. Data: bool (true = card inserted). */
 };
 
 #endif /* DEVICES_TYPES_H_ */

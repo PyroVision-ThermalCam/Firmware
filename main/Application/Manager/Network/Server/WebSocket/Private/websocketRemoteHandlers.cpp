@@ -34,7 +34,7 @@ static const char *TAG = "WebSocket-Remote";
 static void WebSocket_SendResponse(int FD, const char *p_Cmd, const char *p_Status, cJSON *p_Data, const char *p_Error)
 {
     cJSON *Response;
-    
+
     Response = cJSON_CreateObject();
     cJSON_AddStringToObject(Response, "status", p_Status);
 
@@ -117,16 +117,9 @@ void WebSocket_Handle_GetBattery(int FD, cJSON *p_Data)
     uint8_t SOC;
     cJSON *Data;
 
-    Error = RemoteControl_GetBatteryVoltage(&Voltage);
+    Error = RemoteControl_GetBatteryVoltage(&Voltage, &SOC);
     if (Error != ESP_OK) {
         WebSocket_SendResponse(FD, "battery", "error", NULL, "Failed to get battery voltage");
-
-        return;
-    }
-
-    Error = RemoteControl_GetStateOfCharge(&SOC);
-    if (Error != ESP_OK) {
-        WebSocket_SendResponse(FD, "battery", "error", NULL, "Failed to get SOC");
 
         return;
     }

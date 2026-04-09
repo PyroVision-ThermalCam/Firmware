@@ -167,6 +167,8 @@ void SettingsManager_InitDefaultUSB(Settings_t *p_Settings)
     ESP_LOGW(TAG, "Loading default USB settings");
 
     p_Settings->USB.MSC_Enabled = SETTINGS_DEFAULT_USB_MSC_ENABLE;
+    p_Settings->USB.UVC_Enabled = SETTINGS_DEFAULT_USB_UVC_ENABLE;
+    p_Settings->USB.CDC_Enabled = SETTINGS_DEFAULT_USB_CDC_ENABLE;
 
     memset(p_Settings->USB.Reserved, 0, sizeof(p_Settings->USB.Reserved));
 }

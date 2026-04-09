@@ -31,8 +31,8 @@
 
 #include <sdkconfig.h>
 
-/* RV8263-C8 I2C Address */
-#define ADDR_RV8263C8                       0x51
+/* RV8263-C8 I2C Address (fixed, not configurable) */
+#define RV8263C8_I2C_ADDR                   0x51
 
 /* RV8263-C8 Register Addresses */
 #define RV8263_REG_CONTROL1                 0x00
@@ -88,11 +88,9 @@
 /* Month Register */
 #define RV8263_MONTH_CENTURY                (1 << 7)    /* Century bit */
 
-#define MAX_RTC_REGS 64
-
-static i2c_device_config_t _Device_I2C_Config = {
+static const i2c_device_config_t _RV8263C8_I2C_Config = {
     .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-    .device_address = ADDR_RV8263C8,
+    .device_address = RV8263C8_I2C_ADDR,
     .scl_speed_hz = 400000,
     .scl_wait_us = 0,
     .flags = {
@@ -100,13 +98,13 @@ static i2c_device_config_t _Device_I2C_Config = {
     },
 };
 
-static const char *TAG                      = "RTC";
+static const char *TAG                      = "RV-8263-C8";
 
 /** @brief      Convert BCD to binary.
  *  @param BCD  BCD value
  *  @return     Binary value
  */
-static uint8_t RTC_BCD2Bin(uint8_t BCD)
+static uint8_t RV8263C8_BCD2Bin(uint8_t BCD)
 {
     return ((BCD >> 4) * 10) + (BCD & 0x0F);
 }
@@ -115,18 +113,18 @@ static uint8_t RTC_BCD2Bin(uint8_t BCD)
  *  @param Bin  Binary value
  *  @return     BCD value
  */
-static uint8_t RTC_Bin2BCD(uint8_t Bin)
+static uint8_t RV8263C8_Bin2BCD(uint8_t Bin)
 {
     return ((Bin / 10) << 4) | (Bin % 10);
 }
 
-/** @brief              Read a single register from the RTC.
+/** @brief              Read a single register from the RV-8263-C8.
  *  @param Register     Register address
  *  @param p_Data       Pointer to store the read value
  *  @param p_Dev_Handle Pointer to store the created device handle
  *  @return             ESP_OK when successful
  */
-static esp_err_t RTC_ReadRegister(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Register, uint8_t *p_Data)
+static esp_err_t RV8263C8_Read_Register(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Register, uint8_t *p_Data)
 {
     esp_err_t Error;
 
@@ -138,15 +136,15 @@ static esp_err_t RTC_ReadRegister(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t
     return I2CM_Read(p_Dev_Handle, p_Data, 1);
 }
 
-/** @brief              Write a single register to the RTC.
+/** @brief              Write a single register to the RV-8263-C8.
  *  @param Register     Register address
  *  @param Data         Data to write
  *  @param p_Dev_Handle Pointer to store the created device handle
  *  @return             ESP_OK when successful
  */
-static esp_err_t RTC_WriteRegister(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Register, uint8_t Data)
+static esp_err_t RV8263C8_Write_Register(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Register, uint8_t Data)
 {
-    uint8_t Buffer[2] = {Register, Data};
+    uint8_t Buffer[2] = { Register, Data };
 
     return I2CM_Write(p_Dev_Handle, Buffer, sizeof(Buffer));
 }
@@ -158,8 +156,8 @@ static esp_err_t RTC_WriteRegister(i2c_master_dev_handle_t *p_Dev_Handle, uint8_
  *  @param p_Dev_Handle Pointer to store the created device handle
  *  @return             ESP_OK when successful
  */
-static esp_err_t RTC_ReadRegisters(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Register, uint8_t *p_Data,
-                                   uint8_t Length)
+static esp_err_t RV8263C8_Read_Registers(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Register, uint8_t *p_Data,
+                                         uint8_t Length)
 {
     esp_err_t Error;
 
@@ -178,12 +176,13 @@ static esp_err_t RTC_ReadRegisters(i2c_master_dev_handle_t *p_Dev_Handle, uint8_
  *  @param p_Dev_Handle Pointer to store the created device handle
  *  @return             ESP_OK when successful
  */
-static esp_err_t RTC_WriteRegisters(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Register, const uint8_t *p_Data,
-                                    uint8_t Length)
+static esp_err_t RV8263C8_Write_Registers(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Register,
+                                          const uint8_t *p_Data,
+                                          uint8_t Length)
 {
-    uint8_t Buffer[MAX_RTC_REGS + 1];
+    uint8_t Buffer[65];
 
-    if (Length > MAX_RTC_REGS) {
+    if (Length > 64) {
         return ESP_ERR_INVALID_SIZE;
     }
 
@@ -193,13 +192,13 @@ static esp_err_t RTC_WriteRegisters(i2c_master_dev_handle_t *p_Dev_Handle, uint8
     return I2CM_Write(p_Dev_Handle, Buffer, Length + 1);
 }
 
-esp_err_t RTC_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_handle_t *p_Dev_Handle)
+esp_err_t RV8263C8_Init(i2c_master_bus_handle_t *p_Bus_Handle, RV8263C8_Dev_t *p_Device)
 {
     esp_err_t Error;
     uint8_t Control1;
     uint8_t Seconds;
 
-    Error = i2c_master_bus_add_device(*p_Bus_Handle, &_Device_I2C_Config, p_Dev_Handle);
+    Error = i2c_master_bus_add_device(*p_Bus_Handle, &_RV8263C8_I2C_Config, &p_Device->Handle);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to add I2C device: %d!", Error);
 
@@ -209,7 +208,7 @@ esp_err_t RTC_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_handle_
     ESP_LOGD(TAG, "Initialize RV8263-C8 RTC...");
 
     /* Check oscillator stop flag */
-    Error = RTC_ReadRegister(p_Dev_Handle, RV8263_REG_SECONDS, &Seconds);
+    Error = RV8263C8_Read_Register(&p_Device->Handle, RV8263_REG_SECONDS, &Seconds);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read seconds register: %d!", Error);
 
@@ -220,14 +219,14 @@ esp_err_t RTC_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_handle_
         ESP_LOGW(TAG, "Oscillator was stopped - time may be invalid!");
 
         /* Clear OS flag by writing seconds register */
-        Error = RTC_WriteRegister(p_Dev_Handle, RV8263_REG_SECONDS, Seconds & ~RV8263_SECONDS_OS);
+        Error = RV8263C8_Write_Register(&p_Device->Handle, RV8263_REG_SECONDS, Seconds & ~RV8263_SECONDS_OS);
         if (Error != ESP_OK) {
             return Error;
         }
     }
 
     /* Read Control1 register */
-    Error = RTC_ReadRegister(p_Dev_Handle, RV8263_REG_CONTROL1, &Control1);
+    Error = RV8263C8_Read_Register(&p_Device->Handle, RV8263_REG_CONTROL1, &Control1);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read control register: %d!", Error);
 
@@ -240,7 +239,7 @@ esp_err_t RTC_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_handle_
 
         Control1 &= ~RV8263_CTRL1_STOP;
 
-        Error = RTC_WriteRegister(p_Dev_Handle, RV8263_REG_CONTROL1, Control1);
+        Error = RV8263C8_Write_Register(&p_Device->Handle, RV8263_REG_CONTROL1, Control1);
         if (Error != ESP_OK) {
             return Error;
         }
@@ -251,35 +250,35 @@ esp_err_t RTC_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_handle_
     return ESP_OK;
 }
 
-esp_err_t RTC_Deinit(i2c_master_dev_handle_t *p_Dev_Handle)
+esp_err_t RV8263C8_Deinit(RV8263C8_Dev_t *p_Device)
 {
-    if (p_Dev_Handle != NULL) {
+    if (p_Device != NULL) {
         esp_err_t Error;
 
-        Error = i2c_master_bus_rm_device(*p_Dev_Handle);
+        Error = i2c_master_bus_rm_device(p_Device->Handle);
         if (Error != ESP_OK) {
             ESP_LOGE(TAG, "Failed to remove I2C device: %d!", Error);
 
             return Error;
         }
 
-        p_Dev_Handle = NULL;
+        p_Device->Handle = NULL;
     }
 
     return ESP_OK;
 }
 
-esp_err_t RTC_GetTime(i2c_master_dev_handle_t *p_Dev_Handle, struct tm *p_Time)
+esp_err_t RV8263C8_GetTime(RV8263C8_Dev_t *p_Device, struct tm *p_Time)
 {
     esp_err_t Error;
     uint8_t Buffer[7];
 
-    if ((p_Time == NULL) || (p_Dev_Handle == NULL)) {
+    if ((p_Time == NULL) || (p_Device == NULL)) {
         return ESP_ERR_INVALID_ARG;
     }
 
     /* Read time registers (Seconds to Year) */
-    Error = RTC_ReadRegisters(p_Dev_Handle, RV8263_REG_SECONDS, Buffer, sizeof(Buffer));
+    Error = RV8263C8_Read_Registers(&p_Device->Handle, RV8263_REG_SECONDS, Buffer, sizeof(Buffer));
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read time: %d!", Error);
 
@@ -287,13 +286,13 @@ esp_err_t RTC_GetTime(i2c_master_dev_handle_t *p_Dev_Handle, struct tm *p_Time)
     }
 
     /* Convert BCD to binary and map to struct tm format */
-    p_Time->tm_sec = RTC_BCD2Bin(Buffer[0] & 0x7F);         /* Seconds (0-59) */
-    p_Time->tm_min = RTC_BCD2Bin(Buffer[1] & 0x7F);         /* Minutes (0-59) */
-    p_Time->tm_hour = RTC_BCD2Bin(Buffer[2] & 0x3F);        /* Hours (0-23) */
-    p_Time->tm_mday = RTC_BCD2Bin(Buffer[3] & 0x3F);        /* Day of month (1-31) */
-    p_Time->tm_wday = Buffer[4] & 0x07;                     /* Day of week (0-6) */
-    p_Time->tm_mon = RTC_BCD2Bin(Buffer[5] & 0x1F) - 1;     /* Month (0-11, struct tm uses 0-based) */
-    p_Time->tm_year = RTC_BCD2Bin(Buffer[6]) + 100;         /* Years since 1900 (2000 = 100) */
+    p_Time->tm_sec = RV8263C8_BCD2Bin(Buffer[0] & 0x7F);        /* Seconds (0-59) */
+    p_Time->tm_min = RV8263C8_BCD2Bin(Buffer[1] & 0x7F);        /* Minutes (0-59) */
+    p_Time->tm_hour = RV8263C8_BCD2Bin(Buffer[2] & 0x3F);       /* Hours (0-23) */
+    p_Time->tm_mday = RV8263C8_BCD2Bin(Buffer[3] & 0x3F);       /* Day of month (1-31) */
+    p_Time->tm_wday = Buffer[4] & 0x07;                         /* Day of week (0-6) */
+    p_Time->tm_mon = RV8263C8_BCD2Bin(Buffer[5] & 0x1F) - 1;    /* Month (0-11, struct tm uses 0-based) */
+    p_Time->tm_year = RV8263C8_BCD2Bin(Buffer[6]) + 100;        /* Years since 1900 (2000 = 100) */
 
     /* Check century bit */
     if (Buffer[5] & RV8263_MONTH_CENTURY) {
@@ -309,13 +308,13 @@ esp_err_t RTC_GetTime(i2c_master_dev_handle_t *p_Dev_Handle, struct tm *p_Time)
     return ESP_OK;
 }
 
-esp_err_t RTC_SetTime(i2c_master_dev_handle_t *p_Dev_Handle, const struct tm *p_Time)
+esp_err_t RV8263C8_SetTime(RV8263C8_Dev_t *p_Device, const struct tm *p_Time)
 {
     uint8_t Buffer[7];
     int Year;
     int Month;
 
-    if ((p_Time == NULL) || (p_Dev_Handle == NULL)) {
+    if ((p_Time == NULL) || (p_Device == NULL)) {
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -333,13 +332,13 @@ esp_err_t RTC_SetTime(i2c_master_dev_handle_t *p_Dev_Handle, const struct tm *p_
     }
 
     /* Convert binary to BCD */
-    Buffer[0] = RTC_Bin2BCD(p_Time->tm_sec);
-    Buffer[1] = RTC_Bin2BCD(p_Time->tm_min);
-    Buffer[2] = RTC_Bin2BCD(p_Time->tm_hour);
-    Buffer[3] = RTC_Bin2BCD(p_Time->tm_mday);
+    Buffer[0] = RV8263C8_Bin2BCD(p_Time->tm_sec);
+    Buffer[1] = RV8263C8_Bin2BCD(p_Time->tm_min);
+    Buffer[2] = RV8263C8_Bin2BCD(p_Time->tm_hour);
+    Buffer[3] = RV8263C8_Bin2BCD(p_Time->tm_mday);
     Buffer[4] = p_Time->tm_wday;
-    Buffer[5] = RTC_Bin2BCD(Month);
-    Buffer[6] = RTC_Bin2BCD(Year % 100);
+    Buffer[5] = RV8263C8_Bin2BCD(Month);
+    Buffer[6] = RV8263C8_Bin2BCD(Year % 100);
 
     /* Set century bit if year >= 2100 */
     if (Year >= 2100) {
@@ -350,43 +349,43 @@ esp_err_t RTC_SetTime(i2c_master_dev_handle_t *p_Dev_Handle, const struct tm *p_
              Year, Month, p_Time->tm_mday,
              p_Time->tm_hour, p_Time->tm_min, p_Time->tm_sec);
 
-    return RTC_WriteRegisters(p_Dev_Handle, RV8263_REG_SECONDS, Buffer, sizeof(Buffer));
+    return RV8263C8_Write_Registers(&p_Device->Handle, RV8263_REG_SECONDS, Buffer, sizeof(Buffer));
 }
 
-esp_err_t RTC_SetAlarm(i2c_master_dev_handle_t *p_Dev_Handle, const RTC_Alarm_t *p_Alarm)
+esp_err_t RV8263C8_SetAlarm(RV8263C8_Dev_t *p_Device, const RV8263C8_Alarm_t *p_Alarm)
 {
     uint8_t Buffer[5];
 
-    if ((p_Alarm == NULL) || (p_Dev_Handle == NULL)) {
+    if ((p_Alarm == NULL) || (p_Device == NULL)) {
         return ESP_ERR_INVALID_ARG;
     }
 
     /* Configure alarm registers - set AE bit to 1 to disable, 0 to enable */
-    Buffer[0] = p_Alarm->EnableSeconds ? RTC_Bin2BCD(p_Alarm->Seconds) : RV8263_ALARM_AE;
-    Buffer[1] = p_Alarm->EnableMinutes ? RTC_Bin2BCD(p_Alarm->Minutes) : RV8263_ALARM_AE;
-    Buffer[2] = p_Alarm->EnableHours ? RTC_Bin2BCD(p_Alarm->Hours) : RV8263_ALARM_AE;
-    Buffer[3] = p_Alarm->EnableDay ? RTC_Bin2BCD(p_Alarm->Day) : RV8263_ALARM_AE;
+    Buffer[0] = p_Alarm->EnableSeconds ? RV8263C8_Bin2BCD(p_Alarm->Seconds) : RV8263_ALARM_AE;
+    Buffer[1] = p_Alarm->EnableMinutes ? RV8263C8_Bin2BCD(p_Alarm->Minutes) : RV8263_ALARM_AE;
+    Buffer[2] = p_Alarm->EnableHours ? RV8263C8_Bin2BCD(p_Alarm->Hours) : RV8263_ALARM_AE;
+    Buffer[3] = p_Alarm->EnableDay ? RV8263C8_Bin2BCD(p_Alarm->Day) : RV8263_ALARM_AE;
     Buffer[4] = p_Alarm->EnableWeekday ? p_Alarm->Weekday : RV8263_ALARM_AE;
 
-    return RTC_WriteRegisters(p_Dev_Handle, RV8263_REG_SECONDS_ALARM, Buffer, sizeof(Buffer));
+    return RV8263C8_Write_Registers(&p_Device->Handle, RV8263_REG_SECONDS_ALARM, Buffer, sizeof(Buffer));
 }
 
-esp_err_t RTC_EnableAlarmInterrupt(i2c_master_dev_handle_t *p_Dev_Handle, bool Enable)
+esp_err_t RV8263C8_EnableAlarmInterrupt(RV8263C8_Dev_t *p_Device, bool Enable)
 {
-    return I2CM_ModifyRegister(p_Dev_Handle, RV8263_REG_CONTROL2, RV8263_CTRL2_AIE,
+    return I2CM_ModifyRegister(&p_Device->Handle, RV8263_REG_CONTROL2, RV8263_CTRL2_AIE,
                                Enable ? RV8263_CTRL2_AIE : 0);
 }
 
-esp_err_t RTC_ClearAlarmFlag(i2c_master_dev_handle_t *p_Dev_Handle)
+esp_err_t RV8263C8_ClearAlarmFlag(RV8263C8_Dev_t *p_Device)
 {
-    return I2CM_ModifyRegister(p_Dev_Handle, RV8263_REG_CONTROL2, RV8263_CTRL2_AF, 0);
+    return I2CM_ModifyRegister(&p_Device->Handle, RV8263_REG_CONTROL2, RV8263_CTRL2_AF, 0);
 }
 
-bool RTC_IsAlarmTriggered(i2c_master_dev_handle_t *p_Dev_Handle)
+bool RV8263C8_IsAlarmTriggered(RV8263C8_Dev_t *p_Device)
 {
     uint8_t Control2;
 
-    if (RTC_ReadRegister(p_Dev_Handle, RV8263_REG_CONTROL2, &Control2) != ESP_OK) {
+    if (RV8263C8_Read_Register(&p_Device->Handle, RV8263_REG_CONTROL2, &Control2) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read Control2 register for alarm status!");
 
         return false;
@@ -395,18 +394,18 @@ bool RTC_IsAlarmTriggered(i2c_master_dev_handle_t *p_Dev_Handle)
     return (Control2 & RV8263_CTRL2_AF) != 0;
 }
 
-esp_err_t RTC_SetTimer(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Value, RTC_TimerFreq_t Frequency,
-                       bool InterruptEnable)
+esp_err_t RV8263C8_SetTimer(RV8263C8_Dev_t *p_Device, uint8_t Value, RV8263C8_TimerFreq_t Frequency,
+                            bool InterruptEnable)
 {
     esp_err_t Error;
     uint8_t TimerMode;
 
-    if (p_Dev_Handle == NULL) {
+    if (p_Device == NULL) {
         return ESP_ERR_INVALID_STATE;
     }
 
     /* Set timer value */
-    Error = RTC_WriteRegister(p_Dev_Handle, RV8263_REG_TIMER_VALUE, Value);
+    Error = RV8263C8_Write_Register(&p_Device->Handle, RV8263_REG_TIMER_VALUE, Value);
     if (Error != ESP_OK) {
         return Error;
     }
@@ -417,30 +416,30 @@ esp_err_t RTC_SetTimer(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Value, RTC
         TimerMode |= RV8263_TIMER_TIE;
     }
 
-    return RTC_WriteRegister(p_Dev_Handle, RV8263_REG_TIMER_MODE, TimerMode);
+    return RV8263C8_Write_Register(&p_Device->Handle, RV8263_REG_TIMER_MODE, TimerMode);
 }
 
-esp_err_t RTC_StopTimer(i2c_master_dev_handle_t *p_Dev_Handle)
+esp_err_t RV8263C8_StopTimer(RV8263C8_Dev_t *p_Device)
 {
-    return RTC_WriteRegister(p_Dev_Handle, RV8263_REG_TIMER_MODE, 0);
+    return RV8263C8_Write_Register(&p_Device->Handle, RV8263_REG_TIMER_MODE, 0);
 }
 
-esp_err_t RTC_SoftwareReset(i2c_master_dev_handle_t *p_Dev_Handle)
+esp_err_t RV8263C8_SoftwareReset(RV8263C8_Dev_t *p_Device)
 {
     ESP_LOGD(TAG, "Performing software reset...");
 
-    return RTC_WriteRegister(p_Dev_Handle, RV8263_REG_CONTROL1, RV8263_CTRL1_SR);
+    return RV8263C8_Write_Register(&p_Device->Handle, RV8263_REG_CONTROL1, RV8263_CTRL1_SR);
 }
 
 #ifdef DEBUG
-void RTC_DumpRegisters(i2c_master_dev_handle_t *p_Dev_Handle)
+void RV8263C8_DumpRegisters(RV8263C8_Dev_t *p_Device)
 {
     uint8_t Data;
 
     ESP_LOGI(TAG, "Register dump:");
 
     for (uint8_t i = 0x00; i <= 0x11; i++) {
-        if (RTC_ReadRegister(p_Dev_Handle, i, &Data) == ESP_OK) {
+        if (RV8263C8_Read_Register(&p_Device->Handle, i, &Data) == ESP_OK) {
             ESP_LOGI(TAG, "    Register 0x%02X: 0x%02X", i, Data);
         }
     }

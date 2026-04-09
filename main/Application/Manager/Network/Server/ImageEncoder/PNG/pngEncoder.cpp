@@ -42,29 +42,29 @@ esp_err_t PNGEncoder_Encode(const uint8_t *p_RGB, uint16_t Width, uint16_t Heigh
      *       - stb_image_write (https://github.com/nothings/stb) - Single-header library
      *
      * Example integration with lodepng:
-     * 
+     *
      * #include "lodepng.h"
-     * 
+     *
      * unsigned char *png_data;
      * size_t png_size;
      * unsigned error = lodepng_encode24(&png_data, &png_size, p_RGB, Width, Height);
-     * 
+     *
      * if (error) {
      *     ESP_LOGE(TAG, "PNG encoding error %u: %s", error, lodepng_error_text(error));
      *     return ESP_FAIL;
      * }
-     * 
+     *
      * // Allocate output buffer with proper memory caps
      * *p_Output = static_cast<uint8_t *>(heap_caps_malloc(png_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
      * if (*p_Output == NULL) {
      *     free(png_data);
      *     return ESP_ERR_NO_MEM;
      * }
-     * 
+     *
      * memcpy(*p_Output, png_data, png_size);
      * free(png_data);
      * *p_Size = png_size;
-     * 
+     *
      * return ESP_OK;
      */
 

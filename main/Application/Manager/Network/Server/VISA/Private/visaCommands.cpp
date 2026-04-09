@@ -66,9 +66,9 @@ static void VISA_PushError(int Error)
 static bool string_iequals(const std::string& s1, const std::string& s2)
 {
     return std::equal(s1.begin(), s1.end(), s2.begin(), s2.end(),
-                     [](char a, char b) {
-                         return std::tolower(a) == std::tolower(b);
-                     });
+    [](char a, char b) {
+        return std::tolower(a) == std::tolower(b);
+    });
 }
 
 /** @brief          Check if string is a query (ends with ?)
@@ -88,7 +88,7 @@ static std::vector<std::string> VISA_ParseCommand(const std::string& Command)
 {
     std::vector<std::string> TokenList;
     std::string Token;
-    
+
     for (char c : Command) {
         if ((c == ' ') || (c == '\t') || (c == ':')) {
             if ((Token.empty() == false)) {
@@ -99,11 +99,11 @@ static std::vector<std::string> VISA_ParseCommand(const std::string& Command)
             Token += c;
         }
     }
-    
+
     if (Token.empty() == false) {
         TokenList.push_back(Token);
     }
-    
+
     return TokenList;
 }
 
@@ -130,14 +130,14 @@ static int VISA_CMD_IDN(char *p_Response, size_t MaxLen)
         << (Info.FirmwareVersion[0] ? Info.FirmwareVersion : "1.0.0") << "\n";
 
     Result = oss.str();
-    
+
     /* Copy to output buffer */
     Length = std::min(Result.length(), MaxLen - 1);
     memcpy(p_Response, Result.c_str(), Length);
     p_Response[Length] = '\0';
-    
+
     ESP_LOGI(TAG, "*IDN? response: %s", Result.c_str());
-    
+
     return static_cast<int>(Length);
 }
 
@@ -292,13 +292,20 @@ static int VISA_CMD_SENS_IMG_DATA(char *p_Response, size_t MaxLen)
     int Digits;
     size_t Size = 1024;
     uint8_t *Data;
+    uint32_t Caps;
 
     /* TODO: Get actual image data */
     /* This should return binary data in IEEE 488.2 format */
     /* Format: #<n><length><data> where n = digits in length */
 
+#ifdef CONFIG_SPIRAM
+    Caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+#else
+    Caps = MALLOC_CAP_8BIT;
+#endif
+
     /* Example with dummy data */
-    Data = static_cast<uint8_t *>(heap_caps_malloc(1024, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    Data = static_cast<uint8_t *>(heap_caps_malloc(1024, Caps));
     if (Data == NULL) {
         VISA_PushError(SCPI_ERROR_OUT_OF_MEMORY);
 
@@ -401,7 +408,7 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
             if (isQuery) {
                 return VISA_Cmd_GetTime(Response, MaxLen);
             } else {
-                std::vector<char*> TokenList;
+                std::vector<char *> TokenList;
 
                 for (auto& t : Tokens) {
                     TokenList.push_back(const_cast<char*>(t.c_str()));
@@ -413,7 +420,7 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
             if (isQuery) {
                 return VISA_Cmd_GetLockState(Response, MaxLen);
             } else {
-                std::vector<char*> TokenList;
+                std::vector<char *> TokenList;
 
                 for (auto& t : Tokens) {
                     TokenList.push_back(const_cast<char*>(t.c_str()));
@@ -434,10 +441,6 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
                 if (isQuery) {
                     return VISA_Cmd_GetBatteryVoltage(Response, MaxLen);
                 }
-            } else if ((Tokens.size() >= 3) && string_iequals(Tokens[2], "SOC")) {
-                if (isQuery) {
-                    return VISA_Cmd_GetStateOfCharge(Response, MaxLen);
-                }
             }
         } else if ((Tokens.size() >= 2) && (string_iequals(Tokens[1], "IMG") || string_iequals(Tokens[1], "IMAGE"))) {
             if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "CAPT") || string_iequals(Tokens[2], "CAPTure"))) {
@@ -450,7 +453,7 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
                 if (isQuery) {
                     return VISA_Cmd_GetImageFormat(Response, MaxLen);
                 } else {
-                    std::vector<char*> TokenList;
+                    std::vector<char *> TokenList;
 
                     for (auto& t : Tokens) {
                         TokenList.push_back(const_cast<char*>(t.c_str()));
@@ -459,7 +462,7 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
                     return VISA_Cmd_SetImageFormat(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
                 }
             } else if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "PAL") || string_iequals(Tokens[2], "PALette"))) {
-                std::vector<char*> TokenList;
+                std::vector<char *> TokenList;
 
                 for (auto& t : Tokens) {
                     TokenList.push_back(const_cast<char*>(t.c_str()));
@@ -471,7 +474,7 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
                     if (isQuery) {
                         return VISA_Cmd_GetLeptonEmissivity(Response, MaxLen);
                     } else {
-                        std::vector<char*> TokenList;
+                        std::vector<char *> TokenList;
 
                         for (auto& t : Tokens) {
                             TokenList.push_back(const_cast<char*>(t.c_str()));
@@ -487,7 +490,7 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
                     if (isQuery) {
                         return VISA_Cmd_GetLeptonROI(Response, MaxLen);
                     } else {
-                        std::vector<char*> TokenList;
+                        std::vector<char *> TokenList;
 
                         for (auto& t : Tokens) {
                             TokenList.push_back(const_cast<char*>(t.c_str()));
@@ -508,7 +511,7 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
     else if (string_iequals(Tokens[0], "DISP") || string_iequals(Tokens[0], "DISPlay")) {
         if ((Tokens.size() >= 2) && string_iequals(Tokens[1], "LED")) {
             if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "STAT") || string_iequals(Tokens[2], "STATe"))) {
-                std::vector<char*> TokenList;
+                std::vector<char *> TokenList;
 
                 for (auto& t : Tokens) {
                     TokenList.push_back(const_cast<char*>(t.c_str()));
@@ -516,7 +519,7 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
 
                 return VISA_Cmd_SetStatusLED(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
             } else if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "BRIG") || string_iequals(Tokens[2], "BRIGhtness"))) {
-                std::vector<char*> TokenList;
+                std::vector<char *> TokenList;
 
                 for (auto& t : Tokens) {
                     TokenList.push_back(const_cast<char*>(t.c_str()));
@@ -529,7 +532,7 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
                 if (isQuery) {
                     return VISA_Cmd_GetFlashPower(Response, MaxLen);
                 } else {
-                    std::vector<char*> TokenList;
+                    std::vector<char *> TokenList;
 
                     for (auto& t : Tokens) {
                         TokenList.push_back(const_cast<char*>(t.c_str()));
@@ -541,17 +544,17 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
                 if (isQuery) {
                     return VISA_Cmd_GetFlashState(Response, MaxLen);
                 } else {
-                    std::vector<char*> TokenList;
+                    std::vector<char *> TokenList;
 
                     for (auto& t : Tokens) {
                         TokenList.push_back(const_cast<char*>(t.c_str()));
                     }
-    
+
                     return VISA_Cmd_SetFlashState(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
                 }
             }
         } else if ((Tokens.size() >= 2) && (string_iequals(Tokens[1], "MBOX") || string_iequals(Tokens[1], "MessageBOX"))) {
-            std::vector<char*> TokenList;
+            std::vector<char *> TokenList;
 
             for (auto& t : Tokens) {
                 TokenList.push_back(const_cast<char*>(t.c_str()));

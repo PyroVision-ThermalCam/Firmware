@@ -27,21 +27,19 @@
 
 #include "ui_settings_events.h"
 
-static USB_Manager_Config_t USB_Config;
-
 static const char *TAG = "ui_settings_events";
 
 void on_Lepton_Emissivity_Slider_Callback(lv_event_t *e)
 {
     int Value;
     Settings_Lepton_t LeptonSettings;
-    lv_obj_t *slider = static_cast<lv_obj_t *>(lv_event_get_target(e));
-    Slider_Widgets_t *widgets = static_cast<Slider_Widgets_t *>(lv_obj_get_user_data(slider));
+    lv_obj_t *Slider = static_cast<lv_obj_t *>(lv_event_get_target(e));
+    Slider_Widgets_t *Widgets = static_cast<Slider_Widgets_t *>(lv_obj_get_user_data(Slider));
 
     SettingsManager_GetLepton(&LeptonSettings);
 
-    Value = static_cast<int>(lv_slider_get_value(slider));
-    lv_label_set_text_fmt(widgets->Label, "%d", Value);
+    Value = static_cast<int>(lv_slider_get_value(Slider));
+    lv_label_set_text_fmt(Widgets->Label, "%d", Value);
 
     /* Save on release only */
     if (lv_event_get_code(e) == LV_EVENT_RELEASED) {
@@ -58,13 +56,13 @@ void on_Display_Brightness_Slider_Callback(lv_event_t *e)
 {
     int Value;
     Settings_Display_t DisplaySettings;
-    lv_obj_t *slider = static_cast<lv_obj_t *>(lv_event_get_target(e));
-    Slider_Widgets_t *widgets = static_cast<Slider_Widgets_t *>(lv_obj_get_user_data(slider));
+    lv_obj_t *Slider = static_cast<lv_obj_t *>(lv_event_get_target(e));
+    Slider_Widgets_t *Widgets = static_cast<Slider_Widgets_t *>(lv_obj_get_user_data(Slider));
 
     SettingsManager_GetDisplay(&DisplaySettings);
 
-    Value = static_cast<int>(lv_slider_get_value(slider));
-    lv_label_set_text_fmt(widgets->Label, "%d", Value);
+    Value = static_cast<int>(lv_slider_get_value(Slider));
+    lv_label_set_text_fmt(Widgets->Label, "%d", Value);
 
     /* Save on release only */
     if (lv_event_get_code(e) == LV_EVENT_RELEASED) {
@@ -77,17 +75,17 @@ void on_Lepton_Dropdown_Callback(lv_event_t *e)
 {
     int Value;
     Settings_Lepton_t LeptonSettings;
-    lv_obj_t *dropdown = static_cast<lv_obj_t *>(lv_event_get_target(e));
-    Slider_Widgets_t *widgets = static_cast<Slider_Widgets_t *>(lv_obj_get_user_data(dropdown));
+    SettingsManager_ChangeNotification_t Changed;
+    lv_obj_t *Dropdown = static_cast<lv_obj_t *>(lv_event_get_target(e));
+    Slider_Widgets_t *Widgets = static_cast<Slider_Widgets_t *>(lv_obj_get_user_data(Dropdown));
 
     SettingsManager_GetLepton(&LeptonSettings);
 
-    Value = LeptonSettings.EmissivityPresets[lv_dropdown_get_selected(dropdown)].Value * 100;
-    lv_slider_set_value(widgets->Slider, Value, LV_ANIM_ON);
-    lv_label_set_text_fmt(widgets->Label, "%d", Value);
+    Value = LeptonSettings.EmissivityPresets[lv_dropdown_get_selected(Dropdown)].Value * 100;
+    lv_slider_set_value(Widgets->Slider, Value, LV_ANIM_ON);
+    lv_label_set_text_fmt(Widgets->Label, "%d", Value);
 
     /* Save settings directly without triggering additional events */
-    SettingsManager_ChangeNotification_t Changed;
     Changed.ID = SETTINGS_ID_LEPTON_EMISSIVITY;
     Changed.Value = Value;
     LeptonSettings.CurrentEmissivity = static_cast<uint8_t>(Value);
@@ -153,7 +151,7 @@ void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32
                 lv_slider_set_value(emissivity_widgets.Slider, Changed.Value, LV_ANIM_ON);
                 lv_label_set_text_fmt(emissivity_widgets.Label, "%d", static_cast<int>(Changed.Value));
             }
-*/
+            */
             break;
         }
         case SETTINGS_EVENT_WIFI_CHANGED: {
@@ -169,34 +167,34 @@ void on_USB_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
     ESP_LOGD(TAG, "USB event received: ID=%d", ID);
 
     switch (ID) {
+        case USB_EVENT_CABLE_CONNECTED: {
+            lv_obj_remove_state(usb_mode_switch, LV_STATE_DISABLED);
+            lv_obj_remove_state(usb_uvc_switch, LV_STATE_DISABLED);
+            lv_obj_clear_state(usb_mode_switch, LV_STATE_CHECKED);
+            lv_obj_clear_state(usb_uvc_switch, LV_STATE_CHECKED);
+
+            ESP_LOGD(TAG, "USB cable connected, switches enabled");
+
+            break;
+        }
+        case USB_EVENT_CABLE_DISCONNECTED: {
+            lv_obj_add_state(usb_mode_switch, LV_STATE_DISABLED);
+            lv_obj_add_state(usb_uvc_switch, LV_STATE_DISABLED);
+            lv_obj_clear_state(usb_mode_switch, LV_STATE_CHECKED);
+            lv_obj_clear_state(usb_uvc_switch, LV_STATE_CHECKED);
+
+            ESP_LOGD(TAG, "USB cable disconnected, switches disabled");
+
+            break;
+        }
         case USB_EVENT_INITIALIZED: {
-            if (p_Data != NULL) {
-                USB_Mode_t Mode = *static_cast<USB_Mode_t *>(p_Data);
-
-                if (Mode == USB_MODE_MSC) {
-                    lv_obj_add_state(usb_mode_switch, LV_STATE_CHECKED);
-
-                    /* Lock UVC switch */
-                    lv_obj_remove_flag(usb_uvc_switch, LV_OBJ_FLAG_CLICKABLE);
-                    lv_obj_set_style_opa(usb_uvc_switch, LV_OPA_50, 0);
-                } else if (Mode == USB_MODE_UVC) {
-                    lv_obj_add_state(usb_uvc_switch, LV_STATE_CHECKED);
-
-                    /* Lock MSC switch */
-                    lv_obj_remove_flag(usb_mode_switch, LV_OBJ_FLAG_CLICKABLE);
-                    lv_obj_set_style_opa(usb_mode_switch, LV_OPA_50, 0);
-                }
-            }
+            ESP_LOGD(TAG, "USB subsystem initialized");
 
             break;
         }
         case USB_EVENT_UNINITIALIZED: {
-            /* Unlock both switches */
-            lv_obj_add_flag(usb_mode_switch, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_add_flag(usb_uvc_switch, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_set_style_opa(usb_mode_switch, LV_OPA_100, 0);
-            lv_obj_set_style_opa(usb_uvc_switch, LV_OPA_100, 0);
-
+            lv_obj_add_state(usb_mode_switch, LV_STATE_DISABLED);
+            lv_obj_add_state(usb_uvc_switch, LV_STATE_DISABLED);
             lv_obj_clear_state(usb_mode_switch, LV_STATE_CHECKED);
             lv_obj_clear_state(usb_uvc_switch, LV_STATE_CHECKED);
 
@@ -205,17 +203,17 @@ void on_USB_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
     }
 }
 
-void on_Flash_ClearNVS_Callback(lv_event_t *e)
+void on_Memory_ClearNVS_Callback(lv_event_t *e)
 {
     esp_err_t Error;
 
-    ESP_LOGI(TAG, "Resetting settings to factory defaults...");
+    ESP_LOGD(TAG, "Resetting settings to factory defaults...");
 
     Error = SettingsManager_ResetToDefaults();
     if (Error == ESP_OK) {
-        ESP_LOGI(TAG, "Settings reset successfully, restarting...");
+        ESP_LOGD(TAG, "Settings reset successfully, restarting...");
 
-        vTaskDelay(500 / portTICK_PERIOD_MS);
+        vTaskDelay(pdMS_TO_TICKS(500));
         esp_restart();
     } else {
         ESP_LOGE(TAG, "Failed to reset settings: %d!", Error);
@@ -225,13 +223,12 @@ void on_Flash_ClearNVS_Callback(lv_event_t *e)
 void on_Image_Format_Dropdown_Callback(lv_event_t *e)
 {
     Settings_System_t SystemSettings;
-    lv_obj_t *dropdown = static_cast<lv_obj_t *>(lv_event_get_target(e));
-    uint16_t selected = lv_dropdown_get_selected(dropdown);
 
     SettingsManager_GetSystem(&SystemSettings);
 
     /* Update image format */
-    SystemSettings.ImageFormat = static_cast<Settings_Image_Format_t>(selected);
+    SystemSettings.ImageFormat = static_cast<Settings_Image_Format_t>(lv_dropdown_get_selected(static_cast<lv_obj_t *>
+                                                                                               (lv_event_get_target(e))));
     SettingsManager_UpdateSystem(&SystemSettings, NULL);
 
     /* Show/hide JPEG quality slider based on format */
@@ -250,12 +247,12 @@ void on_Image_JpegQuality_Slider_Callback(lv_event_t *e)
 {
     int Value;
     Settings_System_t SystemSettings;
-    lv_obj_t *slider = static_cast<lv_obj_t *>(lv_event_get_target(e));
-    Slider_Widgets_t *widgets = static_cast<Slider_Widgets_t *>(lv_obj_get_user_data(slider));
+    lv_obj_t *Slider = static_cast<lv_obj_t *>(lv_event_get_target(e));
+    Slider_Widgets_t *widgets = static_cast<Slider_Widgets_t *>(lv_obj_get_user_data(Slider));
 
     SettingsManager_GetSystem(&SystemSettings);
 
-    Value = static_cast<int>(lv_slider_get_value(slider));
+    Value = static_cast<int>(lv_slider_get_value(Slider));
     lv_label_set_text_fmt(widgets->Label, "%d", Value);
 
     /* Update immediately for live preview */
@@ -263,7 +260,7 @@ void on_Image_JpegQuality_Slider_Callback(lv_event_t *e)
     SettingsManager_UpdateSystem(&SystemSettings, NULL);
 }
 
-void on_Flash_ClearStorage_Callback(lv_event_t *e)
+void on_Memory_ClearStorage_Callback(lv_event_t *e)
 {
     esp_err_t Error;
 
@@ -273,13 +270,13 @@ void on_Flash_ClearStorage_Callback(lv_event_t *e)
     if (Error == ESP_OK) {
         ESP_LOGI(TAG, "Storage partition erased successfully");
 
-        ui_settings_update_flash_usage();
+        ui_settings_update_memory_usage();
     } else {
         ESP_LOGE(TAG, "Failed to erase storage partition: %d!", Error);
     }
 }
 
-void on_Flash_ClearCoredump_Callback(lv_event_t *e)
+void on_Memory_ClearCoredump_Callback(lv_event_t *e)
 {
     esp_err_t Error;
 
@@ -289,7 +286,7 @@ void on_Flash_ClearCoredump_Callback(lv_event_t *e)
     if (Error == ESP_OK) {
         ESP_LOGI(TAG, "Coredump partition erased successfully");
 
-        ui_settings_update_flash_usage();
+        ui_settings_update_memory_usage();
     } else {
         ESP_LOGE(TAG, "Failed to erase coredump partition: %d!", Error);
     }
@@ -298,107 +295,53 @@ void on_Flash_ClearCoredump_Callback(lv_event_t *e)
 void on_USB_Mode_Switch_Callback(lv_event_t *e)
 {
     esp_err_t Error;
-    lv_obj_t *switch_obj = static_cast<lv_obj_t *>(lv_event_get_target(e));
+    lv_obj_t *Switch = static_cast<lv_obj_t *>(lv_event_get_target(e));
+    bool Enable = lv_obj_has_state(Switch, LV_STATE_CHECKED);
 
-    if (lv_obj_has_state(switch_obj, LV_STATE_CHECKED)) {
-        Settings_Info_t InfoSettings;
+    ESP_LOGI(TAG, "%s USB MSC...", Enable ? "Enabling" : "Disabling");
 
-        ESP_LOGI(TAG, "Enabling USB Mass Storage...");
+    Error = USBManager_EnableMSC(Enable);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to enqueue MSC command: %d!", Error);
 
-        if (USBManager_IsInitialized()) {
-            ESP_LOGW(TAG, "USB already active!");
-
-            lv_obj_clear_state(switch_obj, LV_STATE_CHECKED);
-
-            return;
-        }
-
-        /* Clear UVC switch if active */
-        lv_obj_clear_state(usb_uvc_switch, LV_STATE_CHECKED);
-
-        SettingsManager_GetInfo(&InfoSettings);
-
-        /* Configure USB Mass Storage with auto-detected mount point */
-        USB_Config = {
-            .Mode = USB_MODE_MSC,
-            .MountPoint = MemoryManager_GetStoragePath(),
-        };
-
-        Error = USBManager_Init(&USB_Config);
-        if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to initialize USB Manager: %d!", Error);
-
-            lv_obj_clear_state(switch_obj, LV_STATE_CHECKED);
+        if (Enable) {
+            lv_obj_clear_state(Switch, LV_STATE_CHECKED);
         } else {
-            /* Lock UVC switch to prevent mode conflict */
-            lv_obj_remove_flag(usb_uvc_switch, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_set_style_opa(usb_uvc_switch, LV_OPA_50, 0);
+            lv_obj_add_state(Switch, LV_STATE_CHECKED);
         }
-    } else {
-        ESP_LOGI(TAG, "Disabling USB Mass Storage...");
-
-        if (USBManager_IsInitialized() == false) {
-            ESP_LOGW(TAG, "USB not active!");
-
-            lv_obj_clear_state(switch_obj, LV_STATE_CHECKED);
-
-            return;
-        }
-
-        USBManager_Deinit();
     }
 }
 
 void on_USB_UVC_Switch_Callback(lv_event_t *e)
 {
     esp_err_t Error;
-    lv_obj_t *switch_obj = static_cast<lv_obj_t *>(lv_event_get_target(e));
+    lv_obj_t *Switch = static_cast<lv_obj_t *>(lv_event_get_target(e));
+    bool Enable = lv_obj_has_state(Switch, LV_STATE_CHECKED);
 
-    if (lv_obj_has_state(switch_obj, LV_STATE_CHECKED)) {
-        Settings_Info_t InfoSettings;
+    ESP_LOGI(TAG, "%s USB UVC...", Enable ? "Enabling" : "Disabling");
 
-        ESP_LOGI(TAG, "Enabling USB Video Class...");
+    Error = USBManager_EnableUVC(Enable);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to enqueue UVC command: %d!", Error);
 
-        if (USBManager_IsInitialized()) {
-            ESP_LOGW(TAG, "USB already active!");
-
-            lv_obj_clear_state(switch_obj, LV_STATE_CHECKED);
-
-            return;
-        }
-
-        /* Clear MSC switch if active */
-        lv_obj_clear_state(usb_mode_switch, LV_STATE_CHECKED);
-
-        SettingsManager_GetInfo(&InfoSettings);
-
-        /* Configure USB Video Class */
-        USB_Config = {
-            .Mode = USB_MODE_UVC,
-            .MountPoint = nullptr,
-        };
-
-        Error = USBManager_Init(&USB_Config);
-        if (Error != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to initialize USB Manager: %d!", Error);
-
-            lv_obj_clear_state(switch_obj, LV_STATE_CHECKED);
+        if (Enable) {
+            lv_obj_clear_state(Switch, LV_STATE_CHECKED);
         } else {
-            /* Lock MSC switch to prevent mode conflict */
-            lv_obj_remove_flag(usb_mode_switch, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_set_style_opa(usb_mode_switch, LV_OPA_50, 0);
+            lv_obj_add_state(Switch, LV_STATE_CHECKED);
         }
-    } else {
-        ESP_LOGI(TAG, "Disabling USB Video Class...");
-
-        if (USBManager_IsInitialized() == false) {
-            ESP_LOGW(TAG, "USB not active!");
-
-            lv_obj_clear_state(switch_obj, LV_STATE_CHECKED);
-
-            return;
-        }
-
-        USBManager_Deinit();
     }
+}
+
+void on_USB_CDC_Switch_Callback(lv_event_t *e)
+{
+    Settings_USB_t USBSettings;
+
+    SettingsManager_GetUSB(&USBSettings);
+
+    USBSettings.CDC_Enabled = lv_obj_has_state(static_cast<lv_obj_t *>(lv_event_get_target(e)), LV_STATE_CHECKED);
+
+    ESP_LOGI(TAG, "CDC %s in USB settings (takes effect on next USB enable).",
+             USBSettings.CDC_Enabled ? "enabled" : "disabled");
+
+    SettingsManager_UpdateUSB(&USBSettings, NULL);
 }

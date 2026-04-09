@@ -237,29 +237,38 @@ menu "PyroVision"
             config DEVICES_I2C_SCL
                 int "SCL pin number"
                 range 0 48
-                default 21
+                default 9
 
             config DEVICES_I2C_SDA
                 int "SDA pin number"
                 range 0 48
-                default 47
+                default 10
+
+            config EXPANDER_INT_GPIO
+                int "Port Expander INT# GPIO number"
+                range 0 48
+                default 1
+                help
+                    GPIO number connected to the INT# pin of the PCAL6416AHF port expander.
+                    The INT# output is active-low and open-drain.
+                    A falling edge triggers interrupt handling in the Devices Manager.
         endmenu
 
         menu "SPI"
             config SPI_SCLK
                 int "SCLK GPIO number"
                 range 0 48
-                default 46
+                default 40
 
             config SPI_MOSI
                 int "MOSI GPIO number"
                 range 0 48
-                default 48
+                default 39
 
             config SPI_MISO
                 int "MISO GPIO number"
                 range 0 48
-                default 9
+                default 41
 
             config SPI_TRANSFER_SIZE
                 int "Max. transfer size in bytes"
@@ -285,22 +294,22 @@ menu "PyroVision"
                 config TOUCH_SDA
                     int "Touch interrupt GPIO number"
                     range -1 48
-                    default 39
+                    default 10
 
                 config TOUCH_SCL
                     int "Touch interrupt GPIO number"
                     range -1 48
-                    default 40
+                    default 9
 
                 config TOUCH_IRQ
                     int "Touch interrupt GPIO number"
                     range -1 48
-                    default 38
+                    default 21
 
                 config TOUCH_RST
                     int "Touch reset GPIO number"
                     range -1 48
-                    default -1
+                    default 47
             endmenu
 
             menu "SD-Card"
@@ -326,10 +335,12 @@ menu "PyroVision"
 
                 config SD_CARD_PIN_CS
                     int "Card select GPIO"
-                    default 4
+                    range 0 48
+                    default 38
 
                 config SD_CARD_PIN_CD
                     int "Card detection GPIO"
+                    range -1 48
                     default 17
             endmenu
 
@@ -353,17 +364,17 @@ menu "PyroVision"
                 config LCD_CS
                     int "Chip Select GPIO"
                     range 0 48
-                    default 18
+                    default 42
 
                 config LCD_DC
                     int "DC GPIO"
                     range 0 48
-                    default 3
+                    default 46
 
                 config LCD_RST
                     int "Reset GPIO"
                     range -1 48
-                    default 8
+                    default 3
 
                 config LCD_BL
                     int "Backlight GPIO"
@@ -384,6 +395,24 @@ menu "PyroVision"
             config DEVICES_TASK_CORE
                 int "Task core"
                 default 1
+
+            config BATTERY_INTERVAL_MS
+                int "Battery measurement interval (ms)"
+                default 1000
+                help
+                    Interval in milliseconds between battery measurements in the Devices Task.
+
+            config DISTANCE_INTERVAL_MS
+                int "Distance measurement interval (ms)"
+                default 1000
+                help
+                    Interval in milliseconds between distance measurements in the Devices Task.
+
+            config TEMPERATURE_INTERVAL_MS
+                int "Temperature measurement interval (ms)"
+                default 10000
+                help
+                    Interval in milliseconds between temperature readings in the Devices Task.
         endmenu
     endmenu
 

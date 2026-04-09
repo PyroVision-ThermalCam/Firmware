@@ -72,7 +72,7 @@ static void on_UVC_StreamingStart(int itf, uvc_event_t *p_Event)
 
         _UVC_State.isStreaming = true;
 
-        esp_err_t Error = esp_event_post(USB_EVENTS, USB_EVENT_UVC_STREAMING_START, NULL, 0, pdMS_TO_TICKS(100));
+        esp_err_t Error = esp_event_post(USB_EVENTS, USB_EVENT_UVC_STREAMING_START, NULL, 0, 0);
         if (Error != ESP_OK) {
             ESP_LOGW(TAG, "Failed to post streaming start event: %d", Error);
         }
@@ -92,7 +92,7 @@ static void on_UVC_StreamingStop(int itf, uvc_event_t *p_Event)
 
         _UVC_State.isStreaming = false;
 
-        esp_err_t Error = esp_event_post(USB_EVENTS, USB_EVENT_UVC_STREAMING_STOP, NULL, 0, pdMS_TO_TICKS(100));
+        esp_err_t Error = esp_event_post(USB_EVENTS, USB_EVENT_UVC_STREAMING_STOP, NULL, 0, 0);
         if (Error != ESP_OK) {
             ESP_LOGW(TAG, "Failed to post streaming stop event: %d", Error);
         }
@@ -107,7 +107,7 @@ static void on_UVC_StreamingStop(int itf, uvc_event_t *p_Event)
  */
 static bool on_UVC_FrameRequest(int itf, uint8_t **pp_Buffer, size_t *p_BufferSize)
 {
-    if (xSemaphoreTake(_UVC_State.BufferMutex, 10 / portTICK_PERIOD_MS) == pdFALSE) {
+    if (xSemaphoreTake(_UVC_State.BufferMutex, 0) == pdFALSE) {
         return false;
     }
 
@@ -135,7 +135,7 @@ static bool on_UVC_FrameRequest(int itf, uint8_t **pp_Buffer, size_t *p_BufferSi
  */
 static void on_UVC_FrameReturn(int itf, uint8_t *p_Buffer)
 {
-    if (xSemaphoreTake(_UVC_State.BufferMutex, 10 / portTICK_PERIOD_MS) == pdFALSE) {
+    if (xSemaphoreTake(_UVC_State.BufferMutex, 0) == pdFALSE) {
         return;
     }
 
@@ -159,6 +159,7 @@ static void on_UVC_FrameReturn(int itf, uint8_t *p_Buffer)
 esp_err_t USBUVC_Init(const USB_UVC_Config_t *p_Config)
 {
     esp_err_t Error;
+    uint32_t Caps;
 
     if (p_Config == NULL) {
         ESP_LOGE(TAG, "Invalid configuration!");
@@ -184,10 +185,14 @@ esp_err_t USBUVC_Init(const USB_UVC_Config_t *p_Config)
         return ESP_ERR_NO_MEM;
     }
 
-    /* Allocate ping-pong buffers in PSRAM */
-    size_t BufferSize = UVC_MAX_FRAME_SIZE;
+#ifdef CONFIG_SPIRAM
+    Caps = MALLOC_CAP_SPIRAM;
+#else
+    Caps = 0;
+#endif
+
     for (int i = 0; i < UVC_NUM_BUFFERS; i++) {
-        _UVC_State.Buffers[i].p_Buffer = static_cast<uint8_t *>(heap_caps_malloc(BufferSize, MALLOC_CAP_SPIRAM));
+        _UVC_State.Buffers[i].p_Buffer = static_cast<uint8_t *>(heap_caps_malloc(UVC_MAX_FRAME_SIZE, Caps));
         if (_UVC_State.Buffers[i].p_Buffer == NULL) {
             ESP_LOGE(TAG, "Failed to allocate buffer %d!", i);
 
@@ -206,10 +211,9 @@ esp_err_t USBUVC_Init(const USB_UVC_Config_t *p_Config)
         _UVC_State.Buffers[i].Size = 0;
         _UVC_State.Buffers[i].isReady = false;
 
-        ESP_LOGD(TAG, "Allocated buffer[%d] at %p, size=%d", i, _UVC_State.Buffers[i].p_Buffer, BufferSize);
+        ESP_LOGD(TAG, "Allocated buffer[%d] at %p, size=%d", i, _UVC_State.Buffers[i].p_Buffer, UVC_MAX_FRAME_SIZE);
     }
 
-    /* Configure and initialize UVC */
     tinyusb_config_uvc_t UVC_Config = {
         .uvc_port = TINYUSB_UVC_ITF_0,
         .callback_streaming_start = on_UVC_StreamingStart,
@@ -222,6 +226,7 @@ esp_err_t USBUVC_Init(const USB_UVC_Config_t *p_Config)
     };
 
     Error = tinyusb_uvc_init(&UVC_Config);
+
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize TinyUSB UVC: %d!", Error);
 

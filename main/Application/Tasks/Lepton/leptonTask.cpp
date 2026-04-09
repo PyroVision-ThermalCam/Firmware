@@ -271,8 +271,8 @@ static void Task_Lepton(void *p_Parameters)
              _Lepton_Task_State.Lepton.SoftwareVersion.dsp_minor,
              _Lepton_Task_State.Lepton.SoftwareVersion.dsp_build);
 
-    ESP_LOGD(TAG, "	Part number: %s", DeviceInfo.PartNumber);
-    ESP_LOGD(TAG, "	Serial number: %s", DeviceInfo.SerialNumber);
+    ESP_LOGI(TAG, "	Part number: %s", DeviceInfo.PartNumber);
+    ESP_LOGI(TAG, "	Serial number: %s", DeviceInfo.SerialNumber);
     ESP_LOGI(TAG, "	GPP revision: %s", DeviceInfo.SoftwareRevision.GPP_Revision);
     ESP_LOGI(TAG, "	DSP revision: %s", DeviceInfo.SoftwareRevision.DSP_Revision);
 
@@ -636,6 +636,8 @@ static void Task_Lepton(void *p_Parameters)
 
 esp_err_t Lepton_Task_Init(void)
 {
+    uint32_t Caps;
+
     if (_Lepton_Task_State.isInitialized) {
         ESP_LOGW(TAG, "Already initialized");
 
@@ -645,7 +647,6 @@ esp_err_t Lepton_Task_Init(void)
     ESP_LOGD(TAG, "Initializing Lepton Task");
     _Lepton_Task_State.CurrentReadBuffer = 0;
 
-    /* Create event group */
     _Lepton_Task_State.EventGroup = xEventGroupCreate();
     if (_Lepton_Task_State.EventGroup == NULL) {
         ESP_LOGE(TAG, "Failed to create event group!");
@@ -653,7 +654,6 @@ esp_err_t Lepton_Task_Init(void)
         return ESP_ERR_NO_MEM;
     }
 
-    /* Create mutex for buffer synchronization */
     _Lepton_Task_State.BufferMutex = xSemaphoreCreateMutex();
     if (_Lepton_Task_State.BufferMutex == NULL) {
         ESP_LOGE(TAG, "Failed to create buffer mutex!");
@@ -673,8 +673,14 @@ esp_err_t Lepton_Task_Init(void)
      */
     size_t RGB_Buffer_Size = 160 * 120 * 3;
 
-    _Lepton_Task_State.RGB_Buffer[0] = static_cast<uint8_t *>(heap_caps_malloc(RGB_Buffer_Size, MALLOC_CAP_SPIRAM));
-    _Lepton_Task_State.RGB_Buffer[1] = static_cast<uint8_t *>(heap_caps_malloc(RGB_Buffer_Size, MALLOC_CAP_SPIRAM));
+#ifdef CONFIG_SPIRAM
+    Caps = MALLOC_CAP_SIMD | MALLOC_CAP_SPIRAM;
+#else
+    Caps = MALLOC_CAP_SIMD;
+#endif
+
+    _Lepton_Task_State.RGB_Buffer[0] = static_cast<uint8_t *>(heap_caps_malloc(RGB_Buffer_Size, Caps));
+    _Lepton_Task_State.RGB_Buffer[1] = static_cast<uint8_t *>(heap_caps_malloc(RGB_Buffer_Size, Caps));
 
     if ((_Lepton_Task_State.RGB_Buffer[0] == NULL) || (_Lepton_Task_State.RGB_Buffer[1] == NULL)) {
         ESP_LOGE(TAG, "Can not allocate RGB buffers!");
@@ -714,9 +720,15 @@ esp_err_t Lepton_Task_Init(void)
     esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_LEPTON_CHANGED, on_Settings_Event_Handler, NULL);
     esp_event_handler_register(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler, NULL);
 
+#ifdef CONFIG_SPIRAM
+    Caps = MALLOC_CAP_SPIRAM;
+#else
+    Caps = 0;
+#endif
+
     /* Allocate JPEG compression buffer in PSRAM */
     _Lepton_Task_State.JpegBufferSize = 160 * 120 * 3;
-    _Lepton_Task_State.p_JpegBuffer = static_cast<uint8_t *>(heap_caps_malloc(_Lepton_Task_State.JpegBufferSize, MALLOC_CAP_SPIRAM));
+    _Lepton_Task_State.p_JpegBuffer = static_cast<uint8_t *>(heap_caps_malloc(_Lepton_Task_State.JpegBufferSize, Caps));
     if (_Lepton_Task_State.p_JpegBuffer == NULL) {
         ESP_LOGW(TAG, "Failed to allocate JPEG buffer - UVC streaming will not work");
     } else {
@@ -785,7 +797,7 @@ void Lepton_Task_Deinit(void)
 
 esp_err_t Lepton_Task_Start(App_Context_t *p_AppContext)
 {
-    BaseType_t Ret;
+    BaseType_t Error;
 
     if (p_AppContext == NULL) {
         return ESP_ERR_INVALID_ARG;
@@ -801,18 +813,10 @@ esp_err_t Lepton_Task_Start(App_Context_t *p_AppContext)
 
     ESP_LOGD(TAG, "Starting Lepton Task");
 
-    Ret = xTaskCreatePinnedToCore(
-              Task_Lepton,
-              "Task_Lepton",
-              CONFIG_LEPTON_TASK_STACKSIZE,
-              p_AppContext,
-              CONFIG_LEPTON_TASK_PRIO,
-              &_Lepton_Task_State.TaskHandle,
-              CONFIG_LEPTON_TASK_CORE
-          );
-
-    if (Ret != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create Lepton Task: %d!", Ret);
+    Error = xTaskCreatePinnedToCore(Task_Lepton, "Task_Lepton", CONFIG_LEPTON_TASK_STACKSIZE, p_AppContext,
+                                    CONFIG_LEPTON_TASK_PRIO, &_Lepton_Task_State.TaskHandle, CONFIG_LEPTON_TASK_CORE);
+    if (Error != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create Lepton Task: %d!", Error);
 
         return ESP_ERR_NO_MEM;
     }

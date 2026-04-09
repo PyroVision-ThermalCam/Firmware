@@ -30,8 +30,6 @@
 
 #include <sdkconfig.h>
 
-static const char *TAG = "TMP117";
-
 /** @brief TMP117 I2C address (ADD0 pin connected to GND).
  */
 #define TMP117_I2C_ADDR                     0x48
@@ -68,7 +66,9 @@ static const char *TAG = "TMP117";
  */
 #define TMP117_RESOLUTION                   0.0078125f
 
-static i2c_device_config_t _Device_I2C_Config = {
+/** @brief
+ */
+static const i2c_device_config_t _TMP117_I2C_Config = {
     .dev_addr_length = I2C_ADDR_BIT_LEN_7,
     .device_address = TMP117_I2C_ADDR,
     .scl_speed_hz = 400000,
@@ -77,6 +77,19 @@ static i2c_device_config_t _Device_I2C_Config = {
         .disable_ack_check = 0,
     },
 };
+
+/** @brief Configure default settings:
+ *      - Continuous mode
+ *      - 1 second cycle
+ *      - No averaging
+ */
+static const TMP117_Config_t _TMP117_DefaultConfig = {
+    .Mode = TMP117_MODE_CONTINUOUS,
+    .Cycle = TMP117_CYCLE_1S,
+    .Averaging = TMP117_AVG_NONE,
+};
+
+static const char *TAG = "TMP117";
 
 /** @brief              Write a 16-bit register to TMP117.
  *  @param p_Dev_Handle Device handle
@@ -121,54 +134,74 @@ static esp_err_t TMP117_Read_Register(i2c_master_dev_handle_t *p_Dev_Handle, uin
     return ESP_OK;
 }
 
-esp_err_t TMP117_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_handle_t *p_Dev_Handle)
+esp_err_t TMP117_Init(i2c_master_bus_handle_t *p_Bus_Handle, TMP117_Dev_t *p_Device,
+                      const TMP117_Config_t *p_Config)
 {
     esp_err_t Error;
-    uint16_t DeviceID;
+    uint16_t Temp;
+    TMP117_Config_t *Config;
 
-    if ((p_Bus_Handle == NULL) || (p_Dev_Handle == NULL)) {
+    if ((p_Bus_Handle == NULL) || (p_Device == NULL)) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    Error = i2c_master_bus_add_device(*p_Bus_Handle, &_Device_I2C_Config, p_Dev_Handle);
+    Error = i2c_master_bus_add_device(*p_Bus_Handle, &_TMP117_I2C_Config, &p_Device->Handle);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to add I2C device: %d!", Error);
 
         return Error;
     }
 
-    /* Verify device ID */
-    Error = TMP117_ReadDeviceID(p_Dev_Handle, &DeviceID);
+    Error = TMP117_Read_Register(&p_Device->Handle, TMP117_REG_CONFIGURATION, &Temp);
     if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read device ID: %d!", Error);
-
-        i2c_master_bus_rm_device(*p_Dev_Handle);
+        ESP_LOGE(TAG, "Failed to read configuration register: %d!", Error);
 
         return Error;
     }
 
-    if (DeviceID != TMP117_DEVICE_ID) {
-        ESP_LOGE(TAG, "Invalid device ID: 0x%04X (expected 0x%04X)!", DeviceID, TMP117_DEVICE_ID);
+    Temp |= TMP117_CFG_SOFT_RESET;
+    Error = TMP117_Write_Register(&p_Device->Handle, TMP117_REG_CONFIGURATION, Temp);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to write soft reset: %d!", Error);
 
-        i2c_master_bus_rm_device(*p_Dev_Handle);
+        return Error;
+    }
+
+    /* Wait for reset to complete (minimum 2ms) */
+    vTaskDelay(pdMS_TO_TICKS(5));
+
+    Error = TMP117_ReadDeviceID(p_Device, &Temp);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to read device ID: %d!", Error);
+
+        i2c_master_bus_rm_device(p_Device->Handle);
+
+        return Error;
+    }
+
+    if (Temp != TMP117_DEVICE_ID) {
+        ESP_LOGE(TAG, "Invalid device ID: 0x%04X (expected 0x%04X)!", Temp, TMP117_DEVICE_ID);
+
+        i2c_master_bus_rm_device(p_Device->Handle);
 
         return ESP_ERR_NOT_FOUND;
     }
 
-    ESP_LOGI(TAG, "TMP117 initialized successfully (ID: 0x%04X)", DeviceID);
+    ESP_LOGD(TAG, "TMP117 initialized successfully (ID: 0x%04X)", Temp);
 
-    /* Configure default settings: Continuous mode, 1 second cycle, no averaging */
-    TMP117_Config_t DefaultConfig = {
-        .Mode = TMP117_MODE_CONTINUOUS,
-        .Cycle = TMP117_CYCLE_1S,
-        .Averaging = TMP117_AVG_NONE,
-    };
+    Config = const_cast<TMP117_Config_t *>(&_TMP117_DefaultConfig);
+    if (p_Config != NULL) {
+        Config = const_cast<TMP117_Config_t *>(p_Config);
 
-    Error = TMP117_Configure(p_Dev_Handle, &DefaultConfig);
+        ESP_LOGW(TAG, "Using custom configuration: Mode = %d, Cycle = %d, Avg = %d",
+                 static_cast<int>(Config->Mode), static_cast<int>(Config->Cycle), static_cast<int>(Config->Averaging));
+    }
+
+    Error = TMP117_Configure(p_Device, Config);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to configure default settings: %d!", Error);
 
-        i2c_master_bus_rm_device(*p_Dev_Handle);
+        i2c_master_bus_rm_device(p_Device->Handle);
 
         return Error;
     }
@@ -176,37 +209,36 @@ esp_err_t TMP117_Init(i2c_master_bus_handle_t *p_Bus_Handle, i2c_master_dev_hand
     return ESP_OK;
 }
 
-esp_err_t TMP117_Deinit(i2c_master_dev_handle_t *p_Dev_Handle)
+esp_err_t TMP117_Deinit(TMP117_Dev_t *p_Device)
 {
     esp_err_t Error;
 
-    if ((p_Dev_Handle == NULL) || (*p_Dev_Handle == NULL)) {
+    if ((p_Device == NULL) || (p_Device->Handle == NULL)) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    Error = i2c_master_bus_rm_device(*p_Dev_Handle);
+    Error = i2c_master_bus_rm_device(p_Device->Handle);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to remove I2C device: %d!", Error);
 
         return Error;
     }
 
-    ESP_LOGI(TAG, "TMP117 deinitialized");
+    ESP_LOGD(TAG, "TMP117 deinitialized");
 
     return ESP_OK;
 }
 
-esp_err_t TMP117_Configure(i2c_master_dev_handle_t *p_Dev_Handle, const TMP117_Config_t *p_Config)
+esp_err_t TMP117_Configure(TMP117_Dev_t *p_Device, const TMP117_Config_t *p_Config)
 {
     uint16_t ConfigReg;
     esp_err_t Error;
 
-    if ((p_Dev_Handle == NULL) || (p_Config == NULL)) {
+    if ((p_Device == NULL) || (p_Config == NULL)) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    /* Read current configuration */
-    Error = TMP117_Read_Register(p_Dev_Handle, TMP117_REG_CONFIGURATION, &ConfigReg);
+    Error = TMP117_Read_Register(&p_Device->Handle, TMP117_REG_CONFIGURATION, &ConfigReg);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read configuration register: %d!", Error);
 
@@ -216,13 +248,11 @@ esp_err_t TMP117_Configure(i2c_master_dev_handle_t *p_Dev_Handle, const TMP117_C
     /* Clear mode, conversion cycle, and averaging bits */
     ConfigReg &= ~(TMP117_CFG_MOD_MASK | TMP117_CFG_CONV_MASK | TMP117_CFG_AVG_MASK);
 
-    /* Set new configuration */
     ConfigReg |= ((static_cast<uint16_t>(p_Config->Mode) << TMP117_CFG_MOD_SHIFT) & TMP117_CFG_MOD_MASK);
     ConfigReg |= ((static_cast<uint16_t>(p_Config->Cycle) << TMP117_CFG_CONV_SHIFT) & TMP117_CFG_CONV_MASK);
     ConfigReg |= ((static_cast<uint16_t>(p_Config->Averaging) << TMP117_CFG_AVG_SHIFT) & TMP117_CFG_AVG_MASK);
 
-    /* Write configuration */
-    Error = TMP117_Write_Register(p_Dev_Handle, TMP117_REG_CONFIGURATION, ConfigReg);
+    Error = TMP117_Write_Register(&p_Device->Handle, TMP117_REG_CONFIGURATION, ConfigReg);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to write configuration register: %d!", Error);
 
@@ -235,18 +265,18 @@ esp_err_t TMP117_Configure(i2c_master_dev_handle_t *p_Dev_Handle, const TMP117_C
     return ESP_OK;
 }
 
-esp_err_t TMP117_ReadTemperature(i2c_master_dev_handle_t *p_Dev_Handle, float *p_Temp)
+esp_err_t TMP117_ReadTemperature(TMP117_Dev_t *p_Device, float *p_Temp)
 {
     uint16_t TempRaw;
     int16_t TempSigned;
     esp_err_t Error;
 
-    if ((p_Dev_Handle == NULL) || (p_Temp == NULL)) {
+    if ((p_Device == NULL) || (p_Temp == NULL)) {
         return ESP_ERR_INVALID_ARG;
     }
 
     /* Read temperature register */
-    Error = TMP117_Read_Register(p_Dev_Handle, TMP117_REG_TEMP_RESULT, &TempRaw);
+    Error = TMP117_Read_Register(&p_Device->Handle, TMP117_REG_TEMP_RESULT, &TempRaw);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read temperature register: %d!", Error);
 
@@ -264,18 +294,18 @@ esp_err_t TMP117_ReadTemperature(i2c_master_dev_handle_t *p_Dev_Handle, float *p
     return ESP_OK;
 }
 
-esp_err_t TMP117_TriggerOneShot(i2c_master_dev_handle_t *p_Dev_Handle)
+esp_err_t TMP117_TriggerOneShot(TMP117_Dev_t *p_Device)
 {
     uint16_t ConfigReg;
     esp_err_t Error;
     uint8_t CurrentMode;
 
-    if (p_Dev_Handle == NULL) {
+    if (p_Device == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
 
     /* Read current configuration */
-    Error = TMP117_Read_Register(p_Dev_Handle, TMP117_REG_CONFIGURATION, &ConfigReg);
+    Error = TMP117_Read_Register(&p_Device->Handle, TMP117_REG_CONFIGURATION, &ConfigReg);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read configuration register: %d!", Error);
 
@@ -294,7 +324,7 @@ esp_err_t TMP117_TriggerOneShot(i2c_master_dev_handle_t *p_Dev_Handle)
     ConfigReg &= ~TMP117_CFG_MOD_MASK;
     ConfigReg |= (static_cast<uint16_t>(TMP117_MODE_ONE_SHOT) << TMP117_CFG_MOD_SHIFT) & TMP117_CFG_MOD_MASK;
 
-    Error = TMP117_Write_Register(p_Dev_Handle, TMP117_REG_CONFIGURATION, ConfigReg);
+    Error = TMP117_Write_Register(&p_Device->Handle, TMP117_REG_CONFIGURATION, ConfigReg);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to trigger one-shot conversion: %d!", Error);
 
@@ -306,79 +336,41 @@ esp_err_t TMP117_TriggerOneShot(i2c_master_dev_handle_t *p_Dev_Handle)
     return ESP_OK;
 }
 
-esp_err_t TMP117_IsDataReady(i2c_master_dev_handle_t *p_Dev_Handle, bool *p_Ready)
+esp_err_t TMP117_IsDataReady(TMP117_Dev_t *p_Device, bool *p_Ready)
 {
-    uint16_t ConfigReg;
+    uint16_t Temp;
     esp_err_t Error;
 
-    if ((p_Dev_Handle == NULL) || (p_Ready == NULL)) {
+    if ((p_Device == NULL) || (p_Ready == NULL)) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    /* Read configuration register */
-    Error = TMP117_Read_Register(p_Dev_Handle, TMP117_REG_CONFIGURATION, &ConfigReg);
+    Error = TMP117_Read_Register(&p_Device->Handle, TMP117_REG_CONFIGURATION, &Temp);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read configuration register: %d!", Error);
 
         return Error;
     }
 
-    /* Check Data_Ready flag */
-    *p_Ready = (ConfigReg & TMP117_CFG_DATA_READY) != 0;
+    *p_Ready = (Temp & TMP117_CFG_DATA_READY) != 0;
 
     return ESP_OK;
 }
 
-esp_err_t TMP117_ReadDeviceID(i2c_master_dev_handle_t *p_Dev_Handle, uint16_t *p_DeviceID)
+esp_err_t TMP117_ReadDeviceID(TMP117_Dev_t *p_Device, uint16_t *p_DeviceID)
 {
     esp_err_t Error;
 
-    if ((p_Dev_Handle == NULL) || (p_DeviceID == NULL)) {
+    if ((p_Device == NULL) || (p_DeviceID == NULL)) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    /* Read device ID register */
-    Error = TMP117_Read_Register(p_Dev_Handle, TMP117_REG_DEVICE_ID, p_DeviceID);
+    Error = TMP117_Read_Register(&p_Device->Handle, TMP117_REG_DEVICE_ID, p_DeviceID);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read device ID register: %d!", Error);
 
         return Error;
     }
-
-    return ESP_OK;
-}
-
-esp_err_t TMP117_SoftReset(i2c_master_dev_handle_t *p_Dev_Handle)
-{
-    uint16_t ConfigReg;
-    esp_err_t Error;
-
-    if (p_Dev_Handle == NULL) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    /* Read current configuration */
-    Error = TMP117_Read_Register(p_Dev_Handle, TMP117_REG_CONFIGURATION, &ConfigReg);
-    if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read configuration register: %d!", Error);
-
-        return Error;
-    }
-
-    /* Set soft reset bit */
-    ConfigReg |= TMP117_CFG_SOFT_RESET;
-
-    Error = TMP117_Write_Register(p_Dev_Handle, TMP117_REG_CONFIGURATION, ConfigReg);
-    if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to write soft reset: %d!", Error);
-
-        return Error;
-    }
-
-    /* Wait for reset to complete (minimum 2ms) */
-    vTaskDelay(pdMS_TO_TICKS(5));
-
-    ESP_LOGI(TAG, "TMP117 soft reset completed");
 
     return ESP_OK;
 }

@@ -293,6 +293,7 @@ static void on_IP_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, 
 esp_err_t NetworkManager_Init(void)
 {
     esp_err_t Error;
+    wifi_init_config_t WifiInitConfig = WIFI_INIT_CONFIG_DEFAULT();
 
     if (_Network_Manager_State.isInitialized) {
         ESP_LOGW(TAG, "Already initialized");
@@ -312,7 +313,6 @@ esp_err_t NetworkManager_Init(void)
         return ESP_ERR_NO_MEM;
     }
 
-    /* Create network interfaces */
     _Network_Manager_State.STA_NetIF = esp_netif_create_default_wifi_sta();
     if (_Network_Manager_State.STA_NetIF == NULL) {
         ESP_LOGE(TAG, "Failed to create STA netif!");
@@ -335,8 +335,6 @@ esp_err_t NetworkManager_Init(void)
         return ESP_FAIL;
     }
 
-    /* Initialize WiFi with default configuration */
-    wifi_init_config_t WifiInitConfig = WIFI_INIT_CONFIG_DEFAULT();
     Error = esp_wifi_init(&WifiInitConfig);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to init WiFi: %d!", Error);
@@ -364,7 +362,6 @@ esp_err_t NetworkManager_Init(void)
                                                         NULL,
                                                         NULL));
 
-    /* Set storage type */
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
     _Network_Manager_State.isInitialized = true;
     _Network_Manager_State.State = NETWORK_STATE_IDLE;

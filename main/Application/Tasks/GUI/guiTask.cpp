@@ -67,7 +67,7 @@ static void on_GUI_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
 
     switch (ID) {
         case GUI_EVENT_THERMAL_IMAGE_SAVED: {
-            ESP_LOGI(TAG, "Thermal image saved successfully");
+            ESP_LOGD(TAG, "Thermal image saved successfully");
 
             break;
         }
@@ -90,22 +90,6 @@ static void on_Devices_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base,
     ESP_LOGD(TAG, "Devices event received: ID=%d", ID);
 
     switch (ID) {
-        case DEVICE_EVENT_RESPONSE_BATTERY_VOLTAGE: {
-            if (p_Data != NULL) {
-                memcpy(&_GUI_Task_State.BatteryInfo, p_Data, sizeof(App_Devices_Battery_t));
-
-                xEventGroupSetBits(_GUI_Task_State.EventGroup, BATTERY_VOLTAGE_READY);
-            } else {
-                ESP_LOGE(TAG, "DEVICE_EVENT_RESPONSE_BATTERY_VOLTAGE received with NULL data");
-            }
-
-            break;
-        }
-        case DEVICE_EVENT_RESPONSE_CHARGING: {
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, BATTERY_CHARGING_STATUS_READY);
-
-            break;
-        }
     }
 }
 
@@ -241,7 +225,8 @@ static void on_Lepton_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, 
     switch (ID) {
         case LEPTON_EVENT_CAMERA_READY: {
             if (p_Data != NULL) {
-                memcpy(&_GUI_Task_State.LeptonDeviceInfo, static_cast<const App_Lepton_Device_t *>(p_Data), sizeof(App_Lepton_Device_t));
+                memcpy(&_GUI_Task_State.LeptonDeviceInfo, static_cast<const App_Lepton_Device_t *>(p_Data),
+                       sizeof(App_Lepton_Device_t));
 
                 xEventGroupSetBits(_GUI_Task_State.EventGroup, LEPTON_CAMERA_READY);
             } else {
@@ -460,18 +445,18 @@ static void UI_Canvas_AddTempGradient(void)
     uint16_t *Buffer = reinterpret_cast<uint16_t *>(_GUI_Task_State.GradientCanvasBuffer);
 
     for (uint32_t y = 0; y < _GUI_Task_State.GradientImageDescriptor.header.h; y++) {
-        uint32_t index;
+        uint32_t Index;
 
         /* Map y position to palette index (0 = top/hot = white, 179 = bottom/cold = black)
          * Iron palette: index 0 = black (cold), index 255 = white (hot)
          * So we need to invert: top (y=0) should be index 255, bottom (y=179) should be index 0
          */
-        index = 255 - (y * 255 / (_GUI_Task_State.GradientImageDescriptor.header.h - 1));
+        Index = 255 - (y * 255 / (_GUI_Task_State.GradientImageDescriptor.header.h - 1));
 
         /* Get RGB888 values from palette */
-        uint8_t r8 = Lepton_Palette_Iron[index][0];
-        uint8_t g8 = Lepton_Palette_Iron[index][1];
-        uint8_t b8 = Lepton_Palette_Iron[index][2];
+        uint8_t r8 = Lepton_Palette_Iron[Index][0];
+        uint8_t g8 = Lepton_Palette_Iron[Index][1];
+        uint8_t b8 = Lepton_Palette_Iron[Index][2];
 
         /* Convert RGB888 to RGB565 */
         uint16_t r5 = (r8 >> 3) & 0x1F;
@@ -558,8 +543,8 @@ void Task_GUI(void *p_Parameters)
     /* Precompute x bilinear coefficients once per frame (constant across all rows).
      * Saves ImageHeight (180) redundant divisions per pixel column.
      * Stack cost: 3 * CONFIG_GUI_WIDTH = 960 bytes.
-     * NOTE: x_lut_xi is NOT stored — computing 256-x_frac inline avoids a uint8_t
-     * overflow: when x_frac==0, 256 would truncate to 0, zeroing all weights → black
+     * NOTE: x_lut_xi is NOT stored - computing 256 - x_frac inline avoids a uint8_t
+     * overflow: when x_frac == 0, 256 would truncate to 0, zeroing all weights leads to black
      * pixels. x_inv is computed as uint32_t in the inner loop instead.
      */
     uint8_t x_lut_x0[CONFIG_GUI_WIDTH];
@@ -594,7 +579,7 @@ void Task_GUI(void *p_Parameters)
             xEventGroupClearBits(_GUI_Task_State.EventGroup, LEPTON_CAMERA_ERROR);
         }
 
-        if(Timeout >= 30000) {
+        if (Timeout >= 30000) {
             esp_event_post(GUI_EVENTS, GUI_EVENT_INIT_ERROR, NULL, 0, pdMS_TO_TICKS(500));
 
             break;
@@ -641,29 +626,29 @@ void Task_GUI(void *p_Parameters)
     int32_t SceneStatsContainer_y = lv_obj_get_y(ui_Container_Main_Thermal_Scene_Statistics);
 
     int32_t SceneLabel_x0[5] = { SceneStatsContainer_x + lv_obj_get_x(ui_Label_Main_Thermal_Scene_Max),
-                                SceneStatsContainer_x + lv_obj_get_x(ui_Label_Main_Thermal_Scene_Min),
-                                SceneStatsContainer_x + lv_obj_get_x(ui_Label_Main_Thermal_Scene_Mean),
-                                lv_obj_get_x(ui_Label_Main_Thermal_Crosshair),
-                                lv_obj_get_x(ui_Label_Main_Thermal_PixelTemperature)
-                            };
+                                 SceneStatsContainer_x + lv_obj_get_x(ui_Label_Main_Thermal_Scene_Min),
+                                 SceneStatsContainer_x + lv_obj_get_x(ui_Label_Main_Thermal_Scene_Mean),
+                                 lv_obj_get_x(ui_Label_Main_Thermal_Crosshair),
+                                 lv_obj_get_x(ui_Label_Main_Thermal_PixelTemperature)
+                               };
     int32_t SceneLabel_y0[5] = { SceneStatsContainer_y + lv_obj_get_y(ui_Label_Main_Thermal_Scene_Max),
-                                SceneStatsContainer_y + lv_obj_get_y(ui_Label_Main_Thermal_Scene_Min),
-                                SceneStatsContainer_y + lv_obj_get_y(ui_Label_Main_Thermal_Scene_Mean),
-                                lv_obj_get_y(ui_Label_Main_Thermal_Crosshair),
-                                lv_obj_get_y(ui_Label_Main_Thermal_PixelTemperature)
-                            };
+                                 SceneStatsContainer_y + lv_obj_get_y(ui_Label_Main_Thermal_Scene_Min),
+                                 SceneStatsContainer_y + lv_obj_get_y(ui_Label_Main_Thermal_Scene_Mean),
+                                 lv_obj_get_y(ui_Label_Main_Thermal_Crosshair),
+                                 lv_obj_get_y(ui_Label_Main_Thermal_PixelTemperature)
+                               };
     int32_t SceneLabel_w[5] = { lv_obj_get_width(ui_Label_Main_Thermal_Scene_Max),
                                 lv_obj_get_width(ui_Label_Main_Thermal_Scene_Min),
                                 lv_obj_get_width(ui_Label_Main_Thermal_Scene_Mean),
                                 lv_obj_get_width(ui_Label_Main_Thermal_Crosshair),
                                 lv_obj_get_width(ui_Label_Main_Thermal_PixelTemperature)
-                            };
+                              };
     int32_t SceneLabel_h[5] = { lv_obj_get_height(ui_Label_Main_Thermal_Scene_Max),
                                 lv_obj_get_height(ui_Label_Main_Thermal_Scene_Min),
                                 lv_obj_get_height(ui_Label_Main_Thermal_Scene_Mean),
                                 lv_obj_get_height(ui_Label_Main_Thermal_Crosshair),
                                 lv_obj_get_height(ui_Label_Main_Thermal_PixelTemperature)
-                            };
+                              };
 
     while (_GUI_Task_State.isRunning) {
         EventBits_t EventBits;
@@ -682,9 +667,9 @@ void Task_GUI(void *p_Parameters)
                 uint32_t ImageWidth;
                 uint32_t ImageHeight;
                 char Buffer[16];
-                uint32_t SceneLabelIlluminance[5] = {0, 0, 0, 0, 0};
-                uint32_t SceneLabelCount[5] = {0, 0, 0, 0, 0};
-                uint8_t SceneLabelAverageLuminance[5] = {0, 0, 0, 0, 0};
+                uint32_t SceneLabelIlluminance[5] = { 0, 0, 0, 0, 0 };
+                uint32_t SceneLabelCount[5] = { 0, 0, 0, 0, 0 };
+                uint8_t SceneLabelAverageLuminance[5] = { 0, 0, 0, 0, 0 };
 
                 /* Reset watchdog before image processing */
                 esp_task_wdt_reset();
@@ -722,7 +707,7 @@ void Task_GUI(void *p_Parameters)
                     uint32_t y_inv = 256 - y_frac;
 
                     for (uint32_t x = 0; x < ImageWidth; x++) {
-                        /* Use precomputed x LUT — avoids 1 multiply + 1 divide per pixel per row.
+                        /* Use precomputed x LUT - avoids 1 multiply + 1 divide per pixel per row.
                          * x_inv is computed inline (not cached) to avoid uint8_t overflow when x_frac==0. */
                         uint32_t x0 = x_lut_x0[x];
                         uint32_t x1 = x_lut_x1[x];
@@ -743,19 +728,19 @@ void Task_GUI(void *p_Parameters)
                         uint32_t w11 = (x_frac * y_frac) >> 8;
 
                         uint32_t r = (LeptonFrame.Buffer[idx00 + 0] * w00 +
-                                    LeptonFrame.Buffer[idx10 + 0] * w10 +
-                                    LeptonFrame.Buffer[idx01 + 0] * w01 +
-                                    LeptonFrame.Buffer[idx11 + 0] * w11) >> 8;
+                                      LeptonFrame.Buffer[idx10 + 0] * w10 +
+                                      LeptonFrame.Buffer[idx01 + 0] * w01 +
+                                      LeptonFrame.Buffer[idx11 + 0] * w11) >> 8;
 
                         uint32_t g = (LeptonFrame.Buffer[idx00 + 1] * w00 +
-                                    LeptonFrame.Buffer[idx10 + 1] * w10 +
-                                    LeptonFrame.Buffer[idx01 + 1] * w01 +
-                                    LeptonFrame.Buffer[idx11 + 1] * w11) >> 8;
+                                      LeptonFrame.Buffer[idx10 + 1] * w10 +
+                                      LeptonFrame.Buffer[idx01 + 1] * w01 +
+                                      LeptonFrame.Buffer[idx11 + 1] * w11) >> 8;
 
                         uint32_t b = (LeptonFrame.Buffer[idx00 + 2] * w00 +
-                                    LeptonFrame.Buffer[idx10 + 2] * w10 +
-                                    LeptonFrame.Buffer[idx01 + 2] * w01 +
-                                    LeptonFrame.Buffer[idx11 + 2] * w11) >> 8;
+                                      LeptonFrame.Buffer[idx10 + 2] * w10 +
+                                      LeptonFrame.Buffer[idx01 + 2] * w01 +
+                                      LeptonFrame.Buffer[idx11 + 2] * w11) >> 8;
 
                         /* Inside the image area under the label: Add the Luminance
                          * Note: The image widget has 180° rotation applied via lv_image_set_rotation.
@@ -864,7 +849,7 @@ void Task_GUI(void *p_Parameters)
                 /* Trigger LVGL to redraw the image */
                 lv_obj_invalidate(ui_Image_Thermal);
                 ESP_LOGD(TAG, "Updated thermal image display (src: %ux%u -> dst: %ux%u)", LeptonFrame.Width, LeptonFrame.Height,
-                        ImageWidth, ImageHeight);
+                         ImageWidth, ImageHeight);
 
                 /* Save frame if requested */
                 if (_GUI_Task_State.SaveNextFrameRequested) {
@@ -1004,11 +989,11 @@ void Task_GUI(void *p_Parameters)
 
             xEventGroupClearBits(_GUI_Task_State.EventGroup, PROVISIONING_STATE_CHANGED);
         } else if (EventBits & SD_CARD_STATE_CHANGED) {
-            ESP_LOGI(TAG, "SD card state changed: %s", _GUI_Task_State.CardPresent ? "present" : "removed");
+            ESP_LOGD(TAG, "SD card state changed: %s", _GUI_Task_State.CardPresent ? "present" : "removed");
 
             xEventGroupClearBits(_GUI_Task_State.EventGroup, SD_CARD_STATE_CHANGED);
         } else if (EventBits & SD_CARD_MOUNTED) {
-            ESP_LOGI(TAG, "SD card mounted - updating GUI");
+            ESP_LOGD(TAG, "SD card mounted - updating GUI");
 
             xEventGroupClearBits(_GUI_Task_State.EventGroup, SD_CARD_MOUNTED);
         } else if (EventBits & SD_CARD_MOUNT_ERROR) {
@@ -1125,6 +1110,9 @@ void Task_GUI(void *p_Parameters)
 
 esp_err_t GUI_Task_Init(void)
 {
+    BaseType_t Error;
+    uint32_t Caps;
+
     if (_GUI_Task_State.isInitialized) {
         ESP_LOGW(TAG, "Already initialized");
 
@@ -1135,9 +1123,15 @@ esp_err_t GUI_Task_Init(void)
 
     ui_init();
 
-    _GUI_Task_State.ThermalCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(240 * 180 * 2, MALLOC_CAP_SPIRAM));
-    _GUI_Task_State.GradientCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(20 * 180 * 2, MALLOC_CAP_SPIRAM));
-    _GUI_Task_State.NetworkRGBBuffer = static_cast<uint8_t *>(heap_caps_malloc(240 * 180 * 3, MALLOC_CAP_SPIRAM));
+#ifdef CONFIG_SPIRAM
+    Caps = MALLOC_CAP_SPIRAM;
+#else
+    Caps = 0;
+#endif
+
+    _GUI_Task_State.ThermalCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(240 * 180 * 2, Caps));
+    _GUI_Task_State.GradientCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(20 * 180 * 2, Caps));
+    _GUI_Task_State.NetworkRGBBuffer = static_cast<uint8_t *>(heap_caps_malloc(240 * 180 * 3, Caps));
 
     if (_GUI_Task_State.ThermalCanvasBuffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate thermal canvas buffer!");
@@ -1174,17 +1168,9 @@ esp_err_t GUI_Task_Init(void)
         return ESP_ERR_NO_MEM;
     }
 
-    BaseType_t Result = xTaskCreatePinnedToCore(
-                            Task_ImageSave,
-                            "Task_ImgSave",
-                            8192,
-                            NULL,
-                            CONFIG_GUI_TASK_PRIO - 1,  /* Lower priority than GUI */
-                            &_GUI_Task_State.ImageSaveTaskHandle,
-                            1
-                        );
-
-    if (Result != pdPASS) {
+    Error = xTaskCreatePinnedToCore(Task_ImageSave, "Task_ImgSave", 8192, NULL, CONFIG_GUI_TASK_PRIO - 1,
+                                    &_GUI_Task_State.ImageSaveTaskHandle, 1);
+    if (Error != pdPASS) {
         ESP_LOGE(TAG, "Failed to create image save task!");
 
         vQueueDelete(_GUI_Task_State.ImageSaveQueue);
@@ -1220,7 +1206,6 @@ esp_err_t GUI_Task_Init(void)
 
     UI_Canvas_AddTempGradient();
 
-    /* Set the images */
     lv_img_set_src(ui_Image_Thermal, &_GUI_Task_State.ThermalImageDescriptor);
     lv_img_set_src(ui_Image_Gradient, &_GUI_Task_State.GradientImageDescriptor);
 
@@ -1286,7 +1271,7 @@ void GUI_Task_Deinit(void)
 
 esp_err_t GUI_Task_Start(App_Context_t *p_AppContext)
 {
-    BaseType_t ret;
+    BaseType_t Error;
 
     if (p_AppContext == NULL) {
         return ESP_ERR_INVALID_ARG;
@@ -1302,18 +1287,10 @@ esp_err_t GUI_Task_Start(App_Context_t *p_AppContext)
 
     ESP_LOGD(TAG, "Starting GUI Task");
 
-    ret = xTaskCreatePinnedToCore(
-              Task_GUI,
-              "Task_GUI",
-              CONFIG_GUI_TASK_STACKSIZE,
-              p_AppContext,
-              CONFIG_GUI_TASK_PRIO,
-              &_GUI_Task_State.TaskHandle,
-              CONFIG_GUI_TASK_CORE
-          );
-
-    if (ret != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create GUI task: %d!", ret);
+    Error = xTaskCreatePinnedToCore(Task_GUI, "Task_GUI", CONFIG_GUI_TASK_STACKSIZE, p_AppContext, CONFIG_GUI_TASK_PRIO,
+                                    &_GUI_Task_State.TaskHandle, CONFIG_GUI_TASK_CORE);
+    if (Error != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create GUI task: %d!", Error);
 
         return ESP_ERR_NO_MEM;
     }
@@ -1348,7 +1325,7 @@ esp_err_t GUI_SaveThermalImage(void)
 
     /* Set flag to trigger save on next frame update */
     _GUI_Task_State.SaveNextFrameRequested = true;
-    ESP_LOGI(TAG, "Image save requested - will capture next frame");
+    ESP_LOGD(TAG, "Image save requested - will capture next frame");
 
     return ESP_OK;
 }

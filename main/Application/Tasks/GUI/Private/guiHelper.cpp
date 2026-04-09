@@ -27,6 +27,7 @@
 #include "guiHelper.h"
 #include "Application/application.h"
 #include "../Export/ui.h"
+#include "../UI/ui_settings.h"
 
 #if defined(CONFIG_LCD_SPI2_HOST)
 #define LCD_SPI_HOST                        SPI2_HOST
@@ -37,10 +38,17 @@
 #endif
 
 /* Partial render buffer: 1/5 of the screen (2 * 320 * 24 * 2 = 30720 bytes) in PSRAM.
- * This size safely fits in one SPI DMA transaction (max_transfer_sz = 32768 bytes).
+ *
+ * IMPORTANT: PSRAM is NOT in the ESP32-S3 DMA-capable address range (0x3FC88000-0x3FD00000),
+ * so the SPI driver allocates an internal DMA bounce buffer for EACH queued transaction
+ * (chunk_size = CONFIG_SPI_TRANSFER_SIZE = 4096 bytes each). The trans_queue_depth MUST be
+ * kept low (currently 3) to limit simultaneous bounce buffer allocations (3 * 4096 = 12 KB),
+ * because internal DMA RAM is scarce (~28 KB free after USB init). A higher queue depth
+ * (e.g. 10 = 8 chunks * 4096 = 32 KB) would exceed free internal DMA RAM and cause
+ * ESP_ERR_NO_MEM in spi_device_queue_trans, freezing the display.
+ *
  * With ISR-based flush_ready (on_lcd_color_trans_done), LVGL correctly sequences
- * partial flushes without tearing. RENDER_MODE_FULL is NOT used because the full
- * 153,600-byte frame exceeds the ESP32-S3 SPI DMA transaction limit (~32 KB). */
+ * partial flushes without tearing. */
 #define GUI_DRAW_BUFFER_SIZE                (2 * CONFIG_GUI_WIDTH * CONFIG_GUI_HEIGHT * sizeof(uint16_t) / 10)
 
 /** @brief          LCD color transfer done callback (called from ISR context after DMA transfer completes).
@@ -55,8 +63,8 @@ static IRAM_ATTR bool on_lcd_color_trans_done(esp_lcd_panel_io_handle_t PanelIO,
     (void)PanelIO;
     (void)p_Edata;
 
-    lv_display_t *p_Disp = static_cast<lv_display_t *>(p_UserCtx);
-    lv_display_flush_ready(p_Disp);
+    lv_display_t *p_Display = static_cast<lv_display_t *>(p_UserCtx);
+    lv_display_flush_ready(p_Display);
 
     return false;
 }
@@ -81,7 +89,9 @@ static const esp_lcd_panel_io_spi_config_t _GUI_Panel_IO_Config = {
     .dc_gpio_num = CONFIG_LCD_DC,
     .spi_mode = 0,
     .pclk_hz = CONFIG_LCD_CLOCK,
-    .trans_queue_depth = 10,
+    /* NOTE: This parameter must be set to a lower value (e.g., 3) to avoid exceeding internal DMA RAM when not using the `psram_mode` flag.
+     */
+    .trans_queue_depth = 3,
     .on_color_trans_done = NULL,
     .user_ctx = NULL,
     .lcd_cmd_bits = 8,
@@ -96,7 +106,8 @@ static const esp_lcd_panel_io_spi_config_t _GUI_Panel_IO_Config = {
         .quad_mode = 0,
         .sio_mode = 0,
         .lsb_first = 0,
-        .cs_high_active = 0
+        .cs_high_active = 0,
+        .psram_mode = 1,
     },
 };
 
@@ -161,54 +172,52 @@ inline void GUI_LVGL_TickTimer_CB(void *p_Arg)
  */
 static void GUI_LCD_Flush_CB(lv_display_t *p_Disp, const lv_area_t *p_Area, uint8_t *p_PxMap)
 {
-    esp_lcd_panel_handle_t panel_handle = static_cast<esp_lcd_panel_handle_t>(lv_display_get_user_data(p_Disp));
-
     int offsetx1 = p_Area->x1;
     int offsetx2 = p_Area->x2;
     int offsety1 = p_Area->y1;
     int offsety2 = p_Area->y2;
 
-    esp_lcd_panel_draw_bitmap(panel_handle, offsetx1, offsety1, offsetx2 + 1, offsety2 + 1, p_PxMap);
-
-    /* lv_display_flush_ready() is called in on_lcd_color_trans_done() after DMA transfer completes */
+    esp_lcd_panel_draw_bitmap(static_cast<esp_lcd_panel_handle_t>(lv_display_get_user_data(p_Disp)), offsetx1, offsety1,
+                              offsetx2 + 1, offsety2 + 1, p_PxMap);
 }
 
 esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t Touch_Read_Callback)
 {
     esp_err_t Error;
+    uint32_t Caps;
 
 #if (CONFIG_LCD_BL != -1)
-    ESP_LOGI(TAG, "Configure LCD backlight GPIO...");
+    ESP_LOGD(TAG, "Configure LCD backlight GPIO...");
     gpio_config_t bk_gpio_config = {
         .pin_bit_mask = 1ULL << CONFIG_LCD_BL,
-                             .mode = GPIO_MODE_OUTPUT,
-                             .pull_up_en = GPIO_PULLUP_DISABLE,
-                             .pull_down_en = GPIO_PULLDOWN_DISABLE,
-                             .intr_type = GPIO_INTR_DISABLE,
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
     };
     ESP_ERROR_CHECK(gpio_config(&bk_gpio_config));
     gpio_set_level(static_cast<gpio_num_t>(CONFIG_LCD_BL), LCD_BK_LIGHT_ON_LEVEL);
 #endif
 
-    ESP_LOGI(TAG, "Create I2C bus for touch controller...");
+    ESP_LOGD(TAG, "Create I2C bus for touch controller...");
 
     p_GUI_Task_State->Touch_Bus_Handle = DevicesManager_GetTouchI2CBusHandle();
 
-    ESP_LOGI(TAG, "Create panel IO...");
+    ESP_LOGD(TAG, "Create panel IO...");
     ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(static_cast<esp_lcd_spi_bus_handle_t>(LCD_SPI_HOST), &_GUI_Panel_IO_Config,
                                              &p_GUI_Task_State->Panel_IO_Handle));
     ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(p_GUI_Task_State->Touch_Bus_Handle, &_GUI_Touch_IO_Config,
                                              &p_GUI_Task_State->Touch_IO_Handle));
 
-    ESP_LOGI(TAG, "Initialize LVGL library and display...");
+    ESP_LOGD(TAG, "Initialize LVGL library and display...");
     lv_init();
     p_GUI_Task_State->Display = lv_display_create(CONFIG_GUI_WIDTH, CONFIG_GUI_HEIGHT);
 
-    ESP_LOGI(TAG, "Register LCD panel IO callbacks...");
+    ESP_LOGD(TAG, "Register LCD panel IO callbacks...");
     ESP_ERROR_CHECK(esp_lcd_panel_io_register_event_callbacks(p_GUI_Task_State->Panel_IO_Handle, &_GUI_Panel_Callbacks,
                                                               p_GUI_Task_State->Display));
 
-    ESP_LOGI(TAG, "Install ILI9341 panel driver...");
+    ESP_LOGD(TAG, "Install ILI9341 panel driver...");
     ESP_ERROR_CHECK(esp_lcd_new_panel_ili9341(p_GUI_Task_State->Panel_IO_Handle, &_GUI_Panel_Config,
                                               &p_GUI_Task_State->PanelHandle));
     ESP_LOGD(TAG, " ILI9341 panel driver installed");
@@ -218,47 +227,49 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t
     vTaskDelay(pdMS_TO_TICKS(100));
     ESP_LOGD(TAG, " Panel reset complete");
 
-    ESP_LOGI(TAG, "Initialize the panel...");
+    ESP_LOGD(TAG, "Initialize the panel...");
     ESP_ERROR_CHECK(esp_lcd_panel_init(p_GUI_Task_State->PanelHandle));
     vTaskDelay(pdMS_TO_TICKS(100));
     ESP_LOGD(TAG, " Panel initialized");
 
-    ESP_LOGI(TAG, "Configure panel for landscape mode...");
+    ESP_LOGD(TAG, "Configure panel for landscape mode...");
     ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(p_GUI_Task_State->PanelHandle, true));
     ESP_LOGD(TAG, " Panel swap_xy enabled for landscape");
 
-    ESP_LOGI(TAG, "Configure panel mirroring...");
+    ESP_LOGD(TAG, "Configure panel mirroring...");
     ESP_ERROR_CHECK(esp_lcd_panel_mirror(p_GUI_Task_State->PanelHandle, true, true));
     ESP_LOGD(TAG, " Panel mirroring configured (180 degree rotation)");
 
-    ESP_LOGI(TAG, "Turn ON the panel display...");
+    ESP_LOGD(TAG, "Turn ON the panel display...");
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(p_GUI_Task_State->PanelHandle, true));
     vTaskDelay(pdMS_TO_TICKS(100));
     ESP_LOGD(TAG, " Panel display turned ON");
 
     lv_display_set_flush_cb(p_GUI_Task_State->Display, GUI_LCD_Flush_CB);
-    lv_display_set_user_data(p_GUI_Task_State->Display,
-                             p_GUI_Task_State->PanelHandle);
+    lv_display_set_user_data(p_GUI_Task_State->Display, p_GUI_Task_State->PanelHandle);
 
-    /* Note: Color format set to RGB565 by default, matching thermal image BGR565 conversion */
-    p_GUI_Task_State->DisplayBuffer1 = heap_caps_malloc(GUI_DRAW_BUFFER_SIZE, MALLOC_CAP_SPIRAM);
-    p_GUI_Task_State->DisplayBuffer2 = heap_caps_malloc(GUI_DRAW_BUFFER_SIZE, MALLOC_CAP_SPIRAM);
+#ifdef CONFIG_SPIRAM
+    Caps = MALLOC_CAP_SPIRAM;
+#else
+    Caps = 0;
+#endif
+
+    p_GUI_Task_State->DisplayBuffer1 = heap_caps_malloc(GUI_DRAW_BUFFER_SIZE, Caps);
+    p_GUI_Task_State->DisplayBuffer2 = heap_caps_malloc(GUI_DRAW_BUFFER_SIZE, Caps);
     ESP_LOGD(TAG, "Allocated LVGL buffers: %d bytes each in PSRAM", GUI_DRAW_BUFFER_SIZE);
     if ((p_GUI_Task_State->DisplayBuffer1 == NULL) || (p_GUI_Task_State->DisplayBuffer2 == NULL)) {
         ESP_LOGE(TAG, "Failed to allocate LVGL draw buffers!");
 
         return ESP_ERR_NO_MEM;
     }
-    /* RENDER_MODE_PARTIAL with ISR-based flush_ready (on_lcd_color_trans_done):
-     * Each partial buffer (~15 KB) fits in a single SPI DMA transaction, so
-     * on_color_trans_done fires exactly once per flush_cb call. No tearing. */
+
     lv_display_set_buffers(p_GUI_Task_State->Display,
                            p_GUI_Task_State->DisplayBuffer1,
                            p_GUI_Task_State->DisplayBuffer2,
                            GUI_DRAW_BUFFER_SIZE,
                            LV_DISPLAY_RENDER_MODE_PARTIAL);
 
-    ESP_LOGI(TAG, "Initialize GT911 touch controller...");
+    ESP_LOGD(TAG, "Initialize GT911 touch controller...");
     Error = esp_lcd_touch_new_i2c_gt911(p_GUI_Task_State->Touch_IO_Handle, &_GUI_Touch_Config,
                                         &p_GUI_Task_State->TouchHandle);
     if (Error != ESP_OK) {
@@ -268,7 +279,7 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t
         p_GUI_Task_State->TouchHandle = NULL;
         p_GUI_Task_State->Touch = NULL;
     } else {
-        ESP_LOGI(TAG, "GT911 touch controller initialized successfully");
+        ESP_LOGD(TAG, "GT911 touch controller initialized successfully");
 
         /* Register touchpad input device */
         ESP_LOGD(TAG, "Register touch input device to LVGL");
@@ -297,12 +308,12 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t
     ESP_ERROR_CHECK(esp_timer_create(&LVGL_TickTimer_args, &p_GUI_Task_State->LVGL_TickTimer));
     ESP_ERROR_CHECK(esp_timer_start_periodic(p_GUI_Task_State->LVGL_TickTimer, CONFIG_GUI_LVGL_TICK_PERIOD_MS * 1000));
 
-    /* Create LVGL clock update timer. Use a 100 ms interval for smoother updates */
     p_GUI_Task_State->UpdateTimer[0] = lv_timer_create(GUI_Helper_Timer_ClockUpdate, 100, NULL);
     p_GUI_Task_State->UpdateTimer[1] = lv_timer_create(GUI_Helper_Timer_SpotUpdate, 2000, NULL);
     p_GUI_Task_State->UpdateTimer[2] = lv_timer_create(GUI_Helper_Timer_SpotmeterUpdate, 5000, NULL);
     p_GUI_Task_State->UpdateTimer[3] = lv_timer_create(GUI_Helper_Timer_SceneStatisticsUpdate, 5000, NULL);
     p_GUI_Task_State->UpdateTimer[4] = lv_timer_create(GUI_Helper_Timer_RAMUpdate, 5000, NULL);
+    p_GUI_Task_State->UpdateTimer[5] = lv_timer_create(GUI_Helper_Timer_MemoryUpdate, 3000, NULL);
 
     _lock_init(&p_GUI_Task_State->LVGL_API_Lock);
 
@@ -410,12 +421,14 @@ void GUI_Helper_Timer_SpotUpdate(lv_timer_t *p_Timer)
 void GUI_Helper_Timer_SpotmeterUpdate(lv_timer_t *p_Timer)
 {
     (void)p_Timer;
+
     esp_event_post(GUI_EVENTS, GUI_EVENT_REQUEST_SPOTMETER, NULL, 0, 0);
 }
 
 void GUI_Helper_Timer_SceneStatisticsUpdate(lv_timer_t *p_Timer)
 {
     (void)p_Timer;
+
     esp_event_post(GUI_EVENTS, GUI_EVENT_REQUEST_SCENE_STATISTICS, NULL, 0, 0);
 }
 
@@ -423,11 +436,16 @@ void GUI_Helper_Timer_RAMUpdate(lv_timer_t *p_Timer)
 {
     (void)p_Timer;
     char Buffer[16];
-    size_t Internal = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-    size_t PSRAM = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
 
-    sprintf(Buffer, "%u KB", PSRAM / 1024);
+    sprintf(Buffer, "%u KB", heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024);
     lv_label_set_text(ui_Label_Info_PSRAM_Free, Buffer);
-    sprintf(Buffer, "%u KB", Internal / 1024);
+    sprintf(Buffer, "%u KB", heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024);
     lv_label_set_text(ui_Label_Info_RAM_Free, Buffer);
+}
+
+void GUI_Helper_Timer_MemoryUpdate(lv_timer_t *p_Timer)
+{
+    (void)p_Timer;
+
+    ui_settings_update_memory_usage();
 }

@@ -39,7 +39,7 @@ static const char *TAG = "main";
  */
 extern "C" void app_main(void)
 {
-    i2c_master_dev_handle_t RtcHandle = NULL;
+    RV8263C8_Dev_t RtcHandle = {};
 
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
@@ -53,10 +53,10 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(SettingsManager_Init());
     ESP_ERROR_CHECK(Devices_Task_Init());
     ESP_ERROR_CHECK(MemoryManager_Init());
+    ESP_ERROR_CHECK(USBManager_Init());
 
-    /* Initialize Time Manager (requires RTC from DevicesManager) */
     if (DevicesManager_GetRTCHandle(&RtcHandle) == ESP_OK) {
-        if (TimeManager_Init(RtcHandle) == ESP_OK) {
+        if (TimeManager_Init(&RtcHandle) == ESP_OK) {
             Settings_System_t SystemSettings;
 
             SettingsManager_GetSystem(&SystemSettings);
@@ -67,18 +67,22 @@ extern "C" void app_main(void)
     } else {
         ESP_LOGW(TAG, "RTC not available, Time Manager initialization skipped");
     }
-
-    ESP_ERROR_CHECK(GUI_Task_Init());
-    ESP_ERROR_CHECK(Lepton_Task_Init());
-    ESP_ERROR_CHECK(Camera_Task_Init());
-    ESP_ERROR_CHECK(Network_Task_Init(&_App_Context));
+    /*
+        ESP_ERROR_CHECK(GUI_Task_Init());
+        ESP_ERROR_CHECK(Lepton_Task_Init());
+        ESP_ERROR_CHECK(Camera_Task_Init());
+        ESP_ERROR_CHECK(Network_Task_Init(&_App_Context));
+    */
     ESP_LOGI(TAG, " Initialization successful");
 
     ESP_LOGI(TAG, "Starting tasks...");
     ESP_ERROR_CHECK(Devices_Task_Start(&_App_Context));
-    ESP_ERROR_CHECK(GUI_Task_Start(&_App_Context));
-    ESP_ERROR_CHECK(Lepton_Task_Start(&_App_Context));
-    ESP_ERROR_CHECK(Network_Task_Start());
+
+    /*
+        ESP_ERROR_CHECK(GUI_Task_Start(&_App_Context));
+        ESP_ERROR_CHECK(Lepton_Task_Start(&_App_Context));
+        ESP_ERROR_CHECK(Network_Task_Start());
+    */
     ESP_LOGI(TAG, " Tasks started");
 
     /* Main task can now be deleted - no need to remove from watchdog as it was never added */

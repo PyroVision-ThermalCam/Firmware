@@ -57,7 +57,7 @@ static const char *TAG = "Provisioning";
  */
 static void on_TimeoutTimer_Handler(void *p_Arg)
 {
-    ESP_LOGI(TAG, "Provisioning timeout reached");
+    ESP_LOGD(TAG, "Provisioning timeout reached");
     esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_PROV_TIMEOUT, NULL, 0, pdMS_TO_TICKS(100));
 }
 
@@ -71,7 +71,8 @@ static void on_Prov_Event(void *p_Arg, esp_event_base_t EventBase, int32_t Event
 {
     switch (EventId) {
         case WIFI_PROV_START: {
-            ESP_LOGI(TAG, "Provisioning started");
+            ESP_LOGD(TAG, "Provisioning started");
+
             break;
         }
         case WIFI_PROV_CRED_RECV: {
@@ -113,7 +114,7 @@ static void on_Prov_Event(void *p_Arg, esp_event_base_t EventBase, int32_t Event
                 strncpy(WiFiSettings.SSID, (const char *)_Provisioning_State.WiFi_STA_Config.ssid, sizeof(WiFiSettings.SSID) - 1);
                 strncpy(WiFiSettings.Password, (const char *)_Provisioning_State.WiFi_STA_Config.password,
                         sizeof(WiFiSettings.Password) - 1);
-                
+
                 SettingsManager_UpdateWiFi(&WiFiSettings);
             } else {
                 ESP_LOGE(TAG, "No WiFi credentials available!");
@@ -122,7 +123,7 @@ static void on_Prov_Event(void *p_Arg, esp_event_base_t EventBase, int32_t Event
             break;
         }
         case WIFI_PROV_END: {
-            ESP_LOGI(TAG, "Provisioning ended");
+            ESP_LOGD(TAG, "Provisioning ended");
 
             wifi_prov_mgr_deinit();
 
@@ -200,18 +201,17 @@ esp_err_t Provisioning_Start(void)
     uint8_t MAC[6];
     wifi_config_t Config;
     Network_HTTP_Server_Config_t ServerConfig;
+    esp_netif_t *NetIf;
 
     if (_Provisioning_State.isInitialized == false) {
         return ESP_ERR_INVALID_STATE;
-    }
-
-    if (_Provisioning_State.isActive) {
+    } else if (_Provisioning_State.isActive) {
         ESP_LOGW(TAG, "Provisioning already active");
 
         return ESP_OK;
     }
 
-    ESP_LOGI(TAG, "Starting captive portal provisioning");
+    ESP_LOGD(TAG, "Starting captive portal provisioning");
 
     NetworkManager_GetMAC(MAC);
 
@@ -223,7 +223,7 @@ esp_err_t Provisioning_Start(void)
     Config.ap.authmode = WIFI_AUTH_OPEN;
     Config.ap.max_connection = 4;
 
-    ESP_LOGI(TAG, "Starting SoftAP with SSID: %s", Config.ap.ssid);
+    ESP_LOGD(TAG, "Starting SoftAP with SSID: %s", Config.ap.ssid);
 
     /* Set APSTA mode to allow WiFi scanning while AP is active */
     Error = esp_wifi_set_mode(WIFI_MODE_APSTA);
@@ -290,18 +290,17 @@ esp_err_t Provisioning_Start(void)
         esp_timer_start_once(_Provisioning_State.TimeoutTimer, _Provisioning_State.TimeOut * 1000000ULL);
     }
 
-    /* Get and log the actual AP IP address */
-    esp_netif_t *ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
-    if (ap_netif != NULL) {
-        esp_netif_ip_info_t ip_info;
+    NetIf = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+    if (NetIf != NULL) {
+        esp_netif_ip_info_t IP;
 
-        if (esp_netif_get_ip_info(ap_netif, &ip_info) == ESP_OK) {
-            ESP_LOGI(TAG, "Captive portal started at http://" IPSTR, IP2STR(&ip_info.ip));
+        if (esp_netif_get_ip_info(NetIf, &IP) == ESP_OK) {
+            ESP_LOGD(TAG, "Captive portal started at http://" IPSTR, IP2STR(&IP.ip));
         } else {
-            ESP_LOGI(TAG, "Captive portal started at http://192.168.4.1");
+            ESP_LOGD(TAG, "Captive portal started at http://192.168.4.1");
         }
     } else {
-        ESP_LOGI(TAG, "Captive portal started at http://192.168.4.1");
+        ESP_LOGD(TAG, "Captive portal started at http://192.168.4.1");
     }
 
     return ESP_OK;
@@ -313,7 +312,7 @@ esp_err_t Provisioning_Stop(void)
         return ESP_OK;
     }
 
-    ESP_LOGI(TAG, "Stopping Provisioning");
+    ESP_LOGD(TAG, "Stopping Provisioning");
 
     _Provisioning_State.isActive = false;
 
@@ -324,7 +323,6 @@ esp_err_t Provisioning_Stop(void)
         ESP_LOGD(TAG, "Stopping HTTP server");
         HTTP_Server_Stop();
 
-        /* Stop WiFi completely - this closes all sockets and makes httpd_stop return quickly */
         ESP_LOGD(TAG, "Stopping WiFi");
         esp_wifi_stop();
 

@@ -31,6 +31,7 @@
 #include "visaRemoteCommands.h"
 #include "visaCommands.h"
 #include "../../RemoteControl/remoteControl.h"
+#include "../../../../Devices/devicesManager.h"
 
 int VISA_Cmd_GetTemperature(char *p_Response, size_t MaxLen)
 {
@@ -88,33 +89,17 @@ int VISA_Cmd_GetBatteryVoltage(char *p_Response, size_t MaxLen)
 {
     esp_err_t Error;
     int Voltage;
+    uint8_t SOC;
     std::string Response;
     std::string VoltageStr;
 
-    Error = RemoteControl_GetBatteryVoltage(&Voltage);
+    Error = RemoteControl_GetBatteryVoltage(&Voltage, &SOC);
     if (Error != ESP_OK) {
         return SCPI_ERROR_HARDWARE_ERROR;
     }
 
     VoltageStr = std::to_string(Voltage);
     Response = VoltageStr.substr(0, VoltageStr.find('.') + 4) + "\n";
-    strncpy(p_Response, Response.c_str(), MaxLen);
-
-    return Response.size();
-}
-
-int VISA_Cmd_GetStateOfCharge(char *p_Response, size_t MaxLen)
-{
-    esp_err_t Error;
-    uint8_t SOC;
-    std::string Response;
-
-    Error = RemoteControl_GetStateOfCharge(&SOC);
-    if (Error != ESP_OK) {
-        return SCPI_ERROR_HARDWARE_ERROR;
-    }
-
-    Response = std::to_string(SOC) + "\n";
     strncpy(p_Response, Response.c_str(), MaxLen);
 
     return Response.size();
@@ -583,6 +568,9 @@ int VISA_Cmd_SetLEDBrightness(char **pp_Tokens, int Count, char *p_Response, siz
         return SCPI_ERROR_DATA_OUT_OF_RANGE;
     }
 
-    /* TODO: Implement LED brightness setting via RemoteControl interface */
+    if (DevicesManager_SetLEDBrightness(static_cast<uint8_t>(Brightness)) != ESP_OK) {
+        return SCPI_ERROR_EXECUTION_ERROR;
+    }
+
     return 0;
 }

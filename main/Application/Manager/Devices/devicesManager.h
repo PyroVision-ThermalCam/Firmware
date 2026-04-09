@@ -31,6 +31,7 @@
 #include <stdint.h>
 
 #include "I2C/i2c.h"
+#include "RV8263C8/rv8263c8.h"
 #include "devicesTypes.h"
 
 /** @brief          Initialize the Devices Manager.
@@ -100,29 +101,17 @@ spi_host_device_t DevicesManager_GetSPIHost(void);
  */
 esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, uint8_t *p_Percentage);
 
-/** @brief              Get the battery state of charge (SOC) percentage.
- *                      Calculates the battery SOC percentage based on the voltage reading.
- *  @note               ADC is calibrated using eFuse values.
- *                      Battery voltage range: typically 3.0V to 4.2V for Li-Ion.
- *  @warning            Measurement enables battery voltage divider (increases power consumption).
- *  @param p_Percentage Pointer to store percentage (0-100)
- *  @return             ESP_OK on success
- *                      ESP_ERR_INVALID_ARG if pointers are NULL
- *                      ESP_FAIL if ADC read fails
- */
-esp_err_t DevicesManager_GetStateOfCharge(uint8_t *p_Percentage);
-
 /** @brief          Get the RTC device handle (for Time Manager).
  *                  Returns the I2C device handle for the RV8263-C8 Real-Time Clock.
  *                  Used by TimeManager for time synchronization.
  *  @note           RTC provides backup time when network unavailable.
  *                  This function is typically called by TimeManager only.
- *  @param p_Handle Pointer to store the RTC I2C device handle
+ *  @param p_Handle Pointer to store the RTC device struct
  *  @return         ESP_OK on success
  *                  ESP_ERR_INVALID_ARG if p_Handle is NULL
  *                  ESP_ERR_INVALID_STATE if DevicesManager not initialized
  */
-esp_err_t DevicesManager_GetRTCHandle(i2c_master_dev_handle_t *p_Handle);
+esp_err_t DevicesManager_GetRTCHandle(RV8263C8_Dev_t *p_Handle);
 
 /** @brief          Get the current time from the RTC.
  *                  Reads the current date and time from the RV8263-C8 Real-Time Clock
@@ -143,13 +132,144 @@ esp_err_t DevicesManager_GetTime(struct tm *p_Time);
  */
 esp_err_t DevicesManager_SetTime(const struct tm *p_Time);
 
-/** @brief              Get the temperature from the TMP117 sensor.
- *  @param p_Temperature Pointer to store the temperature in Celsius
- *  @return             ESP_OK on success
- *                      ESP_ERR_INVALID_ARG if p_Temperature is NULL
- *                      ESP_ERR_INVALID_STATE if TMP117 not initialized
- *                      ESP_FAIL if I2C communication fails
+/** @brief                  Get the temperature from the TMP117 sensor.
+ *  @param p_Temperature    Pointer to store the temperature in Celsius
+ *  @return                 ESP_OK on success
+ *                          ESP_ERR_INVALID_ARG if p_Temperature is NULL
+ *                          ESP_ERR_INVALID_STATE if TMP117 not initialized
+ *                          ESP_FAIL if I2C communication fails
  */
 esp_err_t DevicesManager_GetTemperature(float *p_Temperature);
+
+/** @brief                  Perform a single-shot distance measurement with the VL53L1X sensor.
+ *                          Triggers a single measurement, waits for completion (up to 500 ms),
+ *                          reads the result, and clears the interrupt. The sensor returns to
+ *                          standby after the measurement.
+ *  @note                   The measurement duration depends on the configured timing budget
+ *                          (default 100 ms). This function blocks the calling task until
+ *                          the measurement completes or times out.
+ *  @param p_Distance_mm    Pointer to store the measured distance in millimeters
+ *  @param p_IsValid        Pointer to store whether the measurement is valid
+ *  @return                 ESP_OK on success
+ *                          ESP_ERR_INVALID_ARG if any pointer is NULL
+ *                          ESP_ERR_INVALID_STATE if DevicesManager not initialized
+ *                          ESP_ERR_TIMEOUT if measurement did not complete within 500 ms
+ *                          ESP_FAIL if I2C communication fails
+ */
+esp_err_t DevicesManager_GetDistance(uint16_t *p_Distance_mm, bool *p_IsValid);
+
+/** @brief          Set the brightness of all four LED channels simultaneously.
+ *                  Applies the same PWM duty cycle to all PCA9633DP1 output channels.
+ *                  A duty cycle of 0 turns all LEDs off (output actively driven LOW by
+ *                  totem-pole driver); 255 drives them at full brightness.
+ *  @note           Changes take effect immediately.
+ *                  This function is thread-safe.
+ *  @param Brightness PWM duty cycle for all channels (0 = off, 255 = full brightness)
+ *  @return         ESP_OK on success
+ *                  ESP_ERR_INVALID_STATE if DevicesManager not initialized
+ *                  ESP_FAIL if I2C communication fails
+ */
+esp_err_t DevicesManager_SetLEDBrightness(uint8_t Brightness);
+
+/** @brief              Enable or disable the Lepton camera reset.
+ *                      Controls the reset line of the Lepton thermal camera module via
+ *                      the port expander GPIO. Active low reset.
+ *  @param Reset        true to assert reset (hold in reset), false to release reset (normal operation)
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_STATE if port expander not initialized
+ *                      ESP_FAIL if I2C communication fails
+ */
+esp_err_t DevicesManager_LeptonReset(bool Reset);
+
+/** @brief              Power the Lepton thermal camera on or off (active high, P0.2).
+ *  @param Enable       true to power on, false to power off
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
+ *                      ESP_FAIL if I2C communication fails
+ */
+esp_err_t DevicesManager_SetLeptonPower(bool Enable);
+
+/** @brief              Assert or release the camera (ESP32-CAM) reset line (active low, P1.6).
+ *  @param Reset        true to assert reset (pin driven low), false to release (pin driven high)
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
+ *                      ESP_FAIL if I2C communication fails
+ */
+esp_err_t DevicesManager_SetCameraReset(bool Reset);
+
+/** @brief              Power the camera module on or off (active high, P1.7).
+ *  @param Enable       true to power on, false to power off
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
+ *                      ESP_FAIL if I2C communication fails
+ */
+esp_err_t DevicesManager_EnableCamera(bool Enable);
+
+/** @brief              Read the battery alert state (active low, P0.0).
+ *                      Hardware polarity inversion is active; true means the alert is asserted.
+ *  @param p_Alert      Pointer to store the alert state (true = alert active)
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_ARG if p_Alert is NULL
+ *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
+ *                      ESP_FAIL if I2C communication fails
+ */
+esp_err_t DevicesManager_GetBatteryAlert(bool *p_Alert);
+
+/** @brief              Read the battery charging state (active high, P0.1).
+ *  @param p_Charging   Pointer to store the charging state (true = charging in progress)
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_ARG if p_Charging is NULL
+ *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
+ *                      ESP_FAIL if I2C communication fails
+ */
+esp_err_t DevicesManager_GetBatteryCharging(bool *p_Charging);
+
+/** @brief              Read the RTC interrupt state (active low, P0.5).
+ *  @param p_Triggered  Pointer to store the interrupt state (true = interrupt pending)
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_ARG if p_Triggered is NULL
+ *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
+ *                      ESP_FAIL if I2C communication fails
+ */
+esp_err_t DevicesManager_GetRTCInterrupt(bool *p_Triggered);
+
+/** @brief              Read the temperature sensor interrupt state (active low, P0.7).
+ *  @param p_Triggered  Pointer to store the interrupt state (true = interrupt pending)
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_ARG if p_Triggered is NULL
+ *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
+ *                      ESP_FAIL if I2C communication fails
+ */
+esp_err_t DevicesManager_GetTempInterrupt(bool *p_Triggered);
+
+/** @brief              Read the range sensor interrupt state (active low, P1.0).
+ *  @param p_Triggered  Pointer to store the interrupt state (true = interrupt pending)
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_ARG if p_Triggered is NULL
+ *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
+ *                      ESP_FAIL if I2C communication fails
+ */
+esp_err_t DevicesManager_GetRangeInterrupt(bool *p_Triggered);
+
+/** @brief              Read the SD-card detect state (active low, P1.4).
+ *  @param p_Inserted   Pointer to store the detection state (true = card inserted)
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_ARG if p_Inserted is NULL
+ *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
+ *                      ESP_FAIL if I2C communication fails
+ */
+esp_err_t DevicesManager_GetSDDetect(bool *p_Inserted);
+
+/** @brief              Handle a pending port expander interrupt.
+ *                      Non-blocking: checks whether the GPIO ISR signalled a new INT# falling
+ *                      edge. If so, reads and clears INT_STATUS0/1 from the PCAL6416AHF and
+ *                      posts a DEVICES_EVENTS event for every input pin that triggered.
+ *  @note               Must be called from a task context (not from an ISR).
+ *                      Returns ESP_OK immediately when no interrupt is pending.
+ *  @return             ESP_OK on success or when no interrupt is pending
+ *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
+ *                      ESP_FAIL if I2C communication fails
+ */
+esp_err_t DevicesManager_HandleExpanderInterrupt(void);
 
 #endif /* DEVICESMANAGER_H_ */
