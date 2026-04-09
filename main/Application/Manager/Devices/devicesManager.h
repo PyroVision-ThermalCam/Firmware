@@ -283,4 +283,20 @@ esp_err_t DevicesManager_HandleExpanderInterrupt(void);
  */
 esp_err_t DevicesManager_SetLED(bool R, bool G, bool B);
 
+/** @brief              Read the current state of all displayboard inputs (joystick + buttons).
+ *                      Reads the five joystick directions (P0.3–P0.7) and the four push-buttons
+ *                      (P1.0–P1.3) from the displayboard PCAL6416AHF. All inputs are active high
+ *                      with pull-down resistors; a field is true when the corresponding input is
+ *                      pressed.
+ *  @note               Returns ESP_ERR_NOT_SUPPORTED if the displayboard expander was not found
+ *                      during initialization (displayboard not connected).
+ *  @param p_State      Pointer to store the read input state
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_ARG if p_State is NULL
+ *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
+ *                      ESP_ERR_NOT_SUPPORTED if displayboard not present
+ *                      ESP_FAIL if I2C communication fails
+ */
+esp_err_t DevicesManager_GetDisplayboardInputs(Devices_InputState_t *p_State);
+
 #endif /* DEVICESMANAGER_H_ */

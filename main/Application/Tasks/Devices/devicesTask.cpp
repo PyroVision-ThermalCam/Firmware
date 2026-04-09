@@ -69,9 +69,18 @@ static void on_GUI_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
  */
 static void Task_Devices(void *p_Parameters)
 {
+    Devices_InputState_t InputState;
+    Devices_InputState_t PrevInputState;
+    TickType_t LastInputPoll;
+
     esp_task_wdt_add(NULL);
 
     ESP_LOGD(TAG, "Devices task started on core %d", xPortGetCoreID());
+
+    memset(&InputState, 0, sizeof(Devices_InputState_t));
+    memset(&PrevInputState, 0, sizeof(Devices_InputState_t));
+
+    LastInputPoll = xTaskGetTickCount();
 
     while (_Devices_Task_State.isRunning) {
         EventBits_t EventBits;
@@ -90,6 +99,30 @@ static void Task_Devices(void *p_Parameters)
         }
 
         DevicesManager_HandleExpanderInterrupt();
+
+        if ((xTaskGetTickCount() - LastInputPoll) >= pdMS_TO_TICKS(CONFIG_DEVICES_TASK_POLL_INTERVAL_MS)) {
+            LastInputPoll = xTaskGetTickCount();
+
+            if (DevicesManager_GetDisplayboardInputs(&InputState) == ESP_OK) {
+                if (memcmp(&InputState, &PrevInputState, sizeof(Devices_InputState_t)) != 0) {
+                    ESP_LOGI(TAG, "Input: Joy[U=%d D=%d L=%d R=%d C=%d] Btn[1=%d 2=%d 3=%d 4=%d]",
+                             static_cast<int>(InputState.JoyUp),
+                             static_cast<int>(InputState.JoyDown),
+                             static_cast<int>(InputState.JoyLeft),
+                             static_cast<int>(InputState.JoyRight),
+                             static_cast<int>(InputState.JoyCenter),
+                             static_cast<int>(InputState.Button1),
+                             static_cast<int>(InputState.Button2),
+                             static_cast<int>(InputState.Button3),
+                             static_cast<int>(InputState.Button4));
+
+                    esp_event_post(DEVICES_EVENTS, DEVICES_EVENT_INPUT_CHANGED,
+                                   &InputState, sizeof(Devices_InputState_t), pdMS_TO_TICKS(100));
+
+                    memcpy(&PrevInputState, &InputState, sizeof(Devices_InputState_t));
+                }
+            }
+        }
 
         vTaskDelay(pdMS_TO_TICKS(10));
     }

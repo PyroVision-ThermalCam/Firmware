@@ -226,6 +226,19 @@ static void Lepton_LoadSettings(void)
     Lepton_SetEmissivity(&_Lepton_Task_State.Lepton, static_cast<Lepton_Emissivity_t>(LeptonSettings.CurrentEmissivity));
 }
 
+/** @brief Resets the Lepton camera.
+ */
+static void Lepton_Reset(bool Enable)
+{
+    DevicesManager_LeptonReset(Enable);
+}
+
+/** @brief Powers down the Lepton camera.
+ */
+static void Lepton_PowerDown(bool Enable)
+{
+}
+
 /** @brief              Lepton camera task main loop.
  *  @param p_Parameters Task parameters
  */
@@ -666,6 +679,8 @@ esp_err_t Lepton_Task_Init(void)
     _Lepton_Task_State.LeptonConf = LEPTON_DEFAULT_CONF;
     LEPTON_ASSIGN_FUNC(_Lepton_Task_State.LeptonConf, NULL, NULL, I2CM_Write, I2CM_Read);
     LEPTON_ASSIGN_I2C_HANDLE(_Lepton_Task_State.LeptonConf, DevicesManager_GetI2CBusHandle());
+    _Lepton_Task_State.LeptonConf.Reset = Lepton_Reset;
+    _Lepton_Task_State.LeptonConf.PowerDown = Lepton_PowerDown;
 
     /* Allocate RGB buffers - both RAW14 and RGB888 use 160x120 resolution
      * RAW14: 160x120x3 = 57,600 bytes (after conversion to RGB)

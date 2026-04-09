@@ -221,6 +221,7 @@ static const PCAL6416_IO_Conf_t _PCAL6416AHF_Displayboard_PinConfig[] = {
 
 typedef struct {
     bool initialized;
+    bool isDisplayboardPresent;
     RV8263C8_Dev_t RTC;
     TMP117_Dev_t TMP117;
     PCAL6416AHF_Dev_t Expander_Mainboard;
@@ -286,6 +287,8 @@ esp_err_t DevicesManager_Init(void)
                          sizeof(_PCAL6416AHF_Displayboard_PinConfig) / sizeof(_PCAL6416AHF_Displayboard_PinConfig[0]),
                          &_Devices_Manager_State.Expander_Displayboard) != ESP_OK) {
         ESP_LOGW(TAG, "Displayboard port expander not found - running without displayboard");
+    } else {
+        _Devices_Manager_State.isDisplayboardPresent = true;
     }
 
     if (RV8263C8_Init(&_Devices_Manager_State.I2C_Bus_Handle, &_Devices_Manager_State.RTC) != ESP_OK) {
@@ -325,10 +328,7 @@ esp_err_t DevicesManager_Init(void)
 
     _Devices_Manager_State.initialized = true;
 
-    DevicesManager_SetBrightness(BACKLIGHT_FLASH, 20);
-
-    // TODO: Anders machen
-    DevicesManager_LeptonReset(false);
+    DevicesManager_SetBrightness(BACKLIGHT_FLASH, 0);
 
     if (DevicesManager_SetLED(false, false, false) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize LEDs!");
@@ -753,6 +753,37 @@ esp_err_t DevicesManager_GetDistance(uint16_t *p_Distance_mm, bool *p_IsValid)
 
     ESP_LOGD(TAG, "Measured distance: %u mm, Status: %u, Signal rate: %u MCPS, Ambient rate: %u MCPS, SPADs: %u",
              Result.Distance_mm, Result.Status, Result.SignalRateMCPS, Result.AmbientRateMCPS, Result.EffectiveSPADs);
+
+    return ESP_OK;
+}
+
+esp_err_t DevicesManager_GetDisplayboardInputs(Devices_InputState_t *p_State)
+{
+    uint8_t In0, In1;
+    esp_err_t Error;
+
+    if (_Devices_Manager_State.initialized == false) {
+        return ESP_ERR_INVALID_STATE;
+    } else if (p_State == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    } else if (_Devices_Manager_State.isDisplayboardPresent == false) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+
+    Error = PCAL6416AHF_ReadInputs(&_Devices_Manager_State.Expander_Displayboard, &In0, &In1);
+    if (Error != ESP_OK) {
+        return Error;
+    }
+
+    p_State->JoyUp = ((In0 & (1 << 3)) != 0);
+    p_State->JoyDown = ((In0 & (1 << 4)) != 0);
+    p_State->JoyLeft = ((In0 & (1 << 5)) != 0);
+    p_State->JoyRight = ((In0 & (1 << 6)) != 0);
+    p_State->JoyCenter = ((In0 & (1 << 7)) != 0);
+    p_State->Button1 = ((In1 & (1 << 0)) != 0);
+    p_State->Button2 = ((In1 & (1 << 1)) != 0);
+    p_State->Button3 = ((In1 & (1 << 2)) != 0);
+    p_State->Button4 = ((In1 & (1 << 3)) != 0);
 
     return ESP_OK;
 }

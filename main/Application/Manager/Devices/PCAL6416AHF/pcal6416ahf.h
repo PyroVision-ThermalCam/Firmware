@@ -134,6 +134,22 @@ esp_err_t PCAL6416AHF_ReadPin(PCAL6416AHF_Dev_t *p_Device, PCAL6416_Port_t Port,
 esp_err_t PCAL6416AHF_WritePin(PCAL6416AHF_Dev_t *p_Device, PCAL6416_Port_t Port, uint8_t Pin,
                                bool Level);
 
+/** @brief              Read both INPUT registers in a single burst transfer.
+ *                      Writes the INPUT0 register address once and reads two bytes (INPUT0, INPUT1)
+ *                      in the same I2C transaction. This is the preferred way to poll all input
+ *                      pins without saturating the bus.
+ *  @note               For latched input pins, this read clears the hardware latch and updates
+ *                      the chip's change-detection reference — avoid using this interleaved with
+ *                      PCAL6416AHF_ReadIntStatus on the same device.
+ *  @param p_Device     Pointer to the device instance
+ *  @param p_Input0     Pointer to store raw INPUT0 byte (Port 0, one bit per pin)
+ *  @param p_Input1     Pointer to store raw INPUT1 byte (Port 1, one bit per pin)
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_ARG if any pointer is NULL
+ *                      ESP_FAIL if I2C communication fails
+ */
+esp_err_t PCAL6416AHF_ReadInputs(PCAL6416AHF_Dev_t *p_Device, uint8_t *p_Input0, uint8_t *p_Input1);
+
 /** @brief              Read and clear both INT_STATUS registers and both INPUT registers in one call.
  *                      The INT_STATUS registers are read first, which clears all pending bits and
  *                      releases INT# (open-drain, returns high).  The INPUT registers are then

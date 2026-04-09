@@ -254,6 +254,32 @@ esp_err_t PCAL6416AHF_WritePin(PCAL6416AHF_Dev_t *p_Device, PCAL6416_Port_t Port
                                Mask, Value);
 }
 
+esp_err_t PCAL6416AHF_ReadInputs(PCAL6416AHF_Dev_t *p_Device, uint8_t *p_Input0, uint8_t *p_Input1)
+{
+    esp_err_t Error;
+    uint8_t Reg = PORT_EXPANDER_REG_INPUT0;
+    uint8_t Buf[2];
+
+    if ((p_Device == NULL) || (p_Input0 == NULL) || (p_Input1 == NULL)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    Error = I2CM_Write(&p_Device->Handle, &Reg, 1);
+    if (Error != ESP_OK) {
+        return Error;
+    }
+
+    Error = I2CM_Read(&p_Device->Handle, Buf, 2);
+    if (Error != ESP_OK) {
+        return Error;
+    }
+
+    *p_Input0 = Buf[0];
+    *p_Input1 = Buf[1];
+
+    return ESP_OK;
+}
+
 esp_err_t PCAL6416AHF_ReadIntStatus(PCAL6416AHF_Dev_t *p_Device,
                                     uint8_t *p_Status0, uint8_t *p_Status1,
                                     uint8_t *p_Input0, uint8_t *p_Input1)

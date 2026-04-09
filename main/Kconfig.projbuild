@@ -221,6 +221,10 @@ menu "PyroVision"
     endmenu
 
     menu "Devices"
+        config DEVICES_TASK_POLL_INTERVAL_MS
+            int "Input polling interval for the devices tasks"
+            default 50
+
         menu "I2C"
             choice
                 prompt "Peripheral I2C Bus"
