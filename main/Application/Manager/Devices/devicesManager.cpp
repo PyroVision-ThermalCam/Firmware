@@ -41,6 +41,9 @@
 
 #include "devicesManager.h"
 
+#define ADDR_PCAL6416AHF_MAINBOARD          0x20
+#define ADDR_PCAL6416AHF_DISPLAYBOARD       0x21
+
 #if defined(CONFIG_TOUCH_I2C0_HOST)
 #define TOUCH_I2C_HOST                      I2C_NUM_0
 #elif defined(CONFIG_TOUCH_I2C1_HOST)
@@ -147,6 +150,75 @@ static const gpio_config_t _Devices_Manager_MainboardExpander_IntConf = {
     .intr_type = GPIO_INTR_DISABLE,
 };
 
+/** @brief Pin configuration for the mainboard PCAL6416AHF (address 0x20).
+ *         Register layout summary (Port 0 / Port 1, bit positions 0-7):
+ *
+ *         Port 0: [7]=TempInt [5]=RTCInt [2]=LeptonPwr [1]=BattChg [0]=BattAlert
+ *         Port 1: [7]=CamPwr  [6]=CamRst [5]=LepRst    [4]=SDDetect [0]=RangeInt
+ *
+ *         Active-low outputs (LepRst, CamRst) are not hardware-inverted;
+ *         the caller must negate the logic value when calling PCAL6416AHF_WritePin.
+ */
+static const PCAL6416_IO_Conf_t _PCAL6416AHF_Mainboard_PinConfig[] = {
+    /* Battery alert:  active low, pull-up; HW polarity inversion                               */
+    { .Port = PCAL6416_PORT_0, .Pin = 0, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_UP,   .isInverted = true,  .isLatched = false },
+    /* Battery charge: active high                                                               */
+    { .Port = PCAL6416_PORT_0, .Pin = 1, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
+    /* Lepton power:   active high output                                                        */
+    { .Port = PCAL6416_PORT_0, .Pin = 2, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
+    /* RTC interrupt:  active low, pull-up                                                       */
+    { .Port = PCAL6416_PORT_0, .Pin = 5, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_UP,   .isInverted = false, .isLatched = false },
+    /* Temp interrupt: active low, pull-up                                                       */
+    { .Port = PCAL6416_PORT_0, .Pin = 7, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_UP,   .isInverted = false, .isLatched = false },
+    /* Range interrupt: active low, pull-up                                                      */
+    { .Port = PCAL6416_PORT_1, .Pin = 0, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_UP,   .isInverted = false, .isLatched = false },
+    /* SD card detect: active low, pull-up, latched (debounce)                                   */
+    { .Port = PCAL6416_PORT_1, .Pin = 4, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_UP,   .isInverted = false, .isLatched = true  },
+    /* Lepton reset:   active low output (caller negates)                                        */
+    { .Port = PCAL6416_PORT_1, .Pin = 5, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
+    /* Camera reset:   active low output (caller negates)                                        */
+    { .Port = PCAL6416_PORT_1, .Pin = 6, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
+    /* Camera power:   active high output                                                        */
+    { .Port = PCAL6416_PORT_1, .Pin = 7, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
+};
+
+/** @brief Pin configuration for the displayboard PCAL6416AHF (address 0x21).
+ *         Register layout summary:
+ *
+ *         Port 0: [7]=JoyCenter [6]=JoyRight [5]=JoyLeft [4]=JoyDown [3]=JoyUp
+ *                 [2]=LED_Red  [1]=LED_Green [0]=LED_Blue
+ *         Port 1: [3]=Btn4 [2]=Btn3 [1]=Btn2 [0]=Btn1
+ *
+ *         LEDs are active low outputs; buttons and joystick are active high with pull-down.
+ */
+static const PCAL6416_IO_Conf_t _PCAL6416AHF_Displayboard_PinConfig[] = {
+    /* LED red:     active low output; isInverted=false because POL register does not affect outputs;
+     *              the caller negates the logic level (see DevicesManager_SetLED)               */
+    { .Port = PCAL6416_PORT_0, .Pin = 0, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
+    /* LED green:   active low output (caller negates)                                           */
+    { .Port = PCAL6416_PORT_0, .Pin = 1, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
+    /* LED blue:    active low output (caller negates)                                           */
+    { .Port = PCAL6416_PORT_0, .Pin = 2, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
+    /* Joystick up:     active high, pull-down input                                             */
+    { .Port = PCAL6416_PORT_0, .Pin = 3, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
+    /* Joystick down:   active high, pull-down input                                             */
+    { .Port = PCAL6416_PORT_0, .Pin = 4, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
+    /* Joystick left:   active high, pull-down input                                             */
+    { .Port = PCAL6416_PORT_0, .Pin = 5, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
+    /* Joystick right:  active high, pull-down input                                             */
+    { .Port = PCAL6416_PORT_0, .Pin = 6, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
+    /* Joystick center: active high, pull-down input                                             */
+    { .Port = PCAL6416_PORT_0, .Pin = 7, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
+    /* Button 1: active high, pull-down input                                                    */
+    { .Port = PCAL6416_PORT_1, .Pin = 0, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
+    /* Button 2: active high, pull-down input                                                    */
+    { .Port = PCAL6416_PORT_1, .Pin = 1, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
+    /* Button 3: active high, pull-down input                                                    */
+    { .Port = PCAL6416_PORT_1, .Pin = 2, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
+    /* Button 4: active high, pull-down input                                                    */
+    { .Port = PCAL6416_PORT_1, .Pin = 3, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
+};
+
 typedef struct {
     bool initialized;
     RV8263C8_Dev_t RTC;
@@ -190,23 +262,31 @@ esp_err_t DevicesManager_Init(void)
         return ESP_FAIL;
     }
 
-    I2CM_Scan(_Devices_Manager_State.I2C_Bus_Handle);
-
     if (SPIM_Init(&_Devices_Manager_Periph_SPI_Config, _Devices_Manager_Periph_SPI, SPI_DMA_CH_AUTO) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize SPI%u!", _Devices_Manager_Periph_SPI);
 
         return ESP_FAIL;
     }
 
+    I2CM_Scan(_Devices_Manager_State.I2C_Bus_Handle);
+
     if (PCAL6416AHF_Init(&_Devices_Manager_State.I2C_Bus_Handle,
+                         ADDR_PCAL6416AHF_MAINBOARD,
+                         _PCAL6416AHF_Mainboard_PinConfig,
+                         sizeof(_PCAL6416AHF_Mainboard_PinConfig) / sizeof(_PCAL6416AHF_Mainboard_PinConfig[0]),
                          &_Devices_Manager_State.Expander_Mainboard) != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set default configuration for the mainboard port expander!");
+        ESP_LOGE(TAG, "Failed to initialize mainboard port expander!");
 
         return ESP_FAIL;
     }
 
-    /* Configure the port expander INT# pin as plain input with pull-up for level polling */
-    gpio_config(&_Devices_Manager_MainboardExpander_IntConf);
+    if (PCAL6416AHF_Init(&_Devices_Manager_State.I2C_Bus_Handle,
+                         ADDR_PCAL6416AHF_DISPLAYBOARD,
+                         _PCAL6416AHF_Displayboard_PinConfig,
+                         sizeof(_PCAL6416AHF_Displayboard_PinConfig) / sizeof(_PCAL6416AHF_Displayboard_PinConfig[0]),
+                         &_Devices_Manager_State.Expander_Displayboard) != ESP_OK) {
+        ESP_LOGW(TAG, "Displayboard port expander not found - running without displayboard");
+    }
 
     if (RV8263C8_Init(&_Devices_Manager_State.I2C_Bus_Handle, &_Devices_Manager_State.RTC) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize RV8263C8!");
@@ -241,6 +321,10 @@ esp_err_t DevicesManager_Init(void)
         return ESP_FAIL;
     }
 
+    gpio_config(&_Devices_Manager_MainboardExpander_IntConf);
+
+    _Devices_Manager_State.initialized = true;
+
     /* NOTE: Temporary test call – set all LED channels to 1 % duty cycle so that PWM
      * is visible on an oscilloscope. Remove or set to 0 before the production release. */
     DevicesManager_SetLEDBrightness(1);
@@ -248,7 +332,7 @@ esp_err_t DevicesManager_Init(void)
     // TODO: Anders machen
     DevicesManager_LeptonReset(false);
 
-    _Devices_Manager_State.initialized = true;
+    DevicesManager_SetLED(false, false, false);
 
     return ESP_OK;
 }
@@ -266,6 +350,7 @@ esp_err_t DevicesManager_Deinit(void)
     MAX17048_Deinit(&_Devices_Manager_State.MAX17048);
     TMP117_Deinit(&_Devices_Manager_State.TMP117);
     RV8263C8_Deinit(&_Devices_Manager_State.RTC);
+    PCAL6416AHF_Deinit(&_Devices_Manager_State.Expander_Displayboard);
     PCAL6416AHF_Deinit(&_Devices_Manager_State.Expander_Mainboard);
 
     I2CM_Deinit(_Devices_Manager_State.I2C_Bus_Handle);
@@ -381,13 +466,14 @@ esp_err_t DevicesManager_SetLEDBrightness(uint8_t Brightness)
 
 esp_err_t DevicesManager_LeptonReset(bool Reset)
 {
-    return PCAL6416AHF_EnableLeptonReset(&_Devices_Manager_State.Expander_Mainboard, Reset);
+    /* Lepton reset is active low: assert reset when Reset=true → drive pin low */
+    return PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard,
+                                PCAL6416_PORT_1, 5, (Reset == false));
 }
 
 esp_err_t DevicesManager_HandleExpanderInterrupt(void)
 {
     esp_err_t Error;
-    PCAL6416AHF_InterruptStatus_t Status;
 
     if (_Devices_Manager_State.initialized == false) {
         return ESP_ERR_INVALID_STATE;
@@ -400,7 +486,11 @@ esp_err_t DevicesManager_HandleExpanderInterrupt(void)
 
     ESP_LOGI(TAG, "Expander: processing pin changes");
 
-    Error = PCAL6416AHF_ReadInterruptStatus(&_Devices_Manager_State.Expander_Mainboard, &Status);
+    uint8_t Status0, Status1, In0, In1;
+    bool Level;
+
+    Error = PCAL6416AHF_ReadIntStatus(&_Devices_Manager_State.Expander_Mainboard,
+                                      &Status0, &Status1, &In0, &In1);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read expander interrupt status: 0x%x! Attempting I2C bus recovery.", Error);
 
@@ -409,43 +499,45 @@ esp_err_t DevicesManager_HandleExpanderInterrupt(void)
         return Error;
     }
 
-    if (Status.BatteryAlert) {
-        ESP_LOGI(TAG, "Battery alert state changed!");
+    if (Status0 & (1 << 0)) {
+        /* Battery alert: HW polarity-inverted (POL0.0 set) → bit=1 in In0 means alert active */
+        Level = ((In0 & (1 << 0)) != 0);
+        ESP_LOGI(TAG, "Battery alert state changed! Level: %d", static_cast<int>(Level));
 
-        esp_event_post(DEVICES_EVENTS, DEVICES_EVENT_BATTERY_ALERT, &Status.BatteryAlertLevel,
-                       sizeof(Status.BatteryAlertLevel), pdMS_TO_TICKS(100));
+        esp_event_post(DEVICES_EVENTS, DEVICES_EVENT_BATTERY_ALERT, &Level, sizeof(Level), pdMS_TO_TICKS(100));
     }
 
-    if (Status.BatteryCharging) {
-        ESP_LOGI(TAG, "Battery charging state changed!");
+    if (Status0 & (1 << 1)) {
+        Level = ((In0 & (1 << 1)) != 0);
+        ESP_LOGI(TAG, "Battery charging state changed! Level: %d", static_cast<int>(Level));
 
-        esp_event_post(DEVICES_EVENTS, DEVICES_EVENT_BATTERY_CHARGING, &Status.BatteryChargingLevel,
-                       sizeof(Status.BatteryChargingLevel), pdMS_TO_TICKS(100));
+        esp_event_post(DEVICES_EVENTS, DEVICES_EVENT_BATTERY_CHARGING, &Level, sizeof(Level), pdMS_TO_TICKS(100));
     }
 
-    if (Status.RTCInterrupt) {
+    if (Status0 & (1 << 5)) {
         ESP_LOGI(TAG, "RTC interrupt detected!");
 
         esp_event_post(DEVICES_EVENTS, DEVICES_EVENT_RTC_INTERRUPT, NULL, 0, pdMS_TO_TICKS(100));
     }
 
-    if (Status.TempInterrupt) {
+    if (Status0 & (1 << 7)) {
         ESP_LOGI(TAG, "Temperature interrupt detected!");
 
         esp_event_post(DEVICES_EVENTS, DEVICES_EVENT_TEMP_INTERRUPT, NULL, 0, pdMS_TO_TICKS(100));
     }
 
-    if (Status.RangeInterrupt) {
+    if (Status1 & (1 << 0)) {
         ESP_LOGI(TAG, "Range interrupt detected!");
 
         esp_event_post(DEVICES_EVENTS, DEVICES_EVENT_RANGE_INTERRUPT, NULL, 0, pdMS_TO_TICKS(100));
     }
 
-    if (Status.SDDetect) {
-        ESP_LOGI(TAG, "SD card detect interrupt detected!");
+    if (Status1 & (1 << 4)) {
+        /* SD detect: active low, no HW inversion → bit=0 in In1 means card inserted */
+        Level = ((In1 & (1 << 4)) == 0);
+        ESP_LOGI(TAG, "SD card detect changed! Inserted: %d", static_cast<int>(Level));
 
-        esp_event_post(DEVICES_EVENTS, DEVICES_EVENT_SD_DETECT, &Status.SDDetectInserted,
-                       sizeof(Status.SDDetectInserted), pdMS_TO_TICKS(100));
+        esp_event_post(DEVICES_EVENTS, DEVICES_EVENT_SD_DETECT, &Level, sizeof(Level), pdMS_TO_TICKS(100));
     }
 
     return ESP_OK;
@@ -457,7 +549,7 @@ esp_err_t DevicesManager_SetLeptonPower(bool Enable)
         return ESP_ERR_INVALID_STATE;
     }
 
-    return PCAL6416AHF_SetLeptonPower(&_Devices_Manager_State.Expander_Mainboard, Enable);
+    return PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_0, 2, Enable);
 }
 
 esp_err_t DevicesManager_SetCameraReset(bool Reset)
@@ -466,7 +558,9 @@ esp_err_t DevicesManager_SetCameraReset(bool Reset)
         return ESP_ERR_INVALID_STATE;
     }
 
-    return PCAL6416AHF_SetCameraReset(&_Devices_Manager_State.Expander_Mainboard, Reset);
+    /* Camera reset is active low: assert reset when Reset=true → drive pin low */
+    return PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard,
+                                PCAL6416_PORT_1, 6, (Reset == false));
 }
 
 esp_err_t DevicesManager_EnableCamera(bool Enable)
@@ -475,7 +569,7 @@ esp_err_t DevicesManager_EnableCamera(bool Enable)
         return ESP_ERR_INVALID_STATE;
     }
 
-    return PCAL6416AHF_EnableCamera(&_Devices_Manager_State.Expander_Mainboard, Enable);
+    return PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 7, Enable);
 }
 
 esp_err_t DevicesManager_GetBatteryAlert(bool *p_Alert)
@@ -484,7 +578,8 @@ esp_err_t DevicesManager_GetBatteryAlert(bool *p_Alert)
         return ESP_ERR_INVALID_STATE;
     }
 
-    return PCAL6416AHF_GetBatteryAlert(&_Devices_Manager_State.Expander_Mainboard, p_Alert);
+    /* Battery alert is HW polarity-inverted: ReadPin returns true when alert is active (pin low) */
+    return PCAL6416AHF_ReadPin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_0, 0, p_Alert);
 }
 
 esp_err_t DevicesManager_GetBatteryCharging(bool *p_Charging)
@@ -493,7 +588,7 @@ esp_err_t DevicesManager_GetBatteryCharging(bool *p_Charging)
         return ESP_ERR_INVALID_STATE;
     }
 
-    return PCAL6416AHF_GetBatteryCharging(&_Devices_Manager_State.Expander_Mainboard, p_Charging);
+    return PCAL6416AHF_ReadPin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_0, 1, p_Charging);
 }
 
 esp_err_t DevicesManager_GetRTCInterrupt(bool *p_Triggered)
@@ -502,7 +597,18 @@ esp_err_t DevicesManager_GetRTCInterrupt(bool *p_Triggered)
         return ESP_ERR_INVALID_STATE;
     }
 
-    return PCAL6416AHF_GetRTCInterrupt(&_Devices_Manager_State.Expander_Mainboard, p_Triggered);
+    esp_err_t Error;
+    bool Level;
+
+    Error = PCAL6416AHF_ReadPin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_0, 5, &Level);
+    if (Error != ESP_OK) {
+        return Error;
+    }
+
+    /* Active low: pin low (Level == false) means interrupt is asserted */
+    *p_Triggered = (Level == false);
+
+    return ESP_OK;
 }
 
 esp_err_t DevicesManager_GetTempInterrupt(bool *p_Triggered)
@@ -511,7 +617,18 @@ esp_err_t DevicesManager_GetTempInterrupt(bool *p_Triggered)
         return ESP_ERR_INVALID_STATE;
     }
 
-    return PCAL6416AHF_GetTempInterrupt(&_Devices_Manager_State.Expander_Mainboard, p_Triggered);
+    esp_err_t Error;
+    bool Level;
+
+    Error = PCAL6416AHF_ReadPin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_0, 7, &Level);
+    if (Error != ESP_OK) {
+        return Error;
+    }
+
+    /* Active low: pin low (Level == false) means interrupt is asserted */
+    *p_Triggered = (Level == false);
+
+    return ESP_OK;
 }
 
 esp_err_t DevicesManager_GetRangeInterrupt(bool *p_Triggered)
@@ -520,7 +637,18 @@ esp_err_t DevicesManager_GetRangeInterrupt(bool *p_Triggered)
         return ESP_ERR_INVALID_STATE;
     }
 
-    return PCAL6416AHF_GetRangeInterrupt(&_Devices_Manager_State.Expander_Mainboard, p_Triggered);
+    esp_err_t Error;
+    bool Level;
+
+    Error = PCAL6416AHF_ReadPin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 0, &Level);
+    if (Error != ESP_OK) {
+        return Error;
+    }
+
+    /* Active low: pin low (Level == false) means interrupt is asserted */
+    *p_Triggered = (Level == false);
+
+    return ESP_OK;
 }
 
 esp_err_t DevicesManager_GetSDDetect(bool *p_Inserted)
@@ -529,7 +657,18 @@ esp_err_t DevicesManager_GetSDDetect(bool *p_Inserted)
         return ESP_ERR_INVALID_STATE;
     }
 
-    return PCAL6416AHF_GetSDDetect(&_Devices_Manager_State.Expander_Mainboard, p_Inserted);
+    esp_err_t Error;
+    bool Level;
+
+    Error = PCAL6416AHF_ReadPin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 4, &Level);
+    if (Error != ESP_OK) {
+        return Error;
+    }
+
+    /* SD detect is active low: pin low (Level == false) means card is inserted */
+    *p_Inserted = (Level == false);
+
+    return ESP_OK;
 }
 
 esp_err_t DevicesManager_GetDistance(uint16_t *p_Distance_mm, bool *p_IsValid)
@@ -583,6 +722,39 @@ esp_err_t DevicesManager_GetDistance(uint16_t *p_Distance_mm, bool *p_IsValid)
 
     ESP_LOGD(TAG, "Measured distance: %u mm, Status: %u, Signal rate: %u MCPS, Ambient rate: %u MCPS, SPADs: %u",
              Result.Distance_mm, Result.Status, Result.SignalRateMCPS, Result.AmbientRateMCPS, Result.EffectiveSPADs);
+
+    return ESP_OK;
+}
+
+esp_err_t DevicesManager_SetLED(bool R, bool G, bool B)
+{
+    esp_err_t Error;
+
+    if (_Devices_Manager_State.initialized == false) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    /* LEDs are active low: negate the logical level before writing to the output register */
+    Error = PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Displayboard, PCAL6416_PORT_0, 0, (B == false));
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to write LED pin (B): 0x%x!", Error);
+
+        return Error;
+    }
+
+    Error = PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Displayboard, PCAL6416_PORT_0, 1, (G == false));
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to write LED pin (G): 0x%x!", Error);
+
+        return Error;
+    }
+
+    Error = PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Displayboard, PCAL6416_PORT_0, 2, (R == false));
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to write LED pin (R): 0x%x!", Error);
+
+        return Error;
+    }
 
     return ESP_OK;
 }

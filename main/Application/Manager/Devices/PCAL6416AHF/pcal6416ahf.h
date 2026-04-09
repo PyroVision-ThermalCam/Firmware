@@ -24,144 +24,137 @@
 #ifndef PCAL6416AHF_H_
 #define PCAL6416AHF_H_
 
+#include <stdint.h>
+#include <stddef.h>
 #include <esp_err.h>
 
 #include "../I2C/i2c.h"
 
+/** @brief Port number for port expander pins.
+ */
+typedef enum {
+    PCAL6416_PORT_0 = 0x00,     /**< Port 0 (P0.0 – P0.7). */
+    PCAL6416_PORT_1 = 0x01,     /**< Port 1 (P1.0 – P1.7). */
+} PCAL6416_Port_t;
+
+/** @brief I/O direction for a port expander pin.
+ */
+typedef enum {
+    PCAL6416_DIR_INPUT  = 0x00, /**< Pin configured as input. */
+    PCAL6416_DIR_OUTPUT = 0x01, /**< Pin configured as output. */
+} PCAL6416_Dir_t;
+
+/** @brief Pull-resistor selection for a port expander pin.
+ */
+typedef enum {
+    PCAL6416_PULL_NONE = 0x00,  /**< No pull resistor. */
+    PCAL6416_PULL_UP   = 0x01,  /**< Pull-up resistor enabled. */
+    PCAL6416_PULL_DOWN = 0x02,  /**< Pull-down resistor enabled. */
+} PCAL6416_Pull_t;
+
+/** @brief Configuration for a single I/O pin of the PCAL6416AHF.
+ */
+typedef struct {
+    PCAL6416_Port_t Port;       /**< Port number (PCAL6416_PORT_0 or PCAL6416_PORT_1). */
+    uint8_t Pin;                /**< Pin number within the port (0-7). */
+    PCAL6416_Dir_t Direction;   /**< Input or output. */
+    PCAL6416_Pull_t Pull;       /**< Pull-up, pull-down, or none. */
+    bool isInverted;            /**< Active-low signal indicator.
+                                    Inputs: polarity inversion register is set (hardware).
+                                    Outputs: the API caller must negate the logic level. */
+    bool isLatched;             /**< Input latch enable.
+                                    When true the input value is captured at the interrupt edge
+                                    and held until the INPUT register is read (PCAL6416AHF_ReadIntStatus).
+                                    Use for mechanically bouncing signals such as card-detect
+                                    switches to avoid metastable reads. */
+} PCAL6416_IO_Conf_t;
+
 /** @brief Port expander device instance.
  */
 typedef struct {
-    i2c_master_dev_handle_t Handle;     /**< I2C device handle. */
+    i2c_master_dev_handle_t Handle; /**< I2C device handle. */
 } PCAL6416AHF_Dev_t;
 
-/** @brief              Initializes the port expander driver.
- *  @param p_Bus_Handle Pointer to I2C bus handle
- *  @param p_Device     Pointer to device instance
- *  @return             ESP_OK on success, error code otherwise
+/** @brief              Initialize a PCAL6416AHF port expander instance.
+ *                      Registers the device on the I2C bus at the given address, applies the
+ *                      supplied pin configuration (direction, polarity, pull resistors, input
+ *                      latch, interrupt mask), clears any pending INT_STATUS bits, and
+ *                      anchors the internal change-detection snapshot by reading INPUT0/1.
+ *  @note               Must be called before any other PCAL6416AHF API functions.
+ *                      The pin configuration array must remain valid only for the duration
+ *                      of this call; it is not referenced afterwards.
+ *  @param p_Bus_Handle Pointer to the I2C master bus handle
+ *  @param Address      7-bit I2C address of the device
+ *  @param p_Config     Pointer to an array of PCAL6416_IO_Conf_t pin descriptors
+ *  @param Count        Number of entries in p_Config
+ *  @param p_Device     Pointer to the device instance to initialize
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_ARG if any pointer is NULL
+ *                      ESP_FAIL if I2C bus registration or register configuration fails
  */
-esp_err_t PCAL6416AHF_Init(i2c_master_bus_handle_t *p_Bus_Handle, PCAL6416AHF_Dev_t *p_Device);
+esp_err_t PCAL6416AHF_Init(i2c_master_bus_handle_t *p_Bus_Handle, uint8_t Address,
+                           const PCAL6416_IO_Conf_t *p_Config, size_t Count,
+                           PCAL6416AHF_Dev_t *p_Device);
 
-/** @brief              Deinitializes the port expander driver.
- *  @param p_Device     Pointer to device instance
- *  @return             ESP_OK on success, error code otherwise
+/** @brief              Deinitialize a PCAL6416AHF port expander instance and release its I2C handle.
+ *  @param p_Device     Pointer to the device instance
+ *  @return             ESP_OK on success
+ *                      ESP_FAIL if removing the I2C device fails
  */
 esp_err_t PCAL6416AHF_Deinit(PCAL6416AHF_Dev_t *p_Device);
 
-/** @brief              Enables or disables the camera power (active high, P1.7).
- *  @param p_Device     Pointer to device instance
- *  @param Enable       true to power on the camera, false to power off
- *  @return             ESP_OK on success, error code otherwise
- */
-esp_err_t PCAL6416AHF_EnableCamera(PCAL6416AHF_Dev_t *p_Device, bool Enable);
-
-/** @brief              Enables or disables the LED.
- *  @note               No LED pin is assigned to this port expander. Always returns
- *                      ESP_ERR_NOT_SUPPORTED.
- *  @param p_Device     Pointer to device instance
- *  @param Enable       true to enable the LED, false to disable it
- *  @return             ESP_ERR_NOT_SUPPORTED
- */
-esp_err_t PCAL6416AHF_EnableLED(PCAL6416AHF_Dev_t *p_Device, bool Enable);
-
-/** @brief              Controls the Lepton reset line (active low, P1.5).
- *                      The isInverted flag is applied in software: Reset=true drives the pin low.
- *  @param p_Device     Pointer to device instance
- *  @param Reset        true to assert reset (pin low), false to release reset (pin high)
- *  @return             ESP_OK on success, error code otherwise
- */
-esp_err_t PCAL6416AHF_EnableLeptonReset(PCAL6416AHF_Dev_t *p_Device, bool Reset);
-
-/** @brief              Controls the Lepton power pin (active high, P0.2).
- *  @param p_Device     Pointer to device instance
- *  @param Enable       true to power on, false to power off
- *  @return             ESP_OK on success, error code otherwise
- */
-esp_err_t PCAL6416AHF_SetLeptonPower(PCAL6416AHF_Dev_t *p_Device, bool Enable);
-
-/** @brief              Controls the camera reset line (active low, P1.6).
- *                      The isInverted flag is applied in software: Reset=true drives the pin low.
- *  @param p_Device     Pointer to device instance
- *  @param Reset        true to assert reset (pin low), false to release reset (pin high)
- *  @return             ESP_OK on success, error code otherwise
- */
-esp_err_t PCAL6416AHF_SetCameraReset(PCAL6416AHF_Dev_t *p_Device, bool Reset);
-
-/** @brief              Read the battery alert input (active low, P0.0).
- *                      Hardware polarity inversion is active for this pin, so the returned
- *                      value is already the logical level: true means alert is active.
- *  @param p_Device     Pointer to device instance
- *  @param p_Alert      Pointer to store the alert state (true = alert active)
- *  @return             ESP_OK on success, error code otherwise
- */
-esp_err_t PCAL6416AHF_GetBatteryAlert(PCAL6416AHF_Dev_t *p_Device, bool *p_Alert);
-
-/** @brief              Read the battery charging input (active high, P0.1).
- *  @param p_Device     Pointer to device instance
- *  @param p_Charging   Pointer to store the charging state (true = charging)
- *  @return             ESP_OK on success, error code otherwise
- */
-esp_err_t PCAL6416AHF_GetBatteryCharging(PCAL6416AHF_Dev_t *p_Device, bool *p_Charging);
-
-/** @brief              Read the RTC interrupt input (active low, P0.5).
- *  @param p_Device     Pointer to device instance
- *  @param p_Triggered  Pointer to store the interrupt state (true = interrupt pending)
- *  @return             ESP_OK on success, error code otherwise
- */
-esp_err_t PCAL6416AHF_GetRTCInterrupt(PCAL6416AHF_Dev_t *p_Device, bool *p_Triggered);
-
-/** @brief              Read the temperature sensor interrupt input (active low, P0.7).
- *  @param p_Device     Pointer to device instance
- *  @param p_Triggered  Pointer to store the interrupt state (true = interrupt pending)
- *  @return             ESP_OK on success, error code otherwise
- */
-esp_err_t PCAL6416AHF_GetTempInterrupt(PCAL6416AHF_Dev_t *p_Device, bool *p_Triggered);
-
-/** @brief              Read the range sensor interrupt input (active low, P1.0).
- *  @param p_Device     Pointer to device instance
- *  @param p_Triggered  Pointer to store the interrupt state (true = interrupt pending)
- *  @return             ESP_OK on success, error code otherwise
- */
-esp_err_t PCAL6416AHF_GetRangeInterrupt(PCAL6416AHF_Dev_t *p_Device, bool *p_Triggered);
-
-/** @brief              Read the SD-card detect input (active low, P1.4).
- *  @param p_Device     Pointer to device instance
- *  @param p_Inserted   Pointer to store the detection state (true = card inserted)
- *  @return             ESP_OK on success, error code otherwise
- */
-esp_err_t PCAL6416AHF_GetSDDetect(PCAL6416AHF_Dev_t *p_Device, bool *p_Inserted);
-
-/** @brief Parsed interrupt status from the PCAL6416AHF INT_STATUS0/1 registers.
- *         One field per interrupt-capable input pin on the mainboard instance.
- *         The *Level / *Inserted fields are derived from the INPUT0/1 registers
- *         that are read atomically (with respect to the latch) inside
- *         PCAL6416AHF_ReadInterruptStatus().  For latched pins (e.g. SD_DETECT)
- *         these reflect the captured pin state at interrupt time, not a later
- *         live read.
- */
-typedef struct {
-    bool BatteryAlert;          /**< Battery alert pin changed state (P0.0). */
-    bool BatteryAlertLevel;     /**< Battery alert level at interrupt time (true = alert active,
-                                     hardware polarity-inverted via POL0). */
-    bool BatteryCharging;       /**< Battery charging pin changed state (P0.1). */
-    bool BatteryChargingLevel;  /**< Battery charging level at interrupt time (true = charging). */
-    bool RTCInterrupt;          /**< RTC interrupt pin asserted (P0.5). */
-    bool TempInterrupt;         /**< Temperature sensor interrupt pin asserted (P0.7). */
-    bool RangeInterrupt;        /**< Range sensor interrupt pin asserted (P1.0). */
-    bool SDDetect;              /**< SD-card detect pin changed state (P1.4). */
-    bool SDDetectInserted;      /**< SD card present at interrupt time (true = card inserted,
-                                     active-low inverted in software). */
-} PCAL6416AHF_InterruptStatus_t;
-
-/** @brief              Read and clear both INT_STATUS registers of the PCAL6416AHF.
- *                      Each bit in the hardware registers is set when the corresponding
- *                      input pin changes state (interrupt not masked) and is cleared
- *                      automatically when the register is read.
- *  @param p_Device     Pointer to device instance
- *  @param p_Status     Pointer to store the parsed interrupt status
+/** @brief              Read the logical level of a single input pin.
+ *                      Reads INPUT0 or INPUT1 (depending on Port) and extracts the bit at Pin.
+ *                      The value reflects hardware polarity inversion if it was configured
+ *                      during PCAL6416AHF_Init().
+ *  @note               For latched pins, this read clears the hardware latch and updates the
+ *                      chip's change-detection reference.  Avoid calling this from an interrupt
+ *                      handler context.
+ *  @param p_Device     Pointer to the device instance
+ *  @param Port         Target port (PCAL6416_PORT_0 or PCAL6416_PORT_1)
+ *  @param Pin          Pin number within the port (0-7)
+ *  @param p_Level      Pointer to store the pin level (true = high, false = low)
  *  @return             ESP_OK on success
- *                      ESP_ERR_INVALID_ARG if p_Device or p_Status is NULL
+ *                      ESP_ERR_INVALID_ARG if p_Device or p_Level is NULL
  *                      ESP_FAIL if I2C communication fails
  */
-esp_err_t PCAL6416AHF_ReadInterruptStatus(PCAL6416AHF_Dev_t *p_Device, PCAL6416AHF_InterruptStatus_t *p_Status);
+esp_err_t PCAL6416AHF_ReadPin(PCAL6416AHF_Dev_t *p_Device, PCAL6416_Port_t Port, uint8_t Pin,
+                              bool *p_Level);
+
+/** @brief              Set the logical level of a single output pin.
+ *                      Performs a read-modify-write on OUTPUT0 or OUTPUT1.
+ *  @param p_Device     Pointer to the device instance
+ *  @param Port         Target port (PCAL6416_PORT_0 or PCAL6416_PORT_1)
+ *  @param Pin          Pin number within the port (0-7)
+ *  @param Level        Desired output level (true = high, false = low)
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_ARG if p_Device is NULL
+ *                      ESP_FAIL if I2C communication fails
+ */
+esp_err_t PCAL6416AHF_WritePin(PCAL6416AHF_Dev_t *p_Device, PCAL6416_Port_t Port, uint8_t Pin,
+                               bool Level);
+
+/** @brief              Read and clear both INT_STATUS registers and both INPUT registers in one call.
+ *                      The INT_STATUS registers are read first, which clears all pending bits and
+ *                      releases INT# (open-drain, returns high).  The INPUT registers are then
+ *                      read to refresh the chip's change-detection snapshot and to release any
+ *                      active input latches.
+ *  @note               For latched input pins the Input values reflect the captured stable state
+ *                      at interrupt time, not a later live read.
+ *                      Do NOT issue any additional INPUT register reads after this function — a
+ *                      subsequent read updates the chip's reference and may prevent detection
+ *                      of the reverse transition.
+ *  @param p_Device     Pointer to the device instance
+ *  @param p_Status0    Pointer to store raw INT_STATUS0 byte (one bit per port-0 pin)
+ *  @param p_Status1    Pointer to store raw INT_STATUS1 byte (one bit per port-1 pin)
+ *  @param p_Input0     Pointer to store raw INPUT0 byte captured after INT_STATUS clear
+ *  @param p_Input1     Pointer to store raw INPUT1 byte captured after INT_STATUS clear
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_ARG if any pointer is NULL
+ *                      ESP_FAIL if I2C communication fails
+ */
+esp_err_t PCAL6416AHF_ReadIntStatus(PCAL6416AHF_Dev_t *p_Device,
+                                    uint8_t *p_Status0, uint8_t *p_Status1,
+                                    uint8_t *p_Input0, uint8_t *p_Input1);
 
 #endif /* PCAL6416AHF_H_ */

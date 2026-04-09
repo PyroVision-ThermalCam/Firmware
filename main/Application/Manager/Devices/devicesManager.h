@@ -272,4 +272,14 @@ esp_err_t DevicesManager_GetSDDetect(bool *p_Inserted);
  */
 esp_err_t DevicesManager_HandleExpanderInterrupt(void);
 
+/** @brief              Set the state of the RGB LED.
+ *  @param R            Red LED state (true = on, false = off)
+ *  @param G            Green LED state (true = on, false = off)
+ *  @param B            Blue LED state (true = on, false = off)
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
+ *                      ESP_FAIL if I2C communication fails
+ */
+esp_err_t DevicesManager_SetLED(bool R, bool G, bool B);
+
 #endif /* DEVICESMANAGER_H_ */
