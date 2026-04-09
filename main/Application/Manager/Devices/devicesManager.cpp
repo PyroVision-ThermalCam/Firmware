@@ -325,14 +325,15 @@ esp_err_t DevicesManager_Init(void)
 
     _Devices_Manager_State.initialized = true;
 
-    /* NOTE: Temporary test call – set all LED channels to 1 % duty cycle so that PWM
-     * is visible on an oscilloscope. Remove or set to 0 before the production release. */
-    DevicesManager_SetLEDBrightness(1);
+    DevicesManager_SetBrightness(BACKLIGHT_FLASH, 20);
 
     // TODO: Anders machen
     DevicesManager_LeptonReset(false);
 
-    DevicesManager_SetLED(false, false, false);
+    if (DevicesManager_SetLED(false, false, false) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize LEDs!");
+        return ESP_FAIL;
+    }
 
     return ESP_OK;
 }
@@ -394,7 +395,6 @@ spi_host_device_t DevicesManager_GetSPIHost(void)
 
 esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, uint8_t *p_Percentage)
 {
-    esp_err_t Error;
     float VoltageV;
     float SOC;
 
@@ -406,17 +406,15 @@ esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, uint8_t *p_Percentage
         return ESP_ERR_INVALID_ARG;
     }
 
-    Error = MAX17048_GetVoltage(&_Devices_Manager_State.MAX17048, &VoltageV);
-    if (Error != ESP_OK) {
-        return Error;
+    if (MAX17048_GetVoltage(&_Devices_Manager_State.MAX17048, &VoltageV) != ESP_OK) {
+        return ESP_FAIL;
     }
 
     /* Convert V to mV */
     *p_Voltage = static_cast<int>(VoltageV * 1000.0f);
 
-    Error = MAX17048_GetSOC(&_Devices_Manager_State.MAX17048, &SOC);
-    if (Error != ESP_OK) {
-        return Error;
+    if (MAX17048_GetSOC(&_Devices_Manager_State.MAX17048, &SOC) != ESP_OK) {
+        return ESP_FAIL;
     }
 
     *p_Percentage = static_cast<uint8_t>(SOC);
@@ -454,14 +452,48 @@ esp_err_t DevicesManager_GetTemperature(float *p_Temperature)
     return TMP117_ReadTemperature(&_Devices_Manager_State.TMP117, p_Temperature);
 }
 
-esp_err_t DevicesManager_SetLEDBrightness(uint8_t Brightness)
+esp_err_t DevicesManager_SetBrightness(Devices_BacklightID_t ID, uint8_t Brightness)
 {
     if (_Devices_Manager_State.initialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
-    return PCA9633DP1_SetAllLEDs(&_Devices_Manager_State.PCA9633DP1,
-                                 Brightness, Brightness, Brightness, Brightness);
+    if (ID == BACKLIGHT_FLASH) {
+        if (Brightness > 0) {
+            if ((PCA9633DP1_SetLEDState(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED0, PCA9633_LED_PWM) != ESP_OK) ||
+                (PCA9633DP1_SetLEDState(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED1, PCA9633_LED_PWM) != ESP_OK)) {
+                return ESP_FAIL;
+            }
+
+            if ((PCA9633DP1_SetLEDBrightness(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED0, Brightness) != ESP_OK) ||
+                (PCA9633DP1_SetLEDBrightness(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED1, Brightness) != ESP_OK)) {
+                return ESP_FAIL;
+            }
+        } else {
+            if ((PCA9633DP1_SetLEDState(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED0, PCA9633_LED_OFF) != ESP_OK) ||
+                (PCA9633DP1_SetLEDState(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED1, PCA9633_LED_OFF) != ESP_OK)) {
+                return ESP_FAIL;
+            }
+        }
+    } else if (ID == BACKLIGHT_DISPLAY) {
+        if (Brightness > 0) {
+            if (PCA9633DP1_SetLEDState(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED2, PCA9633_LED_PWM) != ESP_OK) {
+                return ESP_FAIL;
+            }
+
+            if (PCA9633DP1_SetLEDBrightness(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED2, Brightness) != ESP_OK) {
+                return ESP_FAIL;
+            }
+        } else {
+            if (PCA9633DP1_SetLEDState(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED2, PCA9633_LED_OFF) != ESP_OK) {
+                return ESP_FAIL;
+            }
+        }
+    } else {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    return ESP_OK;
 }
 
 esp_err_t DevicesManager_LeptonReset(bool Reset)
@@ -474,6 +506,8 @@ esp_err_t DevicesManager_LeptonReset(bool Reset)
 esp_err_t DevicesManager_HandleExpanderInterrupt(void)
 {
     esp_err_t Error;
+    uint8_t Status0, Status1, In0, In1;
+    bool Level;
 
     if (_Devices_Manager_State.initialized == false) {
         return ESP_ERR_INVALID_STATE;
@@ -485,9 +519,6 @@ esp_err_t DevicesManager_HandleExpanderInterrupt(void)
     }
 
     ESP_LOGI(TAG, "Expander: processing pin changes");
-
-    uint8_t Status0, Status1, In0, In1;
-    bool Level;
 
     Error = PCAL6416AHF_ReadIntStatus(&_Devices_Manager_State.Expander_Mainboard,
                                       &Status0, &Status1, &In0, &In1);

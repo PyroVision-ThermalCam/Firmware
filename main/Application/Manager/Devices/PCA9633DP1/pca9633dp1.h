@@ -31,7 +31,7 @@
 /** @brief PCA9633DP1 device instance.
  */
 typedef struct {
-    i2c_master_dev_handle_t Handle;     /**< I2C device handle. */
+    i2c_master_dev_handle_t Handle;         /**< I2C device handle. */
 } PCA9633DP1_Dev_t;
 
 /** @brief LED channel identifier.
@@ -49,7 +49,6 @@ typedef enum {
     PCA9633_LED_OFF = 0,                    /**< LED driver off (default power-up state). */
     PCA9633_LED_FULLY_ON = 1,               /**< LED driver fully on (not PWM controlled). */
     PCA9633_LED_PWM = 2,                    /**< LED driver individual PWM + group PWM/dimming. */
-    PCA9633_LED_PWM_GRPPWM = 3,             /**< LED driver individual PWM + group blinking. */
 } PCA9633_LED_State_t;
 
 /** @brief              Initializes the PCA9633DP1 LED driver.
@@ -89,24 +88,7 @@ esp_err_t PCA9633DP1_Deinit(PCA9633DP1_Dev_t *p_Device);
  *                      ESP_ERR_INVALID_ARG if device handle NULL or invalid LED
  *                      ESP_FAIL if I2C communication fails
  */
-esp_err_t PCA9633DP1_SetLED(PCA9633DP1_Dev_t *p_Device, PCA9633_LED_t LED, uint8_t Brightness);
-
-/** @brief              Set brightness of all LED channels simultaneously.
- *                      Sets PWM duty cycle for all 4 LED channels using auto-increment
- *                      and enables PWM control mode for all channels.
- *  @note               More efficient than calling PCA9633DP1_SetLED() four times.
- *                      All LEDs are automatically enabled in PWM control mode.
- *  @param p_Device     Pointer to device instance
- *  @param LED0         Brightness for LED channel 0 (0-255)
- *  @param LED1         Brightness for LED channel 1 (0-255)
- *  @param LED2         Brightness for LED channel 2 (0-255)
- *  @param LED3         Brightness for LED channel 3 (0-255)
- *  @return             ESP_OK on success
- *                      ESP_ERR_INVALID_ARG if device handle is NULL
- *                      ESP_FAIL if I2C communication fails
- */
-esp_err_t PCA9633DP1_SetAllLEDs(PCA9633DP1_Dev_t *p_Device, uint8_t LED0, uint8_t LED1, uint8_t LED2,
-                                uint8_t LED3);
+esp_err_t PCA9633DP1_SetLEDBrightness(PCA9633DP1_Dev_t *p_Device, PCA9633_LED_t LED, uint8_t Brightness);
 
 /** @brief              Set output state of an LED channel.
  *                      Controls LED driver output state: off, fully on, PWM controlled,
@@ -121,23 +103,6 @@ esp_err_t PCA9633DP1_SetAllLEDs(PCA9633DP1_Dev_t *p_Device, uint8_t LED0, uint8_
  *                      ESP_FAIL if I2C communication fails
  */
 esp_err_t PCA9633DP1_SetLEDState(PCA9633DP1_Dev_t *p_Device, PCA9633_LED_t LED, PCA9633_LED_State_t State);
-
-/** @brief              Configure group PWM and blinking control.
- *                      Sets up group control for global dimming or synchronized blinking
- *                      of all LEDs set to group control mode.
- *  @note               Only affects LEDs set to PCA9633_LED_PWM_GRPPWM state.
- *                      Blinking frequency = GroupFreq / 24 Hz (e.g., 255 = 0.17 Hz).
- *                      GroupPWM defines duty cycle in dimming mode or on-time in blink mode.
- *  @param p_Device     Pointer to device instance
- *  @param GroupPWM     Group PWM duty cycle (0-255)
- *  @param GroupFreq    Group frequency for blinking (0-255), only used when Blinking=true
- *  @param Blinking     true for blinking mode, false for dimming mode
- *  @return             ESP_OK on success
- *                      ESP_ERR_INVALID_ARG if device handle is NULL
- *                      ESP_FAIL if I2C communication fails
- */
-esp_err_t PCA9633DP1_SetGroupControl(PCA9633DP1_Dev_t *p_Device, uint8_t GroupPWM, uint8_t GroupFreq,
-                                     bool Blinking);
 
 /** @brief              Enable or disable sleep mode (low power mode).
  *                      In sleep mode, the internal oscillator is turned off and PWM

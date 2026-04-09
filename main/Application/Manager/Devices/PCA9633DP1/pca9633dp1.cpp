@@ -270,7 +270,7 @@ esp_err_t PCA9633DP1_Deinit(PCA9633DP1_Dev_t *p_Device)
     return ESP_OK;
 }
 
-esp_err_t PCA9633DP1_SetLED(PCA9633DP1_Dev_t *p_Device, PCA9633_LED_t LED, uint8_t Brightness)
+esp_err_t PCA9633DP1_SetLEDBrightness(PCA9633DP1_Dev_t *p_Device, PCA9633_LED_t LED, uint8_t Brightness)
 {
     uint8_t RegAddr;
     uint8_t LEDOUT_Value;
@@ -319,47 +319,6 @@ esp_err_t PCA9633DP1_SetLED(PCA9633DP1_Dev_t *p_Device, PCA9633_LED_t LED, uint8
     return ESP_OK;
 }
 
-esp_err_t PCA9633DP1_SetAllLEDs(PCA9633DP1_Dev_t *p_Device, uint8_t LED0, uint8_t LED1, uint8_t LED2,
-                                uint8_t LED3)
-{
-    uint8_t PWM_Values[4];
-    uint8_t LEDOUT_Value;
-    esp_err_t Error = ESP_OK;
-
-    if (p_Device == NULL) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    /* Prepare PWM values */
-    PWM_Values[0] = LED0;
-    PWM_Values[1] = LED1;
-    PWM_Values[2] = LED2;
-    PWM_Values[3] = LED3;
-
-    /* Write all four PWM values in one auto-increment burst */
-    Error = PCA9633_Write_Registers(&p_Device->Handle, PCA9633_REG_PWM0, PWM_Values, 4);
-    if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set all LED brightness: %d!", Error);
-
-        return Error;
-    }
-
-    /* Set all channels to individual PWM mode */
-    LEDOUT_Value = static_cast<uint8_t>((PCA9633_LEDOUT_PWM << 0) |
-                                        (PCA9633_LEDOUT_PWM << 2) |
-                                        (PCA9633_LEDOUT_PWM << 4) |
-                                        (PCA9633_LEDOUT_PWM << 6));
-
-    Error = PCA9633_Write_Register(&p_Device->Handle, PCA9633_REG_LEDOUT, LEDOUT_Value);
-    if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to update LEDOUT: %d!", Error);
-
-        return Error;
-    }
-
-    return ESP_OK;
-}
-
 esp_err_t PCA9633DP1_SetLEDState(PCA9633DP1_Dev_t *p_Device, PCA9633_LED_t LED, PCA9633_LED_State_t State)
 {
     uint8_t LEDOUT_Value;
@@ -386,56 +345,6 @@ esp_err_t PCA9633DP1_SetLEDState(PCA9633DP1_Dev_t *p_Device, PCA9633_LED_t LED, 
     Error = PCA9633_Write_Register(&p_Device->Handle, PCA9633_REG_LEDOUT, LEDOUT_Value);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to update LEDOUT: %d!", Error);
-
-        return Error;
-    }
-
-    return ESP_OK;
-}
-
-esp_err_t PCA9633DP1_SetGroupControl(PCA9633DP1_Dev_t *p_Device, uint8_t GroupPWM, uint8_t GroupFreq,
-                                     bool Blinking)
-{
-    esp_err_t Error = ESP_OK;
-    uint8_t MODE2_Value;
-
-    if (p_Device == NULL) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    /* Set group PWM value (0–255: dimming intensity or blinking duty cycle) */
-    Error = PCA9633_Write_Register(&p_Device->Handle, PCA9633_REG_GRPPWM, GroupPWM);
-    if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set GRPPWM: %d!", Error);
-
-        return Error;
-    }
-
-    /* Set group frequency (only meaningful in blinking mode) */
-    Error = PCA9633_Write_Register(&p_Device->Handle, PCA9633_REG_GRPFREQ, GroupFreq);
-    if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set GRPFREQ: %d!", Error);
-
-        return Error;
-    }
-
-    /* Read-modify-write MODE2 to set or clear the blinking flag */
-    Error = PCA9633_Read_Register(&p_Device->Handle, PCA9633_REG_MODE2, &MODE2_Value);
-    if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read MODE2: %d!", Error);
-
-        return Error;
-    }
-
-    if (Blinking) {
-        MODE2_Value |= PCA9633_MODE2_DMBLNK;
-    } else {
-        MODE2_Value &= ~PCA9633_MODE2_DMBLNK;
-    }
-
-    Error = PCA9633_Write_Register(&p_Device->Handle, PCA9633_REG_MODE2, MODE2_Value);
-    if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to update MODE2: %d!", Error);
 
         return Error;
     }

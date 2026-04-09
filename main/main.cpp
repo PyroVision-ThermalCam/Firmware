@@ -67,12 +67,12 @@ extern "C" void app_main(void)
     } else {
         ESP_LOGW(TAG, "RTC not available, Time Manager initialization skipped");
     }
-    /*
-        ESP_ERROR_CHECK(GUI_Task_Init());
-        ESP_ERROR_CHECK(Lepton_Task_Init());
-        ESP_ERROR_CHECK(Camera_Task_Init());
-        ESP_ERROR_CHECK(Network_Task_Init(&_App_Context));
-    */
+
+    ESP_ERROR_CHECK(GUI_Task_Init());
+    ESP_ERROR_CHECK(Lepton_Task_Init());
+    ESP_ERROR_CHECK(Camera_Task_Init());
+    ESP_ERROR_CHECK(Network_Task_Init(&_App_Context));
+
     ESP_LOGI(TAG, " Initialization successful");
 
     ESP_LOGI(TAG, "Starting tasks...");

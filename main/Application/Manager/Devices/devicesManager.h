@@ -158,18 +158,19 @@ esp_err_t DevicesManager_GetTemperature(float *p_Temperature);
  */
 esp_err_t DevicesManager_GetDistance(uint16_t *p_Distance_mm, bool *p_IsValid);
 
-/** @brief          Set the brightness of all four LED channels simultaneously.
- *                  Applies the same PWM duty cycle to all PCA9633DP1 output channels.
- *                  A duty cycle of 0 turns all LEDs off (output actively driven LOW by
- *                  totem-pole driver); 255 drives them at full brightness.
- *  @note           Changes take effect immediately.
- *                  This function is thread-safe.
- *  @param Brightness PWM duty cycle for all channels (0 = off, 255 = full brightness)
- *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_STATE if DevicesManager not initialized
- *                  ESP_FAIL if I2C communication fails
+/** @brief              Set the brightness of a specific backlight.
+ *                      Applies the specified PWM duty cycle to the selected backlight.
+ *                      A duty cycle of 0 turns the backlight off (output actively driven LOW by
+ *                      totem-pole driver); 255 drives it at full brightness.
+ *  @note               Changes take effect immediately.
+ *                      This function is thread-safe.
+ *  @param ID           Identifier of the backlight to control
+ *  @param Brightness   PWM duty cycle for the selected backlight (0 = off, 255 = full brightness)
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
+ *                      ESP_FAIL if I2C communication fails
  */
-esp_err_t DevicesManager_SetLEDBrightness(uint8_t Brightness);
+esp_err_t DevicesManager_SetBrightness(Devices_BacklightID_t ID, uint8_t Brightness);
 
 /** @brief              Enable or disable the Lepton camera reset.
  *                      Controls the reset line of the Lepton thermal camera module via

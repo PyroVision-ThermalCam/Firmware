@@ -50,4 +50,11 @@ enum {
     DEVICES_EVENT_SD_DETECT,        /**< SD-card detection state changed. Data: bool (true = card inserted). */
 };
 
+/** @brief Backlight identifiers.
+ */
+typedef enum {
+    BACKLIGHT_FLASH = 0,            /**< Flash backlight. */
+    BACKLIGHT_DISPLAY,              /**< Display backlight. */
+} Devices_BacklightID_t;
+
 #endif /* DEVICES_TYPES_H_ */

@@ -568,9 +568,11 @@ int VISA_Cmd_SetLEDBrightness(char **pp_Tokens, int Count, char *p_Response, siz
         return SCPI_ERROR_DATA_OUT_OF_RANGE;
     }
 
+    // TODO
+    /*
     if (DevicesManager_SetLEDBrightness(static_cast<uint8_t>(Brightness)) != ESP_OK) {
         return SCPI_ERROR_EXECUTION_ERROR;
-    }
+    }*/
 
     return 0;
 }
