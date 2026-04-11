@@ -260,7 +260,7 @@ static void on_WiFi_Connected(void *p_Arg, esp_event_base_t EventBase,
     VISA_Server_Start(&VISAConfig);
     
     // Notify GUI (update WiFi icon)
-    esp_event_post(GUI_EVENTS, GUI_EVENT_WIFI_CONNECTED, NULL, 0, 0);
+    esp_event_post(GUI_TASK_EVENTS, GUI_EVENT_WIFI_CONNECTED, NULL, 0, 0);
 }
 ----
 

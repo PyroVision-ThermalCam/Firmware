@@ -38,6 +38,7 @@
 #include "MSC/usbMSC.h"
 #include "UVC/usbUVC.h"
 #include "CDC/usbCDC.h"
+#include "../appDiag.h"
 #include "Descriptors/descriptors.h"
 #include "../Memory/memoryManager.h"
 
@@ -46,16 +47,16 @@ ESP_EVENT_DEFINE_BASE(USB_EVENTS);
 /** @brief USB Manager internal command IDs for the task queue.
  */
 typedef enum {
-    USB_CMD_ENABLE_MSC,     /**< Initialize and enable USB MSC. */
-    USB_CMD_DISABLE_MSC,    /**< Deinitialize and disable USB MSC. */
-    USB_CMD_ENABLE_UVC,     /**< Initialize and enable USB UVC. */
-    USB_CMD_DISABLE_UVC,    /**< Deinitialize and disable USB UVC. */
+    USB_CMD_ENABLE_MSC,                     /**< Initialize and enable USB MSC. */
+    USB_CMD_DISABLE_MSC,                    /**< Deinitialize and disable USB MSC. */
+    USB_CMD_ENABLE_UVC,                     /**< Initialize and enable USB UVC. */
+    USB_CMD_DISABLE_UVC,                    /**< Deinitialize and disable USB UVC. */
 } USB_Manager_Cmd_ID_t;
 
 /** @brief USB Manager command structure passed through the internal queue.
  */
 typedef struct {
-    USB_Manager_Cmd_ID_t ID;    /**< Command identifier. */
+    USB_Manager_Cmd_ID_t ID;                /**< Command identifier. */
 } USB_Manager_Cmd_t;
 
 /** @brief USB Manager internal state.
@@ -155,17 +156,17 @@ static void USB_Monitoring_Task(void *p_Arg)
                     break;
                 }
                 case USB_CMD_ENABLE_UVC: {
-                    if (USBUVC_IsInitialized()) {
-                        ESP_LOGW(TAG, "UVC already initialized!");
-
-                        break;
-                    }
-
                     USB_UVC_Config_t UVC_Config = {
                         .Width = 160,
                         .Height = 120,
                         .FrameRate = 9,
                     };
+
+                    if (USBUVC_IsInitialized()) {
+                        ESP_LOGW(TAG, "UVC already initialized!");
+
+                        break;
+                    }
 
                     Error = USBUVC_Init(&UVC_Config);
                     if (Error != ESP_OK) {
@@ -217,7 +218,7 @@ esp_err_t USBManager_Init(void)
     if (_USB_Manager_State.isInitialized) {
         ESP_LOGW(TAG, "USB Manager already initialized!");
 
-        return ESP_ERR_INVALID_STATE;
+        return USB_ERR_ALREADY_INITIALIZED;
     }
 
     ESP_LOGD(TAG, "Initializing USB Manager...");
@@ -245,7 +246,9 @@ esp_err_t USBManager_Init(void)
     if (USB_Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to install TinyUSB driver: 0x%X!", USB_Error);
 
-        return USB_Error;
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_USB, USB_ERR_DRIVER_INSTALL);
+
+        return USB_ERR_DRIVER_INSTALL;
     }
 
     USB_Error = USBCDC_Init(&CDC_Config);
@@ -254,7 +257,9 @@ esp_err_t USBManager_Init(void)
 
         tinyusb_driver_uninstall();
 
-        return USB_Error;
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_USB, USB_ERR_CDC_INIT);
+
+        return USB_ERR_CDC_INIT;
     }
 
     _USB_Manager_State.CommandQueue = xQueueCreate(8, sizeof(USB_Manager_Cmd_t));
@@ -264,7 +269,9 @@ esp_err_t USBManager_Init(void)
         USBCDC_Deinit();
         tinyusb_driver_uninstall();
 
-        return ESP_ERR_NO_MEM;
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_USB, USB_ERR_QUEUE_CREATE);
+
+        return USB_ERR_QUEUE_CREATE;
     }
 
     Error = xTaskCreate(USB_Monitoring_Task, "USBMonTask", 4096, NULL, 5, &_USB_Manager_State.MonitoringTask);
@@ -277,7 +284,9 @@ esp_err_t USBManager_Init(void)
         USBCDC_Deinit();
         tinyusb_driver_uninstall();
 
-        return ESP_ERR_NO_MEM;
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_USB, USB_ERR_TASK_CREATE);
+
+        return USB_ERR_TASK_CREATE;
     }
 
     tud_connect();
@@ -298,7 +307,7 @@ esp_err_t USBManager_Deinit(void)
     if (_USB_Manager_State.isInitialized == false) {
         ESP_LOGW(TAG, "USB Manager not initialized");
 
-        return ESP_ERR_INVALID_STATE;
+        return USB_ERR_NOT_INITIALIZED;
     }
 
     ESP_LOGD(TAG, "Deinitializing USB Manager...");
@@ -369,13 +378,13 @@ esp_err_t USBManager_EnableMSC(bool Enable)
     };
 
     if (_USB_Manager_State.isInitialized == false) {
-        return ESP_ERR_INVALID_STATE;
+        return USB_ERR_NOT_INITIALIZED;
     }
 
     if (xQueueSend(_USB_Manager_State.CommandQueue, &Cmd, 0) != pdTRUE) {
         ESP_LOGW(TAG, "USB command queue full, EnableMSC command dropped!");
 
-        return ESP_ERR_TIMEOUT;
+        return USB_ERR_QUEUE_FULL;
     }
 
     return ESP_OK;
@@ -388,13 +397,13 @@ esp_err_t USBManager_EnableUVC(bool Enable)
     };
 
     if (_USB_Manager_State.isInitialized == false) {
-        return ESP_ERR_INVALID_STATE;
+        return USB_ERR_NOT_INITIALIZED;
     }
 
     if (xQueueSend(_USB_Manager_State.CommandQueue, &Cmd, 0) != pdTRUE) {
         ESP_LOGW(TAG, "USB command queue full, EnableUVC command dropped!");
 
-        return ESP_ERR_TIMEOUT;
+        return USB_ERR_QUEUE_FULL;
     }
 
     return ESP_OK;

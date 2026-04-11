@@ -1,9 +1,12 @@
 /*
- * managers.h
+ * appErrors.h
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
- *  File info: Central header for all manager modules (Network, Devices, Time, Memory, Settings).
+ *  File info: Aggregate header that pulls in all manager error code definitions.
+ *             Individual error codes are defined in each manager's *Types.h file.
+ *             Include this header to access all manager error codes in one place,
+ *             without coupling to the full manager API headers.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,17 +24,14 @@
  * Errors and commissions should be reported to DanielKampert@kampis-elektroecke.de
  */
 
-#ifndef MANAGERS_H_
-#define MANAGERS_H_
+#ifndef APP_ERRORS_H_
+#define APP_ERRORS_H_
 
-#include "Network/networkManager.h"
-#include "Devices/devicesManager.h"
-#include "Time/timeManager.h"
-#include "Memory/memoryManager.h"
-#include "Settings/settingsManager.h"
-#include "USB/usbManager.h"
+#include "Devices/devicesTypes.h"
+#include "Memory/memoryTypes.h"
+#include "Network/networkTypes.h"
+#include "Settings/settingsTypes.h"
+#include "Time/timeTypes.h"
+#include "USB/usbTypes.h"
 
-#include "appErrors.h"
-#include "appDiag.h"
-
-#endif /* MANAGERS_H_ */
+#endif /* APP_ERRORS_H_ */

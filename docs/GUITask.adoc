@@ -281,7 +281,7 @@ The GUI Task posts events to the system event loop:
 
 [source,c]
 ----
-ESP_EVENT_DECLARE_BASE(GUI_EVENTS);
+ESP_EVENT_DECLARE_BASE(GUI_TASK_EVENTS);
 ----
 
 **Event Types:**
@@ -290,7 +290,7 @@ Currently, the GUI Task primarily *consumes* events rather than posting them:
 
 * `SETTINGS_EVENTS` - Updates UI when settings change
 * `NETWORK_EVENTS` - Updates WiFi status indicators
-* `LEPTON_EVENTS` - Receives frame updates for display
+* `LEPTON_TASK_EVENTS` - Receives frame updates for display
 
 ---
 

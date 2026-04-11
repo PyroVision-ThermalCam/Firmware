@@ -29,6 +29,45 @@
 
 #include <stdint.h>
 
+#define USB_ERR_BASE                     0x6000
+
+/** @defgroup USB_ERRORS USB Manager Error Codes
+ *  @brief Error codes returned by USBManager functions (base: @c USB_ERR_BASE = 0x6000).
+ *  @{
+ */
+
+/** @brief USBManager_Init() has not been called yet. */
+#define USB_ERR_NOT_INITIALIZED                 (USB_ERR_BASE + 0x01)
+
+/** @brief USBManager_Init() called more than once (already initialised). */
+#define USB_ERR_ALREADY_INITIALIZED             (USB_ERR_BASE + 0x02)
+
+/** @brief TinyUSB driver installation (tinyusb_driver_install) failed. */
+#define USB_ERR_DRIVER_INSTALL                  (USB_ERR_BASE + 0x03)
+
+/** @brief CDC class initialisation failed. */
+#define USB_ERR_CDC_INIT                        (USB_ERR_BASE + 0x04)
+
+/** @brief Internal command queue creation failed. */
+#define USB_ERR_QUEUE_CREATE                    (USB_ERR_BASE + 0x05)
+
+/** @brief Command queue is full — command could not be enqueued (caller should retry). */
+#define USB_ERR_QUEUE_FULL                      (USB_ERR_BASE + 0x06)
+
+/** @brief MSC storage path unavailable — MemoryManager_Init() must be called first. */
+#define USB_ERR_MSC_STORAGE_UNAVAILABLE         (USB_ERR_BASE + 0x07)
+
+/** @brief MSC class initialisation failed. */
+#define USB_ERR_MSC_INIT                        (USB_ERR_BASE + 0x08)
+
+/** @brief UVC class initialisation failed. */
+#define USB_ERR_UVC_INIT                        (USB_ERR_BASE + 0x09)
+
+/** @brief USB monitoring task creation failed. */
+#define USB_ERR_TASK_CREATE                     (USB_ERR_BASE + 0x0A)
+
+/** @} */
+
 /** @brief USB Manager events base.
  */
 ESP_EVENT_DECLARE_BASE(USB_EVENTS);

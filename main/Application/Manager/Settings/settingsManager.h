@@ -37,10 +37,7 @@
  *                  Call this before any other SettingsManager functions.
  *  @warning        Not thread-safe during initialization.
  *  @return         ESP_OK on success
- *                  ESP_ERR_NVS_NOT_FOUND if NVS namespace doesn't exist (first boot)
- *                  ESP_ERR_NO_MEM if memory allocation fails
- *                  ESP_ERR_INVALID_STATE if already initialized
- *                  ESP_FAIL if NVS initialization fails
+ *                  ESP_ERR_NO_MEM if mutex or NVS handle creation fails
  */
 esp_err_t SettingsManager_Init(void);
 
@@ -50,7 +47,6 @@ esp_err_t SettingsManager_Init(void);
  *  @note           Call SettingsManager_Save() first to persist changes.
  *  @warning        All unsaved settings changes are lost permanently.
  *  @return         ESP_OK on success
- *                  ESP_FAIL if NVS close fails
  */
 esp_err_t SettingsManager_Deinit(void);
 
@@ -63,11 +59,11 @@ esp_err_t SettingsManager_Deinit(void);
  *  @param p_Settings   Pointer to settings structure to populate
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if p_Settings is NULL
- *                      ESP_ERR_NVS_INVALID_STATE if config_valid flag is missing or false
- *                      ESP_ERR_NVS_NOT_FOUND if no settings exist in NVS
- *                      ESP_ERR_INVALID_VERSION if version mismatch
- *                      ESP_ERR_INVALID_SIZE if size mismatch (corrupted)
- *                      ESP_FAIL on other NVS errors
+ *                      SETTINGS_ERR_NOT_INITIALIZED if Settings Manager not initialized
+ *                      SETTINGS_ERR_NVS_NOT_FOUND if config_valid flag missing, false, or no settings in NVS
+ *                      SETTINGS_ERR_VERSION_MISMATCH if version mismatch
+ *                      SETTINGS_ERR_SIZE_MISMATCH if settings size mismatch (corrupted)
+ *                      SETTINGS_ERR_NVS_READ if NVS read fails
  */
 esp_err_t SettingsManager_LoadFromNVS(Settings_t *p_Settings);
 
@@ -78,9 +74,8 @@ esp_err_t SettingsManager_LoadFromNVS(Settings_t *p_Settings);
  *                  NVS has limited write cycles (~100k) - avoid excessive saves.
  *                  Posts SETTINGS_EVENT_SAVED event on success.
  *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_STATE if not initialized
- *                  ESP_ERR_NVS_NOT_ENOUGH_SPACE if NVS is full
- *                  ESP_FAIL if NVS write fails
+ *                  SETTINGS_ERR_NOT_INITIALIZED if Settings Manager not initialized
+ *                  SETTINGS_ERR_NVS_WRITE if NVS write or commit fails
  */
 esp_err_t SettingsManager_Save(void);
 

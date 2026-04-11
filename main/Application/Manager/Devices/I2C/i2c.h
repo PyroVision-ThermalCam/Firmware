@@ -82,6 +82,27 @@ int32_t I2CM_Write(i2c_master_dev_handle_t *p_Dev_Handle, const uint8_t *p_Data,
  */
 int32_t I2CM_Read(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t *p_Data, uint32_t Length);
 
+/** @brief              Write then read from I2C device in a single atomic transaction.
+ *                      Sends the write buffer, then issues a repeated-START and reads into
+ *                      the read buffer using i2c_master_transmit_receive. Use this instead
+ *                      of separate I2CM_Write + I2CM_Read calls to avoid
+ *                      ESP_ERR_INVALID_STATE (0x103) with the ESP-IDF v5 I2C master driver.
+ *  @note               Default timeout: 1000ms.
+ *                      Device must be added to bus before calling this.
+ *  @param p_Dev_Handle Pointer to I2C device handle
+ *  @param p_WriteData  Pointer to data buffer to transmit (e.g. register address byte(s))
+ *  @param WriteLength  Number of bytes to transmit
+ *  @param p_ReadData   Pointer to buffer for received data
+ *  @param ReadLength   Number of bytes to receive
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_ARG if any pointer is NULL or a length is zero
+ *                      ESP_ERR_TIMEOUT if mutex or I2C transaction times out
+ *                      ESP_FAIL if the transaction fails (NACK, bus error)
+ */
+int32_t I2CM_WriteRead(i2c_master_dev_handle_t *p_Dev_Handle,
+                       const uint8_t *p_WriteData, uint32_t WriteLength,
+                       uint8_t *p_ReadData, uint32_t ReadLength);
+
 /** @brief              Modify the content of a register.
  *  @param p_Dev_Handle Pointer to I2C device handle
  *  @param Register     Register address

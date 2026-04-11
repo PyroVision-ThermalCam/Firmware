@@ -88,7 +88,7 @@ Initializes the Devices Task.  Internally:
 
 1. Creates the `EventGroupHandle_t` used for stop signaling.
 2. Calls `DevicesManager_Init()` to bring up all hardware peripherals.
-3. Registers an event handler for `GUI_EVENTS`.
+3. Registers an event handler for `GUI_TASK_EVENTS`.
 
 NOTE: Must be called before `Devices_Task_Start()`.
 Calling this function when already initialized is a no-op that returns `ESP_OK`.
@@ -108,7 +108,7 @@ Calling this function when already initialized is a no-op that returns `ESP_OK`.
 void Devices_Task_Deinit(void);
 ----
 
-Deinitializes the Devices Task.  Unregisters the `GUI_EVENTS` handler and calls
+Deinitializes the Devices Task.  Unregisters the `GUI_TASK_EVENTS` handler and calls
 `DevicesManager_Deinit()`.
 
 NOTE: Do not call while the task is still running.  Call `Devices_Task_Stop()` first

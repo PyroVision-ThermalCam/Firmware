@@ -36,32 +36,61 @@
 
 #include "devicesTask.h"
 #include "Application/application.h"
+#include "Application/Manager/Devices/devicesManager.h"
 
 #define DEVICES_TASK_STOP_REQUEST           BIT0
 #define DEVICES_TASK_TIME_SYNCED            BIT1
+#define DEVICES_TASK_UPDATE_BRIGHTNESS      BIT2
 
-ESP_EVENT_DEFINE_BASE(DEVICE_EVENTS);
+ESP_EVENT_DEFINE_BASE(DEVICES_TASK_EVENTS);
 
 typedef struct {
     bool isInitialized;
     bool isRunning;
     TaskHandle_t TaskHandle;
     EventGroupHandle_t EventGroup;
+    SettingsManager_ChangeNotification_t NewSetting;
 } Devices_Task_State_t;
 
 static Devices_Task_State_t _Devices_Task_State;
 
 static const char *TAG = "Devices-Task";
 
-/** @brief                  Event handler for GUI events.
+/** @brief                  GUI task event handler.
  *  @param p_HandlerArgs    Handler argument
  *  @param Base             Event base
  *  @param ID               Event ID
  *  @param p_Data           Event-specific data
  */
-static void on_GUI_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+static void on_GUI_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
 {
-    ESP_LOGD(TAG, "GUI event received: ID=%d", ID);
+    ESP_LOGD(TAG, "GUI task event received: ID=%d", ID);
+}
+
+/** @brief                  Event handler for the Settings task to receive updates when settings are changed.
+ *  @param p_HandlerArgs    Handler argument
+ *  @param Base             Event base
+ *  @param ID               Event ID
+ *  @param p_Data           Event-specific data
+ */
+static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+{
+    ESP_LOGD(TAG, "Settings event received: ID=%d", ID);
+
+    switch (ID) {
+        case SETTINGS_EVENT_DISPLAY_CHANGED: {
+            memcpy(&_Devices_Task_State.NewSetting, p_Data, sizeof(SettingsManager_ChangeNotification_t));
+
+            ESP_LOGI(TAG, "Display settings changed: ID=%d", _Devices_Task_State.NewSetting.ID);
+            ESP_LOGI(TAG, "Display settings changed: Value=%d", _Devices_Task_State.NewSetting.Value);
+
+            if (_Devices_Task_State.NewSetting.ID == SETTINGS_ID_DISPLAY_BRIGHTNESS) {
+                xEventGroupSetBits(_Devices_Task_State.EventGroup, DEVICES_TASK_UPDATE_BRIGHTNESS);
+            }
+
+            break;
+        }
+    }
 }
 
 /** @brief              Devices task main loop.
@@ -72,6 +101,8 @@ static void Task_Devices(void *p_Parameters)
     Devices_InputState_t InputState;
     Devices_InputState_t PrevInputState;
     TickType_t LastInputPoll;
+    TickType_t LastBatteryPoll;
+    TickType_t LastTemperaturePoll;
 
     esp_task_wdt_add(NULL);
 
@@ -81,6 +112,8 @@ static void Task_Devices(void *p_Parameters)
     memset(&PrevInputState, 0, sizeof(Devices_InputState_t));
 
     LastInputPoll = xTaskGetTickCount();
+    LastBatteryPoll = xTaskGetTickCount();
+    LastTemperaturePoll = xTaskGetTickCount();
 
     while (_Devices_Task_State.isRunning) {
         EventBits_t EventBits;
@@ -98,31 +131,77 @@ static void Task_Devices(void *p_Parameters)
             break;
         }
 
-        DevicesManager_HandleExpanderInterrupt();
+        if (EventBits & DEVICES_TASK_UPDATE_BRIGHTNESS) {
+            ESP_LOGI(TAG, "Updating display brightness due to settings change");
 
-        if ((xTaskGetTickCount() - LastInputPoll) >= pdMS_TO_TICKS(CONFIG_DEVICES_TASK_POLL_INTERVAL_MS)) {
-            LastInputPoll = xTaskGetTickCount();
+            DevicesManager_SetBrightness(BACKLIGHT_DISPLAY, _Devices_Task_State.NewSetting.Value);
 
-            if (DevicesManager_GetDisplayboardInputs(&InputState) == ESP_OK) {
-                if (memcmp(&InputState, &PrevInputState, sizeof(Devices_InputState_t)) != 0) {
-                    ESP_LOGI(TAG, "Input: Joy[U=%d D=%d L=%d R=%d C=%d] Btn[1=%d 2=%d 3=%d 4=%d]",
-                             static_cast<int>(InputState.JoyUp),
-                             static_cast<int>(InputState.JoyDown),
-                             static_cast<int>(InputState.JoyLeft),
-                             static_cast<int>(InputState.JoyRight),
-                             static_cast<int>(InputState.JoyCenter),
-                             static_cast<int>(InputState.Button1),
-                             static_cast<int>(InputState.Button2),
-                             static_cast<int>(InputState.Button3),
-                             static_cast<int>(InputState.Button4));
+            xEventGroupClearBits(_Devices_Task_State.EventGroup, DEVICES_TASK_UPDATE_BRIGHTNESS);
+        }
 
-                    esp_event_post(DEVICES_EVENTS, DEVICES_EVENT_INPUT_CHANGED,
-                                   &InputState, sizeof(Devices_InputState_t), pdMS_TO_TICKS(100));
+        if (DevicesManager_AcquireI2CBus(pdMS_TO_TICKS(500)) == ESP_OK) {
+            DevicesManager_HandleExpanderInterrupt();
 
-                    memcpy(&PrevInputState, &InputState, sizeof(Devices_InputState_t));
+            if ((xTaskGetTickCount() - LastInputPoll) >= pdMS_TO_TICKS(CONFIG_DEVICES_TASK_INPUT_POLL_INTERVAL_MS)) {
+                LastInputPoll = xTaskGetTickCount();
+
+                if (DevicesManager_GetDisplayboardInputs(&InputState) == ESP_OK) {
+                    if (memcmp(&InputState, &PrevInputState, sizeof(Devices_InputState_t)) != 0) {
+                        ESP_LOGI(TAG, "Input: Joy[U=%d D=%d L=%d R=%d C=%d] Btn[1=%d 2=%d 3=%d 4=%d]",
+                                 static_cast<int>(InputState.JoyUp),
+                                 static_cast<int>(InputState.JoyDown),
+                                 static_cast<int>(InputState.JoyLeft),
+                                 static_cast<int>(InputState.JoyRight),
+                                 static_cast<int>(InputState.JoyCenter),
+                                 static_cast<int>(InputState.Button1),
+                                 static_cast<int>(InputState.Button2),
+                                 static_cast<int>(InputState.Button3),
+                                 static_cast<int>(InputState.Button4));
+
+                        esp_event_post(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_INPUT_CHANGED,
+                                       &InputState, sizeof(Devices_InputState_t), pdMS_TO_TICKS(100));
+
+                        memcpy(&PrevInputState, &InputState, sizeof(Devices_InputState_t));
+                    }
                 }
             }
-        }
+  
+            if ((xTaskGetTickCount() - LastBatteryPoll) >= pdMS_TO_TICKS(CONFIG_DEVICES_TASK_BATTERY_POLL_INTERVAL_S)) {
+                int Voltage;
+                uint8_t Percentage;
+                bool Charging;
+
+                LastBatteryPoll = xTaskGetTickCount();
+
+                if (DevicesManager_GetBatteryStatus(&Voltage, &Percentage, &Charging) == ESP_OK) {
+                    App_Devices_Battery_t NewBatteryInfo = {
+                        .Voltage = Voltage,
+                        .Percentage = Percentage,
+                        .Charging = Charging
+                    };
+
+                    esp_event_post(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_BATTERY,
+                                   &NewBatteryInfo, sizeof(App_Devices_Battery_t), pdMS_TO_TICKS(100));
+                }
+            }
+
+            if ((xTaskGetTickCount() - LastTemperaturePoll) >= pdMS_TO_TICKS(1000)) {
+                float Temperature;
+
+                LastTemperaturePoll = xTaskGetTickCount();
+
+                if (DevicesManager_GetTemperature(&Temperature) == ESP_OK) {
+                    App_Devices_Temperature_t NewTemperatureInfo = {
+                        .Temperature = Temperature
+                    };
+
+                    esp_event_post(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE,
+                                   &NewTemperatureInfo, sizeof(App_Devices_Temperature_t), pdMS_TO_TICKS(100));
+                }
+            }
+
+            DevicesManager_ReleaseI2CBus();
+        } 
 
         vTaskDelay(pdMS_TO_TICKS(10));
     }
@@ -161,7 +240,8 @@ esp_err_t Devices_Task_Init(void)
         return Error;
     }
 
-    esp_event_handler_register(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler, NULL);
+    esp_event_handler_register(GUI_TASK_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Task_Event_Handler, NULL);
+    esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_DISPLAY_CHANGED, on_Settings_Event_Handler, NULL);
 
     _Devices_Task_State.isInitialized = true;
 
@@ -174,7 +254,8 @@ void Devices_Task_Deinit(void)
         return;
     }
 
-    esp_event_handler_unregister(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler);
+    esp_event_handler_unregister(GUI_TASK_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Task_Event_Handler);
+    esp_event_handler_unregister(SETTINGS_EVENTS, SETTINGS_EVENT_DISPLAY_CHANGED, on_Settings_Event_Handler);
 
     DevicesManager_Deinit();
 

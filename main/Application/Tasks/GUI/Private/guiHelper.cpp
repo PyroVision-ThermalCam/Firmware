@@ -180,7 +180,6 @@ static void GUI_LCD_Flush_CB(lv_display_t *p_Disp, const lv_area_t *p_Area, uint
 
 esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t Touch_Read_Callback)
 {
-    esp_err_t Error;
     uint32_t Caps;
 
 #if (CONFIG_LCD_BL != -1)
@@ -266,26 +265,17 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t
                            GUI_DRAW_BUFFER_SIZE,
                            LV_DISPLAY_RENDER_MODE_PARTIAL);
 
-    ESP_LOGD(TAG, "Initialize GT911 touch controller...");
-    Error = esp_lcd_touch_new_i2c_gt911(p_GUI_Task_State->Touch_IO_Handle, &_GUI_Touch_Config,
-                                        &p_GUI_Task_State->TouchHandle);
-    if (Error != ESP_OK) {
-        ESP_LOGW(TAG, "GT911 touch controller initialization failed (0x%x)", Error);
-        ESP_LOGW(TAG, "System will continue without touch functionality");
-
-        p_GUI_Task_State->TouchHandle = NULL;
-        p_GUI_Task_State->Touch = NULL;
-    } else {
-        ESP_LOGD(TAG, "GT911 touch controller initialized successfully");
-
-        /* Register touchpad input device */
-        ESP_LOGD(TAG, "Register touch input device to LVGL");
-        p_GUI_Task_State->Touch = lv_indev_create();
-        lv_indev_set_type(p_GUI_Task_State->Touch, LV_INDEV_TYPE_POINTER);
-        lv_indev_set_display(p_GUI_Task_State->Touch, p_GUI_Task_State->Display);
-        lv_indev_set_read_cb(p_GUI_Task_State->Touch, Touch_Read_Callback);
-        lv_indev_set_user_data(p_GUI_Task_State->Touch, p_GUI_Task_State->TouchHandle);
-    }
+    /* GT911 touch controller is intentionally NOT initialized here.
+     * GPIO CONFIG_TOUCH_RST (GPIO47) was held LOW by DevicesManager_Init, keeping the GT911
+     * in hardware reset. Releasing GT911 (RST HIGH) while the Lepton is booting causes
+     * I2C bus activity that resets the Lepton's internal CCI register pointer, preventing
+     * a successful CCI_WaitForBoot.
+     *
+     * GT911 is initialized later via GUI_Helper_InitTouch(), called from the GUI task
+     * once the LEPTON_CAMERA_READY event is received.
+     */
+    p_GUI_Task_State->TouchHandle = NULL;
+    p_GUI_Task_State->Touch = NULL;
 
     const esp_timer_create_args_t LVGL_TickTimer_args = {
         .callback = &GUI_LVGL_TickTimer_CB,
@@ -307,10 +297,9 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t
 
     p_GUI_Task_State->UpdateTimer[0] = lv_timer_create(GUI_Helper_Timer_ClockUpdate, 100, NULL);
     p_GUI_Task_State->UpdateTimer[1] = lv_timer_create(GUI_Helper_Timer_SpotUpdate, 2000, NULL);
-    p_GUI_Task_State->UpdateTimer[2] = lv_timer_create(GUI_Helper_Timer_SpotmeterUpdate, 5000, NULL);
-    p_GUI_Task_State->UpdateTimer[3] = lv_timer_create(GUI_Helper_Timer_SceneStatisticsUpdate, 5000, NULL);
-    p_GUI_Task_State->UpdateTimer[4] = lv_timer_create(GUI_Helper_Timer_RAMUpdate, 5000, NULL);
-    p_GUI_Task_State->UpdateTimer[5] = lv_timer_create(GUI_Helper_Timer_MemoryUpdate, 3000, NULL);
+    p_GUI_Task_State->UpdateTimer[2] = lv_timer_create(GUI_Helper_Timer_SceneStatisticsUpdate, 5000, NULL);
+    p_GUI_Task_State->UpdateTimer[3] = lv_timer_create(GUI_Helper_Timer_RAMUpdate, 5000, NULL);
+    p_GUI_Task_State->UpdateTimer[4] = lv_timer_create(GUI_Helper_Timer_MemoryUpdate, 3000, NULL);
 
     _lock_init(&p_GUI_Task_State->LVGL_API_Lock);
 
@@ -376,6 +365,49 @@ void GUI_Helper_Deinit(GUI_Task_State_t *p_GUI_Task_State)
     _lock_close(&p_GUI_Task_State->LVGL_API_Lock);
 }
 
+esp_err_t GUI_Helper_InitTouch(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t Touch_Read_Callback)
+{
+    esp_err_t Error;
+
+    if (p_GUI_Task_State == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (p_GUI_Task_State->Touch_IO_Handle == NULL) {
+        ESP_LOGE(TAG, "Touch IO handle not initialized!");
+
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (p_GUI_Task_State->TouchHandle != NULL) {
+        ESP_LOGW(TAG, "GT911 already initialized, skipping");
+
+        return ESP_OK;
+    }
+
+    ESP_LOGD(TAG, "Initializing GT911 touch controller (post-Lepton-boot)...");
+    Error = esp_lcd_touch_new_i2c_gt911(p_GUI_Task_State->Touch_IO_Handle, &_GUI_Touch_Config,
+                                        &p_GUI_Task_State->TouchHandle);
+    if (Error != ESP_OK) {
+        ESP_LOGW(TAG, "GT911 touch controller initialization failed (0x%x)", Error);
+        ESP_LOGW(TAG, "System will continue without touch functionality");
+
+        p_GUI_Task_State->TouchHandle = NULL;
+        p_GUI_Task_State->Touch = NULL;
+
+        return ESP_OK;
+    }
+
+    ESP_LOGD(TAG, "GT911 initialized, registering LVGL indev...");
+    p_GUI_Task_State->Touch = lv_indev_create();
+    lv_indev_set_type(p_GUI_Task_State->Touch, LV_INDEV_TYPE_POINTER);
+    lv_indev_set_display(p_GUI_Task_State->Touch, p_GUI_Task_State->Display);
+    lv_indev_set_read_cb(p_GUI_Task_State->Touch, Touch_Read_Callback);
+    lv_indev_set_user_data(p_GUI_Task_State->Touch, p_GUI_Task_State->TouchHandle);
+
+    return ESP_OK;
+}
+
 void GUI_Helper_Timer_ClockUpdate(lv_timer_t *p_Timer)
 {
     (void)p_Timer;
@@ -412,21 +444,16 @@ void GUI_Helper_Timer_SpotUpdate(lv_timer_t *p_Timer)
     ESP_LOGD(TAG, "Crosshair center in thermal canvas: (%d,%d), size (%d,%d)", ScreenPosition.x, ScreenPosition.y,
              ScreenPosition.Width, ScreenPosition.Height);
 
-    esp_event_post(GUI_EVENTS, GUI_EVENT_REQUEST_PIXEL_TEMPERATURE, &ScreenPosition, sizeof(ScreenPosition), 0);
-}
-
-void GUI_Helper_Timer_SpotmeterUpdate(lv_timer_t *p_Timer)
-{
-    (void)p_Timer;
-
-    esp_event_post(GUI_EVENTS, GUI_EVENT_REQUEST_SPOTMETER, NULL, 0, 0);
+    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_PIXEL_TEMPERATURE, &ScreenPosition, sizeof(ScreenPosition), 0);
 }
 
 void GUI_Helper_Timer_SceneStatisticsUpdate(lv_timer_t *p_Timer)
 {
     (void)p_Timer;
 
-    esp_event_post(GUI_EVENTS, GUI_EVENT_REQUEST_SCENE_STATISTICS, NULL, 0, 0);
+    ESP_LOGD(TAG, "Requesting scene statistics update...");
+
+    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_SCENE_STATISTICS, NULL, 0, 0);
 }
 
 void GUI_Helper_Timer_RAMUpdate(lv_timer_t *p_Timer)
@@ -443,6 +470,12 @@ void GUI_Helper_Timer_RAMUpdate(lv_timer_t *p_Timer)
 void GUI_Helper_Timer_MemoryUpdate(lv_timer_t *p_Timer)
 {
     (void)p_Timer;
+
+    /* Only query SD card if the settings screen is currently active to avoid
+     * unnecessary SPI reads causing CRC errors in the background. */
+    if (lv_display_get_screen_active(lv_display_get_default()) != ui_Menu) {
+        return;
+    }
 
     ui_settings_update_memory_usage();
 }

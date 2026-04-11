@@ -221,9 +221,13 @@ menu "PyroVision"
     endmenu
 
     menu "Devices"
-        config DEVICES_TASK_POLL_INTERVAL_MS
-            int "Input polling interval for the devices tasks"
+        config DEVICES_TASK_INPUT_POLL_INTERVAL_MS
+            int "Input polling interval for the devices tasks in milliseconds"
             default 50
+
+        config DEVICES_TASK_BATTERY_POLL_INTERVAL_S
+            int "Battery polling interval for the devices tasks in seconds"
+            default 30
 
         menu "I2C"
             choice

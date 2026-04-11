@@ -48,7 +48,6 @@
 #define NETWORK_TASK_PROV_TIMEOUT               BIT6
 #define NETWORK_TASK_SNTP_TIME_SYNCED           BIT8
 #define NETWORK_TASK_SETTINGS_CHANGED           BIT7
-#define LEPTON_SPOTMETER_READY                  BIT11
 
 typedef struct {
     bool isInitialized;
@@ -66,22 +65,39 @@ static Network_Task_State_t _Network_Task_State;
 
 static const char *TAG = "Network-Task";
 
-/** @brief                  Event handler for the Lepton event to receive updates when Lepton events are triggered (e.g., new frame ready, camera errors).
+/** @brief                  Handler for the Lepton task events to receive updates when Lepton events are triggered (e.g., new frame ready, camera errors).
  *  @param p_HandlerArgs    Handler argument
  *  @param Base             Event base
  *  @param ID               Event ID
  *  @param p_Data           Event-specific data
  */
-static void on_Lepton_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+static void on_Lepton_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
 {
-    ESP_LOGD(TAG, "Lepton event received: ID=%d", ID);
+    ESP_LOGD(TAG, "Lepton task event received: ID=%d", ID);
 
     switch (ID) {
-        case LEPTON_EVENT_RESPONSE_SPOTMETER: {
-            memcpy(&_Network_Task_State.ROIResult, p_Data, sizeof(App_Lepton_ROI_Result_t));
+    }
+}
 
-            xEventGroupSetBits(_Network_Task_State.EventGroup, LEPTON_SPOTMETER_READY);
+/** @brief                  GUI task event handler.
+ *  @param p_HandlerArgs    Handler argument
+ *  @param Base             Event base
+ *  @param ID               Event ID
+ *  @param p_Data           Event-specific data
+ */
+static void on_GUI_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+{
+    ESP_LOGD(TAG, "GUI task event received: ID=%d", ID);
 
+    switch (ID) {
+        case GUI_TASK_EVENT_APP_STARTED: {
+            ESP_LOGD(TAG, "Application started event received");
+
+            _Network_Task_State.ApplicationStarted = true;
+
+            break;
+        }
+        default: {
             break;
         }
     }
@@ -164,28 +180,6 @@ static void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base,
             ESP_LOGD(TAG, "Open WiFi request received");
 
             xEventGroupSetBits(_Network_Task_State.EventGroup, NETWORK_TASK_OPEN_WIFI_REQUEST);
-
-            break;
-        }
-        default: {
-            break;
-        }
-    }
-}
-
-/** @brief                  GUI event handler.
- *  @param p_HandlerArgs    Handler argument
- *  @param Base             Event base
- *  @param ID               Event ID
- *  @param p_Data           Event-specific data
- */
-static void on_GUI_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
-{
-    switch (ID) {
-        case GUI_EVENT_APP_STARTED: {
-            ESP_LOGD(TAG, "Application started event received");
-
-            _Network_Task_State.ApplicationStarted = true;
 
             break;
         }
@@ -285,7 +279,9 @@ static void Task_Network(void *p_Parameters)
             xEventGroupClearBits(_Network_Task_State.EventGroup, NETWORK_TASK_STOP_REQUEST);
 
             break;
-        } else if (EventBits & NETWORK_TASK_WIFI_CONNECTED) {
+        }
+
+        if (EventBits & NETWORK_TASK_WIFI_CONNECTED) {
             /* Notify Time Manager that network is available */
             TimeManager_OnNetworkConnected();
 
@@ -298,7 +294,9 @@ static void Task_Network(void *p_Parameters)
             }
 
             xEventGroupClearBits(_Network_Task_State.EventGroup, NETWORK_TASK_WIFI_CONNECTED);
-        } else if (EventBits & NETWORK_TASK_WIFI_DISCONNECTED) {
+        }
+
+        if (EventBits & NETWORK_TASK_WIFI_DISCONNECTED) {
             ESP_LOGD(TAG, "Handling WiFi disconnection");
 
             SettingsManager_GetWiFi(&WiFiSettings);
@@ -312,7 +310,9 @@ static void Task_Network(void *p_Parameters)
             }
 
             xEventGroupClearBits(_Network_Task_State.EventGroup, NETWORK_TASK_WIFI_DISCONNECTED);
-        } else if (EventBits & NETWORK_TASK_PROV_SUCCESS) {
+        }
+
+        if (EventBits & NETWORK_TASK_PROV_SUCCESS) {
             ESP_LOGD(TAG, "Provisioning success - stopping provisioning and connecting to WiFi");
 
             /* Provisioning_Stop() calls esp_wifi_stop() which can block for several seconds.
@@ -335,7 +335,9 @@ static void Task_Network(void *p_Parameters)
             esp_task_wdt_reset();
 
             xEventGroupClearBits(_Network_Task_State.EventGroup, NETWORK_TASK_PROV_SUCCESS);
-        } else if (EventBits & NETWORK_TASK_PROV_TIMEOUT) {
+        }
+
+        if (EventBits & NETWORK_TASK_PROV_TIMEOUT) {
             ESP_LOGD(TAG, "Handling provisioning timeout");
 
             /* Provisioning_Stop() calls esp_wifi_stop() which can block for several seconds.
@@ -349,7 +351,9 @@ static void Task_Network(void *p_Parameters)
             esp_task_wdt_reset();
 
             xEventGroupClearBits(_Network_Task_State.EventGroup, NETWORK_TASK_PROV_TIMEOUT);
-        } else if (EventBits & NETWORK_TASK_OPEN_WIFI_REQUEST) {
+        }
+
+        if (EventBits & NETWORK_TASK_OPEN_WIFI_REQUEST) {
             ESP_LOGD(TAG, "Handling WiFi open request");
 
             /* Start WiFi connection if we were waiting */
@@ -380,22 +384,13 @@ static void Task_Network(void *p_Parameters)
             }
 
             xEventGroupClearBits(_Network_Task_State.EventGroup, NETWORK_TASK_WIFI_DATA_CHANGE);
-        } else if (EventBits & LEPTON_SPOTMETER_READY) {
-            if (Server_IsRunning()) {
-                esp_err_t Error;
+        }
 
-                Error = RemoteControl_UpdateSpotmeter(_Network_Task_State.ROIResult.Min,
-                                                      _Network_Task_State.ROIResult.Max,
-                                                      _Network_Task_State.ROIResult.Average);
-                if (Error != ESP_OK) {
-                    ESP_LOGE(TAG, "Failed to update spotmeter in server: 0x%x!", Error);
-                }
-            }
-
-            xEventGroupClearBits(_Network_Task_State.EventGroup, LEPTON_SPOTMETER_READY);
-        } else if (EventBits & NETWORK_TASK_SNTP_TIME_SYNCED) {
+        if (EventBits & NETWORK_TASK_SNTP_TIME_SYNCED) {
             xEventGroupClearBits(_Network_Task_State.EventGroup, NETWORK_TASK_SNTP_TIME_SYNCED);
-        } else if (EventBits & NETWORK_TASK_SETTINGS_CHANGED) {
+        }
+
+        if (EventBits & NETWORK_TASK_SETTINGS_CHANGED) {
             Settings_System_t SystemSettings;
 
             SettingsManager_GetSystem(&SystemSettings);
@@ -453,9 +448,8 @@ esp_err_t Network_Task_Init(App_Context_t *p_AppContext)
     }
 
     if ((esp_event_handler_register(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler, NULL) != ESP_OK) ||
-        (esp_event_handler_register(GUI_EVENTS, GUI_EVENT_APP_STARTED, on_GUI_Event_Handler, NULL) != ESP_OK) ||
+        (esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_APP_STARTED, on_GUI_Task_Event_Handler, NULL) != ESP_OK) ||
         (esp_event_handler_register(SNTP_EVENTS, SNTP_EVENT_SNTP_SYNCED, on_SNTP_Event_Handler, NULL) != ESP_OK) ||
-        (esp_event_handler_register(LEPTON_EVENTS, LEPTON_EVENT_RESPONSE_SPOTMETER, on_Lepton_Event_Handler, NULL) != ESP_OK) ||
         (esp_event_handler_register(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler, NULL) != ESP_OK)) {
         ESP_LOGE(TAG, "Failed to register event handler: 0x%X!", Error);
 
@@ -470,8 +464,7 @@ esp_err_t Network_Task_Init(App_Context_t *p_AppContext)
 
         esp_event_handler_unregister(SNTP_EVENTS, SNTP_EVENT_SNTP_SYNCED, on_SNTP_Event_Handler);
         esp_event_handler_unregister(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler);
-        esp_event_handler_unregister(GUI_EVENTS, GUI_EVENT_APP_STARTED, on_GUI_Event_Handler);
-        esp_event_handler_unregister(LEPTON_EVENTS, LEPTON_EVENT_RESPONSE_SPOTMETER, on_Lepton_Event_Handler);
+        esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_APP_STARTED, on_GUI_Task_Event_Handler);
         esp_event_handler_unregister(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler);
         vEventGroupDelete(_Network_Task_State.EventGroup);
 
@@ -504,10 +497,9 @@ void Network_Task_Deinit(void)
     Provisioning_Deinit();
     NetworkManager_Deinit();
 
-    esp_event_handler_unregister(LEPTON_EVENTS, LEPTON_EVENT_RESPONSE_SPOTMETER, on_Lepton_Event_Handler);
     esp_event_handler_unregister(SNTP_EVENTS, SNTP_EVENT_SNTP_SYNCED, on_SNTP_Event_Handler);
     esp_event_handler_unregister(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler);
-    esp_event_handler_unregister(GUI_EVENTS, GUI_EVENT_APP_STARTED, on_GUI_Event_Handler);
+    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_APP_STARTED, on_GUI_Task_Event_Handler);
     esp_event_handler_unregister(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler);
 
     if (_Network_Task_State.EventGroup != NULL) {

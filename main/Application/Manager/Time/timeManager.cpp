@@ -29,6 +29,7 @@
 #include <string.h>
 
 #include "timeManager.h"
+#include "../appDiag.h"
 #include "../Devices/devicesManager.h"
 
 ESP_EVENT_DEFINE_BASE(TIME_EVENTS);
@@ -345,7 +346,7 @@ esp_err_t TimeManager_ForceSync(void)
     if (_TimeManager_State.hasNetwork == false) {
         ESP_LOGW(TAG, "Cannot force sync: no network connection");
 
-        return ESP_ERR_INVALID_STATE;
+        return TIME_ERR_SNTP_NOT_STARTED;
     }
 
     ESP_LOGD(TAG, "Forcing SNTP synchronization");

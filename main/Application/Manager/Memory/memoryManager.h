@@ -54,7 +54,8 @@ typedef struct {
  *  @warning        Must be called after SPI bus initialization (DevicesManager).
  *  @return         ESP_OK on success
  *                  ESP_ERR_NO_MEM if memory allocation fails
- *                  ESP_FAIL if filesystem mount fails
+ *                  MEMORY_ERR_FLASH_MOUNT if internal flash filesystem mount fails
+ *                  MEMORY_ERR_SD_MOUNT if SD card mount fails
  */
 esp_err_t MemoryManager_Init(void);
 
@@ -64,7 +65,6 @@ esp_err_t MemoryManager_Init(void);
  *  @note           All open file handles must be closed before calling this.
  *  @warning        Storage path and handles become invalid after this call.
  *  @return         ESP_OK on success
- *                  ESP_FAIL if unmount fails
  */
 esp_err_t MemoryManager_Deinit(void);
 
@@ -108,9 +108,9 @@ const char *MemoryManager_GetStoragePath(void);
  *                  Values are approximate for wear-leveled storage.
  *  @param p_Usage  Pointer to MemoryManager_Usage_t structure to populate
  *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_ARG if p_Usage is NULL
- *                  ESP_ERR_NOT_FOUND if storage not found
- *                  ESP_FAIL if filesystem not mounted
+ *                  MEMORY_ERR_INVALID_ARG if p_Usage is NULL
+ *                  MEMORY_ERR_NOT_INITIALIZED if storage not mounted
+ *                  MEMORY_ERR_FLASH_MOUNT if filesystem query fails
  */
 esp_err_t MemoryManager_GetStorageUsage(MemoryManager_Usage_t *p_Usage);
 
@@ -121,8 +121,8 @@ esp_err_t MemoryManager_GetStorageUsage(MemoryManager_Usage_t *p_Usage);
  *                  Use MemoryManager_EraseCoredump() to clear crash dumps.
  *  @param p_Usage  Pointer to MemoryManager_Usage_t structure to populate
  *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_ARG if p_Usage is NULL
- *                  ESP_ERR_NOT_FOUND if coredump partition not found
+ *                  MEMORY_ERR_INVALID_ARG if p_Usage is NULL
+ *                  MEMORY_ERR_NOT_FOUND if coredump partition not found
  */
 esp_err_t MemoryManager_GetCoredumpUsage(MemoryManager_Usage_t *p_Usage);
 
@@ -133,7 +133,7 @@ esp_err_t MemoryManager_GetCoredumpUsage(MemoryManager_Usage_t *p_Usage);
  *                  GUI should show "USB Mode Active" warning.
  *  @warning        Do NOT write to filesystem while locked - causes corruption!
  *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_STATE if already locked
+ *                  MEMORY_ERR_INVALID_STATE if already locked
  */
 esp_err_t MemoryManager_LockFilesystem(void);
 
@@ -143,7 +143,7 @@ esp_err_t MemoryManager_LockFilesystem(void);
  *  @note           Call this after USB MSC is disconnected.
  *                  Application can resume normal file operations.
  *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_STATE if not locked
+ *                  MEMORY_ERR_INVALID_STATE if not locked
  */
 esp_err_t MemoryManager_UnlockFilesystem(void);
 
@@ -168,8 +168,8 @@ bool MemoryManager_IsFilesystemLocked(void);
  *  @warning        File I/O via VFS will fail after this call until remounted.
  *                  Lock the filesystem before calling this to prevent concurrent writes.
  *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_STATE if not initialized or storage not mounted
- *                  ESP_ERR_INVALID_ARG if unknown storage location
+ *                  MEMORY_ERR_NOT_INITIALIZED if not initialized or storage not mounted
+ *                  MEMORY_ERR_INVALID_ARG if unknown storage location
  */
 esp_err_t MemoryManager_SoftUnmountStorage(void);
 
@@ -182,9 +182,10 @@ esp_err_t MemoryManager_SoftUnmountStorage(void);
  *  @warning        Must only be called after a successful MemoryManager_SoftUnmountStorage().
  *                  Do not call while USB MSC is still accessing the storage.
  *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_STATE if not initialized or handles are invalid
- *                  ESP_ERR_INVALID_ARG if unknown storage location
- *                  ESP_FAIL if FAT filesystem mount fails
+ *                  MEMORY_ERR_NOT_INITIALIZED if not initialized or handles are invalid
+ *                  MEMORY_ERR_INVALID_ARG if unknown storage location
+ *                  MEMORY_ERR_FLASH_MOUNT if internal FAT filesystem mount fails
+ *                  MEMORY_ERR_SD_MOUNT if SD card FAT filesystem mount fails
  */
 esp_err_t MemoryManager_SoftRemountStorage(void);
 
@@ -219,9 +220,9 @@ esp_err_t MemoryManager_EraseCoredump(void);
  *                  Used for low-level wear leveling statistics.
  *  @param p_Handle Pointer to receive the wl_handle_t
  *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_ARG if p_Handle is NULL
- *                  ESP_ERR_INVALID_STATE if not using internal storage
- *                  ESP_ERR_INVALID_STATE if storage not mounted
+ *                  MEMORY_ERR_INVALID_ARG if p_Handle is NULL
+ *                  MEMORY_ERR_INVALID_STATE if not using internal storage
+ *                  MEMORY_ERR_NOT_INITIALIZED if storage not mounted
  */
 esp_err_t MemoryManager_GetWearLevelingHandle(wl_handle_t *p_Handle);
 
@@ -232,8 +233,8 @@ esp_err_t MemoryManager_GetWearLevelingHandle(wl_handle_t *p_Handle);
  *                  Use for card info (capacity, speed, manufacturer).
  *  @param pp_Card  Pointer to receive the SD card handle pointer
  *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_ARG if pp_Card is NULL
- *                  ESP_ERR_INVALID_STATE if SD card not mounted
+ *                  MEMORY_ERR_INVALID_ARG if pp_Card is NULL
+ *                  MEMORY_ERR_INVALID_STATE if SD card not mounted
  */
 esp_err_t MemoryManager_GetSDCardHandle(sdmmc_card_t **pp_Card);
 
@@ -246,5 +247,31 @@ esp_err_t MemoryManager_GetSDCardHandle(sdmmc_card_t **pp_Card);
  *                  ESP_FAIL if format fails
  */
 esp_err_t MemoryManager_FormatActiveStorage(void);
+
+/** @brief          Switch active storage from internal flash to SD card.
+ *                  Mounts the SD card via SPI, unmounts internal flash, and updates
+ *                  the active storage location to MEMORY_LOCATION_SD_CARD.
+ *                  Posts MEMORY_EVENT_SD_CARD_MOUNTED on success.
+ *  @note           Only valid when currently using internal flash storage.
+ *                  SD card must be physically present and accessible.
+ *  @warning        All open file handles to internal storage must be closed before calling.
+ *  @return         ESP_OK on success
+ *                  MEMORY_ERR_INVALID_STATE if MemoryManager not initialized or SD card already active
+ *                  MEMORY_ERR_SD_MOUNT if SD card cannot be mounted
+ */
+esp_err_t MemoryManager_SwitchToSDCard(void);
+
+/** @brief          Switch active storage from SD card back to internal flash.
+ *                  Unmounts the SD card, mounts internal flash with wear leveling,
+ *                  and updates the active storage location to MEMORY_LOCATION_INTERNAL.
+ *                  Posts MEMORY_EVENT_SD_CARD_UNMOUNTED on success.
+ *  @note           Only valid when currently using SD card storage.
+ *                  Internal flash must be accessible.
+ *  @warning        All open file handles to SD card must be closed before calling.
+ *  @return         ESP_OK on success
+ *                  MEMORY_ERR_INVALID_STATE if MemoryManager not initialized or internal storage already active
+ *                  MEMORY_ERR_FLASH_MOUNT if internal flash cannot be mounted
+ */
+esp_err_t MemoryManager_SwitchToInternal(void);
 
 #endif /* MEMORYMANAGER_H_ */

@@ -63,7 +63,7 @@ static esp_err_t PCAL6416AHF_Apply_PinConfig(i2c_master_dev_handle_t *p_Dev_Hand
     uint8_t Pol[2] = { 0x00, 0x00 };        /* No polarity inversion */
     uint8_t PullEn[2] = { 0x00, 0x00 };     /* All pulls disabled */
     uint8_t PullSel[2] = { 0x00, 0x00 };    /* Pull-down when enabled */
-    uint8_t IntMask[2] = { 0xFF, 0xFF };    /* All interrupts masked — cleared for each input pin */
+    uint8_t IntMask[2] = { 0xFF, 0xFF };    /* All interrupts masked - cleared for each input pin */
     uint8_t Latch[2] = { 0x00, 0x00 };     /* Input latch disabled by default */
 
     for (size_t i = 0; i < Count; i++) {

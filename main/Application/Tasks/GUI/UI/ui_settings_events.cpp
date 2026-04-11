@@ -66,8 +66,12 @@ void on_Display_Brightness_Slider_Callback(lv_event_t *e)
 
     /* Save on release only */
     if (lv_event_get_code(e) == LV_EVENT_RELEASED) {
+        SettingsManager_ChangeNotification_t Changed;
+
+        Changed.ID = SETTINGS_ID_DISPLAY_BRIGHTNESS;
+        Changed.Value = Value;
         DisplaySettings.Brightness = static_cast<uint8_t>(Value);
-        SettingsManager_UpdateDisplay(&DisplaySettings);
+        SettingsManager_UpdateDisplay(&DisplaySettings, &Changed);
     }
 }
 

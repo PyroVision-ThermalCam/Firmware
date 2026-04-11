@@ -37,6 +37,51 @@
 
 #include "Settings/settingsTypes.h"
 
+#define NETWORK_ERR_BASE                    0x3000
+
+/** @defgroup NETWORK_ERRORS Network Manager Error Codes
+ *  @brief Error codes returned by NetworkManager functions (base: @c NETWORK_ERR_BASE = 0x3000).
+ *  @{
+ */
+
+/** @brief NetworkManager_Init() has not been called yet. */
+#define NETWORK_ERR_NOT_INITIALIZED             (NETWORK_ERR_BASE + 0x01)
+
+/** @brief WiFi subsystem (esp_wifi_init) initialisation failed. */
+#define NETWORK_ERR_WIFI_INIT                   (NETWORK_ERR_BASE + 0x02)
+
+/** @brief Starting WiFi in station mode (esp_wifi_start) failed. */
+#define NETWORK_ERR_WIFI_START                  (NETWORK_ERR_BASE + 0x03)
+
+/** @brief WiFi is not connected — operation requires an active WiFi connection. */
+#define NETWORK_ERR_NOT_CONNECTED               (NETWORK_ERR_BASE + 0x04)
+
+/** @brief WiFi disconnect operation failed. */
+#define NETWORK_ERR_DISCONNECT                  (NETWORK_ERR_BASE + 0x05)
+
+/** @brief Network interface (esp_netif) creation failed. */
+#define NETWORK_ERR_NETIF_CREATE                (NETWORK_ERR_BASE + 0x06)
+
+/** @brief HTTP / WebSocket server start failed. */
+#define NETWORK_ERR_SERVER_START                (NETWORK_ERR_BASE + 0x07)
+
+/** @brief HTTP / WebSocket server stop failed. */
+#define NETWORK_ERR_SERVER_STOP                 (NETWORK_ERR_BASE + 0x08)
+
+/** @brief SNTP initialisation or start failed. */
+#define NETWORK_ERR_SNTP_INIT                   (NETWORK_ERR_BASE + 0x09)
+
+/** @brief Provisioning start failed. */
+#define NETWORK_ERR_PROV_START                  (NETWORK_ERR_BASE + 0x0A)
+
+/** @brief Provisioning timeout — no credentials received within the timeout window. */
+#define NETWORK_ERR_PROV_TIMEOUT                (NETWORK_ERR_BASE + 0x0B)
+
+/** @brief OTA firmware update failed. */
+#define NETWORK_ERR_OTA_FAILED                  (NETWORK_ERR_BASE + 0x0C)
+
+/** @} */
+
 /** @brief Network Manager events base.
  */
 ESP_EVENT_DECLARE_BASE(NETWORK_EVENTS);

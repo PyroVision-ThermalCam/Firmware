@@ -49,30 +49,115 @@
 
 #include "lepton.h"
 
-ESP_EVENT_DEFINE_BASE(GUI_EVENTS);
+ESP_EVENT_DEFINE_BASE(GUI_TASK_EVENTS);
 
 GUI_Task_State_t _GUI_Task_State;
 
 static const char *TAG = "GUI-Task";
 
-/** @brief                  Event handler for GUI events (e.g., image save completion).
+/** @brief                  Event handler for the Lepton task events to receive updates when Lepton events are triggered (e.g., new frame ready, camera errors).
  *  @param p_HandlerArgs    Handler argument
  *  @param Base             Event base
  *  @param ID               Event ID
  *  @param p_Data           Event-specific data
  */
-static void on_GUI_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+static void on_Lepton_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
 {
-    ESP_LOGD(TAG, "GUI event received: ID=%d", ID);
+    ESP_LOGD(TAG, "Lepton task event received: ID=%d", ID);
 
     switch (ID) {
-        case GUI_EVENT_THERMAL_IMAGE_SAVED: {
+        case LEPTON_TASK_EVENT_CAMERA_READY: {
+            memcpy(&_GUI_Task_State.LeptonDeviceInfo, static_cast<const App_Lepton_Device_t *>(p_Data),
+                       sizeof(App_Lepton_Device_t));
+
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, LEPTON_CAMERA_READY);
+
+            break;
+        }
+        case LEPTON_TASK_EVENT_CAMERA_ERROR: {
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, LEPTON_CAMERA_ERROR);
+
+            break;
+        }
+        case LEPTON_TASK_EVENT_RESPONSE_FPA_AUX_TEMP: {
+            memcpy(&_GUI_Task_State.LeptonTemperatures, p_Data, sizeof(App_Lepton_Temperatures_t));
+
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, LEPTON_TEMP_READY);
+
+            break;
+        }
+        case LEPTON_TASK_EVENT_RESPONSE_SCENE_STATISTICS: {
+            memcpy(&_GUI_Task_State.ROIResult, p_Data, sizeof(App_Lepton_ROI_Result_t));
+
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, LEPTON_SCENE_STATISTICS_READY);
+
+            break;
+        }
+        case LEPTON_TASK_EVENT_RESPONSE_UPTIME: {
+            memcpy(&_GUI_Task_State.LeptonUptime, p_Data, sizeof(uint32_t));
+
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, LEPTON_UPTIME_READY);
+
+            break;
+        }
+        case LEPTON_TASK_EVENT_RESPONSE_PIXEL_TEMPERATURE: {
+            memcpy(&_GUI_Task_State.SpotTemperature, p_Data, sizeof(float));
+
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, LEPTON_PIXEL_TEMPERATURE_READY);
+
+            break;
+        }
+        default: {
+            ESP_LOGW(TAG, "Unhandled Lepton event ID: 0x%X", ID);
+
+            break;
+        }
+    }
+}
+
+/** @brief                  Event handler for GUI task events (e.g., image save completion).
+ *  @param p_HandlerArgs    Handler argument
+ *  @param Base             Event base
+ *  @param ID               Event ID
+ *  @param p_Data           Event-specific data
+ */
+static void on_GUI_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+{
+    ESP_LOGD(TAG, "GUI task event received: ID=%d", ID);
+
+    switch (ID) {
+        case GUI_TASK_EVENT_THERMAL_IMAGE_SAVED: {
             ESP_LOGD(TAG, "Thermal image saved successfully");
 
             break;
         }
-        case GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED: {
+        case GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED: {
             ESP_LOGE(TAG, "Thermal image save failed");
+
+            break;
+        }
+    }
+}
+
+/** @brief                  Event handler for the Devices task events to receive updates when settings are changed.
+ *  @param p_HandlerArgs    Handler argument
+ *  @param Base             Event base
+ *  @param ID               Event ID
+ *  @param p_Data           Event-specific data
+ */
+static void on_Devices_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+{
+    ESP_LOGD(TAG, "Devices task event received: ID=%d", ID);
+
+    switch (ID) {
+        case DEVICES_TASK_EVENT_RESPONSE_BATTERY: {
+            memcpy(&_GUI_Task_State.BatteryInfo, p_Data, sizeof(App_Devices_Battery_t));
+
+            ESP_LOGD(TAG, "Battery status updated: Voltage=%dmV, Percentage=%d%%, Charging=%s",
+                        _GUI_Task_State.BatteryInfo.Voltage, _GUI_Task_State.BatteryInfo.Percentage,
+                        _GUI_Task_State.BatteryInfo.Charging ? "Yes" : "No");
+
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, BATTERY_STATUS_CHANGED);
 
             break;
         }
@@ -90,6 +175,13 @@ static void on_Devices_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base,
     ESP_LOGD(TAG, "Devices event received: ID=%d", ID);
 
     switch (ID) {
+        case DEVICES_EVENT_SD_DETECT: {
+            _GUI_Task_State.CardPresent = *static_cast<const bool *>(p_Data);
+
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, SD_CARD_STATE_CHANGED);
+
+            break;
+        }
     }
 }
 
@@ -207,97 +299,6 @@ static void on_USB_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
             break;
         }
         default: {
-            break;
-        }
-    }
-}
-
-/** @brief                  Event handler for the Lepton events to receive updates when Lepton events are triggered (e.g., new frame ready, camera errors).
- *  @param p_HandlerArgs    Handler argument
- *  @param Base             Event base
- *  @param ID               Event ID
- *  @param p_Data           Event-specific data
- */
-static void on_Lepton_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
-{
-    ESP_LOGD(TAG, "Lepton event received: ID=%d", ID);
-
-    switch (ID) {
-        case LEPTON_EVENT_CAMERA_READY: {
-            if (p_Data != NULL) {
-                memcpy(&_GUI_Task_State.LeptonDeviceInfo, static_cast<const App_Lepton_Device_t *>(p_Data),
-                       sizeof(App_Lepton_Device_t));
-
-                xEventGroupSetBits(_GUI_Task_State.EventGroup, LEPTON_CAMERA_READY);
-            } else {
-                ESP_LOGE(TAG, "LEPTON_EVENT_CAMERA_READY received with NULL data");
-            }
-
-            break;
-        }
-        case LEPTON_EVENT_CAMERA_ERROR: {
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, LEPTON_CAMERA_ERROR);
-
-            break;
-        }
-        case LEPTON_EVENT_RESPONSE_FPA_AUX_TEMP: {
-            if (p_Data != NULL) {
-                memcpy(&_GUI_Task_State.LeptonTemperatures, p_Data, sizeof(App_Lepton_Temperatures_t));
-
-                xEventGroupSetBits(_GUI_Task_State.EventGroup, LEPTON_TEMP_READY);
-            } else {
-                ESP_LOGE(TAG, "LEPTON_EVENT_RESPONSE_FPA_AUX_TEMP received with NULL data");
-            }
-
-            break;
-        }
-        case LEPTON_EVENT_RESPONSE_SPOTMETER: {
-            if (p_Data != NULL) {
-                memcpy(&_GUI_Task_State.ROIResult, p_Data, sizeof(App_Lepton_ROI_Result_t));
-
-                xEventGroupSetBits(_GUI_Task_State.EventGroup, LEPTON_SPOTMETER_READY);
-            } else {
-                ESP_LOGE(TAG, "LEPTON_EVENT_RESPONSE_SPOTMETER received with NULL data");
-            }
-
-            break;
-        }
-        case LEPTON_EVENT_RESPONSE_SCENE_STATISTICS: {
-            if (p_Data != NULL) {
-                memcpy(&_GUI_Task_State.ROIResult, p_Data, sizeof(App_Lepton_ROI_Result_t));
-
-                xEventGroupSetBits(_GUI_Task_State.EventGroup, LEPTON_SCENE_STATISTICS_READY);
-            } else {
-                ESP_LOGE(TAG, "LEPTON_EVENT_RESPONSE_SCENE_STATISTICS received with NULL data");
-            }
-
-            break;
-        }
-        case LEPTON_EVENT_RESPONSE_UPTIME: {
-            if (p_Data != NULL) {
-                memcpy(&_GUI_Task_State.LeptonUptime, p_Data, sizeof(uint32_t));
-
-                xEventGroupSetBits(_GUI_Task_State.EventGroup, LEPTON_UPTIME_READY);
-            } else {
-                ESP_LOGE(TAG, "LEPTON_EVENT_RESPONSE_UPTIME received with NULL data");
-            }
-
-            break;
-        }
-        case LEPTON_EVENT_RESPONSE_PIXEL_TEMPERATURE: {
-            if (p_Data != NULL) {
-                memcpy(&_GUI_Task_State.SpotTemperature, p_Data, sizeof(float));
-
-                xEventGroupSetBits(_GUI_Task_State.EventGroup, LEPTON_PIXEL_TEMPERATURE_READY);
-            } else {
-                ESP_LOGE(TAG, "LEPTON_EVENT_RESPONSE_PIXEL_TEMPERATURE received with NULL data");
-            }
-
-            break;
-        }
-        default: {
-            ESP_LOGW(TAG, "Unhandled Lepton event ID: 0x%X", ID);
-
             break;
         }
     }
@@ -432,7 +433,7 @@ static void GUI_Update_ROI(Settings_ROI_t ROI)
         .h = static_cast<uint16_t>(ROI.h)
     };
 
-    esp_event_post(GUI_EVENTS, GUI_EVENT_REQUEST_ROI, &SettingsLepton.ROI[ROI.Type], sizeof(Settings_ROI_t),
+    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_ROI, &SettingsLepton.ROI[ROI.Type], sizeof(Settings_ROI_t),
                    pdMS_TO_TICKS(100));
 }
 
@@ -499,7 +500,7 @@ static void Touch_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Data
 
         ESP_LOGD(TAG, "Raw: (%d, %d)", Data[0].x, Data[0].y);
         ESP_LOGD(TAG, "Mapped: (%d, %d)", p_Data->point.x, p_Data->point.y);
-
+ 
 #ifdef CONFIG_GUI_TOUCH_DEBUG
         /* Update touch debug visualization */
         if (_GUI_Task_State.TouchDebugCircle != NULL) {
@@ -572,6 +573,11 @@ void Task_GUI(void *p_Parameters)
 
             lv_bar_set_value(ui_SplashScreen_LoadingBar, 100, LV_ANIM_OFF);
 
+            /* Lepton has finished booting. Initialize GT911 now - GT911 was intentionally
+             * kept in hardware reset until this point to avoid I2C bus interference
+             * during CCI_WaitForBoot. */
+            GUI_Helper_InitTouch(&_GUI_Task_State, Touch_LVGL_ReadCallback);
+
             xEventGroupClearBits(_GUI_Task_State.EventGroup, LEPTON_CAMERA_READY);
         } else if (EventBits & LEPTON_CAMERA_ERROR) {
             lv_label_set_text(ui_SplashScreen_StatusText, "Camera Error");
@@ -580,7 +586,7 @@ void Task_GUI(void *p_Parameters)
         }
 
         if (Timeout >= 30000) {
-            esp_event_post(GUI_EVENTS, GUI_EVENT_INIT_ERROR, NULL, 0, pdMS_TO_TICKS(500));
+            esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_INIT_ERROR, NULL, 0, pdMS_TO_TICKS(500));
 
             break;
         }
@@ -604,7 +610,12 @@ void Task_GUI(void *p_Parameters)
 
     GUI_Update_Info();
 
-    esp_event_post(GUI_EVENTS, GUI_EVENT_APP_STARTED, NULL, 0, pdMS_TO_TICKS(500));
+    /* Initialize SD card icon based on current storage state */
+    if (MemoryManager_HasSDCard()) {
+        lv_obj_set_style_text_color(ui_Image_Main_SDCard, lv_color_hex(0x00FF00), LV_PART_MAIN);
+    }
+
+    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_APP_STARTED, NULL, 0, pdMS_TO_TICKS(500));
 
     /* Variables for Illuminance values for the scene label.
     * Fetch all these values at the beginning to not waste CPU performance because these
@@ -869,7 +880,7 @@ void Task_GUI(void *p_Parameters)
                     if (xQueueSend(_GUI_Task_State.ImageSaveQueue, &SaveFrame, 0) != pdTRUE) {
                         ESP_LOGW(TAG, "Image save queue full, skipping save");
 
-                        esp_event_post(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, pdMS_TO_TICKS(100));
+                        esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, pdMS_TO_TICKS(100));
                     }
                 }
 
@@ -923,7 +934,9 @@ void Task_GUI(void *p_Parameters)
             xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_STOP_REQUEST);
 
             break;
-        } else if (EventBits & BATTERY_VOLTAGE_READY) {
+        }
+
+        if (EventBits & BATTERY_STATUS_CHANGED) {
             char Buffer[16];
 
             snprintf(Buffer, sizeof(Buffer), "%d%%", _GUI_Task_State.BatteryInfo.Percentage);
@@ -947,10 +960,10 @@ void Task_GUI(void *p_Parameters)
 
             lv_label_set_text(ui_Label_Main_Battery_Remaining, Buffer);
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, BATTERY_VOLTAGE_READY);
-        } else if ( EventBits & BATTERY_CHARGING_STATUS_READY) {
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, BATTERY_CHARGING_STATUS_READY);
-        } else if (EventBits & WIFI_CONNECTION_STATE_CHANGED) {
+            xEventGroupClearBits(_GUI_Task_State.EventGroup, BATTERY_STATUS_CHANGED);
+        }
+ 
+        if (EventBits & WIFI_CONNECTION_STATE_CHANGED) {
             if (_GUI_Task_State.WiFiConnected) {
                 char Buffer[32];
 
@@ -980,7 +993,9 @@ void Task_GUI(void *p_Parameters)
             }
 
             xEventGroupClearBits(_GUI_Task_State.EventGroup, WIFI_CONNECTION_STATE_CHANGED);
-        } else if (EventBits & PROVISIONING_STATE_CHANGED) {
+        }
+
+        if (EventBits & PROVISIONING_STATE_CHANGED) {
             if ((_GUI_Task_State.WiFiConnected == false) && _GUI_Task_State.ProvisioningActive) {
                 lv_obj_set_style_text_color(ui_Image_Main_WiFi, lv_color_hex(0xFF8800), LV_PART_MAIN);
             } else {
@@ -988,21 +1003,35 @@ void Task_GUI(void *p_Parameters)
             }
 
             xEventGroupClearBits(_GUI_Task_State.EventGroup, PROVISIONING_STATE_CHANGED);
-        } else if (EventBits & SD_CARD_STATE_CHANGED) {
-            ESP_LOGD(TAG, "SD card state changed: %s", _GUI_Task_State.CardPresent ? "present" : "removed");
+        }
+
+        if (EventBits & SD_CARD_STATE_CHANGED) {
+            if (_GUI_Task_State.CardPresent) {
+                /* Card inserted: show orange while mounting */
+                lv_obj_set_style_text_color(ui_Image_Main_SDCard, lv_color_hex(0xFF8800), LV_PART_MAIN);
+
+                if (MemoryManager_SwitchToSDCard() == ESP_OK) {
+                    /* Successfully mounted: show green */
+                    lv_obj_set_style_text_color(ui_Image_Main_SDCard, lv_color_hex(0x00FF00), LV_PART_MAIN);
+
+                    ESP_LOGD(TAG, "Storage switched to SD card");
+                } else {
+                    /* Mount failed: stay orange (card present but not usable) */
+                    ESP_LOGW(TAG, "SD card detected but mount failed - keeping orange");
+                }
+            } else {
+                /* Card removed: switch back to internal and show red */
+                MemoryManager_SwitchToInternal();
+
+                lv_obj_set_style_text_color(ui_Image_Main_SDCard, lv_color_hex(0xFF0000), LV_PART_MAIN);
+
+                ESP_LOGD(TAG, "Storage switched back to internal flash");
+            }
 
             xEventGroupClearBits(_GUI_Task_State.EventGroup, SD_CARD_STATE_CHANGED);
-        } else if (EventBits & SD_CARD_MOUNTED) {
-            ESP_LOGD(TAG, "SD card mounted - updating GUI");
+        }
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, SD_CARD_MOUNTED);
-        } else if (EventBits & SD_CARD_MOUNT_ERROR) {
-            ESP_LOGE(TAG, "SD card mount failed - keeping card present status");
-
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, SD_CARD_MOUNT_ERROR);
-        } else if (EventBits & LEPTON_SPOTMETER_READY) {
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, LEPTON_SPOTMETER_READY);
-        } else if (EventBits & LEPTON_UPTIME_READY) {
+        if (EventBits & LEPTON_UPTIME_READY) {
             char Buffer[32];
             uint32_t Uptime;
 
@@ -1012,7 +1041,9 @@ void Task_GUI(void *p_Parameters)
             lv_label_set_text(ui_Label_Info_Lepton_Uptime, Buffer);
 
             xEventGroupClearBits(_GUI_Task_State.EventGroup, LEPTON_UPTIME_READY);
-        } else if (EventBits & LEPTON_TEMP_READY) {
+        }
+
+        if (EventBits & LEPTON_TEMP_READY) {
             char Buffer[32];
 
             snprintf(Buffer, sizeof(Buffer), "%.2f °C", _GUI_Task_State.LeptonTemperatures.FPA);
@@ -1021,14 +1052,18 @@ void Task_GUI(void *p_Parameters)
             lv_label_set_text(ui_Label_Info_Lepton_AUX, Buffer);
 
             xEventGroupClearBits(_GUI_Task_State.EventGroup, LEPTON_TEMP_READY);
-        } else if (EventBits & LEPTON_PIXEL_TEMPERATURE_READY) {
+        }
+
+        if (EventBits & LEPTON_PIXEL_TEMPERATURE_READY) {
             char Buffer[16];
 
             snprintf(Buffer, sizeof(Buffer), "%.2f °C", _GUI_Task_State.SpotTemperature);
             lv_label_set_text(ui_Label_Main_Thermal_PixelTemperature, Buffer);
 
             xEventGroupClearBits(_GUI_Task_State.EventGroup, LEPTON_PIXEL_TEMPERATURE_READY);
-        } else if (EventBits & LEPTON_SCENE_STATISTICS_READY) {
+        }
+
+        if (EventBits & LEPTON_SCENE_STATISTICS_READY) {
             char Buffer[16];
             float Temp;
 
@@ -1045,7 +1080,9 @@ void Task_GUI(void *p_Parameters)
             lv_label_set_text(ui_Label_Main_Thermal_Scene_Mean, Buffer);
 
             xEventGroupClearBits(_GUI_Task_State.EventGroup, LEPTON_SCENE_STATISTICS_READY);
-        } else if (EventBits & UVC_STREAMING_STATE_CHANGED) {
+        }
+
+        if (EventBits & UVC_STREAMING_STATE_CHANGED) {
             if (_GUI_Task_State.isUVCStreaming) {
                 /* Clear thermal canvas to black */
                 memset(_GUI_Task_State.ThermalCanvasBuffer, 0x00, 240 * 180 * 2);
@@ -1230,12 +1267,13 @@ esp_err_t GUI_Task_Init(void)
         return ESP_ERR_NO_MEM;
     }
 
-    esp_event_handler_register(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVED, on_GUI_Event_Handler, NULL);
-    esp_event_handler_register(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, on_GUI_Event_Handler, NULL);
-    esp_event_handler_register(DEVICE_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Event_Handler, NULL);
+    esp_event_handler_register(DEVICES_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Event_Handler, NULL);
     esp_event_handler_register(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler, NULL);
-    esp_event_handler_register(LEPTON_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Event_Handler, NULL);
     esp_event_handler_register(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler, NULL);
+    esp_event_handler_register(DEVICES_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Task_Event_Handler, NULL);
+    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVED, on_GUI_Task_Event_Handler, NULL);
+    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED, on_GUI_Task_Event_Handler, NULL);
+    esp_event_handler_register(LEPTON_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Task_Event_Handler, NULL);
 
     _GUI_Task_State.SaveNextFrameRequested = false;
     _GUI_Task_State.isInitialized = true;
@@ -1249,12 +1287,13 @@ void GUI_Task_Deinit(void)
         return;
     }
 
-    esp_event_handler_unregister(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVED, on_GUI_Event_Handler);
-    esp_event_handler_unregister(GUI_EVENTS, GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED, on_GUI_Event_Handler);
-    esp_event_handler_unregister(DEVICE_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Event_Handler);
+    esp_event_handler_unregister(DEVICES_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Event_Handler);
     esp_event_handler_unregister(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler);
-    esp_event_handler_unregister(LEPTON_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Event_Handler);
     esp_event_handler_unregister(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler);
+    esp_event_handler_unregister(DEVICES_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Task_Event_Handler);
+    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVED, on_GUI_Task_Event_Handler);
+    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED, on_GUI_Task_Event_Handler);
+    esp_event_handler_unregister(LEPTON_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Task_Event_Handler);
 
     ui_destroy();
 

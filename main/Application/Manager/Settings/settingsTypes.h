@@ -33,6 +33,42 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+#define SETTINGS_ERR_BASE                       0x4000
+
+/** @defgroup SETTINGS_ERRORS Settings Manager Error Codes
+ *  @brief Error codes returned by SettingsManager functions (base: @c SETTINGS_ERR_BASE = 0x4000).
+ *  @{
+ */
+
+/** @brief SettingsManager_Init() has not been called yet. */
+#define SETTINGS_ERR_NOT_INITIALIZED            (SETTINGS_ERR_BASE + 0x01)
+
+/** @brief SettingsManager_Init() called more than once (already initialised). */
+#define SETTINGS_ERR_ALREADY_INITIALIZED        (SETTINGS_ERR_BASE + 0x02)
+
+/** @brief NVS namespace not found — first boot or NVS partition erased. */
+#define SETTINGS_ERR_NVS_NOT_FOUND              (SETTINGS_ERR_BASE + 0x03)
+
+/** @brief NVS partition is full — settings cannot be saved. */
+#define SETTINGS_ERR_NVS_FULL                   (SETTINGS_ERR_BASE + 0x04)
+
+/** @brief Settings version mismatch — firmware updated with an incompatible settings layout. */
+#define SETTINGS_ERR_VERSION_MISMATCH           (SETTINGS_ERR_BASE + 0x05)
+
+/** @brief Settings size mismatch — stored structure size differs from compiled size (corrupted or layout changed). */
+#define SETTINGS_ERR_SIZE_MISMATCH              (SETTINGS_ERR_BASE + 0x06)
+
+/** @brief NVS write operation failed during SettingsManager_Save(). */
+#define SETTINGS_ERR_NVS_WRITE                  (SETTINGS_ERR_BASE + 0x07)
+
+/** @brief NVS read operation failed during SettingsManager_LoadFromNVS(). */
+#define SETTINGS_ERR_NVS_READ                   (SETTINGS_ERR_BASE + 0x08)
+
+/** @brief Default settings JSON file not found or failed to parse. */
+#define SETTINGS_ERR_DEFAULT_JSON               (SETTINGS_ERR_BASE + 0x09)
+
+/** @} */
+
 /** @brief  Version number for the NVS based settings structure.
  *          NOTE: Migration isnt suppored yet!
  */
@@ -75,6 +111,8 @@ enum {
 enum {
     SETTINGS_ID_LEPTON_EMISSIVITY,              /**< Emissivity setting changed.
                                                      Data contains uint8_t with new emissivity value. */
+    SETTINGS_ID_DISPLAY_BRIGHTNESS,             /**< Display brightness setting changed.
+                                                     Data contains uint8_t with new brightness value. */
     SETTINGS_ID_IMAGE_FORMAT,                   /**< Image format setting changed.
                                                      Data contains Settings_Image_Format_t. */
     SETTINGS_ID_WIFI_SSID,                      /**< WiFi settings changed.

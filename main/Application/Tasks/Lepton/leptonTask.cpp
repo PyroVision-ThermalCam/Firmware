@@ -47,11 +47,10 @@
 #define LEPTON_TASK_UPDATE_TEMP_REQUEST         BIT2
 #define LEPTON_TASK_UPDATE_UPTIME_REQUEST       BIT3
 #define LEPTON_TASK_UPDATE_PIXEL_TEMPERATURE    BIT4
-#define LEPTON_TASK_UPDATE_SPOTMETER            BIT5
 #define LEPTON_TASK_UPDATE_SCENE_STATISTICS     BIT6
 #define LEPTON_TASK_UPDATE_EMISSIVITY           BIT7
 
-ESP_EVENT_DEFINE_BASE(LEPTON_EVENTS);
+ESP_EVENT_DEFINE_BASE(LEPTON_TASK_EVENTS);
 
 typedef struct {
     bool isInitialized;
@@ -90,17 +89,13 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
 
     switch (ID) {
         case SETTINGS_EVENT_LEPTON_CHANGED: {
-            if (p_Data != NULL) {
-                memcpy(&_Lepton_Task_State.NewSetting, p_Data, sizeof(SettingsManager_ChangeNotification_t));
+            memcpy(&_Lepton_Task_State.NewSetting, p_Data, sizeof(SettingsManager_ChangeNotification_t));
 
-                ESP_LOGD(TAG, "Lepton settings changed: ID=%d", _Lepton_Task_State.NewSetting.ID);
-                ESP_LOGD(TAG, "Lepton settings changed: Value=%d", _Lepton_Task_State.NewSetting.Value);
+            ESP_LOGD(TAG, "Lepton settings changed: ID=%d", _Lepton_Task_State.NewSetting.ID);
+            ESP_LOGD(TAG, "Lepton settings changed: Value=%d", _Lepton_Task_State.NewSetting.Value);
 
-                if (_Lepton_Task_State.NewSetting.ID == SETTINGS_ID_LEPTON_EMISSIVITY) {
-                    xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_EMISSIVITY);
-                }
-            } else {
-                ESP_LOGD(TAG, "Lepton settings changed (no specific setting data provided)");
+            if (_Lepton_Task_State.NewSetting.ID == SETTINGS_ID_LEPTON_EMISSIVITY) {
+                xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_EMISSIVITY);
             }
 
             break;
@@ -114,55 +109,42 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
  *  @param ID               Event ID
  *  @param p_Data           Event-specific data
  */
-static void on_GUI_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+static void on_GUI_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
 {
-    ESP_LOGD(TAG, "GUI event received: ID=%d", ID);
+    ESP_LOGD(TAG, "GUI task event received: ID=%d", ID);
 
     switch (ID) {
-        case GUI_EVENT_APP_STARTED: {
+        case GUI_TASK_EVENT_APP_STARTED: {
             ESP_LOGD(TAG, "Application started event received");
 
             _Lepton_Task_State.ApplicationStarted = true;
 
             break;
         }
-        case GUI_EVENT_REQUEST_ROI: {
-            if (p_Data != NULL) {
-                memcpy(&_Lepton_Task_State.ROI, p_Data, sizeof(Settings_ROI_t));
+        case GUI_TASK_EVENT_REQUEST_ROI: {
+            memcpy(&_Lepton_Task_State.ROI, p_Data, sizeof(Settings_ROI_t));
 
-                xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_ROI_REQUEST);
-            } else {
-                ESP_LOGE(TAG, "GUI_EVENT_REQUEST_ROI received with NULL data");
-            }
+            xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_ROI_REQUEST);
 
             break;
         }
-        case GUI_EVENT_REQUEST_FPA_AUX_TEMP: {
+        case GUI_TASK_EVENT_REQUEST_FPA_AUX_TEMP: {
             xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_TEMP_REQUEST);
             break;
         }
-        case GUI_EVENT_REQUEST_UPTIME: {
+        case GUI_TASK_EVENT_REQUEST_UPTIME: {
             xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_UPTIME_REQUEST);
 
             break;
         }
-        case GUI_EVENT_REQUEST_PIXEL_TEMPERATURE: {
-            if (p_Data != NULL) {
-                _Lepton_Task_State.ScreenPosition = *static_cast<const App_GUI_Screenposition_t *>(p_Data);
+        case GUI_TASK_EVENT_REQUEST_PIXEL_TEMPERATURE: {
+            _Lepton_Task_State.ScreenPosition = *static_cast<const App_GUI_Screenposition_t *>(p_Data);
 
-                xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_PIXEL_TEMPERATURE);
-            } else {
-                ESP_LOGE(TAG, "GUI_EVENT_REQUEST_PIXEL_TEMPERATURE received with NULL data");
-            }
+            xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_PIXEL_TEMPERATURE);
 
             break;
         }
-        case GUI_EVENT_REQUEST_SPOTMETER: {
-            xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_SPOTMETER);
-
-            break;
-        }
-        case GUI_EVENT_REQUEST_SCENE_STATISTICS: {
+        case GUI_TASK_EVENT_REQUEST_SCENE_STATISTICS: {
             xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_SCENE_STATISTICS);
 
             break;
@@ -230,13 +212,16 @@ static void Lepton_LoadSettings(void)
  */
 static void Lepton_Reset(bool Enable)
 {
-    DevicesManager_LeptonReset(Enable);
+    //DevicesManager_LeptonReset(Enable);
 }
 
 /** @brief Powers down the Lepton camera.
  */
 static void Lepton_PowerDown(bool Enable)
 {
+    /* PowerDown true  = disable Lepton power supply
+     * PowerDown false = enable Lepton power supply */
+    //DevicesManager_SetLeptonPower(!Enable);
 }
 
 /** @brief              Lepton camera task main loop.
@@ -257,7 +242,7 @@ static void Task_Lepton(void *p_Parameters)
     if (Lepton_Error != LEPTON_ERR_OK) {
         ESP_LOGE(TAG, "Lepton initialization failed with error: 0x%X!", Lepton_Error);
 
-        esp_event_post(LEPTON_EVENTS, LEPTON_EVENT_CAMERA_ERROR, NULL, 0, pdMS_TO_TICKS(500));
+        esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_CAMERA_ERROR, NULL, 0, pdMS_TO_TICKS(500));
         esp_task_wdt_delete(NULL);
 
         vTaskDelete(NULL);
@@ -289,7 +274,7 @@ static void Task_Lepton(void *p_Parameters)
     ESP_LOGI(TAG, "	GPP revision: %s", DeviceInfo.SoftwareRevision.GPP_Revision);
     ESP_LOGI(TAG, "	DSP revision: %s", DeviceInfo.SoftwareRevision.DSP_Revision);
 
-    esp_event_post(LEPTON_EVENTS, LEPTON_EVENT_CAMERA_READY, &DeviceInfo, sizeof(App_Lepton_Device_t), pdMS_TO_TICKS(500));
+    esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_CAMERA_READY, &DeviceInfo, sizeof(App_Lepton_Device_t), pdMS_TO_TICKS(500));
 
     while (_Lepton_Task_State.ApplicationStarted == false) {
         esp_task_wdt_reset();
@@ -316,7 +301,7 @@ static void Task_Lepton(void *p_Parameters)
     if (Lepton_StartCapture(&_Lepton_Task_State.Lepton, _Lepton_Task_State.RawFrameQueue) != LEPTON_ERR_OK) {
         ESP_LOGE(TAG, "Can not start image capturing!");
 
-        esp_event_post(LEPTON_EVENTS, LEPTON_EVENT_CAMERA_ERROR, NULL, 0, pdMS_TO_TICKS(500));
+        esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_CAMERA_ERROR, NULL, 0, pdMS_TO_TICKS(500));
 
         /* Critical error - cannot continue without capture task */
         _Lepton_Task_State.isRunning = false;
@@ -473,66 +458,90 @@ static void Task_Lepton(void *p_Parameters)
             ROI.End_Col = _Lepton_Task_State.ROI.x + _Lepton_Task_State.ROI.w - 1;
             ROI.End_Row = _Lepton_Task_State.ROI.y + _Lepton_Task_State.ROI.h - 1;
 
-            switch (_Lepton_Task_State.ROI.Type) {
-                case ROI_TYPE_SPOTMETER: {
-                    Error = Lepton_SetSpotmeterROI(&_Lepton_Task_State.Lepton, &ROI);
+            if (DevicesManager_AcquireI2CBus(portMAX_DELAY) == ESP_OK) {
+                switch (_Lepton_Task_State.ROI.Type) {
+                    case ROI_TYPE_SPOTMETER: {
+                        Error = Lepton_SetSpotmeterROI(&_Lepton_Task_State.Lepton, &ROI);
 
-                    break;
+                        break;
+                    }
+                    case ROI_TYPE_SCENE: {
+                        Error = Lepton_SetSceneROI(&_Lepton_Task_State.Lepton, &ROI);
+
+                        break;
+                    }
+                    case ROI_TYPE_AGC: {
+                        Error = Lepton_SetAGCROI(&_Lepton_Task_State.Lepton, &ROI);
+
+                        break;
+                    }
+                    case ROI_TYPE_VIDEO_FOCUS: {
+                        Error = Lepton_SetVideoFocusROI(&_Lepton_Task_State.Lepton, &ROI);
+
+                        break;
+                    }
+                    default: {
+                        ESP_LOGW(TAG, "Invalid ROI type in GUI event: 0x%X", _Lepton_Task_State.ROI.Type);
+                        DevicesManager_ReleaseI2CBus();
+
+                        return;
+                    }
                 }
-                case ROI_TYPE_SCENE: {
-                    Error = Lepton_SetSceneROI(&_Lepton_Task_State.Lepton, &ROI);
 
-                    break;
+                DevicesManager_ReleaseI2CBus();
+
+                if (Error == LEPTON_ERR_OK) {
+                    ESP_LOGD(TAG, "New Lepton ROI (Type %d) - Start_Col: %u, Start_Row: %u, End_Col: %u, End_Row: %u",
+                             _Lepton_Task_State.ROI.Type,
+                             ROI.Start_Col,
+                             ROI.Start_Row,
+                             ROI.End_Col,
+                             ROI.End_Row);
+                } else {
+                    ESP_LOGE(TAG, "Failed to update Lepton ROI with type %d!", _Lepton_Task_State.ROI.Type);
                 }
-                case ROI_TYPE_AGC: {
-                    Error = Lepton_SetAGCROI(&_Lepton_Task_State.Lepton, &ROI);
-
-                    break;
-                }
-                case ROI_TYPE_VIDEO_FOCUS: {
-                    Error = Lepton_SetVideoFocusROI(&_Lepton_Task_State.Lepton, &ROI);
-
-                    break;
-                }
-                default: {
-                    ESP_LOGW(TAG, "Invalid ROI type in GUI event: 0x%X", _Lepton_Task_State.ROI.Type);
-
-                    return;
-                }
-            }
-
-            if (Error == LEPTON_ERR_OK) {
-                ESP_LOGD(TAG, "New Lepton ROI (Type %d) - Start_Col: %u, Start_Row: %u, End_Col: %u, End_Row: %u",
-                         _Lepton_Task_State.ROI.Type,
-                         ROI.Start_Col,
-                         ROI.Start_Row,
-                         ROI.End_Col,
-                         ROI.End_Row);
             } else {
-                ESP_LOGE(TAG, "Failed to update Lepton ROI with type %d!", _Lepton_Task_State.ROI.Type);
+                ESP_LOGW(TAG, "I2C bus busy, skipping ROI update!");
             }
 
             xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_ROI_REQUEST);
-        } else if (EventBits & LEPTON_TASK_UPDATE_TEMP_REQUEST) {
+        }
+
+        if (EventBits & LEPTON_TASK_UPDATE_TEMP_REQUEST) {
             uint16_t FPA_Temp;
             uint16_t AUX_Temp;
             App_Lepton_Temperatures_t Temperatures;
 
-            Lepton_GetTemperature(&_Lepton_Task_State.Lepton, &FPA_Temp, &AUX_Temp);
+            if (DevicesManager_AcquireI2CBus(portMAX_DELAY) == ESP_OK) {
+                Lepton_GetTemperature(&_Lepton_Task_State.Lepton, &FPA_Temp, &AUX_Temp);
+                DevicesManager_ReleaseI2CBus();
 
-            Temperatures.FPA = (static_cast<float>(FPA_Temp) * 0.01f) - 273.0f;
-            Temperatures.AUX = (static_cast<float>(AUX_Temp) * 0.01f) - 273.0f;
-            esp_event_post(LEPTON_EVENTS, LEPTON_EVENT_RESPONSE_FPA_AUX_TEMP, &Temperatures, sizeof(App_Lepton_Temperatures_t), 0);
+                Temperatures.FPA = (static_cast<float>(FPA_Temp) * 0.01f) - 273.0f;
+                Temperatures.AUX = (static_cast<float>(AUX_Temp) * 0.01f) - 273.0f;
+                esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_FPA_AUX_TEMP, &Temperatures, sizeof(App_Lepton_Temperatures_t), 0);
+            } else {
+                ESP_LOGW(TAG, "I2C bus busy, skipping temperature read!");
+            }
 
             xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_TEMP_REQUEST);
-        } else if (EventBits & LEPTON_TASK_UPDATE_UPTIME_REQUEST) {
+        }
+
+        if (EventBits & LEPTON_TASK_UPDATE_UPTIME_REQUEST) {
             uint32_t Uptime;
 
-            Uptime = Lepton_GetUptime(&_Lepton_Task_State.Lepton);
-            esp_event_post(LEPTON_EVENTS, LEPTON_EVENT_RESPONSE_UPTIME, &Uptime, sizeof(uint32_t), 0);
+            if (DevicesManager_AcquireI2CBus(portMAX_DELAY) == ESP_OK) {
+                Uptime = Lepton_GetUptime(&_Lepton_Task_State.Lepton);
+                DevicesManager_ReleaseI2CBus();
+
+                esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_UPTIME, &Uptime, sizeof(uint32_t), 0);
+            } else {
+                ESP_LOGW(TAG, "I2C bus busy, skipping uptime read!");
+            }
 
             xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_UPTIME_REQUEST);
-        } else if (EventBits & LEPTON_TASK_STOP_REQUEST) {
+        }
+
+        if (EventBits & LEPTON_TASK_STOP_REQUEST) {
             ESP_LOGI(TAG, "Stop request received");
 
             _Lepton_Task_State.isRunning = false;
@@ -540,7 +549,9 @@ static void Task_Lepton(void *p_Parameters)
             xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_STOP_REQUEST);
 
             break;
-        } else if (EventBits & LEPTON_TASK_UPDATE_PIXEL_TEMPERATURE) {
+        }
+
+        if (EventBits & LEPTON_TASK_UPDATE_PIXEL_TEMPERATURE) {
             int16_t x;
             int16_t y;
             float Temperature;
@@ -565,73 +576,72 @@ static void Task_Lepton(void *p_Parameters)
                      _Lepton_Task_State.RawFrame.Height);
 
             if (_Lepton_Task_State.RawFrame.Image_Buffer != NULL) {
-                if (Lepton_GetPixelTemperature(&_Lepton_Task_State.Lepton,
-                                               _Lepton_Task_State.RawFrame.Image_Buffer[(y * _Lepton_Task_State.RawFrame.Width) + x],
-                                               &Temperature) == LEPTON_ERR_OK) {
-                    esp_event_post(LEPTON_EVENTS, LEPTON_EVENT_RESPONSE_PIXEL_TEMPERATURE, &Temperature, sizeof(float), 0);
+                if (DevicesManager_AcquireI2CBus(portMAX_DELAY) == ESP_OK) {
+                    Lepton_Error_t LeptonError = Lepton_GetPixelTemperature(&_Lepton_Task_State.Lepton,
+                                                                            _Lepton_Task_State.RawFrame.Image_Buffer[(y * _Lepton_Task_State.RawFrame.Width) + x],
+                                                                            &Temperature);
+                    DevicesManager_ReleaseI2CBus();
+
+                    if (LeptonError == LEPTON_ERR_OK) {
+                        esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_PIXEL_TEMPERATURE, &Temperature, sizeof(float), 0);
+                    } else {
+                        ESP_LOGW(TAG, "Failed to get pixel temperature: 0x%X", LeptonError);
+                    }
                 } else {
-                    ESP_LOGW(TAG, "Failed to get pixel temperature!");
+                    ESP_LOGW(TAG, "I2C bus busy, skipping pixel temperature read!");
                 }
             } else {
                 ESP_LOGW(TAG, "Image buffer is NULL, cannot get pixel temperature");
             }
 
             xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_PIXEL_TEMPERATURE);
-        } else if (EventBits & LEPTON_TASK_UPDATE_SPOTMETER) {
-            Lepton_Spotmeter_t Spotmeter;
+        }
 
-            ESP_LOGD(TAG, "Getting spotmeter - I2C Bus: %p, I2C Dev: %p",
-                     _Lepton_Task_State.Lepton.Internal.CCI.I2C_Bus_Handle,
-                     _Lepton_Task_State.Lepton.Internal.CCI.I2C_Dev_Handle);
-
-            if (Lepton_GetSpotmeter(&_Lepton_Task_State.Lepton, &Spotmeter) == LEPTON_ERR_OK) {
-                App_Lepton_ROI_Result_t App_Lepton_Spotmeter;
-
-                ESP_LOGD(TAG, "Spotmeter: Spot=%uK, Min=%uK, Max=%uK",
-                         Spotmeter.Value,
-                         Spotmeter.Min,
-                         Spotmeter.Max);
-
-                App_Lepton_Spotmeter.Min = Spotmeter.Min - 273.0f;
-                App_Lepton_Spotmeter.Max = Spotmeter.Max - 273.0f;
-                App_Lepton_Spotmeter.Average = Spotmeter.Value - 273.0f;
-
-                esp_event_post(LEPTON_EVENTS, LEPTON_EVENT_RESPONSE_SPOTMETER, &App_Lepton_Spotmeter, sizeof(App_Lepton_ROI_Result_t),
-                               0);
-            } else {
-                ESP_LOGW(TAG, "Failed to read spotmeter!");
-            }
-
-            xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_SPOTMETER);
-        } else if (EventBits & LEPTON_TASK_UPDATE_SCENE_STATISTICS) {
+        if (EventBits & LEPTON_TASK_UPDATE_SCENE_STATISTICS) {
             Lepton_SceneStatistics_t SceneStats;
 
-            if (Lepton_GetSceneStatistics(&_Lepton_Task_State.Lepton, &SceneStats) == LEPTON_ERR_OK) {
-                App_Lepton_ROI_Result_t App_Lepton_Scene;
+            if (DevicesManager_AcquireI2CBus(portMAX_DELAY) == ESP_OK) {
+                if (Lepton_GetSceneStatistics(&_Lepton_Task_State.Lepton, &SceneStats) == LEPTON_ERR_OK) {
+                    App_Lepton_ROI_Result_t App_Lepton_Scene;
 
-                App_Lepton_Scene.Min = SceneStats.MinIntensity;
-                App_Lepton_Scene.Max = SceneStats.MaxIntensity;
-                App_Lepton_Scene.Average = SceneStats.MeanIntensity;
+                    App_Lepton_Scene.Min = SceneStats.MinIntensity;
+                    App_Lepton_Scene.Max = SceneStats.MaxIntensity;
+                    App_Lepton_Scene.Average = SceneStats.MeanIntensity;
 
-                ESP_LOGD(TAG, "Scene Statistics: Min=%.2f°C, Max=%.2f°C, Average=%.2f°C",
-                         App_Lepton_Scene.Min, App_Lepton_Scene.Max, App_Lepton_Scene.Average);
+                    ESP_LOGD(TAG, "Scene Statistics: Min=%.2f°C, Max=%.2f°C, Average=%.2f°C",
+                             App_Lepton_Scene.Min, App_Lepton_Scene.Max, App_Lepton_Scene.Average);
 
-                esp_event_post(LEPTON_EVENTS, LEPTON_EVENT_RESPONSE_SCENE_STATISTICS, &App_Lepton_Scene,
-                               sizeof(App_Lepton_ROI_Result_t), 0);
+                    DevicesManager_ReleaseI2CBus();
+
+                    esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_SCENE_STATISTICS, &App_Lepton_Scene,
+                                   sizeof(App_Lepton_ROI_Result_t), 0);
+                } else {
+                    DevicesManager_ReleaseI2CBus();
+
+                    ESP_LOGW(TAG, "Failed to read scene statistics!");
+                }
             } else {
-                ESP_LOGW(TAG, "Failed to read scene statistics!");
+                ESP_LOGW(TAG, "I2C bus busy, skipping scene statistics read!");
             }
 
             xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_SCENE_STATISTICS);
-        } else if (EventBits & LEPTON_TASK_UPDATE_EMISSIVITY) {
+        }
+
+        if (EventBits & LEPTON_TASK_UPDATE_EMISSIVITY) {
             Lepton_Error_t Error;
 
-            Error = Lepton_SetEmissivity(&_Lepton_Task_State.Lepton,
-                                         static_cast<Lepton_Emissivity_t>(_Lepton_Task_State.NewSetting.Value));
-            if (Error == LEPTON_ERR_OK) {
-                ESP_LOGD(TAG, "Updated emissivity to %u", _Lepton_Task_State.NewSetting.Value);
+            if (DevicesManager_AcquireI2CBus(portMAX_DELAY) == ESP_OK) {
+                Error = Lepton_SetEmissivity(&_Lepton_Task_State.Lepton,
+                                             static_cast<Lepton_Emissivity_t>(_Lepton_Task_State.NewSetting.Value));
+                DevicesManager_ReleaseI2CBus();
+
+                if (Error == LEPTON_ERR_OK) {
+                    ESP_LOGD(TAG, "Updated emissivity to %u", _Lepton_Task_State.NewSetting.Value);
+                } else {
+                    ESP_LOGE(TAG, "Failed to update emissivity to %u!", _Lepton_Task_State.NewSetting.Value);
+                }
             } else {
-                ESP_LOGE(TAG, "Failed to update emissivity to %u!", _Lepton_Task_State.NewSetting.Value);
+                ESP_LOGW(TAG, "I2C bus busy, skipping emissivity update!");
             }
 
             xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_EMISSIVITY);
@@ -678,6 +688,7 @@ esp_err_t Lepton_Task_Init(void)
 
     _Lepton_Task_State.LeptonConf = LEPTON_DEFAULT_CONF;
     LEPTON_ASSIGN_FUNC(_Lepton_Task_State.LeptonConf, NULL, NULL, I2CM_Write, I2CM_Read);
+    _Lepton_Task_State.LeptonConf.CCI.I2C_WriteRead = I2CM_WriteRead;
     LEPTON_ASSIGN_I2C_HANDLE(_Lepton_Task_State.LeptonConf, DevicesManager_GetI2CBusHandle());
     _Lepton_Task_State.LeptonConf.Reset = Lepton_Reset;
     _Lepton_Task_State.LeptonConf.PowerDown = Lepton_PowerDown;
@@ -731,7 +742,7 @@ esp_err_t Lepton_Task_Init(void)
         return ESP_ERR_NO_MEM;
     }
 
-    esp_event_handler_register(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler, NULL);
+    esp_event_handler_register(GUI_TASK_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Task_Event_Handler, NULL);
     esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_LEPTON_CHANGED, on_Settings_Event_Handler, NULL);
     esp_event_handler_register(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler, NULL);
 
@@ -777,7 +788,7 @@ void Lepton_Task_Deinit(void)
     }
 
     esp_event_handler_unregister(SETTINGS_EVENTS, SETTINGS_EVENT_LEPTON_CHANGED, on_Settings_Event_Handler);
-    esp_event_handler_unregister(GUI_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Event_Handler);
+    esp_event_handler_unregister(GUI_TASK_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Task_Event_Handler);
     esp_event_handler_unregister(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler);
 
     if (_Lepton_Task_State.p_JpegBuffer != NULL) {

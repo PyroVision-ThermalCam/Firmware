@@ -413,6 +413,27 @@ esp_err_t SettingsManager_SetWiFi(const char *p_SSID, const char *p_Pass);
 Error = nvs_set_u8(_State.NVS_Handle, "config_valid", false);
 ```
 
+#### Section Grouping in Header Files
+
+Never use decorative ASCII-art dividers (`/* === ... === */`) as section separators. Use Doxygen `@defgroup` + `@{` / `@}` group markers instead — they are both human-readable and picked up by the documentation generator.
+
+```cpp
+// ❌ INCORRECT: decorative divider, invisible to Doxygen
+/* ============================================================
+ * Devices Manager Error Codes  (DEVICES_ERR_BASE = 0x1000)
+ * ============================================================ */
+
+// ✅ CORRECT: Doxygen group
+/** @defgroup DEVICES_ERRORS Devices Manager Error Codes
+ *  @brief Error codes returned by DevicesManager functions (base: @c DEVICES_ERR_BASE = 0x1000).
+ *  @{
+ */
+
+// ... defines ...
+
+/** @} */
+```
+
 ### Structure Documentation
 
 Document struct members inline:
@@ -578,6 +599,57 @@ esp_err_t Module_Update(Config_t *p_Config)
                    p_Config, sizeof(Config_t), portMAX_DELAY);
     
     return ESP_OK;
+}
+```
+
+### Module-Specific Error Codes
+
+**CRITICAL**: Manager modules MUST return module-specific error codes instead of generic ESP-IDF error codes for domain-level failures.
+
+#### Rules
+
+- Define a module error base constant: `#define MODULE_ERR_BASE 0xXXXX`
+- Define specific codes for all failure scenarios the module can encounter
+- Return `MEMORY_ERR_INVALID_ARG`, `MEMORY_ERR_INVALID_STATE`, etc. — **never** `ESP_ERR_INVALID_ARG` or `ESP_ERR_INVALID_STATE`
+- Pass-through errors from underlying ESP-IDF library calls (e.g. `esp_partition_read`) may remain as-is, since they carry diagnostic detail not expressible by module codes
+- Update Doxygen `@return` documentation to list `MODULE_ERR_*` codes — never `ESP_ERR_*` variants for module-level checks
+
+**Standard error codes to define for every Manager module:**
+
+| Code suffix | Offset | Usage |
+|-------------|--------|-------|
+| `_NOT_INITIALIZED` | `+0x01` | `Init()` not yet called |
+| `_INVALID_ARG` | `+0x08` | NULL pointer or out-of-range parameter |
+| `_INVALID_STATE` | `+0x09` | Precondition not met (wrong state, wrong location) |
+| `_NOT_FOUND` | `+0x0A` | Requested resource or partition not found |
+
+**Example — correct pattern:**
+
+```cpp
+// ✅ CORRECT: module-specific error codes
+esp_err_t Module_GetData(Data_t *p_Data)
+{
+    if (p_Data == NULL) {
+        return MODULE_ERR_INVALID_ARG;
+    }
+
+    if (_State.isInitialized == false) {
+        return MODULE_ERR_INVALID_STATE;
+    }
+
+    // ...
+}
+
+// ❌ INCORRECT: generic ESP-IDF error codes for module-level checks
+esp_err_t Module_GetData(Data_t *p_Data)
+{
+    if (p_Data == NULL) {
+        return ESP_ERR_INVALID_ARG;   // ❌ — must use MODULE_ERR_INVALID_ARG
+    }
+
+    if (_State.isInitialized == false) {
+        return ESP_ERR_INVALID_STATE; // ❌ — must use MODULE_ERR_INVALID_STATE
+    }
 }
 ```
 

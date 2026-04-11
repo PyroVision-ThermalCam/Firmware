@@ -40,19 +40,15 @@
 #include "Application/Manager/Network/networkTypes.h"
 
 #define GUI_TASK_STOP_REQUEST               BIT0
-#define BATTERY_VOLTAGE_READY               BIT1
-#define BATTERY_CHARGING_STATUS_READY       BIT2
+#define BATTERY_STATUS_CHANGED              BIT1
 #define WIFI_CONNECTION_STATE_CHANGED       BIT3
 #define PROVISIONING_STATE_CHANGED          BIT7
 #define SD_CARD_STATE_CHANGED               BIT8
-#define SD_CARD_MOUNTED                     BIT9
-#define SD_CARD_MOUNT_ERROR                 BIT10
 #define LEPTON_UPTIME_READY                 BIT11
 #define LEPTON_TEMP_READY                   BIT12
 #define LEPTON_PIXEL_TEMPERATURE_READY      BIT13
 #define LEPTON_CAMERA_READY                 BIT4
 #define LEPTON_CAMERA_ERROR                 BIT14
-#define LEPTON_SPOTMETER_READY              BIT5
 #define LEPTON_SCENE_STATISTICS_READY       BIT6
 #define UVC_STREAMING_STATE_CHANGED         BIT15
 
@@ -110,6 +106,22 @@ typedef struct {
  */
 esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t Touch_Read_Callback);
 
+/** @brief                      Initialize the GT911 touch controller and register the LVGL input device.
+ *                              Must be called AFTER the Lepton camera has booted (LEPTON_CAMERA_READY event)
+ *                              to avoid I2C bus interference that prevents CCI_WaitForBoot from succeeding.
+ *                              GT911 is intentionally kept in hardware reset (CONFIG_TOUCH_RST = LOW) until
+ *                              this function is called.
+ *  @note                       Safe to call even if Touch_IO_Handle was never set up - the function
+ *                              checks preconditions and returns gracefully. On initialization failure
+ *                              the system continues without touch functionality.
+ *  @param p_GUI_Task_State     Pointer to the GUI task state structure.
+ *  @param Touch_Read_Callback  LVGL touch read callback function.
+ *  @return                     ESP_OK on success or if GT911 is unavailable (non-fatal)
+ *                              ESP_ERR_INVALID_ARG if p_GUI_Task_State is NULL
+ *                              ESP_ERR_INVALID_STATE if Touch_IO_Handle is not initialized
+ */
+esp_err_t GUI_Helper_InitTouch(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t Touch_Read_Callback);
+
 /** @brief                      Deinitialize the GUI helper functions.
  *  @param p_GUI_Task_State     Pointer to the GUI task state structure.
  */
@@ -124,11 +136,6 @@ void GUI_Helper_Timer_ClockUpdate(lv_timer_t *p_Timer);
  *  @param p_Timer  Pointer to the LVGL timer structure.
  */
 void GUI_Helper_Timer_SpotUpdate(lv_timer_t *p_Timer);
-
-/** @brief          LVGL timer callback to request spotmeter data update.
- *  @param p_Timer  Pointer to the LVGL timer structure.
- */
-void GUI_Helper_Timer_SpotmeterUpdate(lv_timer_t *p_Timer);
 
 /** @brief          LVGL timer callback to request scene statistics data update.
  *  @param p_Timer  Pointer to the LVGL timer structure.

@@ -30,52 +30,53 @@
 
 #include <sdkconfig.h>
 
-ESP_EVENT_DECLARE_BASE(LEPTON_EVENTS);
-ESP_EVENT_DECLARE_BASE(DEVICE_EVENTS);
-ESP_EVENT_DECLARE_BASE(GUI_EVENTS);
+ESP_EVENT_DECLARE_BASE(LEPTON_TASK_EVENTS);
+ESP_EVENT_DECLARE_BASE(GUI_TASK_EVENTS);
+ESP_EVENT_DECLARE_BASE(DEVICES_TASK_EVENTS);
 
-/** @brief Lepton camera event identifiers.
+/** @brief Lepton task event identifiers.
  */
 enum {
-    LEPTON_EVENT_CAMERA_READY,                  /**< Lepton camera is ready.
+    LEPTON_TASK_EVENT_CAMERA_READY,             /**< Lepton camera is ready.
                                                      Data is transmitted in a App_Lepton_Device_t structure. */
-    LEPTON_EVENT_CAMERA_ERROR,                  /**< Lepton camera error occurred. */
-    LEPTON_EVENT_RESPONSE_FPA_AUX_TEMP,         /**< FPA and AUX temperatures are ready.
+    LEPTON_TASK_EVENT_CAMERA_ERROR,             /**< Lepton camera error occurred. */
+    LEPTON_TASK_EVENT_RESPONSE_FPA_AUX_TEMP,   /**< FPA and AUX temperatures are ready.
                                                      Data is transmitted in a App_Lepton_Temperatures_t structure. */
-    LEPTON_EVENT_RESPONSE_SPOTMETER,            /**< Spotmeter data is ready.
-                                                     Data is transmitted in a App_Lepton_Spotmeter_t structure with temperature value Celsius. */
-    LEPTON_EVENT_RESPONSE_UPTIME,               /**< Uptime data is ready.
+    LEPTON_TASK_EVENT_RESPONSE_UPTIME,          /**< Uptime data is ready.
                                                      Data is transmitted as a uint32_t representing uptime in milliseconds. */
-    LEPTON_EVENT_RESPONSE_PIXEL_TEMPERATURE,    /**< Pixel temperature data is ready.
+    LEPTON_TASK_EVENT_RESPONSE_PIXEL_TEMPERATURE, /**< Pixel temperature data is ready.
                                                      Data is transmitted as a float. */
-    LEPTON_EVENT_RESPONSE_SCENE_STATISTICS,     /**< Scene statistics data is ready.
-                                                     Data is transmitted in a App_Lepton_SceneStatistics_t structure. */
+    LEPTON_TASK_EVENT_RESPONSE_SCENE_STATISTICS, /**< Scene statistics data is ready.
+                                                     Data is transmitted in a App_Lepton_ROI_Result_t structure. */
 };
 
-/** @brief Device status event identifiers.
+/** @brief GUI task event identifiers.
  */
 enum {
-    DEVICE_EVENT_RESPONSE_TIME,                 /**< Device RTC time has been updated.
-                                                     Data is transmitted in a struct tm structure. */
-};
-
-/** @brief GUI event identifiers.
- */
-enum {
-    GUI_EVENT_INIT_DONE,                        /**< GUI task initialization done. */
-    GUI_EVENT_INIT_ERROR,                       /**< GUI task initialization error occurred. */
-    GUI_EVENT_APP_STARTED,                      /**< Application has started. */
-    GUI_EVENT_REQUEST_ROI,                      /**< Update the ROI rectangle on the GUI.
+    GUI_TASK_EVENT_INIT_DONE,                   /**< GUI task initialization done. */
+    GUI_TASK_EVENT_INIT_ERROR,                  /**< GUI task initialization error occurred. */
+    GUI_TASK_EVENT_APP_STARTED,                 /**< Application has started. */
+    GUI_TASK_EVENT_REQUEST_ROI,                 /**< Update the ROI rectangle on the GUI.
                                                      Data is transmitted in a Settings_ROI_t structure. */
-    GUI_EVENT_REQUEST_FPA_AUX_TEMP,             /**< Request update of the FPA and AUX temperature. */
-    GUI_EVENT_REQUEST_UPTIME,                   /**< Request update of the uptime. */
-    GUI_EVENT_REQUEST_PIXEL_TEMPERATURE,        /**< Request update of pixel temperature.
+    GUI_TASK_EVENT_REQUEST_FPA_AUX_TEMP,        /**< Request update of the FPA and AUX temperature. */
+    GUI_TASK_EVENT_REQUEST_UPTIME,              /**< Request update of the uptime. */
+    GUI_TASK_EVENT_REQUEST_PIXEL_TEMPERATURE,   /**< Request update of pixel temperature.
                                                      Data is transmitted in a App_GUI_Screenposition_t structure. */
-    GUI_EVENT_REQUEST_SPOTMETER,                /**< Request update of spotmeter data. */
-    GUI_EVENT_REQUEST_SCENE_STATISTICS,         /**< Request update of scene statistics data. */
-    GUI_EVENT_THERMAL_IMAGE_SAVED,              /**< Thermal image successfully saved to storage. */
-    GUI_EVENT_THERMAL_IMAGE_SAVE_FAILED,        /**< Thermal image save operation failed.
+    GUI_TASK_EVENT_REQUEST_SCENE_STATISTICS,    /**< Request update of scene statistics data. */
+    GUI_TASK_EVENT_THERMAL_IMAGE_SAVED,         /**< Thermal image successfully saved to storage. */
+    GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED,   /**< Thermal image save operation failed.
                                                      Data is transmitted as an int representing the errno value. */
+};
+
+/** @brief Devices task event identifiers.
+ */
+enum {
+    DEVICES_TASK_EVENT_INPUT_CHANGED,           /**< Displayboard input state changed.
+                                                     Data is of type Devices_InputState_t. */
+    DEVICES_TASK_EVENT_RESPONSE_BATTERY,        /**< Battery status has been updated.
+                                                     Data is transmitted in a App_Devices_Battery_t structure. */
+    DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE,   /**< Temperature has been updated.
+                                                     Data is transmitted in a App_Devices_Temperature_t structure. */
 };
 
 /** @brief Structure representing a screen position.
@@ -92,6 +93,7 @@ typedef struct {
 typedef struct {
     int Voltage;                                /**< Battery voltage in millivolts. */
     uint8_t Percentage;                         /**< Battery percentage (0-100%). */
+    bool Charging;                              /**< True if charging is in progress, false otherwise. */
 } App_Devices_Battery_t;
 
 /** @brief Structure representing a VL53L1X distance measurement.

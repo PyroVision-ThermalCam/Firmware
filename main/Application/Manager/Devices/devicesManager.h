@@ -27,6 +27,8 @@
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
 
+#include <freertos/FreeRTOS.h>
+
 #include <time.h>
 #include <stdint.h>
 
@@ -43,7 +45,14 @@
  *  @warning        Not thread-safe. Call once from main task during startup.
  *  @return         ESP_OK on success
  *                  ESP_ERR_NO_MEM if memory allocation fails
- *                  ESP_FAIL if I2C/SPI initialization fails
+ *                  DEVICES_ERR_I2C_BUS_INIT if I2C bus initialization fails
+ *                  DEVICES_ERR_SPI_BUS_INIT if SPI bus initialization fails
+ *                  DEVICES_ERR_EXPANDER_MAINBOARD if mainboard expander init fails
+ *                  DEVICES_ERR_RV8263C8_NOT_FOUND if RTC not detected on I2C bus
+ *                  DEVICES_ERR_TMP117_NOT_FOUND if temperature sensor not detected
+ *                  DEVICES_ERR_MAX17048_NOT_FOUND if fuel gauge not detected
+ *                  DEVICES_ERR_VL53L1X_NOT_FOUND if ranging sensor not detected
+ *                  DEVICES_ERR_PCA9633_NOT_FOUND if LED driver not detected
  */
 esp_err_t DevicesManager_Init(void);
 
@@ -53,9 +62,33 @@ esp_err_t DevicesManager_Init(void);
  *  @note           After calling this, DevicesManager_Init() must be called again.
  *  @warning        All device handles become invalid after this call.
  *  @return         ESP_OK on success
- *                  ESP_FAIL if cleanup fails
  */
 esp_err_t DevicesManager_Deinit(void);
+
+/** @brief          Acquire exclusive access to the shared I2C bus.
+ *                  Blocks until the I2C bus mutex is acquired or the timeout expires.
+ *                  Must be paired with a call to DevicesManager_ReleaseI2CBus() after the
+ *                  multi-transaction operation is complete.
+ *  @note           Use this before any multi-step I2C sequence that must not be interleaved
+ *                  with other bus users (e.g. Lepton CCI command-response cycles).
+ *                  Recommended timeouts: Lepton task — portMAX_DELAY;
+ *                  Devices task — pdMS_TO_TICKS(500).
+ *  @warning        Always call DevicesManager_ReleaseI2CBus() after a successful acquire,
+ *                  even when the I2C operation fails. Failing to do so permanently blocks
+ *                  all other I2C users.
+ *  @param Timeout  FreeRTOS tick timeout. Use portMAX_DELAY to wait indefinitely.
+ *  @return         ESP_OK if the mutex was acquired
+ *                  ESP_ERR_TIMEOUT if Timeout expired before the mutex became available
+ *                  DEVICES_ERR_NOT_INITIALIZED if DevicesManager is not initialized
+ */
+esp_err_t DevicesManager_AcquireI2CBus(TickType_t Timeout);
+
+/** @brief          Release exclusive access to the shared I2C bus.
+ *                  Releases the mutex previously acquired by DevicesManager_AcquireI2CBus().
+ *  @warning        Must only be called after a successful DevicesManager_AcquireI2CBus().
+ *                  Calling this without a prior acquire is undefined behavior.
+ */
+void DevicesManager_ReleaseI2CBus(void);
 
 /** @brief          Get the I2C bus handle for peripheral devices.
  *                  Returns the I2C bus handle used by RTC, Port Expander, and other
@@ -95,11 +128,14 @@ spi_host_device_t DevicesManager_GetSPIHost(void);
  *  @warning            Measurement enables battery voltage divider (increases power consumption).
  *  @param p_Voltage    Pointer to store voltage in mV (millivolts)
  *  @param p_Percentage Pointer to store percentage (0-100)
+ *  @param p_Charging   Pointer to store the charging state (true = charging in progress)
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if pointers are NULL
- *                      ESP_FAIL if ADC read fails
+ *                      DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
+ *                      DEVICES_ERR_ADC_READ if ADC read fails
+ *                      DEVICES_ERR_I2C_COMM if I2C communication fails
  */
-esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, uint8_t *p_Percentage);
+esp_err_t DevicesManager_GetBatteryStatus(int *p_Voltage, uint8_t *p_Percentage, bool *p_Charging);
 
 /** @brief          Get the RTC device handle (for Time Manager).
  *                  Returns the I2C device handle for the RV8263-C8 Real-Time Clock.
@@ -109,7 +145,7 @@ esp_err_t DevicesManager_GetBatteryVoltage(int *p_Voltage, uint8_t *p_Percentage
  *  @param p_Handle Pointer to store the RTC device struct
  *  @return         ESP_OK on success
  *                  ESP_ERR_INVALID_ARG if p_Handle is NULL
- *                  ESP_ERR_INVALID_STATE if DevicesManager not initialized
+ *                  DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
  */
 esp_err_t DevicesManager_GetRTCHandle(RV8263C8_Dev_t *p_Handle);
 
@@ -121,14 +157,18 @@ esp_err_t DevicesManager_GetRTCHandle(RV8263C8_Dev_t *p_Handle);
  *  @param p_Time   Pointer to tm structure to store the time
  *  @return         ESP_OK on success
  *                  ESP_ERR_INVALID_ARG if p_Time is NULL
- *                  ESP_ERR_INVALID_STATE if RTC not initialized
- *                  ESP_FAIL if I2C communication fails
+ *                  DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
+ *                  DEVICES_ERR_I2C_COMM if I2C communication fails
  */
 esp_err_t DevicesManager_GetTime(struct tm *p_Time);
 
 /** @brief          Set the time on the RTC.
+ *  @note           Changes are written directly to the RV8263-C8 over I2C.
  *  @param p_Time   Pointer to the time to set
- *  @return         ESP_OK when successful
+ *  @return         ESP_OK on success
+ *                  ESP_ERR_INVALID_ARG if p_Time is NULL
+ *                  DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
+ *                  DEVICES_ERR_I2C_COMM if I2C communication fails
  */
 esp_err_t DevicesManager_SetTime(const struct tm *p_Time);
 
@@ -136,8 +176,8 @@ esp_err_t DevicesManager_SetTime(const struct tm *p_Time);
  *  @param p_Temperature    Pointer to store the temperature in Celsius
  *  @return                 ESP_OK on success
  *                          ESP_ERR_INVALID_ARG if p_Temperature is NULL
- *                          ESP_ERR_INVALID_STATE if TMP117 not initialized
- *                          ESP_FAIL if I2C communication fails
+ *                          DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
+ *                          DEVICES_ERR_I2C_COMM if I2C communication fails
  */
 esp_err_t DevicesManager_GetTemperature(float *p_Temperature);
 
@@ -152,9 +192,9 @@ esp_err_t DevicesManager_GetTemperature(float *p_Temperature);
  *  @param p_IsValid        Pointer to store whether the measurement is valid
  *  @return                 ESP_OK on success
  *                          ESP_ERR_INVALID_ARG if any pointer is NULL
- *                          ESP_ERR_INVALID_STATE if DevicesManager not initialized
+ *                          DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
  *                          ESP_ERR_TIMEOUT if measurement did not complete within 500 ms
- *                          ESP_FAIL if I2C communication fails
+ *                          DEVICES_ERR_I2C_COMM if I2C communication fails
  */
 esp_err_t DevicesManager_GetDistance(uint16_t *p_Distance_mm, bool *p_IsValid);
 
@@ -167,8 +207,9 @@ esp_err_t DevicesManager_GetDistance(uint16_t *p_Distance_mm, bool *p_IsValid);
  *  @param ID           Identifier of the backlight to control
  *  @param Brightness   PWM duty cycle for the selected backlight (0 = off, 255 = full brightness)
  *  @return             ESP_OK on success
- *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
- *                      ESP_FAIL if I2C communication fails
+ *                      ESP_ERR_INVALID_ARG if ID is out of range
+ *                      DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
+ *                      DEVICES_ERR_I2C_COMM if I2C communication fails
  */
 esp_err_t DevicesManager_SetBrightness(Devices_BacklightID_t ID, uint8_t Brightness);
 
@@ -177,32 +218,32 @@ esp_err_t DevicesManager_SetBrightness(Devices_BacklightID_t ID, uint8_t Brightn
  *                      the port expander GPIO. Active low reset.
  *  @param Reset        true to assert reset (hold in reset), false to release reset (normal operation)
  *  @return             ESP_OK on success
- *                      ESP_ERR_INVALID_STATE if port expander not initialized
- *                      ESP_FAIL if I2C communication fails
+ *                      DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
+ *                      DEVICES_ERR_I2C_COMM if I2C communication fails
  */
 esp_err_t DevicesManager_LeptonReset(bool Reset);
 
 /** @brief              Power the Lepton thermal camera on or off (active high, P0.2).
  *  @param Enable       true to power on, false to power off
  *  @return             ESP_OK on success
- *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
- *                      ESP_FAIL if I2C communication fails
+ *                      DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
+ *                      DEVICES_ERR_I2C_COMM if I2C communication fails
  */
 esp_err_t DevicesManager_SetLeptonPower(bool Enable);
 
 /** @brief              Assert or release the camera (ESP32-CAM) reset line (active low, P1.6).
  *  @param Reset        true to assert reset (pin driven low), false to release (pin driven high)
  *  @return             ESP_OK on success
- *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
- *                      ESP_FAIL if I2C communication fails
+ *                      DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
+ *                      DEVICES_ERR_I2C_COMM if I2C communication fails
  */
 esp_err_t DevicesManager_SetCameraReset(bool Reset);
 
 /** @brief              Power the camera module on or off (active high, P1.7).
  *  @param Enable       true to power on, false to power off
  *  @return             ESP_OK on success
- *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
- *                      ESP_FAIL if I2C communication fails
+ *                      DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
+ *                      DEVICES_ERR_I2C_COMM if I2C communication fails
  */
 esp_err_t DevicesManager_EnableCamera(bool Enable);
 
@@ -211,26 +252,17 @@ esp_err_t DevicesManager_EnableCamera(bool Enable);
  *  @param p_Alert      Pointer to store the alert state (true = alert active)
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if p_Alert is NULL
- *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
- *                      ESP_FAIL if I2C communication fails
+ *                      DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
+ *                      DEVICES_ERR_I2C_COMM if I2C communication fails
  */
 esp_err_t DevicesManager_GetBatteryAlert(bool *p_Alert);
-
-/** @brief              Read the battery charging state (active high, P0.1).
- *  @param p_Charging   Pointer to store the charging state (true = charging in progress)
- *  @return             ESP_OK on success
- *                      ESP_ERR_INVALID_ARG if p_Charging is NULL
- *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
- *                      ESP_FAIL if I2C communication fails
- */
-esp_err_t DevicesManager_GetBatteryCharging(bool *p_Charging);
 
 /** @brief              Read the RTC interrupt state (active low, P0.5).
  *  @param p_Triggered  Pointer to store the interrupt state (true = interrupt pending)
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if p_Triggered is NULL
- *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
- *                      ESP_FAIL if I2C communication fails
+ *                      DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
+ *                      DEVICES_ERR_I2C_COMM if I2C communication fails
  */
 esp_err_t DevicesManager_GetRTCInterrupt(bool *p_Triggered);
 
@@ -238,8 +270,8 @@ esp_err_t DevicesManager_GetRTCInterrupt(bool *p_Triggered);
  *  @param p_Triggered  Pointer to store the interrupt state (true = interrupt pending)
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if p_Triggered is NULL
- *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
- *                      ESP_FAIL if I2C communication fails
+ *                      DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
+ *                      DEVICES_ERR_I2C_COMM if I2C communication fails
  */
 esp_err_t DevicesManager_GetTempInterrupt(bool *p_Triggered);
 
@@ -247,8 +279,8 @@ esp_err_t DevicesManager_GetTempInterrupt(bool *p_Triggered);
  *  @param p_Triggered  Pointer to store the interrupt state (true = interrupt pending)
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if p_Triggered is NULL
- *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
- *                      ESP_FAIL if I2C communication fails
+ *                      DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
+ *                      DEVICES_ERR_I2C_COMM if I2C communication fails
  */
 esp_err_t DevicesManager_GetRangeInterrupt(bool *p_Triggered);
 
@@ -256,8 +288,8 @@ esp_err_t DevicesManager_GetRangeInterrupt(bool *p_Triggered);
  *  @param p_Inserted   Pointer to store the detection state (true = card inserted)
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if p_Inserted is NULL
- *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
- *                      ESP_FAIL if I2C communication fails
+ *                      DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
+ *                      DEVICES_ERR_I2C_COMM if I2C communication fails
  */
 esp_err_t DevicesManager_GetSDDetect(bool *p_Inserted);
 
@@ -268,8 +300,8 @@ esp_err_t DevicesManager_GetSDDetect(bool *p_Inserted);
  *  @note               Must be called from a task context (not from an ISR).
  *                      Returns ESP_OK immediately when no interrupt is pending.
  *  @return             ESP_OK on success or when no interrupt is pending
- *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
- *                      ESP_FAIL if I2C communication fails
+ *                      DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
+ *                      DEVICES_ERR_I2C_COMM if I2C communication fails
  */
 esp_err_t DevicesManager_HandleExpanderInterrupt(void);
 
@@ -278,8 +310,8 @@ esp_err_t DevicesManager_HandleExpanderInterrupt(void);
  *  @param G            Green LED state (true = on, false = off)
  *  @param B            Blue LED state (true = on, false = off)
  *  @return             ESP_OK on success
- *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
- *                      ESP_FAIL if I2C communication fails
+ *                      DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
+ *                      DEVICES_ERR_I2C_COMM if I2C communication fails
  */
 esp_err_t DevicesManager_SetLED(bool R, bool G, bool B);
 
@@ -293,9 +325,9 @@ esp_err_t DevicesManager_SetLED(bool R, bool G, bool B);
  *  @param p_State      Pointer to store the read input state
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if p_State is NULL
- *                      ESP_ERR_INVALID_STATE if DevicesManager not initialized
+ *                      DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
  *                      ESP_ERR_NOT_SUPPORTED if displayboard not present
- *                      ESP_FAIL if I2C communication fails
+ *                      DEVICES_ERR_I2C_COMM if I2C communication fails
  */
 esp_err_t DevicesManager_GetDisplayboardInputs(Devices_InputState_t *p_State);
 

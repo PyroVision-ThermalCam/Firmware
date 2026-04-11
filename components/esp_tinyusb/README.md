@@ -155,7 +155,7 @@ User Argument could be passed to the USB Device Event callback as a second argum
 Suspend and resume device events are **optional** and are disabled by default.
 Users can choose one of the following approaches:
 
-#### Option 1 — Use esp_tinyusb device events (recommended for integration)
+#### Option 1 - Use esp_tinyusb device events (recommended for integration)
 
 Enable the following Kconfig options:
 
@@ -174,7 +174,7 @@ When these options are enabled, user applications **MUST NOT** define
 `tud_suspend_cb()` or `tud_resume_cb()` themselves. Doing so will result
 in a linker error due to multiple definitions.
 
-#### Option 2 — Use TinyUSB callbacks directly (default behavior)
+#### Option 2 - Use TinyUSB callbacks directly (default behavior)
 
 If the Kconfig options are **disabled** (default):
 

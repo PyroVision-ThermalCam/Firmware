@@ -38,6 +38,7 @@
 #include "Provisioning/provisioning.h"
 
 #include "networkManager.h"
+#include "../appDiag.h"
 
 ESP_EVENT_DEFINE_BASE(NETWORK_EVENTS);
 
@@ -320,7 +321,9 @@ esp_err_t NetworkManager_Init(void)
         vEventGroupDelete(_Network_Manager_State.EventGroup);
         _Network_Manager_State.EventGroup = NULL;
 
-        return ESP_FAIL;
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_NETWORK, NETWORK_ERR_NETIF_CREATE);
+
+        return NETWORK_ERR_NETIF_CREATE;
     }
 
     _Network_Manager_State.AP_NetIF = esp_netif_create_default_wifi_ap();
@@ -332,7 +335,9 @@ esp_err_t NetworkManager_Init(void)
         vEventGroupDelete(_Network_Manager_State.EventGroup);
         _Network_Manager_State.EventGroup = NULL;
 
-        return ESP_FAIL;
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_NETWORK, NETWORK_ERR_NETIF_CREATE);
+
+        return NETWORK_ERR_NETIF_CREATE;
     }
 
     Error = esp_wifi_init(&WifiInitConfig);
@@ -408,7 +413,7 @@ esp_err_t NetworkManager_StartSTA(void)
     Settings_WiFi_t WiFiSettings;
 
     if (_Network_Manager_State.isInitialized == false) {
-        return ESP_ERR_INVALID_STATE;
+        return NETWORK_ERR_NOT_INITIALIZED;
     }
 
     _Network_Manager_State.RetryCount = 0;
@@ -491,7 +496,7 @@ esp_err_t NetworkManager_StartServer(void)
 esp_err_t NetworkManager_Stop(void)
 {
     if (_Network_Manager_State.isInitialized == false) {
-        return ESP_ERR_INVALID_STATE;
+        return NETWORK_ERR_NOT_INITIALIZED;
     }
 
     SNTP_Deinit();
@@ -506,7 +511,7 @@ esp_err_t NetworkManager_Stop(void)
 esp_err_t NetworkManager_DisconnectWiFi(void)
 {
     if (_Network_Manager_State.isInitialized == false) {
-        return ESP_ERR_INVALID_STATE;
+        return NETWORK_ERR_NOT_INITIALIZED;
     }
 
     ESP_LOGD(TAG, "Disconnecting from WiFi");

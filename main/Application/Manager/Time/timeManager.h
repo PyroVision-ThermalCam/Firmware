@@ -56,7 +56,6 @@ typedef struct {
  *  @param p_RTC_Handle Pointer to RTC device handle (NULL if RTC not available)
  *  @return             ESP_OK on success
  *                      ESP_ERR_NO_MEM if memory allocation fails
- *                      ESP_FAIL if initialization fails
  */
 esp_err_t TimeManager_Init(void *p_RTC_Handle);
 
@@ -65,7 +64,6 @@ esp_err_t TimeManager_Init(void *p_RTC_Handle);
  *  @note           Time functions become unavailable after this.
  *                  System time reverts to 1970-01-01 00:00:00 UTC.
  *  @return         ESP_OK on success
- *                  ESP_FAIL if cleanup fails
  */
 esp_err_t TimeManager_Deinit(void);
 
@@ -76,7 +74,6 @@ esp_err_t TimeManager_Deinit(void);
  *                  SNTP sync happens periodically (typically every hour).
  *                  First sync may take a few seconds.
  *  @return         ESP_OK on success
- *                  ESP_FAIL if SNTP start fails
  */
 esp_err_t TimeManager_OnNetworkConnected(void);
 
@@ -86,7 +83,6 @@ esp_err_t TimeManager_OnNetworkConnected(void);
  *  @note           This is called automatically by NetworkManager.
  *                  RTC maintains time accuracy (typical drift: ±20ppm).
  *  @return         ESP_OK on success
- *                  ESP_FAIL if operation fails
  */
 esp_err_t TimeManager_OnNetworkDisconnected(void);
 
@@ -99,7 +95,7 @@ esp_err_t TimeManager_OnNetworkDisconnected(void);
  *  @param p_Source Optional pointer to store the time source used (can be NULL)
  *  @return         ESP_OK on success
  *                  ESP_ERR_INVALID_ARG if p_Time is NULL
- *                  ESP_ERR_INVALID_STATE if no time source available
+ *                  TIME_ERR_NOT_INITIALIZED if TimeManager not initialized
  */
 esp_err_t TimeManager_GetTime(struct tm *p_Time, TimeManager_Source_t *p_Source);
 
@@ -111,7 +107,7 @@ esp_err_t TimeManager_GetTime(struct tm *p_Time, TimeManager_Source_t *p_Source)
  *  @param p_Source Optional pointer to store the time source used (can be NULL)
  *  @return         ESP_OK on success
  *                  ESP_ERR_INVALID_ARG if p_Time is NULL
- *                  ESP_ERR_INVALID_STATE if no time source available
+ *                  TIME_ERR_NOT_INITIALIZED if TimeManager not initialized
  */
 esp_err_t TimeManager_GetTimestamp(time_t *p_Time, TimeManager_Source_t *p_Source);
 
@@ -133,8 +129,7 @@ esp_err_t TimeManager_GetStatus(TimeManager_Status_t *p_Status);
  *                  System time is updated automatically when sync completes.
  *                  RTC is also updated with synchronized time.
  *  @return         ESP_OK if sync request initiated
- *                  ESP_ERR_INVALID_STATE if network not connected
- *                  ESP_FAIL if SNTP not available
+ *                  TIME_ERR_SNTP_NOT_STARTED if network not connected or SNTP not running
  */
 esp_err_t TimeManager_ForceSync(void);
 
@@ -160,7 +155,7 @@ bool TimeManager_IsTimeSynchronized(void);
  *  @return         ESP_OK on success
  *                  ESP_ERR_INVALID_ARG if p_Buffer or Format is NULL
  *                  ESP_ERR_INVALID_ARG if Size is 0
- *                  ESP_ERR_INVALID_STATE if no time source available
+ *                  TIME_ERR_NOT_INITIALIZED if TimeManager not initialized
  */
 esp_err_t TimeManager_GetTimeString(char *p_Buffer, size_t Size, const char *Format);
 
@@ -178,7 +173,7 @@ esp_err_t TimeManager_GetTimeString(char *p_Buffer, size_t Size, const char *For
  *                      - "JST-9" for Japan Standard Time
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if p_Timezone is NULL
- *                      ESP_FAIL if timezone string is invalid
+ *                      TIME_ERR_INVALID_TIMEZONE if timezone string is invalid or rejected
  */
 esp_err_t TimeManager_SetTimezone(const char *p_Timezone);
 

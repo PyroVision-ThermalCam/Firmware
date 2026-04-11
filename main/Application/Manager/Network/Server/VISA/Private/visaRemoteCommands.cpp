@@ -92,12 +92,14 @@ int VISA_Cmd_GetBatteryVoltage(char *p_Response, size_t MaxLen)
     uint8_t SOC;
     std::string Response;
     std::string VoltageStr;
+    bool Charging;
 
-    Error = RemoteControl_GetBatteryVoltage(&Voltage, &SOC);
+    Error = RemoteControl_GetBatteryStatus(&Voltage, &SOC, &Charging);
     if (Error != ESP_OK) {
         return SCPI_ERROR_HARDWARE_ERROR;
     }
 
+    // TODO
     VoltageStr = std::to_string(Voltage);
     Response = VoltageStr.substr(0, VoltageStr.find('.') + 4) + "\n";
     strncpy(p_Response, Response.c_str(), MaxLen);

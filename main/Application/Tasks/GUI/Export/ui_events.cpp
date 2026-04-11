@@ -43,8 +43,8 @@ void ScreenMainLoaded(lv_event_t *e)
 
 void ScreenInfoLoaded(lv_event_t *e)
 {
-    esp_event_post(GUI_EVENTS, GUI_EVENT_REQUEST_UPTIME, NULL, 0, 0);
-    esp_event_post(GUI_EVENTS, GUI_EVENT_REQUEST_FPA_AUX_TEMP, NULL, 0, 0);
+    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_UPTIME, NULL, 0, 0);
+    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FPA_AUX_TEMP, NULL, 0, 0);
 
     /* Force full screen repaint to clear any artifacts from previous screen */
     lv_obj_invalidate(lv_screen_active());

@@ -27,8 +27,6 @@
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <freertos/event_groups.h>
-#include <freertos/semphr.h>
 
 #include "i2c.h"
 
@@ -37,9 +35,6 @@
 #define I2C_READ_ADDR(Addr)                 ((Addr << 0x01) | I2C_MASTER_READ)
 #define I2C_WRITE_ADDR(Addr)                ((Addr << 0x01) | I2C_MASTER_WRITE)
 #define I2C_WAIT                            pdMS_TO_TICKS(100)
-#define I2C_MUTEX_TIMEOUT                   pdMS_TO_TICKS(2000)
-
-static SemaphoreHandle_t _I2C_Mutex;
 
 static const char *TAG                      = "I2C";
 
@@ -50,13 +45,6 @@ static const char *TAG                      = "I2C";
  */
 int32_t I2CM_Init(i2c_master_bus_config_t *p_Config, i2c_master_bus_handle_t *p_Bus_Handle)
 {
-    _I2C_Mutex = xSemaphoreCreateMutex();
-    if (_I2C_Mutex == NULL) {
-        ESP_LOGE(TAG, "Failed to create I2C mutex!");
-
-        return ESP_ERR_NO_MEM;
-    }
-
     return i2c_new_master_bus(p_Config, p_Bus_Handle);
 }
 
@@ -66,8 +54,6 @@ int32_t I2CM_Init(i2c_master_bus_config_t *p_Config, i2c_master_bus_handle_t *p_
  */
 int32_t I2CM_Deinit(i2c_master_bus_handle_t Bus_Handle)
 {
-    vSemaphoreDelete(_I2C_Mutex);
-
     return i2c_del_master_bus(Bus_Handle);
 }
 
@@ -82,8 +68,6 @@ int32_t I2CM_Write(i2c_master_dev_handle_t *p_Dev_Handle, const uint8_t *p_Data,
     esp_err_t Error;
 
     if ((p_Dev_Handle == NULL) || (*p_Dev_Handle == NULL) || (p_Data == NULL)) {
-        ESP_LOGE(TAG, "I2C Write: Invalid handle or data pointer!");
-
         return ESP_ERR_INVALID_ARG;
     } else if (Length == 0) {
         return ESP_OK;
@@ -94,20 +78,9 @@ int32_t I2CM_Write(i2c_master_dev_handle_t *p_Dev_Handle, const uint8_t *p_Data,
         ESP_LOGD(TAG, "     Byte %u: 0x%02X", static_cast<unsigned int>(i), *(p_Data + i));
     }
 
-    Error = ESP_FAIL;
-
-    if (xSemaphoreTake(_I2C_Mutex, I2C_MUTEX_TIMEOUT) == pdTRUE) {
-        Error = i2c_master_transmit(*p_Dev_Handle, p_Data, Length, I2C_WAIT);
-
-        xSemaphoreGive(_I2C_Mutex);
-
-        if (Error != ESP_OK) {
-            ESP_LOGW(TAG, "I2C transmit failed: 0x%X", Error);
-        }
-    } else {
-        ESP_LOGE(TAG, "I2C Write: Mutex timeout!");
-
-        return ESP_ERR_TIMEOUT;
+    Error = i2c_master_transmit(*p_Dev_Handle, p_Data, Length, I2C_WAIT);
+    if (Error != ESP_OK) {
+        ESP_LOGW(TAG, "I2C transmit failed: 0x%X", Error);
     }
 
     return Error;
@@ -124,8 +97,6 @@ int32_t I2CM_Read(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t *p_Data, uint32
     esp_err_t Error;
 
     if ((p_Dev_Handle == NULL) || (*p_Dev_Handle == NULL) || (p_Data == NULL)) {
-        ESP_LOGE(TAG, "I2C Read: Invalid handle or data pointer!");
-
         return ESP_ERR_INVALID_ARG;
     } else if (Length == 0) {
         return ESP_OK;
@@ -137,20 +108,29 @@ int32_t I2CM_Read(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t *p_Data, uint32
         ESP_LOGD(TAG, "     Byte %u: 0x%02X", static_cast<unsigned int>(i), *(p_Data + i));
     }
 
-    Error = ESP_FAIL;
+    Error = i2c_master_receive(*p_Dev_Handle, p_Data, Length, I2C_WAIT);
+    if (Error != ESP_OK) {
+        ESP_LOGW(TAG, "I2C receive failed: 0x%X!", Error);
+    }
 
-    if (xSemaphoreTake(_I2C_Mutex, I2C_MUTEX_TIMEOUT) == pdTRUE) {
-        Error = i2c_master_receive(*p_Dev_Handle, p_Data, Length, I2C_WAIT);
+    return Error;
+}
 
-        xSemaphoreGive(_I2C_Mutex);
+int32_t I2CM_WriteRead(i2c_master_dev_handle_t *p_Dev_Handle,
+                       const uint8_t *p_WriteData, uint32_t WriteLength,
+                       uint8_t *p_ReadData, uint32_t ReadLength)
+{
+    esp_err_t Error;
 
-        if (Error != ESP_OK) {
-            ESP_LOGW(TAG, "I2C receive failed: 0x%X!", Error);
-        }
-    } else {
-        ESP_LOGE(TAG, "I2C Read: Mutex timeout!");
+    if ((p_Dev_Handle == NULL) || (*p_Dev_Handle == NULL) || (p_WriteData == NULL) || (p_ReadData == NULL)) {
+        return ESP_ERR_INVALID_ARG;
+    } else if ((WriteLength == 0) || (ReadLength == 0)) {
+        return ESP_ERR_INVALID_ARG;
+    }
 
-        return ESP_ERR_TIMEOUT;
+    Error = i2c_master_transmit_receive(*p_Dev_Handle, p_WriteData, WriteLength, p_ReadData, ReadLength, I2C_WAIT);
+    if (Error != ESP_OK) {
+        ESP_LOGW(TAG, "I2C WriteRead failed: 0x%X", Error);
     }
 
     return Error;
@@ -161,52 +141,27 @@ int32_t I2CM_ModifyRegister(i2c_master_dev_handle_t *p_Dev_Handle, uint8_t Regis
     esp_err_t Error;
     uint8_t RegAddr = Register;
     uint8_t RegValue = 0xFF;
+    uint8_t Data[2] = { Register, 0 };
 
     if ((p_Dev_Handle == NULL) || (*p_Dev_Handle == NULL)) {
-        ESP_LOGE(TAG, "I2C ModifyRegister: Invalid handle!");
-
         return ESP_ERR_INVALID_ARG;
     }
 
-    /* Acquire mutex once for the entire read-modify-write sequence */
-    if (xSemaphoreTake(_I2C_Mutex, I2C_MUTEX_TIMEOUT) == pdFALSE) {
-        ESP_LOGE(TAG, "I2C ModifyRegister: Mutex timeout!");
-
-        return ESP_ERR_TIMEOUT;
-    }
-
-    /* Write register address */
-    Error = i2c_master_transmit(*p_Dev_Handle, &RegAddr, 1, I2C_WAIT);
+    Error = i2c_master_transmit_receive(*p_Dev_Handle, &RegAddr, 1, &RegValue, 1, I2C_WAIT);
     if (Error != ESP_OK) {
-        ESP_LOGW(TAG, "I2C ModifyRegister: transmit failed: 0x%X", Error);
-
-        xSemaphoreGive(_I2C_Mutex);
+        ESP_LOGW(TAG, "I2C ModifyRegister: read failed: 0x%X", Error);
 
         return Error;
     }
 
-    /* Read current register value */
-    Error = i2c_master_receive(*p_Dev_Handle, &RegValue, 1, I2C_WAIT);
-    if (Error != ESP_OK) {
-        ESP_LOGW(TAG, "I2C ModifyRegister: receive failed: 0x%X", Error);
-
-        xSemaphoreGive(_I2C_Mutex);
-
-        return Error;
-    }
-
-    /* Modify and write back */
     RegValue &= ~Mask;
     RegValue |= Value;
 
-    uint8_t Data[2] = { Register, RegValue };
+    Data[1] = RegValue;
 
     ESP_LOGD(TAG, "Modify Register 0x%02X with mask 0x%02X: 0x%02X", Register, Mask, RegValue);
 
     Error = i2c_master_transmit(*p_Dev_Handle, Data, sizeof(Data), I2C_WAIT);
-
-    xSemaphoreGive(_I2C_Mutex);
-
     if (Error != ESP_OK) {
         ESP_LOGW(TAG, "I2C ModifyRegister: write-back failed: 0x%X", Error);
     }

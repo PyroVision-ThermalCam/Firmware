@@ -380,6 +380,7 @@ static lv_obj_t *ui_Settings_Create_Display_Page(lv_obj_t *p_Menu)
                                                                     &brightness_widgets);
 
     lv_obj_add_event_cb(brightness_slider, on_Display_Brightness_Slider_Callback, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_add_event_cb(brightness_slider, on_Display_Brightness_Slider_Callback, LV_EVENT_RELEASED, NULL);
 
     return DisplayPage;
 }
@@ -763,8 +764,9 @@ void ui_settings_init(lv_obj_t *p_Parent)
     lv_obj_set_style_bg_opa(section, 0, 0);
     lv_obj_set_style_pad_all(section, 8, 0);
 
-    cont = ui_Settings_Create_Text(section, "WiFi");
-    lv_menu_set_load_page_event(settings_Menu, cont, wifi_Page);
+    lv_obj_t *wifi_cont = ui_Settings_Create_Text(section, "WiFi");
+    lv_menu_set_load_page_event(settings_Menu, wifi_cont, wifi_Page);
+    cont = wifi_cont;
 
     cont = ui_Settings_Create_Text(section, "Display");
     lv_menu_set_load_page_event(settings_Menu, cont, display_Page);
@@ -790,6 +792,9 @@ void ui_settings_init(lv_obj_t *p_Parent)
     lv_menu_set_load_page_event(settings_Menu, cont, about_Page);
 
     lv_menu_set_sidebar_page(settings_Menu, root_page);
+
+    /* Pre-select the WiFi page so it is shown and highlighted when the settings menu opens */
+    lv_obj_send_event(wifi_cont, LV_EVENT_CLICKED, NULL);
 
     /* Register event handler for menu page changes to control Save button visibility */
     lv_obj_add_event_cb(settings_Menu, on_Menu_PageChanged, LV_EVENT_VALUE_CHANGED, NULL);

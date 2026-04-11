@@ -34,6 +34,7 @@
 #include <cJSON.h>
 
 #include "settingsManager.h"
+#include "../appDiag.h"
 #include "Private/settingsLoader.h"
 
 static const char *TAG = "Settings-Manager";
@@ -54,7 +55,7 @@ static esp_err_t SettingsManager_Update(void *p_Src, void *p_Dst, size_t Size, i
                                         SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL)
 {
     if (_Settings_Manager_State.isInitialized == false) {
-        return ESP_ERR_INVALID_STATE;
+        return SETTINGS_ERR_NOT_INITIALIZED;
     } else if ((p_Src == NULL) || (p_Dst == NULL) || (Size == 0)) {
         return ESP_ERR_INVALID_ARG;
     }
@@ -83,7 +84,7 @@ static esp_err_t SettingsManager_Get(void* p_Output, void* p_Source, size_t Size
     if ( p_Output == NULL ) {
         return ESP_ERR_INVALID_ARG;
     } else if (_Settings_Manager_State.isInitialized == false) {
-        return ESP_ERR_INVALID_STATE;
+        return SETTINGS_ERR_NOT_INITIALIZED;
     }
 
     xSemaphoreTake(_Settings_Manager_State.Mutex, portMAX_DELAY);
@@ -240,7 +241,7 @@ esp_err_t SettingsManager_LoadFromNVS(Settings_t *p_Settings)
     uint8_t ConfigValid;
 
     if (_Settings_Manager_State.isInitialized == false) {
-        return ESP_ERR_INVALID_STATE;
+        return SETTINGS_ERR_NOT_INITIALIZED;
     } else if (p_Settings == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
@@ -252,7 +253,7 @@ esp_err_t SettingsManager_LoadFromNVS(Settings_t *p_Settings)
     if ((Error != ESP_OK) || (ConfigValid != 1)) {
         ESP_LOGE(TAG, "Failed to read config_valid flag: 0x%X!", Error);
 
-        Error = ESP_ERR_NVS_INVALID_STATE;
+        Error = SETTINGS_ERR_NVS_NOT_FOUND;
 
         goto SettingsManager_LoadFromNVS_Exit;
     }
@@ -264,7 +265,7 @@ esp_err_t SettingsManager_LoadFromNVS(Settings_t *p_Settings)
         if (Error == ESP_ERR_NVS_NOT_FOUND) {
             ESP_LOGW(TAG, "Settings not found in NVS!");
 
-            Error = ESP_ERR_NVS_NOT_FOUND;
+            Error = SETTINGS_ERR_NVS_NOT_FOUND;
 
             goto SettingsManager_LoadFromNVS_Exit;
         } else if (Error != ESP_OK) {
@@ -283,7 +284,7 @@ esp_err_t SettingsManager_LoadFromNVS(Settings_t *p_Settings)
             nvs_erase_key(_Settings_Manager_State.NVS_Handle, "settings");
             nvs_commit(_Settings_Manager_State.NVS_Handle);
 
-            Error = ESP_ERR_INVALID_SIZE;
+            Error = SETTINGS_ERR_SIZE_MISMATCH;
 
             goto SettingsManager_LoadFromNVS_Exit;
         }
@@ -306,7 +307,7 @@ esp_err_t SettingsManager_LoadFromNVS(Settings_t *p_Settings)
         ESP_LOGI(TAG, "Settings version mismatch or not found in NVS (expected %u, got %u)",
                  SETTINGS_VERSION, p_Settings->Version);
 
-        Error = ESP_ERR_INVALID_VERSION;
+        Error = SETTINGS_ERR_VERSION_MISMATCH;
     }
 
 SettingsManager_LoadFromNVS_Exit:
@@ -320,7 +321,7 @@ esp_err_t SettingsManager_Save(void)
     esp_err_t Error;
 
     if (_Settings_Manager_State.isInitialized == false) {
-        return ESP_ERR_INVALID_STATE;
+        return SETTINGS_ERR_NOT_INITIALIZED;
     }
 
     xSemaphoreTake(_Settings_Manager_State.Mutex, portMAX_DELAY);
@@ -367,9 +368,11 @@ esp_err_t SettingsManager_Save(void)
 SettingsManager_Save_Error:
     xSemaphoreGive(_Settings_Manager_State.Mutex);
 
+    APP_DIAG_RECORD(APP_DIAG_SOURCE_SETTINGS, SETTINGS_ERR_NVS_WRITE);
+
     ESP_LOGE(TAG, "Failed to save settings to NVS: 0x%X!", Error);
 
-    return Error;
+    return SETTINGS_ERR_NVS_WRITE;
 }
 
 esp_err_t SettingsManager_GetInfo(Settings_Info_t *p_Settings)
@@ -492,7 +495,7 @@ esp_err_t SettingsManager_ResetToDefaults(void)
     esp_err_t Error;
 
     if (_Settings_Manager_State.isInitialized == false) {
-        return ESP_ERR_INVALID_STATE;
+        return SETTINGS_ERR_NOT_INITIALIZED;
     }
 
     ESP_LOGW(TAG, "Resetting settings to factory defaults");

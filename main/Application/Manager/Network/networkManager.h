@@ -40,9 +40,8 @@
  *                  WiFi is not started automatically - call NetworkManager_StartSTA().
  *  @warning        Not thread-safe during initialization.
  *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_ARG if p_Config is NULL
- *                  ESP_ERR_NO_MEM if memory allocation fails
- *                  ESP_FAIL if WiFi initialization fails
+ *                  ESP_ERR_NO_MEM if event group creation fails
+ *                  NETWORK_ERR_NETIF_CREATE if STA or AP network interface creation fails
  */
 esp_err_t NetworkManager_Init(void);
 
@@ -61,8 +60,7 @@ void NetworkManager_Deinit(void);
  *  @note           Connection happens asynchronously - check NetworkManager_isConnected().
  *                  Posts NETWORK_EVENT_WIFI_CONNECTING event.
  *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_STATE if not initialized
- *                  ESP_FAIL if WiFi start fails
+ *                  NETWORK_ERR_NOT_INITIALIZED if NetworkManager not initialized
  */
 esp_err_t NetworkManager_StartSTA(void);
 
@@ -72,7 +70,7 @@ esp_err_t NetworkManager_StartSTA(void);
  *  @note           Servers are stopped but not destroyed.
  *                  Posts NETWORK_EVENT_WIFI_DISCONNECTED event.
  *  @return         ESP_OK on success
- *                  ESP_FAIL if stop operation fails
+ *                  NETWORK_ERR_NOT_INITIALIZED if NetworkManager not initialized
  */
 esp_err_t NetworkManager_Stop(void);
 
@@ -81,8 +79,7 @@ esp_err_t NetworkManager_Stop(void);
  *  @note           Posts NETWORK_EVENT_WIFI_DISCONNECTED event.
  *                  To stop WiFi completely, use NetworkManager_Stop().
  *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_STATE if not connected
- *                  ESP_FAIL if disconnect operation fails
+ *                  NETWORK_ERR_NOT_INITIALIZED if NetworkManager not initialized
  */
 esp_err_t NetworkManager_DisconnectWiFi(void);
 
@@ -131,7 +128,6 @@ int8_t NetworkManager_GetRSSI(void);
  *  @param p_MAC    Buffer to store MAC address (must be at least 6 bytes)
  *  @return         ESP_OK on success
  *                  ESP_ERR_INVALID_ARG if p_MAC is NULL
- *                  ESP_FAIL if MAC read fails
  */
 esp_err_t NetworkManager_GetMAC(uint8_t *p_MAC);
 
@@ -151,10 +147,8 @@ uint8_t NetworkManager_GetConnectedStations(void);
  *                      WebSocket integrated into HTTP server.
  *                      Can be called before or after WiFi connection.
  *  @return             ESP_OK on success
- *                      ESP_ERR_INVALID_ARG if p_Config is NULL
- *                      ESP_ERR_INVALID_STATE if network not initialized
- *                      ESP_ERR_NO_MEM if memory allocation fails
- *                      ESP_FAIL if server start fails
+ *                      NETWORK_ERR_NOT_INITIALIZED if NetworkManager not initialized
+ *                      NETWORK_ERR_SERVER_START if server initialization or start fails
  */
 esp_err_t NetworkManager_StartServer(void);
 

@@ -115,9 +115,10 @@ void WebSocket_Handle_GetBattery(int FD, cJSON *p_Data)
     esp_err_t Error;
     int Voltage;
     uint8_t SOC;
+    bool Charging;
     cJSON *Data;
 
-    Error = RemoteControl_GetBatteryVoltage(&Voltage, &SOC);
+    Error = RemoteControl_GetBatteryStatus(&Voltage, &SOC, &Charging);
     if (Error != ESP_OK) {
         WebSocket_SendResponse(FD, "battery", "error", NULL, "Failed to get battery voltage");
 
@@ -127,6 +128,7 @@ void WebSocket_Handle_GetBattery(int FD, cJSON *p_Data)
     Data = cJSON_CreateObject();
     cJSON_AddNumberToObject(Data, "voltage", Voltage);
     cJSON_AddNumberToObject(Data, "soc", SOC);
+    cJSON_AddBoolToObject(Data, "charging", Charging);
 
     WebSocket_SendResponse(FD, "battery", "ok", Data, NULL);
     cJSON_Delete(Data);

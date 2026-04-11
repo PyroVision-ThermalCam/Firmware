@@ -140,7 +140,7 @@ esp_err_t PCAL6416AHF_WritePin(PCAL6416AHF_Dev_t *p_Device, PCAL6416_Port_t Port
  *                      in the same I2C transaction. This is the preferred way to poll all input
  *                      pins without saturating the bus.
  *  @note               For latched input pins, this read clears the hardware latch and updates
- *                      the chip's change-detection reference — avoid using this interleaved with
+ *                      the chip's change-detection reference - avoid using this interleaved with
  *                      PCAL6416AHF_ReadIntStatus on the same device.
  *  @param p_Device     Pointer to the device instance
  *  @param p_Input0     Pointer to store raw INPUT0 byte (Port 0, one bit per pin)
@@ -158,7 +158,7 @@ esp_err_t PCAL6416AHF_ReadInputs(PCAL6416AHF_Dev_t *p_Device, uint8_t *p_Input0,
  *                      active input latches.
  *  @note               For latched input pins the Input values reflect the captured stable state
  *                      at interrupt time, not a later live read.
- *                      Do NOT issue any additional INPUT register reads after this function — a
+ *                      Do NOT issue any additional INPUT register reads after this function - a
  *                      subsequent read updates the chip's reference and may prevent detection
  *                      of the reverse transition.
  *  @param p_Device     Pointer to the device instance

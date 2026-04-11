@@ -38,9 +38,9 @@
  *  @warning        MSC requires the filesystem to be mounted before USBManager_EnableMSC(true)
  *                  is called.
  *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_STATE if already initialized
- *                  ESP_ERR_NO_MEM if queue or task creation fails
- *                  ESP_FAIL if TinyUSB driver installation or CDC initialization fails
+ *                  USB_ERR_ALREADY_INITIALIZED if already initialized
+ *                  USB_ERR_QUEUE_CREATE if internal command queue creation fails
+ *                  USB_ERR_TASK_CREATE if monitoring task creation fails
  */
 esp_err_t USBManager_Init(void);
 
@@ -50,7 +50,7 @@ esp_err_t USBManager_Init(void);
  *  @note           After deinitialization the filesystem is accessible again.
  *  @warning        Ensure the host has safely ejected the USB drive before calling this function.
  *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_STATE if not initialized
+ *                  USB_ERR_NOT_INITIALIZED if not initialized
  */
 esp_err_t USBManager_Deinit(void);
 
@@ -64,8 +64,8 @@ esp_err_t USBManager_Deinit(void);
  *  @warning        While MSC is active the application must not write to the filesystem.
  *  @param Enable   true to enable MSC, false to disable
  *  @return         ESP_OK if command was enqueued successfully
- *                  ESP_ERR_INVALID_STATE if USB Manager is not initialized
- *                  ESP_ERR_TIMEOUT if command queue is full
+ *                  USB_ERR_NOT_INITIALIZED if USB Manager is not initialized
+ *                  USB_ERR_QUEUE_FULL if command queue is full
  */
 esp_err_t USBManager_EnableMSC(bool Enable);
 
@@ -77,8 +77,8 @@ esp_err_t USBManager_EnableMSC(bool Enable);
  *                  Enable is silently ignored when the cable is not connected.
  *  @param Enable   true to enable UVC, false to disable
  *  @return         ESP_OK if command was enqueued successfully
- *                  ESP_ERR_INVALID_STATE if USB Manager is not initialized
- *                  ESP_ERR_TIMEOUT if command queue is full
+ *                  USB_ERR_NOT_INITIALIZED if USB Manager is not initialized
+ *                  USB_ERR_QUEUE_FULL if command queue is full
  */
 esp_err_t USBManager_EnableUVC(bool Enable);
 

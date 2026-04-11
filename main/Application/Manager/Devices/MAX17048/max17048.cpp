@@ -117,12 +117,7 @@ static esp_err_t MAX17048_Read_Register(i2c_master_dev_handle_t *p_Dev_Handle, u
     uint8_t Buffer[2];
     esp_err_t Error;
 
-    Error = I2CM_Write(p_Dev_Handle, &RegAddr, 1);
-    if (Error != ESP_OK) {
-        return Error;
-    }
-
-    Error = I2CM_Read(p_Dev_Handle, Buffer, sizeof(Buffer));
+    Error = I2CM_WriteRead(p_Dev_Handle, &RegAddr, 1, Buffer, sizeof(Buffer));
     if (Error != ESP_OK) {
         return Error;
     }

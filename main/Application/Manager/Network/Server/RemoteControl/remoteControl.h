@@ -60,11 +60,12 @@ esp_err_t RemoteControl_SetTime(const char *p_TimeStr);
 /** @brief              Get battery voltage.
  *  @param p_Voltage    Pointer to store voltage value in millivolts
  *  @param p_SOC        Pointer to store SOC value in percent (0-100)
+ *  @param p_Charging   Pointer to store charging state (true = charging in progress)
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if p_Voltage is NULL
  *                      ESP_ERR_NOT_SUPPORTED if battery monitoring not available
  */
-esp_err_t RemoteControl_GetBatteryVoltage(int *p_Voltage, uint8_t *p_SOC);
+esp_err_t RemoteControl_GetBatteryStatus(int *p_Voltage, uint8_t *p_SOC, bool *p_Charging);
 
 /** @brief              Get OV5640 camera image.
  *  @param pp_Buffer    Pointer to store image buffer pointer (caller must free)

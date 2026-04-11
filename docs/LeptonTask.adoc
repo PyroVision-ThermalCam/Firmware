@@ -611,7 +611,7 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
 }
 ----
 
-==== GUI Events (`GUI_EVENTS`)
+==== GUI Events (`GUI_TASK_EVENTS`)
 
 **`GUI_EVENT_REQUEST_ROI`:**
 
