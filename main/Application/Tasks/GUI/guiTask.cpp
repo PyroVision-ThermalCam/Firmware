@@ -958,7 +958,18 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining, lv_color_hex(0xFF0000), 0);
             }
 
+            lv_bar_set_value(ui_Info_Battery_Bar, _GUI_Task_State.BatteryInfo.Percentage, LV_ANIM_OFF);
             lv_label_set_text(ui_Label_Main_Battery_Remaining, Buffer);
+            lv_label_set_text(ui_Label_Info_Battery_Remaining, Buffer);
+
+            if (_GUI_Task_State.BatteryInfo.Charging) {
+                lv_label_set_text(ui_Label_Info_Battery_Status, "Charging");
+            } else {
+                lv_label_set_text(ui_Label_Info_Battery_Status, "Not charging");
+            }
+
+            snprintf(Buffer, sizeof(Buffer), "%d mV", _GUI_Task_State.BatteryInfo.Voltage);
+            lv_label_set_text(ui_Label_Info_Battery_Voltage, Buffer);
 
             xEventGroupClearBits(_GUI_Task_State.EventGroup, BATTERY_STATUS_CHANGED);
         }

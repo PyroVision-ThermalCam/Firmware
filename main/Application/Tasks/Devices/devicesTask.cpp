@@ -166,7 +166,7 @@ static void Task_Devices(void *p_Parameters)
                 }
             }
   
-            if ((xTaskGetTickCount() - LastBatteryPoll) >= pdMS_TO_TICKS(CONFIG_DEVICES_TASK_BATTERY_POLL_INTERVAL_S)) {
+            if ((xTaskGetTickCount() - LastBatteryPoll) >= pdMS_TO_TICKS(CONFIG_DEVICES_TASK_BATTERY_POLL_INTERVAL_S * 1000)) {
                 int Voltage;
                 uint8_t Percentage;
                 bool Charging;

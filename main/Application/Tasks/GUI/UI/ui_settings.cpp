@@ -693,8 +693,17 @@ static lv_obj_t *ui_Settings_Create_Image_Page(lv_obj_t *p_Menu)
     lv_obj_set_style_margin_top(separator, 16, 0);
     lv_obj_set_style_margin_bottom(separator, 16, 0);
 
-    /* JPEG Quality Section */
-    lv_obj_t *quality_section_label = lv_label_create(ImageContainer);
+    /* JPEG Quality Section — wrapped in a container so it can be shown/hidden atomically */
+    jpeg_quality_row = lv_obj_create(ImageContainer);
+    lv_obj_set_size(jpeg_quality_row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(jpeg_quality_row, 0, 0);
+    lv_obj_set_style_border_width(jpeg_quality_row, 0, 0);
+    lv_obj_set_style_pad_all(jpeg_quality_row, 0, 0);
+    lv_obj_clear_flag(jpeg_quality_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_flex_flow(jpeg_quality_row, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(jpeg_quality_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+
+    lv_obj_t *quality_section_label = lv_label_create(jpeg_quality_row);
     lv_label_set_text(quality_section_label, "JPEG Settings");
     lv_obj_set_style_text_color(quality_section_label, lv_color_hex(0xFF9500), 0);
     lv_obj_set_style_text_font(quality_section_label, &lv_font_montserrat_14, 0);
@@ -702,22 +711,13 @@ static lv_obj_t *ui_Settings_Create_Image_Page(lv_obj_t *p_Menu)
     lv_obj_set_style_pad_bottom(quality_section_label, 8, 0);
 
     /* JPEG Quality Slider (only visible when JPEG is selected) */
-    lv_obj_t *quality_slider = ui_Settings_Create_Compact_Slider(ImageContainer, "Quality", 1, 100,
+    lv_obj_t *quality_slider = ui_Settings_Create_Compact_Slider(jpeg_quality_row, "Quality", 1, 100,
                                                                  SystemSettings.JpegQuality, &jpeg_quality_widgets);
     lv_obj_add_event_cb(quality_slider, on_Image_JpegQuality_Slider_Callback, LV_EVENT_VALUE_CHANGED, NULL);
 
-    /* Store the rows for visibility control */
-    jpeg_quality_row = lv_obj_get_parent(quality_slider);
-
-    /* Show/hide quality slider based on current format */
-    if (SystemSettings.ImageFormat == IMAGE_FORMAT_JPEG) {
-        lv_obj_remove_flag(jpeg_quality_row, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(lv_obj_get_parent(jpeg_quality_row), LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(quality_section_label, LV_OBJ_FLAG_HIDDEN);
-    } else {
+    /* Show/hide quality section based on current format */
+    if (SystemSettings.ImageFormat != IMAGE_FORMAT_JPEG) {
         lv_obj_add_flag(jpeg_quality_row, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(lv_obj_get_parent(jpeg_quality_row), LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(quality_section_label, LV_OBJ_FLAG_HIDDEN);
     }
 
     /* Info text */

@@ -235,13 +235,11 @@ void on_Image_Format_Dropdown_Callback(lv_event_t *e)
                                                                                                (lv_event_get_target(e))));
     SettingsManager_UpdateSystem(&SystemSettings, NULL);
 
-    /* Show/hide JPEG quality slider based on format */
+    /* Show/hide JPEG quality section based on format */
     if (SystemSettings.ImageFormat == IMAGE_FORMAT_JPEG) {
         lv_obj_remove_flag(jpeg_quality_row, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(lv_obj_get_parent(jpeg_quality_row), LV_OBJ_FLAG_HIDDEN);
     } else {
         lv_obj_add_flag(jpeg_quality_row, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(lv_obj_get_parent(jpeg_quality_row), LV_OBJ_FLAG_HIDDEN);
     }
 
     ESP_LOGI(TAG, "Image format changed to: 0x%X", SystemSettings.ImageFormat);
