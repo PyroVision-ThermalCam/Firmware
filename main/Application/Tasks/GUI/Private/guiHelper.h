@@ -47,10 +47,12 @@
 #define GUI_TASK_LEPTON_UPTIME_READY            BIT11
 #define GUI_TASK_LEPTON_TEMP_READY              BIT12
 #define GUI_TASK_LEPTON_PIXEL_TEMPERATURE_READY BIT13
-#define GUI_TASK_LEPTON_CAMERA_READY            BIT4
-#define GUI_TASK_LEPTON_CAMERA_ERROR            BIT14
+#define GUI_TASK_LEPTON_READY                   BIT4
+#define GUI_TASK_LEPTON_ERROR                   BIT14
+#define GUI_TASK_CAMERA_READY                   BIT16
+#define GUI_TASK_CAMERA_ERROR                   BIT15
 #define GUI_TASK_LEPTON_SCENE_STATISTICS_READY  BIT6
-#define GUI_TASK_UVC_STREAMING_STATE_CHANGED    BIT15
+#define GUI_TASK_UVC_STREAMING_STATE_CHANGED    BIT2
 
 typedef struct {
     bool isInitialized;

@@ -31,6 +31,15 @@
 
 #include "Application/application.h"
 
+ESP_EVENT_DECLARE_BASE(CAMERA_EVENTS);
+
+/** @brief Camera task event identifiers posted to the default event loop.
+ */
+enum {
+    CAMERA_EVENT_INIT_COMPLETE, /**< Camera hardware (and AF, if supported) initialised successfully. No event data. */
+    CAMERA_EVENT_INIT_FAILED,   /**< Camera hardware initialisation failed. Event data: esp_err_t (4 bytes). */
+};
+
 /** @brief  Initializes the camera task.
  *  @return ESP_OK on success, error code otherwise
  */

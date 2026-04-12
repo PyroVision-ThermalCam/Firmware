@@ -46,6 +46,7 @@
 #include "Private/guiImageSave.h"
 #include "UI/ui_messagebox.h"
 #include "UI/ui_settings.h"
+#include "Application/Tasks/Camera/cameraTask.h"
 
 #include "lepton.h"
 
@@ -70,12 +71,12 @@ static void on_Lepton_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t B
             memcpy(&_GUI_Task_State.LeptonDeviceInfo, static_cast<const App_Lepton_Device_t *>(p_Data),
                        sizeof(App_Lepton_Device_t));
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_CAMERA_READY);
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_READY);
 
             break;
         }
         case LEPTON_TASK_EVENT_CAMERA_ERROR: {
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_CAMERA_ERROR);
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_ERROR);
 
             break;
         }
@@ -110,6 +111,31 @@ static void on_Lepton_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t B
         default: {
             ESP_LOGW(TAG, "Unhandled Lepton event ID: 0x%X", ID);
 
+            break;
+        }
+    }
+}
+
+/** @brief                  Event handler for camera task events to receive async init result.
+ *  @param p_HandlerArgs    Handler argument
+ *  @param Base             Event base
+ *  @param ID               Event ID
+ *  @param p_Data           Event-specific data
+ */
+static void on_Camera_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+{
+    switch (ID) {
+        case CAMERA_EVENT_INIT_COMPLETE: {
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_CAMERA_READY);
+
+            break;
+        }
+        case CAMERA_EVENT_INIT_FAILED: {
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_CAMERA_ERROR);
+
+            break;
+        }
+        default: {
             break;
         }
     }
@@ -559,19 +585,75 @@ void Task_GUI(void *p_Parameters)
     _GUI_Task_State.AppContext = App_Context;
     ESP_LOGD(TAG, "GUI Task started on core %d", xPortGetCoreID());
 
-    /* Show splash screen first and wait for all components to become ready before starting the application. */
-    /* Initialization process: */
-    /*  - Loading the settings */
-    /*  - Waiting for the Lepton */
+    /* Show splash screen first and wait for all components to become ready before starting the application.
+     *
+     * Sequencing:
+     *   - Camera init runs as a background task (Camera_Task_InitAsync) and posts
+     *     CAMERA_EVENT_INIT_COMPLETE / CAMERA_EVENT_INIT_FAILED when done (~0–2 s).
+     *     On receipt, the bar snaps to 50 % ("Camera ready") if not yet past that value.
+     *   - The Lepton requires ~5 s to boot. During the boot window the bar is animated
+     *     at 2 %/100 ms so it naturally reaches ~99 % just as the LEPTON_READY event
+     *     arrives and snaps the bar to 100 % → app starts.
+     *
+     * Status text milestones (time-based):
+     *    0 %  → "Starting camera..."
+     *   55 %  → "Starting Lepton..."
+     *   80 %  → "Almost ready..."
+     * Camera event → "Camera ready" (only if bar < 50 %)
+     */
+    static const struct {
+        int32_t Threshold;
+        const char *Text;
+    } SPLASH_MILESTONES[] = {
+        {  0, "Starting camera..."  },
+        { 55, "Starting Lepton..."  },
+        { 80, "Almost ready..."     },
+    };
+
     Timeout = 0;
     do {
         EventBits_t EventBits;
+        int32_t CurrentBarValue;
 
         esp_task_wdt_reset();
 
-        EventBits = xEventGroupGetBits(_GUI_Task_State.EventGroup);
-        if (EventBits & GUI_TASK_LEPTON_CAMERA_READY) {
+        CurrentBarValue = lv_bar_get_value(ui_SplashScreen_LoadingBar);
 
+        /* Advance bar by 2 % per 100 ms iteration (fills 0 → 99 in ~5 s, matching Lepton boot time).
+         * Do not auto-advance past 99 % — wait for the LEPTON_READY event to set it to 100 %. */
+        if (CurrentBarValue < 99) {
+            int32_t NextValue = CurrentBarValue + 2;
+
+            if (NextValue > 99) {
+                NextValue = 99;
+            }
+
+            lv_bar_set_value(ui_SplashScreen_LoadingBar, NextValue, LV_ANIM_OFF);
+
+            /* Update status text when crossing a milestone threshold */
+            for (int i = static_cast<int>(sizeof(SPLASH_MILESTONES) / sizeof(SPLASH_MILESTONES[0])) - 1; i >= 0; i--) {
+                if (NextValue >= SPLASH_MILESTONES[i].Threshold && CurrentBarValue < SPLASH_MILESTONES[i].Threshold) {
+                    lv_label_set_text(ui_SplashScreen_StatusText, SPLASH_MILESTONES[i].Text);
+
+                    break;
+                }
+            }
+
+            CurrentBarValue = NextValue;
+        }
+
+        EventBits = xEventGroupGetBits(_GUI_Task_State.EventGroup);
+        if (EventBits & GUI_TASK_CAMERA_READY) {
+            /* Camera async init completed. Snap bar to 50 % milestone if not already past it. */
+            if (CurrentBarValue < 50) {
+                lv_bar_set_value(ui_SplashScreen_LoadingBar, 50, LV_ANIM_OFF);
+                lv_label_set_text(ui_SplashScreen_StatusText, "Camera ready");
+            }
+
+            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_CAMERA_READY);
+        }
+
+        if (EventBits & GUI_TASK_LEPTON_READY) {
             lv_bar_set_value(ui_SplashScreen_LoadingBar, 100, LV_ANIM_OFF);
 
             /* Lepton has finished booting. Initialize GT911 now - GT911 was intentionally
@@ -579,11 +661,19 @@ void Task_GUI(void *p_Parameters)
              * during CCI_WaitForBoot. */
             GUI_Helper_InitTouch(&_GUI_Task_State, Touch_LVGL_ReadCallback);
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_CAMERA_READY);
-        } else if (EventBits & GUI_TASK_LEPTON_CAMERA_ERROR) {
+            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_READY);
+        }
+
+        if (EventBits & GUI_TASK_LEPTON_ERROR) {
+            lv_label_set_text(ui_SplashScreen_StatusText, "Lepton Error");
+
+            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_ERROR);
+        }
+
+        if (EventBits & GUI_TASK_CAMERA_ERROR) {
             lv_label_set_text(ui_SplashScreen_StatusText, "Camera Error");
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_CAMERA_ERROR);
+            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_CAMERA_ERROR);
         }
 
         if (Timeout >= 30000) {
@@ -592,6 +682,7 @@ void Task_GUI(void *p_Parameters)
             break;
         }
 
+        esp_task_wdt_reset();
         lv_timer_handler();
         vTaskDelay(pdMS_TO_TICKS(100));
         Timeout += 100;
@@ -1294,6 +1385,7 @@ esp_err_t GUI_Task_Init(void)
     esp_event_handler_register(DEVICES_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Task_Event_Handler, NULL);
     esp_event_handler_register(GUI_TASK_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Task_Event_Handler, NULL);
     esp_event_handler_register(LEPTON_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Task_Event_Handler, NULL);
+    esp_event_handler_register(CAMERA_EVENTS, ESP_EVENT_ANY_ID, on_Camera_Task_Event_Handler, NULL);
 
     _GUI_Task_State.SaveNextFrameRequested = false;
     _GUI_Task_State.isInitialized = true;
@@ -1313,6 +1405,7 @@ void GUI_Task_Deinit(void)
     esp_event_handler_unregister(DEVICES_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Task_Event_Handler);
     esp_event_handler_unregister(GUI_TASK_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Task_Event_Handler);
     esp_event_handler_unregister(LEPTON_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Task_Event_Handler);
+    esp_event_handler_unregister(CAMERA_EVENTS, ESP_EVENT_ANY_ID, on_Camera_Task_Event_Handler);
 
     ui_destroy();
 

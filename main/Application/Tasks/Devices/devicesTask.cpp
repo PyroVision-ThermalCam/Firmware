@@ -122,6 +122,9 @@ static void Task_Devices(void *p_Parameters)
     TickType_t LastInputPoll;
     TickType_t LastBatteryPoll;
     TickType_t LastTemperaturePoll;
+    int Voltage;
+    uint8_t Percentage;
+    bool Charging;
 
     esp_task_wdt_add(NULL);
 
@@ -146,6 +149,18 @@ static void Task_Devices(void *p_Parameters)
         }
 
         DevicesManager_ReleaseI2CBus();
+    }
+
+    /* Report the initial battery status once at startup. */
+    if (DevicesManager_GetBatteryStatus(&Voltage, &Percentage, &Charging) == ESP_OK) {
+        App_Devices_Battery_t NewBatteryInfo = {
+            .Voltage = Voltage,
+            .Percentage = Percentage,
+            .Charging = Charging
+        };
+
+        esp_event_post(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_BATTERY,
+                        &NewBatteryInfo, sizeof(App_Devices_Battery_t), pdMS_TO_TICKS(100));
     }
 
     while (_Devices_Task_State.isRunning) {
@@ -200,10 +215,6 @@ static void Task_Devices(void *p_Parameters)
             }
   
             if ((xTaskGetTickCount() - LastBatteryPoll) >= pdMS_TO_TICKS(CONFIG_DEVICES_TASK_BATTERY_POLL_INTERVAL_S * 1000)) {
-                int Voltage;
-                uint8_t Percentage;
-                bool Charging;
-
                 LastBatteryPoll = xTaskGetTickCount();
 
                 if (DevicesManager_GetBatteryStatus(&Voltage, &Percentage, &Charging) == ESP_OK) {

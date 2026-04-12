@@ -271,6 +271,18 @@ esp_err_t DevicesManager_Init(void)
     }
 #endif
 
+#if (CONFIG_TOUCH_RST != -1)
+    static const gpio_config_t Touch_RST_IO_Conf = {
+        .pin_bit_mask = (1ULL << CONFIG_TOUCH_RST),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    ESP_ERROR_CHECK(gpio_config(&Touch_RST_IO_Conf));
+    gpio_set_level(static_cast<gpio_num_t>(CONFIG_TOUCH_RST), 1);
+#endif
+
     if (I2CM_Init(&_Devices_Manager_Devices_I2CM_Config, &_Devices_Manager_State.I2C_Bus_Handle) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize Peripheral I2C!");
 
@@ -346,14 +358,6 @@ esp_err_t DevicesManager_Init(void)
      * interfering with the I2C bus during device initialization.
      * The GT911 will be properly released and initialized in GUI_Helper_Init.
      */
-    static const gpio_config_t Touch_RST_IO_Conf = {
-        .pin_bit_mask = (1ULL << CONFIG_TOUCH_RST),
-        .mode = GPIO_MODE_OUTPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE,
-    };
-    ESP_ERROR_CHECK(gpio_config(&Touch_RST_IO_Conf));
     gpio_set_level(static_cast<gpio_num_t>(CONFIG_TOUCH_RST), 0);
 #endif
 

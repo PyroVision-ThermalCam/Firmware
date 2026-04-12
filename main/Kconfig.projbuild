@@ -204,22 +204,6 @@ menu "PyroVision"
         endmenu
     endmenu
 
-    menu "Camera"
-        menu "Task"
-            config CAMERA_TASK_STACKSIZE
-                int "Stack size"
-                default 8192
-
-            config CAMERA_TASK_PRIO
-                int "Task prio"
-                default 12
-
-            config CAMERA_TASK_CORE
-                int "Task core"
-                default 1
-        endmenu
-    endmenu
-
     menu "Devices"
         config DEVICES_TASK_INPUT_POLL_INTERVAL_MS
             int "Input polling interval for the devices tasks in milliseconds"
@@ -425,6 +409,77 @@ menu "PyroVision"
                 default 10000
                 help
                     Interval in milliseconds between temperature readings in the Devices Task.
+        endmenu
+    endmenu
+
+    menu "Camera"
+        config CAMERA_PIN_D0
+            int "D0 GPIO number"
+            range 0 48
+            default 7
+
+        config CAMERA_PIN_D1
+            int "D1 GPIO number"
+            range 0 48
+            default 5
+
+        config CAMERA_PIN_D2
+            int "D2 GPIO number"
+            range 0 48
+            default 4
+
+        config CAMERA_PIN_D3
+            int "D3 GPIO number"
+            range 0 48
+            default 6
+
+        config CAMERA_PIN_D4
+            int "D4 GPIO number"
+            range 0 48
+            default 15
+
+        config CAMERA_PIN_D5
+            int "D5 GPIO number"
+            range 0 48
+            default 16
+
+        config CAMERA_PIN_D6
+            int "D6 GPIO number"
+            range 0 48
+            default 17
+
+        config CAMERA_PIN_D7
+            int "D7 GPIO number"
+            range 0 48
+            default 18
+
+        config CAMERA_PIN_VSYNC
+            int "VSYNC GPIO number"
+            range 0 48
+            default 45
+
+        config CAMERA_PIN_HREF
+            int "HREF GPIO number"
+            range 0 48
+            default 48
+
+        config CAMERA_PIN_PCLK
+            int "PCLK GPIO number"
+            range 0 48
+            default 8
+
+        menu "Task"
+            config CAMERA_TASK_STACKSIZE
+                int "Stack size"
+                default 8192
+
+            config CAMERA_TASK_PRIO
+                int "Task priority"
+                default 5
+
+            config CAMERA_TASK_CORE
+                int "Task core"
+                default 1
         endmenu
     endmenu
 
