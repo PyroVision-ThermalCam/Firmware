@@ -223,7 +223,7 @@ esp_err_t DevicesManager_SetBrightness(Devices_BacklightID_t ID, uint8_t Brightn
  */
 esp_err_t DevicesManager_LeptonReset(bool Reset);
 
-/** @brief              Power the Lepton thermal camera on or off (active high, P0.2).
+/** @brief              Power the Lepton thermal camera on or off (active high, P0.3).
  *  @param Enable       true to power on, false to power off
  *  @return             ESP_OK on success
  *                      DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
@@ -245,7 +245,7 @@ esp_err_t DevicesManager_SetCameraReset(bool Reset);
  *                      DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
  *                      DEVICES_ERR_I2C_COMM if I2C communication fails
  */
-esp_err_t DevicesManager_EnableCamera(bool Enable);
+esp_err_t DevicesManager_SetCameraPower(bool Enable);
 
 /** @brief              Read the battery alert state (active low, P0.0).
  *                      Hardware polarity inversion is active; true means the alert is asserted.

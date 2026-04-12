@@ -173,6 +173,20 @@ void SettingsManager_InitDefaultUSB(Settings_t *p_Settings)
     memset(p_Settings->USB.Reserved, 0, sizeof(p_Settings->USB.Reserved));
 }
 
+void SettingsManager_InitDefaultCalibration(Settings_t *p_Settings)
+{
+    ESP_LOGW(TAG, "Loading default Calibration settings");
+
+    p_Settings->Calibration.RoomTemperature = SETTINGS_DEFAULT_CALIBRATION_ROOM_TEMP;
+
+    /* 0.0f is the "never calibrated" sentinel: the LeptonTask will apply zero offset
+     * until the user explicitly performs a calibration (which stores the actual sensor
+     * reading into SensorAtCalibration). */
+    p_Settings->Calibration.SensorAtCalibration = 0.0f;
+
+    memset(p_Settings->Calibration.Reserved, 0, sizeof(p_Settings->Calibration.Reserved));
+}
+
 void SettingsManager_LoadFromDefaults(Settings_Manager_State_t *p_State)
 {
     memset(&p_State->Settings, 0, sizeof(Settings_t));
@@ -187,4 +201,5 @@ void SettingsManager_LoadFromDefaults(Settings_Manager_State_t *p_State)
     SettingsManager_InitDefaultVISAServer(&p_State->Settings);
     SettingsManager_InitDefaultLEDFlash(&p_State->Settings);
     SettingsManager_InitDefaultUSB(&p_State->Settings);
+    SettingsManager_InitDefaultCalibration(&p_State->Settings);
 }

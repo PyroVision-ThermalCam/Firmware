@@ -49,6 +49,8 @@
 #define LEPTON_TASK_UPDATE_PIXEL_TEMPERATURE    BIT4
 #define LEPTON_TASK_UPDATE_SCENE_STATISTICS     BIT6
 #define LEPTON_TASK_UPDATE_EMISSIVITY           BIT7
+#define LEPTON_TASK_TEMPERATURE_STATUS_CHANGED  BIT8
+#define LEPTON_TASK_CALIBRATION_CHANGED         BIT9
 
 ESP_EVENT_DEFINE_BASE(LEPTON_TASK_EVENTS);
 
@@ -70,6 +72,7 @@ typedef struct {
     Lepton_t Lepton;
     Settings_ROI_t ROI;
     App_GUI_Screenposition_t ScreenPosition;
+    App_Devices_Temperature_t TemperatureInfo;
     SettingsManager_ChangeNotification_t NewSetting;
 } Lepton_Task_State_t;
 
@@ -77,26 +80,24 @@ static Lepton_Task_State_t _Lepton_Task_State;
 
 static const char *TAG = "Lepton-Task";
 
-/** @brief                  Event handler for the Settings task to receive updates when settings are changed.
+/** @brief                  Event handler for the Devices task events to receive updates when settings are changed.
  *  @param p_HandlerArgs    Handler argument
  *  @param Base             Event base
  *  @param ID               Event ID
  *  @param p_Data           Event-specific data
  */
-static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+static void on_Devices_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
 {
-    ESP_LOGD(TAG, "Settings event received: ID=%d", ID);
+    ESP_LOGD(TAG, "Devices task event received: ID=%d", ID);
 
     switch (ID) {
-        case SETTINGS_EVENT_LEPTON_CHANGED: {
-            memcpy(&_Lepton_Task_State.NewSetting, p_Data, sizeof(SettingsManager_ChangeNotification_t));
+        case DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE: {
+            memcpy(&_Lepton_Task_State.TemperatureInfo, p_Data, sizeof(App_Devices_Temperature_t));
 
-            ESP_LOGD(TAG, "Lepton settings changed: ID=%d", _Lepton_Task_State.NewSetting.ID);
-            ESP_LOGD(TAG, "Lepton settings changed: Value=%d", _Lepton_Task_State.NewSetting.Value);
+            ESP_LOGD(TAG, "Temperature status updated: Temperature=%.2f°C",
+                        _Lepton_Task_State.TemperatureInfo.Temperature);
 
-            if (_Lepton_Task_State.NewSetting.ID == SETTINGS_ID_LEPTON_EMISSIVITY) {
-                xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_EMISSIVITY);
-            }
+            xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_TEMPERATURE_STATUS_CHANGED);
 
             break;
         }
@@ -157,6 +158,48 @@ static void on_GUI_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
     }
 }
 
+/** @brief                  Event handler for the Settings task to receive updates when settings are changed.
+ *  @param p_HandlerArgs    Handler argument
+ *  @param Base             Event base
+ *  @param ID               Event ID
+ *  @param p_Data           Event-specific data
+ */
+static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+{
+    ESP_LOGD(TAG, "Settings event received: ID=%d", ID);
+
+    switch (ID) {
+        case SETTINGS_EVENT_LEPTON_CHANGED: {
+            memcpy(&_Lepton_Task_State.NewSetting, p_Data, sizeof(SettingsManager_ChangeNotification_t));
+
+            ESP_LOGD(TAG, "Lepton settings changed: ID=%d", _Lepton_Task_State.NewSetting.ID);
+            ESP_LOGD(TAG, "Lepton settings changed: Value=%d", _Lepton_Task_State.NewSetting.Value);
+
+            if (_Lepton_Task_State.NewSetting.ID == SETTINGS_ID_LEPTON_EMISSIVITY) {
+                xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_EMISSIVITY);
+            }
+
+            break;
+        }
+        case SETTINGS_EVENT_CALIBRATION_CHANGED: {
+            /* Only react to user-initiated changes (p_Data != NULL).
+             * When LeptonTask stores the snapshot via SettingsManager_UpdateCalibration(NULL),
+             * it posts with NULL data - ignore to prevent an infinite feedback loop. */
+            if (p_Data == NULL) {
+                break;
+            }
+
+            /* Snapshot the current sensor reading as the calibration baseline.
+             * This establishes the persistent offset:
+             *   offset = RoomTemperature - SensorAtCalibration
+             * Applied later as: estimated_ambient = sensor_current + offset */
+            xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_CALIBRATION_CHANGED);
+
+            break;
+        }
+    }
+}
+
 /** @brief                  Event handler for the USB Manager to receive UVC streaming events.
  *  @param p_HandlerArgs    Handler argument
  *  @param Base             Event base
@@ -202,8 +245,8 @@ static void Lepton_LoadSettings(void)
 
     SettingsManager_GetLepton(&LeptonSettings);
 
-    ESP_LOGI(TAG, "Loading Lepton settings...");
-    ESP_LOGI(TAG, "Emissivity: 0x%X", LeptonSettings.CurrentEmissivity);
+    ESP_LOGD(TAG, "Loading Lepton settings...");
+    ESP_LOGD(TAG, "Emissivity: 0x%X", LeptonSettings.CurrentEmissivity);
 
     Lepton_SetEmissivity(&_Lepton_Task_State.Lepton, static_cast<Lepton_Emissivity_t>(LeptonSettings.CurrentEmissivity));
 }
@@ -280,19 +323,6 @@ static void Task_Lepton(void *p_Parameters)
         esp_task_wdt_reset();
         vTaskDelay(pdMS_TO_TICKS(100));
     }
-
-    Lepton_FluxLinearParams_t FluxParams;
-    Lepton_GetFluxLinearParameters(&_Lepton_Task_State.Lepton, &FluxParams);
-    ESP_LOGI(TAG,
-             "Flux Linear Parameters - Scene Emissivity: %u, TBkgK: %u, TauWindow: %u, TWindowK: %u, TauAtm: %u, TAtmK: %u, ReflWindow: %u, TReflK: %u",
-             FluxParams.SceneEmissivity,
-             FluxParams.TBkgK,
-             FluxParams.TauWindow,
-             FluxParams.TWindowK,
-             FluxParams.TauAtm,
-             FluxParams.TAtmK,
-             FluxParams.ReflWindow,
-             FluxParams.TReflK);
 
     ESP_LOGD(TAG, "Start image capturing...");
 
@@ -516,8 +546,8 @@ static void Task_Lepton(void *p_Parameters)
                 Lepton_GetTemperature(&_Lepton_Task_State.Lepton, &FPA_Temp, &AUX_Temp);
                 DevicesManager_ReleaseI2CBus();
 
-                Temperatures.FPA = (static_cast<float>(FPA_Temp) * 0.01f) - 273.0f;
-                Temperatures.AUX = (static_cast<float>(AUX_Temp) * 0.01f) - 273.0f;
+                Temperatures.FPA = (static_cast<float>(FPA_Temp) * 0.01f) - 273.15f;
+                Temperatures.AUX = (static_cast<float>(AUX_Temp) * 0.01f) - 273.15f;
                 esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_FPA_AUX_TEMP, &Temperatures, sizeof(App_Lepton_Temperatures_t), 0);
             } else {
                 ESP_LOGW(TAG, "I2C bus busy, skipping temperature read!");
@@ -646,6 +676,83 @@ static void Task_Lepton(void *p_Parameters)
 
             xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_EMISSIVITY);
         }
+
+        if (EventBits & LEPTON_TASK_CALIBRATION_CHANGED) {
+            Settings_Calibration_t Calibration;
+
+            SettingsManager_GetCalibration(&Calibration);
+
+            /* Record the sensor reading at the moment of calibration.
+             * From this point on: offset = RoomTemperature - SensorAtCalibration */
+            Calibration.SensorAtCalibration = _Lepton_Task_State.TemperatureInfo.Temperature;
+            SettingsManager_UpdateCalibration(&Calibration, NULL);
+
+            ESP_LOGI(TAG, "Calibration snapshot: room=%d\xC2\xB0""C, sensor=%.2f\xC2\xB0""C, offset=%.2f\xC2\xB0""C",
+                     static_cast<int>(Calibration.RoomTemperature),
+                     Calibration.SensorAtCalibration,
+                     static_cast<float>(Calibration.RoomTemperature) - Calibration.SensorAtCalibration);
+
+            xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_CALIBRATION_CHANGED);
+        }
+
+        if (EventBits & LEPTON_TASK_TEMPERATURE_STATUS_CHANGED) {
+            Settings_Calibration_t Calibration;
+
+            SettingsManager_GetCalibration(&Calibration);
+
+            /* Auto-initialize SensorAtCalibration on the first temperature reading.
+             * SensorAtCalibration == 0.0f is the "never calibrated" sentinel.
+             * On first reading: store the current sensor value so the persistent offset
+             * reflects the factory/power-on deviation from the configured room temperature.
+             * offset = RoomTemperature - SensorAtCalibration
+             * estimated_ambient = sensor_current + offset
+             * Example: room=20, sensor_cal=24.3 -> offset=-4.3
+             *          sensor_now=24.5           -> ambient=24.5+(-4.3)=20.2 */
+            if (Calibration.SensorAtCalibration == 0.0f) {
+                Calibration.SensorAtCalibration = _Lepton_Task_State.TemperatureInfo.Temperature;
+                SettingsManager_UpdateCalibration(&Calibration, NULL);
+
+                ESP_LOGI(TAG, "Calibration baseline auto-initialized: sensor=%.2f\xC2\xB0""C, room=%d\xC2\xB0""C, offset=%.2f\xC2\xB0""C",
+                         Calibration.SensorAtCalibration,
+                         static_cast<int>(Calibration.RoomTemperature),
+                         static_cast<float>(Calibration.RoomTemperature) - Calibration.SensorAtCalibration);
+            }
+
+            float Offset = static_cast<float>(Calibration.RoomTemperature) - Calibration.SensorAtCalibration;
+            float T_Compensated = _Lepton_Task_State.TemperatureInfo.Temperature + Offset;
+
+            if (DevicesManager_AcquireI2CBus(portMAX_DELAY) == ESP_OK) {
+                Lepton_FluxLinearParams_t FluxParams;
+
+                Lepton_GetFluxLinearParameters(&_Lepton_Task_State.Lepton, &FluxParams);
+                ESP_LOGD(TAG,
+                        "Flux Linear Parameters - Scene Emissivity: %u, TBkgK: %u, TauWindow: %u, TWindowK: %u, TauAtm: %u, TAtmK: %u, ReflWindow: %u, TReflK: %u",
+                        FluxParams.SceneEmissivity,
+                        FluxParams.TBkgK,
+                        FluxParams.TauWindow,
+                        FluxParams.TWindowK,
+                        FluxParams.TauAtm,
+                        FluxParams.TAtmK,
+                        FluxParams.ReflWindow,
+                        FluxParams.TReflK);
+
+                /* TBkgK: estimated ambient temperature in Kelvin for Lepton flux linear parameters */
+                FluxParams.TBkgK = static_cast<uint32_t>((T_Compensated + 273.15f) * 100);
+
+                Lepton_SetFluxLinearParameters(&_Lepton_Task_State.Lepton, &FluxParams);
+                DevicesManager_ReleaseI2CBus();
+
+                ESP_LOGD(TAG, "Temperature status changed - sensor: %.2f\xC2\xB0""C, offset: %.2f\xC2\xB0""C, estimated ambient: %.2f\xC2\xB0""C, TBkgK: %u K",
+                        _Lepton_Task_State.TemperatureInfo.Temperature,
+                        Offset,
+                        T_Compensated,
+                        FluxParams.TBkgK);
+            } else {
+                ESP_LOGW(TAG, "I2C bus busy, skipping flux parameter update!");
+            }
+
+            xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_TEMPERATURE_STATUS_CHANGED);
+        }
     }
 
     ESP_LOGD(TAG, "Lepton task shutting down");
@@ -743,7 +850,8 @@ esp_err_t Lepton_Task_Init(void)
     }
 
     esp_event_handler_register(GUI_TASK_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Task_Event_Handler, NULL);
-    esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_LEPTON_CHANGED, on_Settings_Event_Handler, NULL);
+    esp_event_handler_register(DEVICES_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Task_Event_Handler, NULL);
+    esp_event_handler_register(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler, NULL);
     esp_event_handler_register(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler, NULL);
 
 #ifdef CONFIG_SPIRAM
@@ -787,8 +895,9 @@ void Lepton_Task_Deinit(void)
         _Lepton_Task_State.EventGroup = NULL;
     }
 
-    esp_event_handler_unregister(SETTINGS_EVENTS, SETTINGS_EVENT_LEPTON_CHANGED, on_Settings_Event_Handler);
     esp_event_handler_unregister(GUI_TASK_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Task_Event_Handler);
+    esp_event_handler_unregister(DEVICES_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Task_Event_Handler);
+    esp_event_handler_unregister(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler);
     esp_event_handler_unregister(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler);
 
     if (_Lepton_Task_State.p_JpegBuffer != NULL) {

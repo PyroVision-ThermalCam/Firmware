@@ -155,7 +155,7 @@ static const gpio_config_t _Devices_Manager_MainboardExpander_IntConf = {
 /** @brief Pin configuration for the mainboard PCAL6416AHF (address 0x20).
  *         Register layout summary (Port 0 / Port 1, bit positions 0-7):
  *
- *         Port 0: [7]=TempInt [5]=RTCInt [2]=LeptonPwr [1]=BattChg [0]=BattAlert
+ *         Port 0: [7]=TempInt [5]=RTCInt [3]=LeptonPwr [1]=BattChg [0]=BattAlert
  *         Port 1: [7]=CamPwr  [6]=CamRst [5]=LepRst    [4]=SDDetect [0]=RangeInt
  *
  *         Active-low outputs (LepRst, CamRst) are not hardware-inverted;
@@ -164,23 +164,23 @@ static const gpio_config_t _Devices_Manager_MainboardExpander_IntConf = {
 static const PCAL6416_IO_Conf_t _PCAL6416AHF_Mainboard_PinConfig[] = {
     /* Battery alert:  active low, pull-up; HW polarity inversion                               */
     { .Port = PCAL6416_PORT_0, .Pin = 0, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_UP,   .isInverted = true,  .isLatched = false },
-    /* Battery charge: active high                                                               */
+    /* Battery charge: active high                                                              */
     { .Port = PCAL6416_PORT_0, .Pin = 1, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
-    /* Lepton power:   active high output                                                        */
+    /* Lepton power: active high output                                                         */
     { .Port = PCAL6416_PORT_0, .Pin = 3, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
-    /* RTC interrupt:  active low, pull-up                                                       */
+    /* RTC interrupt:  active low, pull-up                                                      */
     { .Port = PCAL6416_PORT_0, .Pin = 5, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_UP,   .isInverted = false, .isLatched = false },
-    /* Temp interrupt: active low, pull-up                                                       */
+    /* Temp interrupt: active low, pull-up                                                      */
     { .Port = PCAL6416_PORT_0, .Pin = 7, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_UP,   .isInverted = false, .isLatched = false },
-    /* Range interrupt: active low, pull-up                                                      */
+    /* Range interrupt: active low, pull-up                                                     */
     { .Port = PCAL6416_PORT_1, .Pin = 0, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_UP,   .isInverted = false, .isLatched = false },
-    /* SD card detect: active low, pull-up, latched (debounce)                                   */
+    /* SD card detect: active low, pull-up, latched (debounce)                                  */
     { .Port = PCAL6416_PORT_1, .Pin = 4, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_UP,   .isInverted = false, .isLatched = true  },
-    /* Lepton reset:   active low output (caller negates)                                        */
+    /* Lepton reset: active low output (caller negates)                                         */
     { .Port = PCAL6416_PORT_1, .Pin = 5, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
-    /* Camera reset:   active low output (caller negates)                                        */
+    /* Camera reset: active low output (caller negates)                                         */
     { .Port = PCAL6416_PORT_1, .Pin = 6, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
-    /* Camera power:   active high output                                                        */
+    /* Camera power: active high output                                                         */
     { .Port = PCAL6416_PORT_1, .Pin = 7, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
 };
 
@@ -194,19 +194,19 @@ static const PCAL6416_IO_Conf_t _PCAL6416AHF_Mainboard_PinConfig[] = {
  *         LEDs are active low outputs; buttons and joystick are active high with pull-down.
  */
 static const PCAL6416_IO_Conf_t _PCAL6416AHF_Displayboard_PinConfig[] = {
-    /* LED red:   active low output (caller negates)                                            */
+    /* LED red: active low output (caller negates)                                              */
     { .Port = PCAL6416_PORT_0, .Pin = 0, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
-    /* LED green:   active low output (caller negates)                                          */
+    /* LED green: active low output (caller negates)                                            */
     { .Port = PCAL6416_PORT_0, .Pin = 1, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
-    /* LED blue:    active low output (caller negates)                                          */
+    /* LED blue: active low output (caller negates)                                             */
     { .Port = PCAL6416_PORT_0, .Pin = 2, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
-    /* Joystick up:     active high, pull-down input                                            */
+    /* Joystick up: active high, pull-down input                                                */
     { .Port = PCAL6416_PORT_0, .Pin = 3, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
-    /* Joystick down:   active high, pull-down input                                            */
+    /* Joystick down: active high, pull-down input                                              */
     { .Port = PCAL6416_PORT_0, .Pin = 4, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
-    /* Joystick left:   active high, pull-down input                                            */
+    /* Joystick left: active high, pull-down input                                              */
     { .Port = PCAL6416_PORT_0, .Pin = 5, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
-    /* Joystick right:  active high, pull-down input                                            */
+    /* Joystick right: active high, pull-down input                                             */
     { .Port = PCAL6416_PORT_0, .Pin = 6, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
     /* Joystick center: active high, pull-down input                                            */
     { .Port = PCAL6416_PORT_0, .Pin = 7, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
@@ -232,7 +232,7 @@ typedef struct {
     i2c_master_bus_handle_t I2C_Bus_Handle;
     i2c_master_bus_handle_t Touch_I2C_Bus_Handle;
     PCA9633DP1_Dev_t PCA9633DP1;
-    SemaphoreHandle_t I2C_Bus_Mutex;        /**< Mutex protecting multi-transaction I2C sequences. */
+    SemaphoreHandle_t I2C_Bus_Mutex;
 } Devices_Manager_State_t;
 
 static Devices_Manager_State_t _Devices_Manager_State;
@@ -261,21 +261,6 @@ esp_err_t DevicesManager_Init(void)
         return ESP_ERR_NO_MEM;
     }
 
-#if (CONFIG_TOUCH_RST != -1)
-    /* Hold GT911 touch controller in reset from the very start to prevent it from
-     * interfering with the I2C bus during device initialization.
-     * The GT911 will be properly released and initialized in GUI_Helper_Init. */
-    static const gpio_config_t Touch_RST_IO_Conf = {
-        .pin_bit_mask = (1ULL << CONFIG_TOUCH_RST),
-        .mode = GPIO_MODE_OUTPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE,
-    };
-    ESP_ERROR_CHECK(gpio_config(&Touch_RST_IO_Conf));
-    gpio_set_level(static_cast<gpio_num_t>(CONFIG_TOUCH_RST), 0);
-#endif
-
 #if (CONFIG_DEVICES_I2C_SDA != CONFIG_TOUCH_SDA) || (CONFIG_DEVICES_I2C_SCL != CONFIG_TOUCH_SCL)
     if (I2CM_Init(&_Devices_Manager_Touch_I2CM_Config, &_Devices_Manager_State.Touch_I2C_Bus_Handle) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize Touch I2C!");
@@ -302,8 +287,6 @@ esp_err_t DevicesManager_Init(void)
         return DEVICES_ERR_SPI_BUS_INIT;
     }
 
-    I2CM_Scan(_Devices_Manager_State.I2C_Bus_Handle);
-
     if (PCAL6416AHF_Init(&_Devices_Manager_State.I2C_Bus_Handle,
                          ADDR_PCAL6416AHF_MAINBOARD,
                          _PCAL6416AHF_Mainboard_PinConfig,
@@ -322,9 +305,57 @@ esp_err_t DevicesManager_Init(void)
                          sizeof(_PCAL6416AHF_Displayboard_PinConfig) / sizeof(_PCAL6416AHF_Displayboard_PinConfig[0]),
                          &_Devices_Manager_State.Expander_Displayboard) != ESP_OK) {
         ESP_LOGW(TAG, "Displayboard port expander not found - running without displayboard");
+
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_EXPANDER_DISPLAYBOARD);
     } else {
         _Devices_Manager_State.isDisplayboardPresent = true;
     }
+
+    /* OV5640 power-on sequence */
+    /* Camera reset asserted (active-low: LOW = reset active) */
+    PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 6, false);
+
+    /* Camera power ON */
+    PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 7, true);
+    vTaskDelay(pdMS_TO_TICKS(10));
+
+    /* Camera reset deasserted (HIGH = running) */
+    PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 6, true);
+
+    /* Lepton power-on sequence per FLIR IDD:
+     *   - Assert RESET_L (LOW) before or with power
+     *   - Apply VDD
+     *   - Wait tPWR (>= 5 ms)
+     *   - Deassert RESET_L (HIGH)
+     *   - Wait tBOOT (~5 s) before accessing CCI/I2C
+     */
+    /* Lepton reset asserted (active-low: LOW = reset active) */
+    PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 5, false);
+
+    /* Lepton power ON */
+    PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_0, 3, true);
+    vTaskDelay(pdMS_TO_TICKS(10));
+
+    /* Lepton reset deasserted (HIGH = running) */
+    PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 5, true);
+
+    I2CM_Scan(_Devices_Manager_State.I2C_Bus_Handle);
+
+#if (CONFIG_TOUCH_RST != -1)
+    /* Hold GT911 touch controller in reset from the very start to prevent it from
+     * interfering with the I2C bus during device initialization.
+     * The GT911 will be properly released and initialized in GUI_Helper_Init.
+     */
+    static const gpio_config_t Touch_RST_IO_Conf = {
+        .pin_bit_mask = (1ULL << CONFIG_TOUCH_RST),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    ESP_ERROR_CHECK(gpio_config(&Touch_RST_IO_Conf));
+    gpio_set_level(static_cast<gpio_num_t>(CONFIG_TOUCH_RST), 0);
+#endif
 
     if (RV8263C8_Init(&_Devices_Manager_State.I2C_Bus_Handle, &_Devices_Manager_State.RTC) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize RV8263C8!");
@@ -374,11 +405,7 @@ esp_err_t DevicesManager_Init(void)
     _Devices_Manager_State.initialized = true;
 
     SettingsManager_GetDisplay(&DisplaySettings);
-
     Brightness = static_cast<uint8_t>(static_cast<float>(DisplaySettings.Brightness) * 2.55);
-
-    ESP_LOGD(TAG, "Initialization complete! Display brightness: %u%% -> PWM value %u", DisplaySettings.Brightness, Brightness);
-
     if ((DevicesManager_SetBrightness(BACKLIGHT_FLASH, 0) != ESP_OK) ||
         (DevicesManager_SetBrightness(BACKLIGHT_DISPLAY, Brightness) != ESP_OK)) {
         ESP_LOGE(TAG, "Failed to initialize brightness!");
@@ -391,10 +418,6 @@ esp_err_t DevicesManager_Init(void)
 
         return DEVICES_ERR_I2C_COMM;
     }
-
-    DevicesManager_SetLeptonPower(true);
-    DevicesManager_LeptonReset(false);
-    vTaskDelay(pdMS_TO_TICKS(1000));
 
     return ESP_OK;
 }
@@ -706,7 +729,7 @@ esp_err_t DevicesManager_SetCameraReset(bool Reset)
     return PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 6, (Reset == false));
 }
 
-esp_err_t DevicesManager_EnableCamera(bool Enable)
+esp_err_t DevicesManager_SetCameraPower(bool Enable)
 {
     if (_Devices_Manager_State.initialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;

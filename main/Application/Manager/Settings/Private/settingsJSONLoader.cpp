@@ -401,6 +401,32 @@ static void SettingsManager_LoadUSB(Settings_Manager_State_t *p_State, const cJS
     }
 }
 
+/** @brief          Load the calibration settings from the JSON object and apply them to the Settings Manager state. If a setting is missing or invalid, the default value is used.
+ *  @param p_State  The Settings Manager state structure to update with the loaded settings
+ *  @param p_JSON   The cJSON object representing the root of the settings JSON document
+ */
+static void SettingsManager_LoadCalibration(Settings_Manager_State_t *p_State, const cJSON *p_JSON)
+{
+    cJSON *calibration = NULL;
+
+    calibration = cJSON_GetObjectItem(p_JSON, "calibration");
+    if (calibration != NULL) {
+        cJSON *room_temperature = cJSON_GetObjectItem(calibration, "room-temperature");
+        if (cJSON_IsNumber(room_temperature)) {
+            p_State->Settings.Calibration.RoomTemperature = static_cast<int16_t>(room_temperature->valuedouble);
+        } else {
+            p_State->Settings.Calibration.RoomTemperature = SETTINGS_DEFAULT_CALIBRATION_ROOM_TEMP;
+        }
+
+        /* 0.0f is the "never calibrated" sentinel: the LeptonTask will apply zero offset
+        * until the user explicitly performs a calibration (which stores the actual sensor
+        * reading into SensorAtCalibration). */
+        p_State->Settings.Calibration.SensorAtCalibration = 0.0f;  /* The sensor reading at calibration time cannot be meaningfully set from the JSON, so we initialize it to the "never calibrated" sentinel value. */
+    } else {
+        SettingsManager_InitDefaultCalibration(&p_State->Settings);
+    }
+}
+
 esp_err_t SettingsManager_LoadFromJSON(Settings_Manager_State_t *p_State, const char *p_FilePath)
 {
     FILE *File = NULL;
@@ -537,6 +563,9 @@ esp_err_t SettingsManager_LoadFromJSON(Settings_Manager_State_t *p_State, const 
 
     /* Extract USB settings */
     SettingsManager_LoadUSB(p_State, JSON);
+
+    /* Extract Calibration settings */
+    SettingsManager_LoadCalibration(p_State, JSON);
 
 SettingsManager_Load_JSON_Exit:
     cJSON_Delete(JSON);

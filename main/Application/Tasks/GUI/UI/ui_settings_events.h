@@ -154,5 +154,9 @@ void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32
  *  @param p_Data           Event-specific data
  */
 void on_USB_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data);
-
+/** @brief      Calibration room temperature spinbox value-changed callback.
+ *              Saves the new integer room temperature (in \xC2\xB0""C) to the calibration settings.
+ *  @param e    Pointer to the event object
+ */
+void on_Calibration_RoomTemp_Changed_Callback(lv_event_t *e);
 #endif /* UI_SETTINGS_EVENTS_H_ */

@@ -54,6 +54,7 @@ lv_obj_t *settings_Menu;
 lv_obj_t *emissivity_Dropdown;
 lv_obj_t *usb_Page;
 lv_obj_t *image_Page;
+lv_obj_t *calibration_Page;
 lv_obj_t *usb_mode_switch;
 lv_obj_t *usb_uvc_switch;
 lv_obj_t *image_format_dropdown;
@@ -737,6 +738,93 @@ static lv_obj_t *ui_Settings_Create_Image_Page(lv_obj_t *p_Menu)
     return ImagePage;
 }
 
+/** @brief          Creates the Calibration settings page.
+ *  @param p_Menu   Pointer to the menu object
+ */
+static lv_obj_t *ui_Settings_Create_Calibration_Page(lv_obj_t *p_Menu)
+{
+    Menu_Page_Result_t CalibResult = ui_Settings_Create_Menu_Page_With_Container(p_Menu);
+    lv_obj_t *CalibContainer = CalibResult.Container;
+    lv_obj_t *CalibPage = CalibResult.Page;
+    Settings_Calibration_t CalibSettings;
+
+    SettingsManager_GetCalibration(&CalibSettings);
+
+    /* Section label */
+    lv_obj_t *calib_section_label = lv_label_create(CalibContainer);
+    lv_label_set_text(calib_section_label, "Room Temperature");
+    lv_obj_set_style_text_color(calib_section_label, lv_color_hex(0xFF9500), 0);
+    lv_obj_set_style_text_font(calib_section_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_pad_top(calib_section_label, 0, 0);
+    lv_obj_set_style_pad_bottom(calib_section_label, 8, 0);
+
+    lv_obj_t *calib_desc_label = lv_label_create(CalibContainer);
+    lv_label_set_text(calib_desc_label, "Current ambient temperature");
+    lv_obj_set_style_text_color(calib_desc_label, lv_color_hex(0xAAAAAA), 0);
+    lv_obj_set_style_text_font(calib_desc_label, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_pad_bottom(calib_desc_label, 16, 0);
+
+    /* Spinbox row: [-] [spinbox] [+] [°C] */
+    lv_obj_t *spinbox_row = ui_Settings_Create_Row(CalibContainer, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_height(spinbox_row, 48);
+    lv_obj_set_style_pad_top(spinbox_row, 4, 0);
+    lv_obj_set_style_pad_bottom(spinbox_row, 4, 0);
+    lv_obj_set_style_pad_column(spinbox_row, 8, 0);
+
+    /* Decrement button */
+    lv_obj_t *dec_btn = lv_btn_create(spinbox_row);
+    lv_obj_set_size(dec_btn, 36, 36);
+    lv_obj_set_style_bg_color(dec_btn, lv_color_hex(0x7B3FF0), LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(dec_btn, 6, 0);
+    lv_obj_set_style_shadow_width(dec_btn, 0, 0);
+    lv_obj_t *dec_label = lv_label_create(dec_btn);
+    lv_label_set_text(dec_label, "-");
+    lv_obj_set_style_text_color(dec_label, lv_color_white(), 0);
+    lv_obj_center(dec_label);
+
+    /* Spinbox */
+    lv_obj_t *spinbox = lv_spinbox_create(spinbox_row);
+    lv_spinbox_set_range(spinbox, -40, 80);
+    lv_spinbox_set_digit_format(spinbox, 2, 0);
+    lv_spinbox_set_value(spinbox, static_cast<int32_t>(CalibSettings.RoomTemperature));
+    lv_obj_set_width(spinbox, 80);
+    lv_obj_set_style_bg_color(spinbox, lv_color_hex(0x3A3A3A), 0);
+    lv_obj_set_style_text_color(spinbox, lv_color_white(), 0);
+    lv_obj_set_style_border_color(spinbox, lv_color_hex(0xFF9500), 0);
+    lv_obj_set_style_border_width(spinbox, 2, 0);
+    lv_obj_set_style_radius(spinbox, 6, 0);
+    lv_obj_set_style_pad_all(spinbox, 8, 0);
+    lv_obj_add_event_cb(spinbox, on_Calibration_RoomTemp_Changed_Callback, LV_EVENT_VALUE_CHANGED, NULL);
+
+    /* Increment button */
+    lv_obj_t *inc_btn = lv_btn_create(spinbox_row);
+    lv_obj_set_size(inc_btn, 36, 36);
+    lv_obj_set_style_bg_color(inc_btn, lv_color_hex(0x7B3FF0), LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(inc_btn, 6, 0);
+    lv_obj_set_style_shadow_width(inc_btn, 0, 0);
+    lv_obj_t *inc_label = lv_label_create(inc_btn);
+    lv_label_set_text(inc_label, "+");
+    lv_obj_set_style_text_color(inc_label, lv_color_white(), 0);
+    lv_obj_center(inc_label);
+
+    /* Unit label */
+    lv_obj_t *unit_label = lv_label_create(spinbox_row);
+    lv_label_set_text(unit_label, "\xC2\xB0""C");
+    lv_obj_set_style_text_color(unit_label, lv_color_white(), 0);
+    lv_obj_set_style_text_font(unit_label, &lv_font_montserrat_14, 0);
+
+    /* Button callbacks — pass spinbox as user_data */
+    lv_obj_add_event_cb(dec_btn, [](lv_event_t *e) {
+        lv_spinbox_decrement(static_cast<lv_obj_t *>(lv_event_get_user_data(e)));
+    }, LV_EVENT_CLICKED, spinbox);
+
+    lv_obj_add_event_cb(inc_btn, [](lv_event_t *e) {
+        lv_spinbox_increment(static_cast<lv_obj_t *>(lv_event_get_user_data(e)));
+    }, LV_EVENT_CLICKED, spinbox);
+
+    return CalibPage;
+}
+
 void ui_settings_init(lv_obj_t *p_Parent)
 {
     settings_Menu = lv_menu_create(p_Parent);
@@ -751,6 +839,7 @@ void ui_settings_init(lv_obj_t *p_Parent)
     display_Page = ui_Settings_Create_Display_Page(settings_Menu);
     lepton_Page = ui_Settings_Create_Lepton_Page(settings_Menu);
     image_Page = ui_Settings_Create_Image_Page(settings_Menu);
+    calibration_Page = ui_Settings_Create_Calibration_Page(settings_Menu);
     memory_Page = ui_Settings_Create_Memory_Page(settings_Menu);
     usb_Page = ui_Settings_Create_USB_Page(settings_Menu);
     about_Page = ui_Settings_Create_About_Page(settings_Menu);
@@ -776,6 +865,9 @@ void ui_settings_init(lv_obj_t *p_Parent)
 
     cont = ui_Settings_Create_Text(section, "Image");
     lv_menu_set_load_page_event(settings_Menu, cont, image_Page);
+
+    cont = ui_Settings_Create_Text(section, "Calibration");
+    lv_menu_set_load_page_event(settings_Menu, cont, calibration_Page);
 
     cont = ui_Settings_Create_Text(section, "Memory");
     lv_menu_set_load_page_event(settings_Menu, cont, memory_Page);

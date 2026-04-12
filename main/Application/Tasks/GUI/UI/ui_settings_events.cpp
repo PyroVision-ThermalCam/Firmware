@@ -347,3 +347,21 @@ void on_USB_CDC_Switch_Callback(lv_event_t *e)
 
     SettingsManager_UpdateUSB(&USBSettings, NULL);
 }
+
+void on_Calibration_RoomTemp_Changed_Callback(lv_event_t *e)
+{
+    Settings_Calibration_t CalibSettings;
+    SettingsManager_ChangeNotification_t Changed;
+    lv_obj_t *Spinbox = static_cast<lv_obj_t *>(lv_event_get_target(e));
+    int32_t Value = lv_spinbox_get_value(Spinbox);
+
+    SettingsManager_GetCalibration(&CalibSettings);
+
+    CalibSettings.RoomTemperature = static_cast<int16_t>(Value);
+
+    Changed.ID = SETTINGS_ID_CALIBRATION_ROOM_TEMP;
+    Changed.Value = static_cast<uint32_t>(Value);
+    SettingsManager_UpdateCalibration(&CalibSettings, &Changed);
+
+    ESP_LOGD(TAG, "Calibration room temperature changed to: %d \xC2\xB0""C", static_cast<int>(Value));
+}

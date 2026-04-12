@@ -89,5 +89,8 @@
     "usb": {
         "msc-enabled" : false,
         "uvc-enabled" : false
+    },
+    "calibration": {
+        "room-temperature" : 20
     }
 }

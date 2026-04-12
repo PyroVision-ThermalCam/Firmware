@@ -461,6 +461,10 @@ void GUI_Helper_Timer_RAMUpdate(lv_timer_t *p_Timer)
     (void)p_Timer;
     char Buffer[16];
 
+    if (lv_display_get_screen_active(lv_display_get_default()) != ui_Menu) {
+        return;
+    }
+
     sprintf(Buffer, "%u KB", heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024);
     lv_label_set_text(ui_Label_Info_PSRAM_Free, Buffer);
     sprintf(Buffer, "%u KB", heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024);
@@ -471,8 +475,6 @@ void GUI_Helper_Timer_MemoryUpdate(lv_timer_t *p_Timer)
 {
     (void)p_Timer;
 
-    /* Only query SD card if the settings screen is currently active to avoid
-     * unnecessary SPI reads causing CRC errors in the background. */
     if (lv_display_get_screen_active(lv_display_get_default()) != ui_Menu) {
         return;
     }

@@ -70,40 +70,40 @@ static void on_Lepton_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t B
             memcpy(&_GUI_Task_State.LeptonDeviceInfo, static_cast<const App_Lepton_Device_t *>(p_Data),
                        sizeof(App_Lepton_Device_t));
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, LEPTON_CAMERA_READY);
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_CAMERA_READY);
 
             break;
         }
         case LEPTON_TASK_EVENT_CAMERA_ERROR: {
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, LEPTON_CAMERA_ERROR);
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_CAMERA_ERROR);
 
             break;
         }
         case LEPTON_TASK_EVENT_RESPONSE_FPA_AUX_TEMP: {
             memcpy(&_GUI_Task_State.LeptonTemperatures, p_Data, sizeof(App_Lepton_Temperatures_t));
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, LEPTON_TEMP_READY);
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_TEMP_READY);
 
             break;
         }
         case LEPTON_TASK_EVENT_RESPONSE_SCENE_STATISTICS: {
             memcpy(&_GUI_Task_State.ROIResult, p_Data, sizeof(App_Lepton_ROI_Result_t));
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, LEPTON_SCENE_STATISTICS_READY);
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_SCENE_STATISTICS_READY);
 
             break;
         }
         case LEPTON_TASK_EVENT_RESPONSE_UPTIME: {
             memcpy(&_GUI_Task_State.LeptonUptime, p_Data, sizeof(uint32_t));
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, LEPTON_UPTIME_READY);
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_UPTIME_READY);
 
             break;
         }
         case LEPTON_TASK_EVENT_RESPONSE_PIXEL_TEMPERATURE: {
             memcpy(&_GUI_Task_State.SpotTemperature, p_Data, sizeof(float));
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, LEPTON_PIXEL_TEMPERATURE_READY);
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_PIXEL_TEMPERATURE_READY);
 
             break;
         }
@@ -157,7 +157,7 @@ static void on_Devices_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t 
                         _GUI_Task_State.BatteryInfo.Voltage, _GUI_Task_State.BatteryInfo.Percentage,
                         _GUI_Task_State.BatteryInfo.Charging ? "Yes" : "No");
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, BATTERY_STATUS_CHANGED);
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_BATTERY_STATUS_CHANGED);
 
             break;
         }
@@ -178,7 +178,7 @@ static void on_Devices_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base,
         case DEVICES_EVENT_SD_DETECT: {
             _GUI_Task_State.CardPresent = *static_cast<const bool *>(p_Data);
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, SD_CARD_STATE_CHANGED);
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_SD_CARD_STATE_CHANGED);
 
             break;
         }
@@ -203,14 +203,14 @@ static void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base,
             memcpy(&_GUI_Task_State.IP_Info, p_Data, sizeof(Network_IP_Info_t));
             _GUI_Task_State.WiFiConnected = true;
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, WIFI_CONNECTION_STATE_CHANGED);
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_WIFI_CONNECTION_STATE_CHANGED);
 
             break;
         }
         case NETWORK_EVENT_WIFI_DISCONNECTED: {
             _GUI_Task_State.WiFiConnected = false;
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, WIFI_CONNECTION_STATE_CHANGED);
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_WIFI_CONNECTION_STATE_CHANGED);
 
             break;
         }
@@ -218,7 +218,7 @@ static void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base,
             _GUI_Task_State.ProvisioningActive = true;
             _GUI_Task_State.WiFiConnected = false;
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, PROVISIONING_STATE_CHANGED);
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_PROVISIONING_STATE_CHANGED);
 
             break;
         }
@@ -226,15 +226,15 @@ static void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base,
             _GUI_Task_State.ProvisioningActive = false;
             _GUI_Task_State.WiFiConnected = false;
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, PROVISIONING_STATE_CHANGED);
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, WIFI_CONNECTION_STATE_CHANGED);
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_PROVISIONING_STATE_CHANGED);
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_WIFI_CONNECTION_STATE_CHANGED);
 
             break;
         }
         case NETWORK_EVENT_PROV_SUCCESS: {
             _GUI_Task_State.ProvisioningActive = false;
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, PROVISIONING_STATE_CHANGED);
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_PROVISIONING_STATE_CHANGED);
 
             break;
         }
@@ -242,8 +242,8 @@ static void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base,
             _GUI_Task_State.ProvisioningActive = false;
             _GUI_Task_State.WiFiConnected = false;
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, PROVISIONING_STATE_CHANGED);
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, WIFI_CONNECTION_STATE_CHANGED);
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_PROVISIONING_STATE_CHANGED);
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_WIFI_CONNECTION_STATE_CHANGED);
 
             break;
         }
@@ -278,14 +278,14 @@ static void on_USB_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
         case USB_EVENT_UVC_STREAMING_START: {
             _GUI_Task_State.isUVCStreaming = true;
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, UVC_STREAMING_STATE_CHANGED);
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_UVC_STREAMING_STATE_CHANGED);
 
             break;
         }
         case USB_EVENT_UVC_STREAMING_STOP: {
             _GUI_Task_State.isUVCStreaming = false;
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, UVC_STREAMING_STATE_CHANGED);
+            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_UVC_STREAMING_STATE_CHANGED);
 
             break;
         }
@@ -293,7 +293,7 @@ static void on_USB_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
             if (_GUI_Task_State.isUVCStreaming) {
                 _GUI_Task_State.isUVCStreaming = false;
 
-                xEventGroupSetBits(_GUI_Task_State.EventGroup, UVC_STREAMING_STATE_CHANGED);
+                xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_UVC_STREAMING_STATE_CHANGED);
             }
 
             break;
@@ -412,7 +412,7 @@ static void GUI_Update_ROI(Settings_ROI_t ROI)
         (SettingsLepton.ROI[ROI.Type].y == ROI.y) &&
         (SettingsLepton.ROI[ROI.Type].w == ROI.w) &&
         (SettingsLepton.ROI[ROI.Type].h == ROI.h)) {
-        ESP_LOGW(TAG, "ROI unchanged, not updating NVS");
+        ESP_LOGD(TAG, "ROI unchanged, not updating NVS");
 
         return;
     }
@@ -421,7 +421,8 @@ static void GUI_Update_ROI(Settings_ROI_t ROI)
     memcpy(&SettingsLepton.ROI[ROI.Type], &ROI, sizeof(Settings_ROI_t));
 
     /* Save the new ROI to NVS */
-    SettingsManager_UpdateLepton(&SettingsLepton);
+    // TODO: Fix me. Causes crashes during boot
+    //SettingsManager_UpdateLepton(&SettingsLepton);
     SettingsManager_Save();
 
     /* The Lepton task needs the ROI with the Lepton coordinates */
@@ -569,7 +570,7 @@ void Task_GUI(void *p_Parameters)
         esp_task_wdt_reset();
 
         EventBits = xEventGroupGetBits(_GUI_Task_State.EventGroup);
-        if (EventBits & LEPTON_CAMERA_READY) {
+        if (EventBits & GUI_TASK_LEPTON_CAMERA_READY) {
 
             lv_bar_set_value(ui_SplashScreen_LoadingBar, 100, LV_ANIM_OFF);
 
@@ -578,11 +579,11 @@ void Task_GUI(void *p_Parameters)
              * during CCI_WaitForBoot. */
             GUI_Helper_InitTouch(&_GUI_Task_State, Touch_LVGL_ReadCallback);
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, LEPTON_CAMERA_READY);
-        } else if (EventBits & LEPTON_CAMERA_ERROR) {
+            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_CAMERA_READY);
+        } else if (EventBits & GUI_TASK_LEPTON_CAMERA_ERROR) {
             lv_label_set_text(ui_SplashScreen_StatusText, "Camera Error");
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, LEPTON_CAMERA_ERROR);
+            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_CAMERA_ERROR);
         }
 
         if (Timeout >= 30000) {
@@ -936,7 +937,7 @@ void Task_GUI(void *p_Parameters)
             break;
         }
 
-        if (EventBits & BATTERY_STATUS_CHANGED) {
+        if (EventBits & GUI_TASK_BATTERY_STATUS_CHANGED) {
             char Buffer[16];
 
             snprintf(Buffer, sizeof(Buffer), "%d%%", _GUI_Task_State.BatteryInfo.Percentage);
@@ -971,10 +972,10 @@ void Task_GUI(void *p_Parameters)
             snprintf(Buffer, sizeof(Buffer), "%d mV", _GUI_Task_State.BatteryInfo.Voltage);
             lv_label_set_text(ui_Label_Info_Battery_Voltage, Buffer);
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, BATTERY_STATUS_CHANGED);
+            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_BATTERY_STATUS_CHANGED);
         }
  
-        if (EventBits & WIFI_CONNECTION_STATE_CHANGED) {
+        if (EventBits & GUI_TASK_WIFI_CONNECTION_STATE_CHANGED) {
             if (_GUI_Task_State.WiFiConnected) {
                 char Buffer[32];
 
@@ -1003,46 +1004,55 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_add_flag(ui_settings_wifi_connect_btn, LV_OBJ_FLAG_CLICKABLE);
             }
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, WIFI_CONNECTION_STATE_CHANGED);
+            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_WIFI_CONNECTION_STATE_CHANGED);
         }
 
-        if (EventBits & PROVISIONING_STATE_CHANGED) {
+        if (EventBits & GUI_TASK_PROVISIONING_STATE_CHANGED) {
             if ((_GUI_Task_State.WiFiConnected == false) && _GUI_Task_State.ProvisioningActive) {
                 lv_obj_set_style_text_color(ui_Image_Main_WiFi, lv_color_hex(0xFF8800), LV_PART_MAIN);
             } else {
                 lv_obj_set_style_text_color(ui_Image_Main_WiFi, lv_color_hex(0xFF0000), LV_PART_MAIN);
             }
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, PROVISIONING_STATE_CHANGED);
+            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_PROVISIONING_STATE_CHANGED);
         }
 
-        if (EventBits & SD_CARD_STATE_CHANGED) {
+        if (EventBits & GUI_TASK_SD_CARD_STATE_CHANGED) {
             if (_GUI_Task_State.CardPresent) {
-                /* Card inserted: show orange while mounting */
-                lv_obj_set_style_text_color(ui_Image_Main_SDCard, lv_color_hex(0xFF8800), LV_PART_MAIN);
-
-                if (MemoryManager_SwitchToSDCard() == ESP_OK) {
-                    /* Successfully mounted: show green */
+                if (MemoryManager_HasSDCard()) {
+                    /* MemoryManager already auto-mounted the SD card at init - just confirm green */
                     lv_obj_set_style_text_color(ui_Image_Main_SDCard, lv_color_hex(0x00FF00), LV_PART_MAIN);
 
-                    ESP_LOGD(TAG, "Storage switched to SD card");
+                    ESP_LOGD(TAG, "SD card already mounted by MemoryManager");
                 } else {
-                    /* Mount failed: stay orange (card present but not usable) */
-                    ESP_LOGW(TAG, "SD card detected but mount failed - keeping orange");
+                    /* Card present but not yet mounted: show orange while mounting */
+                    lv_obj_set_style_text_color(ui_Image_Main_SDCard, lv_color_hex(0xFF8800), LV_PART_MAIN);
+
+                    if (MemoryManager_SwitchToSDCard() == ESP_OK) {
+                        /* Successfully mounted: show green */
+                        lv_obj_set_style_text_color(ui_Image_Main_SDCard, lv_color_hex(0x00FF00), LV_PART_MAIN);
+
+                        ESP_LOGD(TAG, "Storage switched to SD card");
+                    } else {
+                        /* Mount failed: stay orange (card present but not usable) */
+                        ESP_LOGW(TAG, "SD card detected but mount failed - keeping orange");
+                    }
                 }
             } else {
-                /* Card removed: switch back to internal and show red */
-                MemoryManager_SwitchToInternal();
+                /* Card removed: switch back to internal only if we are currently on SD */
+                if (MemoryManager_HasSDCard()) {
+                    MemoryManager_SwitchToInternal();
+
+                    ESP_LOGD(TAG, "Storage switched back to internal flash");
+                }
 
                 lv_obj_set_style_text_color(ui_Image_Main_SDCard, lv_color_hex(0xFF0000), LV_PART_MAIN);
-
-                ESP_LOGD(TAG, "Storage switched back to internal flash");
             }
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, SD_CARD_STATE_CHANGED);
+            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_SD_CARD_STATE_CHANGED);
         }
 
-        if (EventBits & LEPTON_UPTIME_READY) {
+        if (EventBits & GUI_TASK_LEPTON_UPTIME_READY) {
             char Buffer[32];
             uint32_t Uptime;
 
@@ -1051,10 +1061,10 @@ void Task_GUI(void *p_Parameters)
             snprintf(Buffer, sizeof(Buffer), "%02lu:%02lu:%02lu", Uptime / 3600, (Uptime % 3600) / 60, Uptime % 60);
             lv_label_set_text(ui_Label_Info_Lepton_Uptime, Buffer);
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, LEPTON_UPTIME_READY);
+            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_UPTIME_READY);
         }
 
-        if (EventBits & LEPTON_TEMP_READY) {
+        if (EventBits & GUI_TASK_LEPTON_TEMP_READY) {
             char Buffer[32];
 
             snprintf(Buffer, sizeof(Buffer), "%.2f °C", _GUI_Task_State.LeptonTemperatures.FPA);
@@ -1062,19 +1072,19 @@ void Task_GUI(void *p_Parameters)
             snprintf(Buffer, sizeof(Buffer), "%.2f °C", _GUI_Task_State.LeptonTemperatures.AUX);
             lv_label_set_text(ui_Label_Info_Lepton_AUX, Buffer);
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, LEPTON_TEMP_READY);
+            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_TEMP_READY);
         }
 
-        if (EventBits & LEPTON_PIXEL_TEMPERATURE_READY) {
+        if (EventBits & GUI_TASK_LEPTON_PIXEL_TEMPERATURE_READY) {
             char Buffer[16];
 
             snprintf(Buffer, sizeof(Buffer), "%.2f °C", _GUI_Task_State.SpotTemperature);
             lv_label_set_text(ui_Label_Main_Thermal_PixelTemperature, Buffer);
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, LEPTON_PIXEL_TEMPERATURE_READY);
+            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_PIXEL_TEMPERATURE_READY);
         }
 
-        if (EventBits & LEPTON_SCENE_STATISTICS_READY) {
+        if (EventBits & GUI_TASK_LEPTON_SCENE_STATISTICS_READY) {
             char Buffer[16];
             float Temp;
 
@@ -1090,10 +1100,10 @@ void Task_GUI(void *p_Parameters)
             snprintf(Buffer, sizeof(Buffer), "%.1f °C", Temp);
             lv_label_set_text(ui_Label_Main_Thermal_Scene_Mean, Buffer);
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, LEPTON_SCENE_STATISTICS_READY);
+            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_SCENE_STATISTICS_READY);
         }
 
-        if (EventBits & UVC_STREAMING_STATE_CHANGED) {
+        if (EventBits & GUI_TASK_UVC_STREAMING_STATE_CHANGED) {
             if (_GUI_Task_State.isUVCStreaming) {
                 /* Clear thermal canvas to black */
                 memset(_GUI_Task_State.ThermalCanvasBuffer, 0x00, 240 * 180 * 2);
@@ -1138,7 +1148,7 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_remove_flag(ui_Label_TempScaleMin, LV_OBJ_FLAG_HIDDEN);
             }
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, UVC_STREAMING_STATE_CHANGED);
+            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_UVC_STREAMING_STATE_CHANGED);
         }
 
         _lock_acquire(&_GUI_Task_State.LVGL_API_Lock);
@@ -1282,8 +1292,7 @@ esp_err_t GUI_Task_Init(void)
     esp_event_handler_register(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler, NULL);
     esp_event_handler_register(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler, NULL);
     esp_event_handler_register(DEVICES_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Task_Event_Handler, NULL);
-    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVED, on_GUI_Task_Event_Handler, NULL);
-    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED, on_GUI_Task_Event_Handler, NULL);
+    esp_event_handler_register(GUI_TASK_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Task_Event_Handler, NULL);
     esp_event_handler_register(LEPTON_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Task_Event_Handler, NULL);
 
     _GUI_Task_State.SaveNextFrameRequested = false;
@@ -1302,8 +1311,7 @@ void GUI_Task_Deinit(void)
     esp_event_handler_unregister(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler);
     esp_event_handler_unregister(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler);
     esp_event_handler_unregister(DEVICES_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Task_Event_Handler);
-    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVED, on_GUI_Task_Event_Handler);
-    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED, on_GUI_Task_Event_Handler);
+    esp_event_handler_unregister(GUI_TASK_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Task_Event_Handler);
     esp_event_handler_unregister(LEPTON_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Task_Event_Handler);
 
     ui_destroy();

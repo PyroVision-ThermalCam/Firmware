@@ -101,6 +101,8 @@ enum {
                                                      Data contains SettingsManager_ChangeNotification_t. */
     SETTINGS_EVENT_USB_CHANGED,                 /**< USB settings changed.
                                                      Data contains SettingsManager_ChangeNotification_t. */
+    SETTINGS_EVENT_CALIBRATION_CHANGED,         /**< Calibration settings changed.
+                                                     Data contains SettingsManager_ChangeNotification_t. */
     SETTINGS_EVENT_REQUEST_GET,                 /**< Request to get current settings. */
     SETTINGS_EVENT_REQUEST_SAVE,                /**< Request to save settings to NVS. */
     SETTINGS_EVENT_REQUEST_RESET,               /**< Request to reset settings to factory defaults. */
@@ -123,6 +125,8 @@ enum {
                                                      Data contains bool with new enabled state. */
     SETTINGS_ID_LED_FLASH_POWER,                /**< LED flash power setting changed.
                                                      Data contains uint8_t with new power value. */
+    SETTINGS_ID_CALIBRATION_ROOM_TEMP,          /**< Room temperature calibration changed.
+                                                     Data contains int16_t with new temperature in °C. */
 };
 
 /** @brief GUI ROI types.
@@ -267,6 +271,18 @@ typedef struct {
     uint8_t Reserved[5];                        /**< Reserved for future use. */
 } __attribute__((packed)) Settings_USB_t;
 
+/** @brief  Calibration settings.
+ *          NOTE: This structure is covered by the settings version number because it is stored in the NVS.
+ */
+typedef struct {
+    int16_t RoomTemperature;                    /**< User-entered room temperature in °C at calibration time. */
+    float SensorAtCalibration;                  /**< On-board sensor reading in °C at the time of calibration.
+                                                     Used to compute the persistent offset:
+                                                     offset = RoomTemperature − SensorAtCalibration
+                                                     estimated_ambient = sensor_current + offset */
+    uint8_t Reserved[2];                        /**< Reserved for future use. */
+} __attribute__((packed)) Settings_Calibration_t;
+
 /** @brief Complete application settings structure.
  */
 typedef struct {
@@ -280,6 +296,7 @@ typedef struct {
     Settings_System_t System;                   /**< System settings. */
     Settings_LED_Flash_t LEDFlash;              /**< LED flash settings. */
     Settings_USB_t USB;                         /**< USB settings. */
+    Settings_Calibration_t Calibration;         /**< Calibration settings. */
 } Settings_t;
 
 #endif /* SETTINGS_TYPES_H_ */

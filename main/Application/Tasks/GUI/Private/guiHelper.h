@@ -39,18 +39,18 @@
 #include "Application/application.h"
 #include "Application/Manager/Network/networkTypes.h"
 
-#define GUI_TASK_STOP_REQUEST               BIT0
-#define BATTERY_STATUS_CHANGED              BIT1
-#define WIFI_CONNECTION_STATE_CHANGED       BIT3
-#define PROVISIONING_STATE_CHANGED          BIT7
-#define SD_CARD_STATE_CHANGED               BIT8
-#define LEPTON_UPTIME_READY                 BIT11
-#define LEPTON_TEMP_READY                   BIT12
-#define LEPTON_PIXEL_TEMPERATURE_READY      BIT13
-#define LEPTON_CAMERA_READY                 BIT4
-#define LEPTON_CAMERA_ERROR                 BIT14
-#define LEPTON_SCENE_STATISTICS_READY       BIT6
-#define UVC_STREAMING_STATE_CHANGED         BIT15
+#define GUI_TASK_STOP_REQUEST                   BIT0
+#define GUI_TASK_BATTERY_STATUS_CHANGED         BIT1
+#define GUI_TASK_WIFI_CONNECTION_STATE_CHANGED  BIT3
+#define GUI_TASK_PROVISIONING_STATE_CHANGED     BIT7
+#define GUI_TASK_SD_CARD_STATE_CHANGED          BIT8
+#define GUI_TASK_LEPTON_UPTIME_READY            BIT11
+#define GUI_TASK_LEPTON_TEMP_READY              BIT12
+#define GUI_TASK_LEPTON_PIXEL_TEMPERATURE_READY BIT13
+#define GUI_TASK_LEPTON_CAMERA_READY            BIT4
+#define GUI_TASK_LEPTON_CAMERA_ERROR            BIT14
+#define GUI_TASK_LEPTON_SCENE_STATISTICS_READY  BIT6
+#define GUI_TASK_UVC_STREAMING_STATE_CHANGED    BIT15
 
 typedef struct {
     bool isInitialized;

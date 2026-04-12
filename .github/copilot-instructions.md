@@ -708,6 +708,33 @@ Two-tier default system:
 
 ---
 
+## UI Language
+
+**CRITICAL**: All user-facing strings in the GUI **MUST be in English**. This applies to:
+
+- Menu entry labels (e.g., `"Calibration"` not `"Kalibrierung"`)
+- Button texts
+- Section labels and descriptions
+- Info/warning/hint texts shown in the UI
+- Dropdown options
+- Any `lv_label_set_text()` / `lv_btn_create()` label content visible to the user
+
+Comments and log messages follow the same rule — they must also be in English.
+
+**Examples:**
+```cpp
+// ✅ CORRECT: English UI strings
+lv_label_set_text(label, "Calibration");
+lv_label_set_text(desc, "Current ambient temperature");
+lv_label_set_text(btn_label, "Connect WiFi");
+
+// ❌ INCORRECT: Non-English UI strings
+lv_label_set_text(label, "Kalibrierung");
+lv_label_set_text(desc, "Aktuelle Umgebungstemperatur");
+```
+
+---
+
 ## Device Integration
 
 ### I2C/SPI Devices
@@ -1228,6 +1255,7 @@ pio check
 - Forget to call `SettingsManager_Save()` after updates
 - Access shared state without mutex protection
 - Use `portTICK_PERIOD_MS` for time conversions (use `pdMS_TO_TICKS()` instead)
+- Use languages other than **English** for UI labels, menu entries, button texts, or any other user-facing strings
 
 ✅ **Do:**
 - Use consistent naming conventions
@@ -1241,6 +1269,7 @@ pio check
 - **Update corresponding AsciiDoc documentation when changing code**
 - Address all compiler warnings before committing
 - **Use `pdMS_TO_TICKS()` for all millisecond-to-tick conversions**
+- **Use English exclusively for all UI labels, menu entries, button texts, descriptions, and user-facing strings**
 
 ---
 

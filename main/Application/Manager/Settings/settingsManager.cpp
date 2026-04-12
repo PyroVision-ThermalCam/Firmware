@@ -490,6 +490,20 @@ esp_err_t SettingsManager_UpdateUSB(Settings_USB_t *p_Settings, SettingsManager_
                                   SETTINGS_EVENT_USB_CHANGED, p_ChangedSetting);
 }
 
+esp_err_t SettingsManager_GetCalibration(Settings_Calibration_t *p_Settings)
+{
+    return SettingsManager_Get(p_Settings, &_Settings_Manager_State.Settings.Calibration,
+                               sizeof(Settings_Calibration_t));
+}
+
+esp_err_t SettingsManager_UpdateCalibration(Settings_Calibration_t *p_Settings,
+                                            SettingsManager_ChangeNotification_t *p_ChangedSetting)
+{
+    return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.Calibration,
+                                  sizeof(Settings_Calibration_t),
+                                  SETTINGS_EVENT_CALIBRATION_CHANGED, p_ChangedSetting);
+}
+
 esp_err_t SettingsManager_ResetToDefaults(void)
 {
     esp_err_t Error;

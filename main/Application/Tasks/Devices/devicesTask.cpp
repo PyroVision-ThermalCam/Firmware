@@ -50,6 +50,7 @@ typedef struct {
     TaskHandle_t TaskHandle;
     EventGroupHandle_t EventGroup;
     SettingsManager_ChangeNotification_t NewSetting;
+    int16_t RoomTemperature;
 } Devices_Task_State_t;
 
 static Devices_Task_State_t _Devices_Task_State;
@@ -81,11 +82,29 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
         case SETTINGS_EVENT_DISPLAY_CHANGED: {
             memcpy(&_Devices_Task_State.NewSetting, p_Data, sizeof(SettingsManager_ChangeNotification_t));
 
-            ESP_LOGI(TAG, "Display settings changed: ID=%d", _Devices_Task_State.NewSetting.ID);
-            ESP_LOGI(TAG, "Display settings changed: Value=%d", _Devices_Task_State.NewSetting.Value);
+            ESP_LOGD(TAG, "Display settings changed: ID=%d", _Devices_Task_State.NewSetting.ID);
+            ESP_LOGD(TAG, "Display settings changed: Value=%d", _Devices_Task_State.NewSetting.Value);
 
             if (_Devices_Task_State.NewSetting.ID == SETTINGS_ID_DISPLAY_BRIGHTNESS) {
                 xEventGroupSetBits(_Devices_Task_State.EventGroup, DEVICES_TASK_UPDATE_BRIGHTNESS);
+            }
+
+            break;
+        }
+        case SETTINGS_EVENT_CALIBRATION_CHANGED: {
+            /* p_Data is NULL when LeptonTask stores the calibration snapshot internally -
+             * the RoomTemperature has not changed in that case, so nothing to update. */
+            if (p_Data == NULL) {
+                break;
+            }
+
+            memcpy(&_Devices_Task_State.NewSetting, p_Data, sizeof(SettingsManager_ChangeNotification_t));
+
+            ESP_LOGD(TAG, "Calibration settings changed: ID=%d", _Devices_Task_State.NewSetting.ID);
+            ESP_LOGD(TAG, "Calibration settings changed: Value=%d", _Devices_Task_State.NewSetting.Value);
+
+            if (_Devices_Task_State.NewSetting.ID == SETTINGS_ID_CALIBRATION_ROOM_TEMP) {
+                _Devices_Task_State.RoomTemperature = static_cast<int16_t>(_Devices_Task_State.NewSetting.Value);
             }
 
             break;
@@ -114,6 +133,20 @@ static void Task_Devices(void *p_Parameters)
     LastInputPoll = xTaskGetTickCount();
     LastBatteryPoll = xTaskGetTickCount();
     LastTemperaturePoll = xTaskGetTickCount();
+
+    /* Report the initial SD-card detect state once at startup.
+     * DEVICES_EVENT_SD_DETECT is interrupt-driven and only fires on GPIO state changes.
+     * Without this initial report the GUI task would never learn the boot-time SD-card
+     * state when the card is already inserted and no edge occurs on the detect pin. */
+    if (DevicesManager_AcquireI2CBus(pdMS_TO_TICKS(500)) == ESP_OK) {
+        bool SDInserted = false;
+
+        if (DevicesManager_GetSDDetect(&SDInserted) == ESP_OK) {
+            esp_event_post(DEVICES_EVENTS, DEVICES_EVENT_SD_DETECT, &SDInserted, sizeof(SDInserted), pdMS_TO_TICKS(100));
+        }
+
+        DevicesManager_ReleaseI2CBus();
+    }
 
     while (_Devices_Task_State.isRunning) {
         EventBits_t EventBits;
@@ -185,14 +218,14 @@ static void Task_Devices(void *p_Parameters)
                 }
             }
 
-            if ((xTaskGetTickCount() - LastTemperaturePoll) >= pdMS_TO_TICKS(1000)) {
+            if ((xTaskGetTickCount() - LastTemperaturePoll) >= pdMS_TO_TICKS(CONFIG_DEVICES_TASK_TEMPERATURE_POLL_INTERVAL_S * 1000)) {
                 float Temperature;
 
                 LastTemperaturePoll = xTaskGetTickCount();
 
                 if (DevicesManager_GetTemperature(&Temperature) == ESP_OK) {
                     App_Devices_Temperature_t NewTemperatureInfo = {
-                        .Temperature = Temperature
+                        .Temperature = Temperature,
                     };
 
                     esp_event_post(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE,
@@ -241,7 +274,7 @@ esp_err_t Devices_Task_Init(void)
     }
 
     esp_event_handler_register(GUI_TASK_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Task_Event_Handler, NULL);
-    esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_DISPLAY_CHANGED, on_Settings_Event_Handler, NULL);
+    esp_event_handler_register(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler, NULL);
 
     _Devices_Task_State.isInitialized = true;
 
@@ -255,7 +288,7 @@ void Devices_Task_Deinit(void)
     }
 
     esp_event_handler_unregister(GUI_TASK_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Task_Event_Handler);
-    esp_event_handler_unregister(SETTINGS_EVENTS, SETTINGS_EVENT_DISPLAY_CHANGED, on_Settings_Event_Handler);
+    esp_event_handler_unregister(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler);
 
     DevicesManager_Deinit();
 

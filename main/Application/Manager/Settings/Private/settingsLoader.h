@@ -72,6 +72,8 @@
 #define SETTINGS_DISPLAY_DEFAULT_BRIGHTNESS     80
 #define SETTINGS_DISPLAY_DEFAULT_TIMEOUT        0
 
+#define SETTINGS_DEFAULT_CALIBRATION_ROOM_TEMP  20
+
 /** @brief Settings Manager state.
  */
 typedef struct {
@@ -150,5 +152,10 @@ void SettingsManager_InitDefaultLEDFlash(Settings_t *p_Settings);
  *  @param p_Settings   Pointer to settings structure
  */
 void SettingsManager_InitDefaultUSB(Settings_t *p_Settings);
+
+/** @brief              Initialize Calibration settings with factory defaults.
+ *  @param p_Settings   Pointer to settings structure
+ */
+void SettingsManager_InitDefaultCalibration(Settings_t *p_Settings);
 
 #endif /* SETTINGS_LOADER_H_ */

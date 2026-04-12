@@ -229,6 +229,10 @@ menu "PyroVision"
             int "Battery polling interval for the devices tasks in seconds"
             default 30
 
+        config DEVICES_TASK_TEMPERATURE_POLL_INTERVAL_S
+            int "Temperature polling interval for the devices tasks in seconds"
+            default 30
+
         menu "I2C"
             choice
                 prompt "Peripheral I2C Bus"
