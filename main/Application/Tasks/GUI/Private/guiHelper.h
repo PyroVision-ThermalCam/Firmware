@@ -75,6 +75,7 @@ typedef struct {
     lv_obj_t *UVCOverlayLabel;
     lv_display_t *Display;
     lv_indev_t *Touch;
+    lv_indev_t *Keypad;
     lv_img_dsc_t ThermalImageDescriptor;
     lv_img_dsc_t GradientImageDescriptor;
     lv_timer_t *UpdateTimer[6];
@@ -94,12 +95,6 @@ typedef struct {
     Network_IP_Info_t IP_Info;
     Network_Thermal_Frame_t NetworkFrame;
 
-#ifdef CONFIG_GUI_TOUCH_DEBUG
-    /* Touch debug visualization */
-    lv_obj_t *TouchDebugOverlay;
-    lv_obj_t *TouchDebugCircle;
-    lv_obj_t *TouchDebugLabel;
-#endif
 } GUI_Task_State_t;
 
 /** @brief                      Initialize the GUI helper functions.
@@ -123,6 +118,14 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t
  *                              ESP_ERR_INVALID_STATE if Touch_IO_Handle is not initialized
  */
 esp_err_t GUI_Helper_InitTouch(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t Touch_Read_Callback);
+
+/** @brief                          Initialize the keypad LVGL input device for joystick and button navigation.
+ *  @param p_GUI_Task_State         Pointer to the GUI task state structure.
+ *  @param Keypad_Read_Callback     LVGL keypad read callback function.
+ *  @return                         ESP_OK on success
+ *                                  ESP_ERR_INVALID_ARG if p_GUI_Task_State is NULL
+ */
+esp_err_t GUI_Helper_InitKeypad(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t Keypad_Read_Callback);
 
 /** @brief                      Deinitialize the GUI helper functions.
  *  @param p_GUI_Task_State     Pointer to the GUI task state structure.

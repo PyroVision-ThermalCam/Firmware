@@ -205,10 +205,6 @@ menu "PyroVision"
     endmenu
 
     menu "Devices"
-        config DEVICES_TASK_INPUT_POLL_INTERVAL_MS
-            int "Input polling interval for the devices tasks in milliseconds"
-            default 50
-
         config DEVICES_TASK_BATTERY_POLL_INTERVAL_S
             int "Battery polling interval for the devices tasks in seconds"
             default 30
@@ -248,6 +244,15 @@ menu "PyroVision"
                     GPIO number connected to the INT# pin of the PCAL6416AHF port expander.
                     The INT# output is active-low and open-drain.
                     A falling edge triggers interrupt handling in the Devices Manager.
+
+            config DISPLAYBOARD_EXPANDER_INT_GPIO
+                int "Displayboard Port Expander INT# GPIO number"
+                range 0 48
+                default 2
+                help
+                    GPIO number connected to the INT# pin of the displayboard PCAL6416AHF.
+                    The INT# output is active-low and open-drain.
+                    Reading the Input Port register clears the interrupt.
         endmenu
 
         menu "SPI"
@@ -491,13 +496,6 @@ menu "PyroVision"
         config GUI_HEIGHT
             int "Screen Height"
             default 240
-
-        config GUI_TOUCH_DEBUG
-            bool "Enable touch debug visualization"
-            default n
-            help
-                Show touch input visualization overlay with coordinates and crosshair.
-                Useful for calibrating touch input.
 
         config GUI_LVGL_TICK_PERIOD_MS
             int "LVGL Tick Period"

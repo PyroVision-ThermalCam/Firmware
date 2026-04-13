@@ -118,37 +118,34 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
 static void Task_Devices(void *p_Parameters)
 {
     Devices_InputState_t InputState;
-    Devices_InputState_t PrevInputState;
-    TickType_t LastInputPoll;
+    Devices_InputState_t PendingInputState;
+    TickType_t PendingChangeTime;
     TickType_t LastBatteryPoll;
     TickType_t LastTemperaturePoll;
     int Voltage;
     uint8_t Percentage;
     bool Charging;
+    bool SDInserted;
+    bool HasPendingInput;
+    App_Context_t *AppContext;
 
     esp_task_wdt_add(NULL);
+
+    AppContext = static_cast<App_Context_t *>(p_Parameters);
 
     ESP_LOGD(TAG, "Devices task started on core %d", xPortGetCoreID());
 
     memset(&InputState, 0, sizeof(Devices_InputState_t));
-    memset(&PrevInputState, 0, sizeof(Devices_InputState_t));
+    memset(&PendingInputState, 0, sizeof(Devices_InputState_t));
 
-    LastInputPoll = xTaskGetTickCount();
+    PendingChangeTime = 0;
+    HasPendingInput = false;
     LastBatteryPoll = xTaskGetTickCount();
     LastTemperaturePoll = xTaskGetTickCount();
 
-    /* Report the initial SD-card detect state once at startup.
-     * DEVICES_EVENT_SD_DETECT is interrupt-driven and only fires on GPIO state changes.
-     * Without this initial report the GUI task would never learn the boot-time SD-card
-     * state when the card is already inserted and no edge occurs on the detect pin. */
-    if (DevicesManager_AcquireI2CBus(pdMS_TO_TICKS(500)) == ESP_OK) {
-        bool SDInserted = false;
-
-        if (DevicesManager_GetSDDetect(&SDInserted) == ESP_OK) {
-            esp_event_post(DEVICES_EVENTS, DEVICES_EVENT_SD_DETECT, &SDInserted, sizeof(SDInserted), pdMS_TO_TICKS(100));
-        }
-
-        DevicesManager_ReleaseI2CBus();
+    /* Report the initial SD-card detect state once at startup. */
+    if (DevicesManager_GetSDDetect(&SDInserted) == ESP_OK) {
+        esp_event_post(DEVICES_EVENTS, DEVICES_EVENT_SD_DETECT, &SDInserted, sizeof(SDInserted), pdMS_TO_TICKS(100));
     }
 
     /* Report the initial battery status once at startup. */
@@ -160,13 +157,15 @@ static void Task_Devices(void *p_Parameters)
         };
 
         esp_event_post(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_BATTERY,
-                        &NewBatteryInfo, sizeof(App_Devices_Battery_t), pdMS_TO_TICKS(100));
+                       &NewBatteryInfo, sizeof(App_Devices_Battery_t), pdMS_TO_TICKS(100));
     }
 
     while (_Devices_Task_State.isRunning) {
         EventBits_t EventBits;
 
         esp_task_wdt_reset();
+
+        DevicesManager_HandleExpanderInterrupt();
 
         EventBits = xEventGroupGetBits(_Devices_Task_State.EventGroup);
         if (EventBits & DEVICES_TASK_STOP_REQUEST) {
@@ -187,65 +186,65 @@ static void Task_Devices(void *p_Parameters)
             xEventGroupClearBits(_Devices_Task_State.EventGroup, DEVICES_TASK_UPDATE_BRIGHTNESS);
         }
 
-        if (DevicesManager_AcquireI2CBus(pdMS_TO_TICKS(500)) == ESP_OK) {
-            DevicesManager_HandleExpanderInterrupt();
+        if ((xTaskGetTickCount() - LastBatteryPoll) >= pdMS_TO_TICKS(CONFIG_DEVICES_TASK_BATTERY_POLL_INTERVAL_S * 1000)) {
+            LastBatteryPoll = xTaskGetTickCount();
 
-            if ((xTaskGetTickCount() - LastInputPoll) >= pdMS_TO_TICKS(CONFIG_DEVICES_TASK_INPUT_POLL_INTERVAL_MS)) {
-                LastInputPoll = xTaskGetTickCount();
+            if (DevicesManager_GetBatteryStatus(&Voltage, &Percentage, &Charging) == ESP_OK) {
+                App_Devices_Battery_t NewBatteryInfo = {
+                    .Voltage = Voltage,
+                    .Percentage = Percentage,
+                    .Charging = Charging
+                };
 
-                if (DevicesManager_GetDisplayboardInputs(&InputState) == ESP_OK) {
-                    if (memcmp(&InputState, &PrevInputState, sizeof(Devices_InputState_t)) != 0) {
-                        ESP_LOGI(TAG, "Input: Joy[U=%d D=%d L=%d R=%d C=%d] Btn[1=%d 2=%d 3=%d 4=%d]",
-                                 static_cast<int>(InputState.JoyUp),
-                                 static_cast<int>(InputState.JoyDown),
-                                 static_cast<int>(InputState.JoyLeft),
-                                 static_cast<int>(InputState.JoyRight),
-                                 static_cast<int>(InputState.JoyCenter),
-                                 static_cast<int>(InputState.Button1),
-                                 static_cast<int>(InputState.Button2),
-                                 static_cast<int>(InputState.Button3),
-                                 static_cast<int>(InputState.Button4));
-
-                        esp_event_post(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_INPUT_CHANGED,
-                                       &InputState, sizeof(Devices_InputState_t), pdMS_TO_TICKS(100));
-
-                        memcpy(&PrevInputState, &InputState, sizeof(Devices_InputState_t));
-                    }
-                }
+                esp_event_post(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_BATTERY,
+                               &NewBatteryInfo, sizeof(App_Devices_Battery_t), pdMS_TO_TICKS(100));
             }
-  
-            if ((xTaskGetTickCount() - LastBatteryPoll) >= pdMS_TO_TICKS(CONFIG_DEVICES_TASK_BATTERY_POLL_INTERVAL_S * 1000)) {
-                LastBatteryPoll = xTaskGetTickCount();
+        }
 
-                if (DevicesManager_GetBatteryStatus(&Voltage, &Percentage, &Charging) == ESP_OK) {
-                    App_Devices_Battery_t NewBatteryInfo = {
-                        .Voltage = Voltage,
-                        .Percentage = Percentage,
-                        .Charging = Charging
-                    };
+        if ((xTaskGetTickCount() - LastTemperaturePoll) >= pdMS_TO_TICKS(CONFIG_DEVICES_TASK_TEMPERATURE_POLL_INTERVAL_S *
+                                                                         1000)) {
+            float Temperature;
 
-                    esp_event_post(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_BATTERY,
-                                   &NewBatteryInfo, sizeof(App_Devices_Battery_t), pdMS_TO_TICKS(100));
-                }
+            LastTemperaturePoll = xTaskGetTickCount();
+
+            if (DevicesManager_GetTemperature(&Temperature) == ESP_OK) {
+                App_Devices_Temperature_t NewTemperatureInfo = {
+                    .Temperature = Temperature,
+                };
+
+                esp_event_post(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE,
+                               &NewTemperatureInfo, sizeof(App_Devices_Temperature_t), pdMS_TO_TICKS(100));
             }
+        }
 
-            if ((xTaskGetTickCount() - LastTemperaturePoll) >= pdMS_TO_TICKS(CONFIG_DEVICES_TASK_TEMPERATURE_POLL_INTERVAL_S * 1000)) {
-                float Temperature;
-
-                LastTemperaturePoll = xTaskGetTickCount();
-
-                if (DevicesManager_GetTemperature(&Temperature) == ESP_OK) {
-                    App_Devices_Temperature_t NewTemperatureInfo = {
-                        .Temperature = Temperature,
-                    };
-
-                    esp_event_post(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE,
-                                   &NewTemperatureInfo, sizeof(App_Devices_Temperature_t), pdMS_TO_TICKS(100));
-                }
+        if (DevicesManager_HandleDisplayboardExpanderInterrupt(&InputState) == ESP_OK) {
+            if (memcmp(&InputState, &PendingInputState, sizeof(Devices_InputState_t)) != 0) {
+                /* New raw state from INT# — restart debounce timer */
+                memcpy(&PendingInputState, &InputState, sizeof(Devices_InputState_t));
+                PendingChangeTime = xTaskGetTickCount();
+                HasPendingInput = true;
             }
+        }
 
-            DevicesManager_ReleaseI2CBus();
-        } 
+        /* Commit pending state after 30 ms of stability */
+        if (HasPendingInput && ((xTaskGetTickCount() - PendingChangeTime) >= pdMS_TO_TICKS(30))) {
+            xSemaphoreTake(AppContext->InputMutex, portMAX_DELAY);
+            memcpy(&AppContext->InputState, &PendingInputState, sizeof(Devices_InputState_t));
+            xSemaphoreGive(AppContext->InputMutex);
+
+            HasPendingInput = false;
+
+            ESP_LOGD(TAG, "Input committed: Joy[U=%d D=%d L=%d R=%d C=%d] Btn[1=%d 2=%d 3=%d 4=%d]",
+                     static_cast<int>(PendingInputState.JoyUp),
+                     static_cast<int>(PendingInputState.JoyDown),
+                     static_cast<int>(PendingInputState.JoyLeft),
+                     static_cast<int>(PendingInputState.JoyRight),
+                     static_cast<int>(PendingInputState.JoyCenter),
+                     static_cast<int>(PendingInputState.Button1),
+                     static_cast<int>(PendingInputState.Button2),
+                     static_cast<int>(PendingInputState.Button3),
+                     static_cast<int>(PendingInputState.Button4));
+        }
 
         vTaskDelay(pdMS_TO_TICKS(10));
     }

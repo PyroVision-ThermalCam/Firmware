@@ -293,6 +293,23 @@ esp_err_t DevicesManager_GetRangeInterrupt(bool *p_Triggered);
  */
 esp_err_t DevicesManager_GetSDDetect(bool *p_Inserted);
 
+/** @brief              Handle a pending displayboard port expander interrupt.
+ *                      Non-blocking: checks the GPIO level of the displayboard PCAL6416AHF INT# pin.
+ *                      If an interrupt is pending (INT# low), reads all input pins (joystick and
+ *                      buttons) and populates p_State. Reading the Input Port registers clears the
+ *                      INT# assertion on the PCAL6416AHF.
+ *  @note               Must be called from a task context (not from an ISR).
+ *                      Returns ESP_ERR_NOT_FOUND immediately when no interrupt is pending.
+ *  @param p_State      Pointer to store the current input state when an interrupt is handled
+ *  @return             ESP_OK when an interrupt was pending and inputs were read successfully
+ *                      ESP_ERR_NOT_FOUND when no interrupt is pending (INT# is high)
+ *                      ESP_ERR_NOT_SUPPORTED if the displayboard is not present
+ *                      DEVICES_ERR_INVALID_ARG if p_State is NULL
+ *                      DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
+ *                      DEVICES_ERR_I2C_COMM if I2C communication fails
+ */
+esp_err_t DevicesManager_HandleDisplayboardExpanderInterrupt(Devices_InputState_t *p_State);
+
 /** @brief              Handle a pending port expander interrupt.
  *                      Non-blocking: checks whether the GPIO ISR signalled a new INT# falling
  *                      edge. If so, reads and clears INT_STATUS0/1 from the PCAL6416AHF and

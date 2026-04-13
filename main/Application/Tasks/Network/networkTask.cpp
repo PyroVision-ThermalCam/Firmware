@@ -432,9 +432,7 @@ esp_err_t Network_Task_Init(App_Context_t *p_AppContext)
     if ((Error == ESP_ERR_NVS_NO_FREE_PAGES) || (Error == ESP_ERR_NVS_NEW_VERSION_FOUND)) {
         ESP_ERROR_CHECK(nvs_flash_erase());
         Error = nvs_flash_init();
-    }
-
-    if (Error != ESP_OK) {
+    } else if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to init NVS flash: 0x%x!", Error);
 
         return Error;

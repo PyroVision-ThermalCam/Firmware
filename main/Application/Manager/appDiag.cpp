@@ -48,7 +48,8 @@ static const char *const _Source_Names[APP_DIAG_SOURCE_COUNT] = {
 typedef struct {
     AppDiag_Entry_t     Entries[APP_DIAG_MAX_ENTRIES]; /**< Ring buffer storage. */
     uint32_t            Head;                          /**< Index of the next write slot (wraps at APP_DIAG_MAX_ENTRIES). */
-    uint32_t            Count;                         /**< Number of valid entries currently stored (max APP_DIAG_MAX_ENTRIES). */
+    uint32_t
+    Count;                         /**< Number of valid entries currently stored (max APP_DIAG_MAX_ENTRIES). */
     SemaphoreHandle_t   Mutex;                         /**< FreeRTOS mutex; NULL before AppDiag_Init(). */
     bool                isInitialized;                 /**< true after AppDiag_Init() has succeeded. */
 } AppDiag_State_t;

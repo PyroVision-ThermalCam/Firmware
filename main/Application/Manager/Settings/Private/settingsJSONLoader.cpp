@@ -421,7 +421,8 @@ static void SettingsManager_LoadCalibration(Settings_Manager_State_t *p_State, c
         /* 0.0f is the "never calibrated" sentinel: the LeptonTask will apply zero offset
         * until the user explicitly performs a calibration (which stores the actual sensor
         * reading into SensorAtCalibration). */
-        p_State->Settings.Calibration.SensorAtCalibration = 0.0f;  /* The sensor reading at calibration time cannot be meaningfully set from the JSON, so we initialize it to the "never calibrated" sentinel value. */
+        p_State->Settings.Calibration.SensorAtCalibration =
+            0.0f;  /* The sensor reading at calibration time cannot be meaningfully set from the JSON, so we initialize it to the "never calibrated" sentinel value. */
     } else {
         SettingsManager_InitDefaultCalibration(&p_State->Settings);
     }

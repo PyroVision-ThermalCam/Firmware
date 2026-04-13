@@ -80,6 +80,53 @@ static Lepton_Task_State_t _Lepton_Task_State;
 
 static const char *TAG = "Lepton-Task";
 
+/** @brief Per-transaction I2C write wrapper for the Lepton CCI.
+ *         Acquires and releases the shared I2C bus mutex for each individual I2C
+ *         operation. This allows CCI_WaitBusy to release the bus between its 10 ms
+ *         polling intervals, preventing other tasks (e.g. displayboard interrupt
+ *         handler) from being starved for the full 5-second CCI timeout.
+ */
+static int32_t lepton_cci_i2c_write(i2c_master_dev_handle_t *p_Dev, const uint8_t *p_Data, uint32_t Length)
+{
+    int32_t Result;
+
+    DevicesManager_AcquireI2CBus(portMAX_DELAY);
+    Result = I2CM_Write(p_Dev, p_Data, Length);
+    DevicesManager_ReleaseI2CBus();
+
+    return Result;
+}
+
+/** @brief Per-transaction I2C read wrapper for the Lepton CCI.
+ *         See lepton_cci_i2c_write() for rationale.
+ */
+static int32_t lepton_cci_i2c_read(i2c_master_dev_handle_t *p_Dev, uint8_t *p_Data, uint32_t Length)
+{
+    int32_t Result;
+
+    DevicesManager_AcquireI2CBus(portMAX_DELAY);
+    Result = I2CM_Read(p_Dev, p_Data, Length);
+    DevicesManager_ReleaseI2CBus();
+
+    return Result;
+}
+
+/** @brief Per-transaction I2C write-read wrapper for the Lepton CCI.
+ *         See lepton_cci_i2c_write() for rationale.
+ */
+static int32_t lepton_cci_i2c_writeread(i2c_master_dev_handle_t *p_Dev,
+                                        const uint8_t *p_WriteData, uint32_t WriteLength,
+                                        uint8_t *p_ReadData, uint32_t ReadLength)
+{
+    int32_t Result;
+
+    DevicesManager_AcquireI2CBus(portMAX_DELAY);
+    Result = I2CM_WriteRead(p_Dev, p_WriteData, WriteLength, p_ReadData, ReadLength);
+    DevicesManager_ReleaseI2CBus();
+
+    return Result;
+}
+
 /** @brief                  Event handler for the Devices task events to receive updates when settings are changed.
  *  @param p_HandlerArgs    Handler argument
  *  @param Base             Event base
@@ -95,7 +142,7 @@ static void on_Devices_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t 
             memcpy(&_Lepton_Task_State.TemperatureInfo, p_Data, sizeof(App_Devices_Temperature_t));
 
             ESP_LOGD(TAG, "Temperature status updated: Temperature=%.2f°C",
-                        _Lepton_Task_State.TemperatureInfo.Temperature);
+                     _Lepton_Task_State.TemperatureInfo.Temperature);
 
             xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_TEMPERATURE_STATUS_CHANGED);
 
@@ -251,20 +298,20 @@ static void Lepton_LoadSettings(void)
     Lepton_SetEmissivity(&_Lepton_Task_State.Lepton, static_cast<Lepton_Emissivity_t>(LeptonSettings.CurrentEmissivity));
 }
 
-/** @brief Resets the Lepton camera.
+/** @brief          Resets the Lepton camera.
+ *  @param Enable   true to reset (power cycle), false to normal operation
  */
 static void Lepton_Reset(bool Enable)
 {
     //DevicesManager_LeptonReset(Enable);
 }
 
-/** @brief Powers down the Lepton camera.
+/** @brief          Powers down the Lepton camera.
+ *  @param Enable   true to power down, false to power up
  */
 static void Lepton_PowerDown(bool Enable)
 {
-    /* PowerDown true  = disable Lepton power supply
-     * PowerDown false = enable Lepton power supply */
-    //DevicesManager_SetLeptonPower(!Enable);
+    //DevicesManager_SetLeptonPower(Enable);
 }
 
 /** @brief              Lepton camera task main loop.
@@ -317,7 +364,8 @@ static void Task_Lepton(void *p_Parameters)
     ESP_LOGI(TAG, "	GPP revision: %s", DeviceInfo.SoftwareRevision.GPP_Revision);
     ESP_LOGI(TAG, "	DSP revision: %s", DeviceInfo.SoftwareRevision.DSP_Revision);
 
-    esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_CAMERA_READY, &DeviceInfo, sizeof(App_Lepton_Device_t), pdMS_TO_TICKS(500));
+    esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_CAMERA_READY, &DeviceInfo, sizeof(App_Lepton_Device_t),
+                   pdMS_TO_TICKS(500));
 
     while (_Lepton_Task_State.ApplicationStarted == false) {
         esp_task_wdt_reset();
@@ -488,50 +536,43 @@ static void Task_Lepton(void *p_Parameters)
             ROI.End_Col = _Lepton_Task_State.ROI.x + _Lepton_Task_State.ROI.w - 1;
             ROI.End_Row = _Lepton_Task_State.ROI.y + _Lepton_Task_State.ROI.h - 1;
 
-            if (DevicesManager_AcquireI2CBus(portMAX_DELAY) == ESP_OK) {
-                switch (_Lepton_Task_State.ROI.Type) {
-                    case ROI_TYPE_SPOTMETER: {
-                        Error = Lepton_SetSpotmeterROI(&_Lepton_Task_State.Lepton, &ROI);
+            switch (_Lepton_Task_State.ROI.Type) {
+                case ROI_TYPE_SPOTMETER: {
+                    Error = Lepton_SetSpotmeterROI(&_Lepton_Task_State.Lepton, &ROI);
 
-                        break;
-                    }
-                    case ROI_TYPE_SCENE: {
-                        Error = Lepton_SetSceneROI(&_Lepton_Task_State.Lepton, &ROI);
-
-                        break;
-                    }
-                    case ROI_TYPE_AGC: {
-                        Error = Lepton_SetAGCROI(&_Lepton_Task_State.Lepton, &ROI);
-
-                        break;
-                    }
-                    case ROI_TYPE_VIDEO_FOCUS: {
-                        Error = Lepton_SetVideoFocusROI(&_Lepton_Task_State.Lepton, &ROI);
-
-                        break;
-                    }
-                    default: {
-                        ESP_LOGW(TAG, "Invalid ROI type in GUI event: 0x%X", _Lepton_Task_State.ROI.Type);
-                        DevicesManager_ReleaseI2CBus();
-
-                        return;
-                    }
+                    break;
                 }
+                case ROI_TYPE_SCENE: {
+                    Error = Lepton_SetSceneROI(&_Lepton_Task_State.Lepton, &ROI);
 
-                DevicesManager_ReleaseI2CBus();
-
-                if (Error == LEPTON_ERR_OK) {
-                    ESP_LOGD(TAG, "New Lepton ROI (Type %d) - Start_Col: %u, Start_Row: %u, End_Col: %u, End_Row: %u",
-                             _Lepton_Task_State.ROI.Type,
-                             ROI.Start_Col,
-                             ROI.Start_Row,
-                             ROI.End_Col,
-                             ROI.End_Row);
-                } else {
-                    ESP_LOGE(TAG, "Failed to update Lepton ROI with type %d!", _Lepton_Task_State.ROI.Type);
+                    break;
                 }
+                case ROI_TYPE_AGC: {
+                    Error = Lepton_SetAGCROI(&_Lepton_Task_State.Lepton, &ROI);
+
+                    break;
+                }
+                case ROI_TYPE_VIDEO_FOCUS: {
+                    Error = Lepton_SetVideoFocusROI(&_Lepton_Task_State.Lepton, &ROI);
+
+                    break;
+                }
+                default: {
+                    ESP_LOGW(TAG, "Invalid ROI type in GUI event: 0x%X", _Lepton_Task_State.ROI.Type);
+
+                    return;
+                }
+            }
+
+            if (Error == LEPTON_ERR_OK) {
+                ESP_LOGD(TAG, "New Lepton ROI (Type %d) - Start_Col: %u, Start_Row: %u, End_Col: %u, End_Row: %u",
+                         _Lepton_Task_State.ROI.Type,
+                         ROI.Start_Col,
+                         ROI.Start_Row,
+                         ROI.End_Col,
+                         ROI.End_Row);
             } else {
-                ESP_LOGW(TAG, "I2C bus busy, skipping ROI update!");
+                ESP_LOGE(TAG, "Failed to update Lepton ROI with type %d!", _Lepton_Task_State.ROI.Type);
             }
 
             xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_ROI_REQUEST);
@@ -542,16 +583,12 @@ static void Task_Lepton(void *p_Parameters)
             uint16_t AUX_Temp;
             App_Lepton_Temperatures_t Temperatures;
 
-            if (DevicesManager_AcquireI2CBus(portMAX_DELAY) == ESP_OK) {
-                Lepton_GetTemperature(&_Lepton_Task_State.Lepton, &FPA_Temp, &AUX_Temp);
-                DevicesManager_ReleaseI2CBus();
+            Lepton_GetTemperature(&_Lepton_Task_State.Lepton, &FPA_Temp, &AUX_Temp);
 
-                Temperatures.FPA = (static_cast<float>(FPA_Temp) * 0.01f) - 273.15f;
-                Temperatures.AUX = (static_cast<float>(AUX_Temp) * 0.01f) - 273.15f;
-                esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_FPA_AUX_TEMP, &Temperatures, sizeof(App_Lepton_Temperatures_t), 0);
-            } else {
-                ESP_LOGW(TAG, "I2C bus busy, skipping temperature read!");
-            }
+            Temperatures.FPA = (static_cast<float>(FPA_Temp) * 0.01f) - 273.15f;
+            Temperatures.AUX = (static_cast<float>(AUX_Temp) * 0.01f) - 273.15f;
+            esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_FPA_AUX_TEMP, &Temperatures,
+                           sizeof(App_Lepton_Temperatures_t), 0);
 
             xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_TEMP_REQUEST);
         }
@@ -559,14 +596,9 @@ static void Task_Lepton(void *p_Parameters)
         if (EventBits & LEPTON_TASK_UPDATE_UPTIME_REQUEST) {
             uint32_t Uptime;
 
-            if (DevicesManager_AcquireI2CBus(portMAX_DELAY) == ESP_OK) {
-                Uptime = Lepton_GetUptime(&_Lepton_Task_State.Lepton);
-                DevicesManager_ReleaseI2CBus();
+            Uptime = Lepton_GetUptime(&_Lepton_Task_State.Lepton);
 
-                esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_UPTIME, &Uptime, sizeof(uint32_t), 0);
-            } else {
-                ESP_LOGW(TAG, "I2C bus busy, skipping uptime read!");
-            }
+            esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_UPTIME, &Uptime, sizeof(uint32_t), 0);
 
             xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_UPTIME_REQUEST);
         }
@@ -606,19 +638,14 @@ static void Task_Lepton(void *p_Parameters)
                      _Lepton_Task_State.RawFrame.Height);
 
             if (_Lepton_Task_State.RawFrame.Image_Buffer != NULL) {
-                if (DevicesManager_AcquireI2CBus(portMAX_DELAY) == ESP_OK) {
-                    Lepton_Error_t LeptonError = Lepton_GetPixelTemperature(&_Lepton_Task_State.Lepton,
-                                                                            _Lepton_Task_State.RawFrame.Image_Buffer[(y * _Lepton_Task_State.RawFrame.Width) + x],
-                                                                            &Temperature);
-                    DevicesManager_ReleaseI2CBus();
+                Lepton_Error_t LeptonError = Lepton_GetPixelTemperature(&_Lepton_Task_State.Lepton,
+                                                                        _Lepton_Task_State.RawFrame.Image_Buffer[(y * _Lepton_Task_State.RawFrame.Width) + x],
+                                                                        &Temperature);
 
-                    if (LeptonError == LEPTON_ERR_OK) {
-                        esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_PIXEL_TEMPERATURE, &Temperature, sizeof(float), 0);
-                    } else {
-                        ESP_LOGW(TAG, "Failed to get pixel temperature: 0x%X", LeptonError);
-                    }
+                if (LeptonError == LEPTON_ERR_OK) {
+                    esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_PIXEL_TEMPERATURE, &Temperature, sizeof(float), 0);
                 } else {
-                    ESP_LOGW(TAG, "I2C bus busy, skipping pixel temperature read!");
+                    ESP_LOGW(TAG, "Failed to get pixel temperature: 0x%X", LeptonError);
                 }
             } else {
                 ESP_LOGW(TAG, "Image buffer is NULL, cannot get pixel temperature");
@@ -630,28 +657,20 @@ static void Task_Lepton(void *p_Parameters)
         if (EventBits & LEPTON_TASK_UPDATE_SCENE_STATISTICS) {
             Lepton_SceneStatistics_t SceneStats;
 
-            if (DevicesManager_AcquireI2CBus(portMAX_DELAY) == ESP_OK) {
-                if (Lepton_GetSceneStatistics(&_Lepton_Task_State.Lepton, &SceneStats) == LEPTON_ERR_OK) {
-                    App_Lepton_ROI_Result_t App_Lepton_Scene;
+            if (Lepton_GetSceneStatistics(&_Lepton_Task_State.Lepton, &SceneStats) == LEPTON_ERR_OK) {
+                App_Lepton_ROI_Result_t App_Lepton_Scene;
 
-                    App_Lepton_Scene.Min = SceneStats.MinIntensity;
-                    App_Lepton_Scene.Max = SceneStats.MaxIntensity;
-                    App_Lepton_Scene.Average = SceneStats.MeanIntensity;
+                App_Lepton_Scene.Min = SceneStats.MinIntensity;
+                App_Lepton_Scene.Max = SceneStats.MaxIntensity;
+                App_Lepton_Scene.Average = SceneStats.MeanIntensity;
 
-                    ESP_LOGD(TAG, "Scene Statistics: Min=%.2f°C, Max=%.2f°C, Average=%.2f°C",
-                             App_Lepton_Scene.Min, App_Lepton_Scene.Max, App_Lepton_Scene.Average);
+                ESP_LOGD(TAG, "Scene Statistics: Min=%.2f°C, Max=%.2f°C, Average=%.2f°C",
+                         App_Lepton_Scene.Min, App_Lepton_Scene.Max, App_Lepton_Scene.Average);
 
-                    DevicesManager_ReleaseI2CBus();
-
-                    esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_SCENE_STATISTICS, &App_Lepton_Scene,
-                                   sizeof(App_Lepton_ROI_Result_t), 0);
-                } else {
-                    DevicesManager_ReleaseI2CBus();
-
-                    ESP_LOGW(TAG, "Failed to read scene statistics!");
-                }
+                esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_SCENE_STATISTICS, &App_Lepton_Scene,
+                               sizeof(App_Lepton_ROI_Result_t), 0);
             } else {
-                ESP_LOGW(TAG, "I2C bus busy, skipping scene statistics read!");
+                ESP_LOGW(TAG, "Failed to read scene statistics!");
             }
 
             xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_SCENE_STATISTICS);
@@ -660,18 +679,13 @@ static void Task_Lepton(void *p_Parameters)
         if (EventBits & LEPTON_TASK_UPDATE_EMISSIVITY) {
             Lepton_Error_t Error;
 
-            if (DevicesManager_AcquireI2CBus(portMAX_DELAY) == ESP_OK) {
-                Error = Lepton_SetEmissivity(&_Lepton_Task_State.Lepton,
-                                             static_cast<Lepton_Emissivity_t>(_Lepton_Task_State.NewSetting.Value));
-                DevicesManager_ReleaseI2CBus();
+            Error = Lepton_SetEmissivity(&_Lepton_Task_State.Lepton,
+                                         static_cast<Lepton_Emissivity_t>(_Lepton_Task_State.NewSetting.Value));
 
-                if (Error == LEPTON_ERR_OK) {
-                    ESP_LOGD(TAG, "Updated emissivity to %u", _Lepton_Task_State.NewSetting.Value);
-                } else {
-                    ESP_LOGE(TAG, "Failed to update emissivity to %u!", _Lepton_Task_State.NewSetting.Value);
-                }
+            if (Error == LEPTON_ERR_OK) {
+                ESP_LOGD(TAG, "Updated emissivity to %u", _Lepton_Task_State.NewSetting.Value);
             } else {
-                ESP_LOGW(TAG, "I2C bus busy, skipping emissivity update!");
+                ESP_LOGE(TAG, "Failed to update emissivity to %u!", _Lepton_Task_State.NewSetting.Value);
             }
 
             xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_EMISSIVITY);
@@ -697,6 +711,7 @@ static void Task_Lepton(void *p_Parameters)
 
         if (EventBits & LEPTON_TASK_TEMPERATURE_STATUS_CHANGED) {
             Settings_Calibration_t Calibration;
+            Lepton_FluxLinearParams_t FluxParams;
 
             SettingsManager_GetCalibration(&Calibration);
 
@@ -712,7 +727,8 @@ static void Task_Lepton(void *p_Parameters)
                 Calibration.SensorAtCalibration = _Lepton_Task_State.TemperatureInfo.Temperature;
                 SettingsManager_UpdateCalibration(&Calibration, NULL);
 
-                ESP_LOGI(TAG, "Calibration baseline auto-initialized: sensor=%.2f\xC2\xB0""C, room=%d\xC2\xB0""C, offset=%.2f\xC2\xB0""C",
+                ESP_LOGI(TAG,
+                         "Calibration baseline auto-initialized: sensor=%.2f\xC2\xB0""C, room=%d\xC2\xB0""C, offset=%.2f\xC2\xB0""C",
                          Calibration.SensorAtCalibration,
                          static_cast<int>(Calibration.RoomTemperature),
                          static_cast<float>(Calibration.RoomTemperature) - Calibration.SensorAtCalibration);
@@ -721,35 +737,30 @@ static void Task_Lepton(void *p_Parameters)
             float Offset = static_cast<float>(Calibration.RoomTemperature) - Calibration.SensorAtCalibration;
             float T_Compensated = _Lepton_Task_State.TemperatureInfo.Temperature + Offset;
 
-            if (DevicesManager_AcquireI2CBus(portMAX_DELAY) == ESP_OK) {
-                Lepton_FluxLinearParams_t FluxParams;
+            Lepton_GetFluxLinearParameters(&_Lepton_Task_State.Lepton, &FluxParams);
+            ESP_LOGD(TAG,
+                     "Flux Linear Parameters - Scene Emissivity: %u, TBkgK: %u, TauWindow: %u, TWindowK: %u, TauAtm: %u, TAtmK: %u, ReflWindow: %u, TReflK: %u",
+                     FluxParams.SceneEmissivity,
+                     FluxParams.TBkgK,
+                     FluxParams.TauWindow,
+                     FluxParams.TWindowK,
+                     FluxParams.TauAtm,
+                     FluxParams.TAtmK,
+                     FluxParams.ReflWindow,
+                     FluxParams.TReflK);
 
-                Lepton_GetFluxLinearParameters(&_Lepton_Task_State.Lepton, &FluxParams);
-                ESP_LOGD(TAG,
-                        "Flux Linear Parameters - Scene Emissivity: %u, TBkgK: %u, TauWindow: %u, TWindowK: %u, TauAtm: %u, TAtmK: %u, ReflWindow: %u, TReflK: %u",
-                        FluxParams.SceneEmissivity,
-                        FluxParams.TBkgK,
-                        FluxParams.TauWindow,
-                        FluxParams.TWindowK,
-                        FluxParams.TauAtm,
-                        FluxParams.TAtmK,
-                        FluxParams.ReflWindow,
-                        FluxParams.TReflK);
+            /* TBkgK: estimated ambient temperature in Kelvin for Lepton flux linear parameters */
+            FluxParams.TBkgK = static_cast<uint32_t>((T_Compensated + 273.15f) * 100);
 
-                /* TBkgK: estimated ambient temperature in Kelvin for Lepton flux linear parameters */
-                FluxParams.TBkgK = static_cast<uint32_t>((T_Compensated + 273.15f) * 100);
+            Lepton_SetFluxLinearParameters(&_Lepton_Task_State.Lepton, &FluxParams);
 
-                Lepton_SetFluxLinearParameters(&_Lepton_Task_State.Lepton, &FluxParams);
-                DevicesManager_ReleaseI2CBus();
+            ESP_LOGD(TAG,
+                     "Temperature status changed - sensor: %.2f\xC2\xB0""C, offset: %.2f\xC2\xB0""C, estimated ambient: %.2f\xC2\xB0""C, TBkgK: %u K",
+                     _Lepton_Task_State.TemperatureInfo.Temperature,
+                     Offset,
+                     T_Compensated,
+                     FluxParams.TBkgK);
 
-                ESP_LOGD(TAG, "Temperature status changed - sensor: %.2f\xC2\xB0""C, offset: %.2f\xC2\xB0""C, estimated ambient: %.2f\xC2\xB0""C, TBkgK: %u K",
-                        _Lepton_Task_State.TemperatureInfo.Temperature,
-                        Offset,
-                        T_Compensated,
-                        FluxParams.TBkgK);
-            } else {
-                ESP_LOGW(TAG, "I2C bus busy, skipping flux parameter update!");
-            }
 
             xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_TEMPERATURE_STATUS_CHANGED);
         }
@@ -794,8 +805,8 @@ esp_err_t Lepton_Task_Init(void)
     }
 
     _Lepton_Task_State.LeptonConf = LEPTON_DEFAULT_CONF;
-    LEPTON_ASSIGN_FUNC(_Lepton_Task_State.LeptonConf, NULL, NULL, I2CM_Write, I2CM_Read);
-    _Lepton_Task_State.LeptonConf.CCI.I2C_WriteRead = I2CM_WriteRead;
+    LEPTON_ASSIGN_FUNC(_Lepton_Task_State.LeptonConf, NULL, NULL, lepton_cci_i2c_write, lepton_cci_i2c_read);
+    _Lepton_Task_State.LeptonConf.CCI.I2C_WriteRead = lepton_cci_i2c_writeread;
     LEPTON_ASSIGN_I2C_HANDLE(_Lepton_Task_State.LeptonConf, DevicesManager_GetI2CBusHandle());
     _Lepton_Task_State.LeptonConf.Reset = Lepton_Reset;
     _Lepton_Task_State.LeptonConf.PowerDown = Lepton_PowerDown;

@@ -27,6 +27,7 @@
 #include <freertos/task.h>
 
 #include "Manager/managers.h"
+#include "Manager/Devices/devicesTypes.h"
 
 #include <sdkconfig.h>
 
@@ -71,8 +72,6 @@ enum {
 /** @brief Devices task event identifiers.
  */
 enum {
-    DEVICES_TASK_EVENT_INPUT_CHANGED,           /**< Displayboard input state changed.
-                                                     Data is of type Devices_InputState_t. */
     DEVICES_TASK_EVENT_RESPONSE_BATTERY,        /**< Battery status has been updated.
                                                      Data is transmitted in a App_Devices_Battery_t structure. */
     DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE,   /**< Temperature has been updated.
@@ -153,6 +152,9 @@ typedef struct {
  */
 typedef struct {
     QueueHandle_t Lepton_FrameEventQueue;       /**< Queue for Lepton frame ready events. */
+    SemaphoreHandle_t InputMutex;               /**< Protects InputState against concurrent access. */
+    Devices_InputState_t InputState;            /**< Debounced displayboard input state, written by
+                                                     Devices Task and read by the LVGL keypad indev. */
 } App_Context_t;
 
 #endif /* APPLICATION_H_ */

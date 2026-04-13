@@ -24,6 +24,8 @@
 #include <esp_task_wdt.h>
 #include <wear_levelling.h>
 
+#include <string.h>
+
 #include <nvs_flash.h>
 
 #include "managers.h"
@@ -49,6 +51,15 @@ extern "C" void app_main(void)
 
         return;
     }
+
+    _App_Context.InputMutex = xSemaphoreCreateMutex();
+    if (_App_Context.InputMutex == NULL) {
+        ESP_LOGE(TAG, "Failed to create input mutex!");
+
+        return;
+    }
+
+    memset(&_App_Context.InputState, 0, sizeof(Devices_InputState_t));
 
     ESP_ERROR_CHECK(SettingsManager_Init());
     ESP_ERROR_CHECK(Devices_Task_Init());

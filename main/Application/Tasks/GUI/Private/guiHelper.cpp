@@ -335,6 +335,11 @@ void GUI_Helper_Deinit(GUI_Task_State_t *p_GUI_Task_State)
         p_GUI_Task_State->Touch = NULL;
     }
 
+    if (p_GUI_Task_State->Keypad != NULL) {
+        lv_indev_delete(p_GUI_Task_State->Keypad);
+        p_GUI_Task_State->Keypad = NULL;
+    }
+
     esp_lcd_touch_del(p_GUI_Task_State->TouchHandle);
 
     if (p_GUI_Task_State->Display != NULL) {
@@ -404,6 +409,22 @@ esp_err_t GUI_Helper_InitTouch(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read
     lv_indev_set_display(p_GUI_Task_State->Touch, p_GUI_Task_State->Display);
     lv_indev_set_read_cb(p_GUI_Task_State->Touch, Touch_Read_Callback);
     lv_indev_set_user_data(p_GUI_Task_State->Touch, p_GUI_Task_State->TouchHandle);
+
+    return ESP_OK;
+}
+
+esp_err_t GUI_Helper_InitKeypad(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t Keypad_Read_Callback)
+{
+    if (p_GUI_Task_State == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    p_GUI_Task_State->Keypad = lv_indev_create();
+    lv_indev_set_type(p_GUI_Task_State->Keypad, LV_INDEV_TYPE_KEYPAD);
+    lv_indev_set_display(p_GUI_Task_State->Keypad, p_GUI_Task_State->Display);
+    lv_indev_set_read_cb(p_GUI_Task_State->Keypad, Keypad_Read_Callback);
+
+    ESP_LOGD(TAG, "Keypad indev registered");
 
     return ESP_OK;
 }

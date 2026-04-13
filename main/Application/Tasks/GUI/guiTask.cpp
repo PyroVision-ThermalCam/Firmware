@@ -69,7 +69,7 @@ static void on_Lepton_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t B
     switch (ID) {
         case LEPTON_TASK_EVENT_CAMERA_READY: {
             memcpy(&_GUI_Task_State.LeptonDeviceInfo, static_cast<const App_Lepton_Device_t *>(p_Data),
-                       sizeof(App_Lepton_Device_t));
+                   sizeof(App_Lepton_Device_t));
 
             xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_READY);
 
@@ -180,8 +180,8 @@ static void on_Devices_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t 
             memcpy(&_GUI_Task_State.BatteryInfo, p_Data, sizeof(App_Devices_Battery_t));
 
             ESP_LOGD(TAG, "Battery status updated: Voltage=%dmV, Percentage=%d%%, Charging=%s",
-                        _GUI_Task_State.BatteryInfo.Voltage, _GUI_Task_State.BatteryInfo.Percentage,
-                        _GUI_Task_State.BatteryInfo.Charging ? "Yes" : "No");
+                     _GUI_Task_State.BatteryInfo.Voltage, _GUI_Task_State.BatteryInfo.Percentage,
+                     _GUI_Task_State.BatteryInfo.Charging ? "Yes" : "No");
 
             xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_BATTERY_STATUS_CHANGED);
 
@@ -498,6 +498,119 @@ static void UI_Canvas_AddTempGradient(void)
     }
 }
 
+/** @brief          LVGL keypad read callback.
+ *                  Maps the debounced displayboard input state (joystick + buttons) to a
+ *                  single LVGL key event. Button priority: joystick directions first, then
+ *                  joystick center, then Button1–4.
+ *                  Key mapping:
+ *                    JoyUp -> LV_KEY_UP
+ *                    JoyDown -> LV_KEY_DOWN
+ *                    JoyLeft -> LV_KEY_LEFT
+ *                    JoyRight -> LV_KEY_RIGHT
+ *                    JoyCenter / Button1 -> LV_KEY_ENTER
+ *                    Button2 -> LV_KEY_ESC
+ *                    Button3 -> LV_KEY_NEXT
+ *                    Button4 -> LV_KEY_PREV
+ *  @param p_Indev  Input device handle
+ *  @param p_Data   Input device data
+ */
+static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Data)
+{
+    Devices_InputState_t State;
+    uint32_t Key = 0;
+    bool Pressed = false;
+
+    if ((_GUI_Task_State.AppContext == NULL) || (_GUI_Task_State.AppContext->InputMutex == NULL)) {
+        p_Data->state = LV_INDEV_STATE_RELEASED;
+
+        return;
+    }
+
+    xSemaphoreTake(_GUI_Task_State.AppContext->InputMutex, portMAX_DELAY);
+    memcpy(&State, &_GUI_Task_State.AppContext->InputState, sizeof(Devices_InputState_t));
+    xSemaphoreGive(_GUI_Task_State.AppContext->InputMutex);
+
+    /* First matching active input wins */
+    if (State.JoyUp)         {
+        Key = LV_KEY_UP;
+        Pressed = true;
+    } else if (State.JoyDown)  {
+        Key = LV_KEY_DOWN;
+        Pressed = true;
+    } else if (State.JoyLeft)  {
+        Key = LV_KEY_LEFT;
+        Pressed = true;
+    } else if (State.JoyRight) {
+        Key = LV_KEY_RIGHT;
+        Pressed = true;
+    } else if (State.JoyCenter) {
+        Key = LV_KEY_ENTER;
+        Pressed = true;
+    } else if (State.Button1)  {
+        Key = LV_KEY_ENTER;
+        Pressed = true;
+    } else if (State.Button2)  {
+        Key = LV_KEY_ESC;
+        Pressed = true;
+    } else if (State.Button3)  {
+        Key = LV_KEY_NEXT;
+        Pressed = true;
+    } else if (State.Button4)  {
+        Key = LV_KEY_PREV;
+        Pressed = true;
+    }
+
+    p_Data->key = Key;
+    p_Data->state = Pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+
+    /* Log only on edge transitions to avoid spamming every LVGL tick */
+    static bool PrevPressed = false;
+    static uint32_t PrevKey = 0;
+
+    if ((Pressed != PrevPressed) || (Pressed && (Key != PrevKey))) {
+        if (Pressed) {
+            const char *p_KeyName;
+
+            switch (Key) {
+                case LV_KEY_UP:
+                    p_KeyName = "UP";
+                    break;
+                case LV_KEY_DOWN:
+                    p_KeyName = "DOWN";
+                    break;
+                case LV_KEY_LEFT:
+                    p_KeyName = "LEFT";
+                    break;
+                case LV_KEY_RIGHT:
+                    p_KeyName = "RIGHT";
+                    break;
+                case LV_KEY_ENTER:
+                    p_KeyName = "ENTER";
+                    break;
+                case LV_KEY_ESC:
+                    p_KeyName = "ESC";
+                    break;
+                case LV_KEY_NEXT:
+                    p_KeyName = "NEXT";
+                    break;
+                case LV_KEY_PREV:
+                    p_KeyName = "PREV";
+                    break;
+                default:
+                    p_KeyName = "?";
+                    break;
+            }
+
+            ESP_LOGI(TAG, "Keypad: %s pressed", p_KeyName);
+        } else {
+            ESP_LOGI(TAG, "Keypad: released");
+        }
+    }
+
+    PrevPressed = Pressed;
+    PrevKey = Key;
+}
+
 /** @brief          LVGL touch read callback.
  *  @param p_Indev  Input device handle
  *  @param p_Data   Input device data
@@ -510,13 +623,6 @@ static void Touch_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Data
 
     Touch = static_cast<esp_lcd_touch_handle_t>(lv_indev_get_user_data(p_Indev));
 
-    /* Check if touch controller is available */
-    if (Touch == NULL) {
-        p_Data->state = LV_INDEV_STATE_RELEASED;
-
-        return;
-    }
-
     if ((esp_lcd_touch_read_data(Touch) == ESP_OK) &&
         (esp_lcd_touch_get_data(Touch, Data, &Count, sizeof(Data) / sizeof(Data[0])) == ESP_OK) &&
         (Count > 0)
@@ -527,35 +633,8 @@ static void Touch_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Data
 
         ESP_LOGD(TAG, "Raw: (%d, %d)", Data[0].x, Data[0].y);
         ESP_LOGD(TAG, "Mapped: (%d, %d)", p_Data->point.x, p_Data->point.y);
- 
-#ifdef CONFIG_GUI_TOUCH_DEBUG
-        /* Update touch debug visualization */
-        if (_GUI_Task_State.TouchDebugCircle != NULL) {
-            lv_obj_set_pos(_GUI_Task_State.TouchDebugCircle, p_Data->point.x - 10, p_Data->point.y - 10);
-            lv_obj_clear_flag(_GUI_Task_State.TouchDebugCircle, LV_OBJ_FLAG_HIDDEN);
-        }
-
-        if (_GUI_Task_State.TouchDebugLabel != NULL) {
-            char Buffer[64];
-
-            snprintf(Buffer, sizeof(Buffer), "Raw: %u,%u\nMap: %li,%li", Data[0].x, Data[0].y, p_Data->point.x, p_Data->point.y);
-            lv_label_set_text(_GUI_Task_State.TouchDebugLabel, Buffer);
-            lv_obj_clear_flag(_GUI_Task_State.TouchDebugLabel, LV_OBJ_FLAG_HIDDEN);
-        }
-#endif
     } else {
         p_Data->state = LV_INDEV_STATE_RELEASED;
-
-#ifdef CONFIG_GUI_TOUCH_DEBUG
-        /* Hide touch debug visualization when released */
-        if (_GUI_Task_State.TouchDebugCircle != NULL) {
-            lv_obj_add_flag(_GUI_Task_State.TouchDebugCircle, LV_OBJ_FLAG_HIDDEN);
-        }
-
-        if (_GUI_Task_State.TouchDebugLabel != NULL) {
-            lv_obj_add_flag(_GUI_Task_State.TouchDebugLabel, LV_OBJ_FLAG_HIDDEN);
-        }
-#endif
     }
 }
 
@@ -593,13 +672,13 @@ void Task_GUI(void *p_Parameters)
      *     On receipt, the bar snaps to 50 % ("Camera ready") if not yet past that value.
      *   - The Lepton requires ~5 s to boot. During the boot window the bar is animated
      *     at 2 %/100 ms so it naturally reaches ~99 % just as the LEPTON_READY event
-     *     arrives and snaps the bar to 100 % → app starts.
+     *     arrives and snaps the bar to 100 % -> app starts.
      *
      * Status text milestones (time-based):
-     *    0 %  → "Starting camera..."
-     *   55 %  → "Starting Lepton..."
-     *   80 %  → "Almost ready..."
-     * Camera event → "Camera ready" (only if bar < 50 %)
+     *    0 %  -> "Starting camera..."
+     *   55 %  -> "Starting Lepton..."
+     *   80 %  -> "Almost ready..."
+     * Camera event -> "Camera ready" (only if bar < 50 %)
      */
     static const struct {
         int32_t Threshold;
@@ -619,7 +698,7 @@ void Task_GUI(void *p_Parameters)
 
         CurrentBarValue = lv_bar_get_value(ui_SplashScreen_LoadingBar);
 
-        /* Advance bar by 2 % per 100 ms iteration (fills 0 → 99 in ~5 s, matching Lepton boot time).
+        /* Advance bar by 2 % per 100 ms iteration (fills 0 -> 99 in ~5 s, matching Lepton boot time).
          * Do not auto-advance past 99 % — wait for the LEPTON_READY event to set it to 100 %. */
         if (CurrentBarValue < 99) {
             int32_t NextValue = CurrentBarValue + 2;
@@ -690,10 +769,10 @@ void Task_GUI(void *p_Parameters)
 
     lv_disp_load_scr(ui_Main);
 
-    /* Process layout changes after loading new screen */
+    /* Process layout changes after loading new screen. */
     lv_timer_handler();
 
-    /* Set the initial ROI FIRST to give it a size */
+    /* Set the initial ROI FIRST to give it a size. */
     SettingsManager_GetLepton(&LeptonSettings);
     GUI_Update_ROI(LeptonSettings.ROI[ROI_TYPE_SPOTMETER]);
     GUI_Update_ROI(LeptonSettings.ROI[ROI_TYPE_SCENE]);
@@ -702,7 +781,7 @@ void Task_GUI(void *p_Parameters)
 
     GUI_Update_Info();
 
-    /* Initialize SD card icon based on current storage state */
+    /* Initialize SD card icon based on current storage state. */
     if (MemoryManager_HasSDCard()) {
         lv_obj_set_style_text_color(ui_Image_Main_SDCard, lv_color_hex(0x00FF00), LV_PART_MAIN);
     }
@@ -710,21 +789,21 @@ void Task_GUI(void *p_Parameters)
     esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_APP_STARTED, NULL, 0, pdMS_TO_TICKS(500));
 
     /* Variables for Illuminance values for the scene label.
-    * Fetch all these values at the beginning to not waste CPU performance because these
-    * functions aren´t simple get functions
-    *      0 = Max label
-    *      1 = Min label
-    *      2 = Mean label
-    *      3 = Crosshair label
-    *      4 = Pixel temperature label
-    *
-    * NOTE on coordinate spaces:
-    * - Labels [3] (Crosshair) and [4] (PixelTemperature) are DIRECT children of
-    *   ui_Image_Thermal, so lv_obj_get_x/y() already returns image-relative coords.
-    * - Labels [0..2] (Max/Min/Mean) are children of ui_Container_Main_Thermal_Scene_Statistics,
-    *   which itself is a child of ui_Image_Thermal. Their lv_obj_get_x/y() is relative
-    *   to the container, so the container's own offset within the image must be added.
-    */
+     * Fetch all these values at the beginning to not waste CPU performance because these
+     * functions aren´t simple get functions
+     *      0 = Max label
+     *      1 = Min label
+     *      2 = Mean label
+     *      3 = Crosshair label
+     *      4 = Pixel temperature label
+     *
+     * NOTE on coordinate spaces:
+     * - Labels [3] (Crosshair) and [4] (PixelTemperature) are DIRECT children of
+     *   ui_Image_Thermal, so lv_obj_get_x/y() already returns image-relative coords.
+     * - Labels [0..2] (Max/Min/Mean) are children of ui_Container_Main_Thermal_Scene_Statistics,
+     *   which itself is a child of ui_Image_Thermal. Their lv_obj_get_x/y() is relative
+     *   to the container, so the container's own offset within the image must be added.
+     */
     int32_t SceneStatsContainer_x = lv_obj_get_x(ui_Container_Main_Thermal_Scene_Statistics);
     int32_t SceneStatsContainer_y = lv_obj_get_y(ui_Container_Main_Thermal_Scene_Statistics);
 
@@ -759,7 +838,7 @@ void Task_GUI(void *p_Parameters)
 
         esp_task_wdt_reset();
 
-        /* Check for new thermal frame */
+        /* Check for new thermal frame. */
         if (xQueueReceive(App_Context->Lepton_FrameEventQueue, &LeptonFrame, 0) == pdTRUE) {
             /* During UVC streaming, skip expensive image processing to avoid
                SPI contention and watchdog timeouts. Just drain the queue. */
@@ -774,15 +853,15 @@ void Task_GUI(void *p_Parameters)
                 uint32_t SceneLabelCount[5] = { 0, 0, 0, 0, 0 };
                 uint8_t SceneLabelAverageLuminance[5] = { 0, 0, 0, 0, 0 };
 
-                /* Reset watchdog before image processing */
+                /* Reset watchdog before image processing. */
                 esp_task_wdt_reset();
 
-                /* Scale from source (160x120) to destination (240x180) using bilinear interpolation */
+                /* Scale from source (160x120) to destination (240x180) using bilinear interpolation. */
                 Dst = _GUI_Task_State.ThermalCanvasBuffer;
                 ImageWidth = lv_obj_get_width(ui_Image_Thermal);
                 ImageHeight = lv_obj_get_height(ui_Image_Thermal);
 
-                /* Skip if image widget not properly initialized yet */
+                /* Skip if image widget not properly initialized yet. */
                 if ((ImageWidth == 0) || (ImageHeight == 0)) {
                     ESP_LOGW(TAG, "Image widget not ready yet (size: %ux%u), skipping frame", ImageWidth, ImageHeight);
 
@@ -798,7 +877,7 @@ void Task_GUI(void *p_Parameters)
                 }
 
                 for (uint32_t y = 0; y < ImageHeight; y++) {
-                    /* Reset watchdog every 20 rows to prevent timeout during image processing */
+                    /* Reset watchdog every 20 rows to prevent timeout during image processing. */
                     if ((y % 20) == 0) {
                         esp_task_wdt_reset();
                     }
@@ -817,7 +896,7 @@ void Task_GUI(void *p_Parameters)
                         uint32_t x_frac = x_lut_xf[x];
                         uint32_t x_inv = 256u - x_frac;
 
-                        /* Get the four surrounding pixels */
+                        /* Get the four surrounding pixels. */
                         uint32_t idx00 = ((y0 * LeptonFrame.Width) + x0) * 3;
                         uint32_t idx10 = ((y0 * LeptonFrame.Width) + x1) * 3;
                         uint32_t idx01 = ((y1 * LeptonFrame.Width) + x0) * 3;
@@ -853,7 +932,8 @@ void Task_GUI(void *p_Parameters)
                         /* Map buffer coordinates to display coordinates for 180° rotated image:
                          * x: x_rot = ImageWidth - 1 - x  (horizontal mirror)
                          * y: y_rot = ImageHeight - 1 - y  (vertical mirror)
-                         * Labels use display coordinates, so both axes must be inverted. */
+                         * Labels use display coordinates, so both axes must be inverted.
+                         */
                         uint32_t x_rot = ImageWidth - 1 - x;
                         uint32_t y_rot = ImageHeight - 1 - y;
 
@@ -964,11 +1044,12 @@ void Task_GUI(void *p_Parameters)
                     SaveFrame.Buffer = _GUI_Task_State.ThermalCanvasBuffer;  /* Use scaled display buffer */
                     SaveFrame.Width = ImageWidth;
                     SaveFrame.Height = ImageHeight;
-                    SaveFrame.Channels = 2;  /* RGB565 = 2 bytes per pixel */
+
+                    /* RGB565 = 2 bytes per pixel */
+                    SaveFrame.Channels = 2;
                     SaveFrame.Min = LeptonFrame.Min;
                     SaveFrame.Max = LeptonFrame.Max;
 
-                    /* Send to background save task (non-blocking) */
                     if (xQueueSend(_GUI_Task_State.ImageSaveQueue, &SaveFrame, 0) != pdTRUE) {
                         ESP_LOGW(TAG, "Image save queue full, skipping save");
 
@@ -1065,7 +1146,7 @@ void Task_GUI(void *p_Parameters)
 
             xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_BATTERY_STATUS_CHANGED);
         }
- 
+
         if (EventBits & GUI_TASK_WIFI_CONNECTION_STATE_CHANGED) {
             if (_GUI_Task_State.WiFiConnected) {
                 char Buffer[32];
@@ -1269,6 +1350,7 @@ esp_err_t GUI_Task_Init(void)
     }
 
     ESP_ERROR_CHECK(GUI_Helper_Init(&_GUI_Task_State, Touch_LVGL_ReadCallback));
+    ESP_ERROR_CHECK(GUI_Helper_InitKeypad(&_GUI_Task_State, Keypad_LVGL_ReadCallback));
 
     ui_init();
 
@@ -1305,7 +1387,6 @@ esp_err_t GUI_Task_Init(void)
         return ESP_ERR_NO_MEM;
     }
 
-    /* Create image save queue and task */
     _GUI_Task_State.ImageSaveQueue = xQueueCreate(1, sizeof(App_Lepton_FrameReady_t));
     if (_GUI_Task_State.ImageSaveQueue == NULL) {
         ESP_LOGE(TAG, "Failed to create image save queue!");
