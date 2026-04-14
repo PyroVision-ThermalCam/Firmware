@@ -437,7 +437,7 @@ void GUI_Helper_Timer_SpotUpdate(lv_timer_t *p_Timer)
     (void)p_Timer;
     App_GUI_Screenposition_t ScreenPosition;
 
-    if ((lv_obj_get_width(ui_Image_Thermal) == 0) || (lv_obj_get_height(ui_Image_Thermal) == 0)) {
+    if ((lv_obj_get_width(ui_Image_Main_Thermal) == 0) || (lv_obj_get_height(ui_Image_Main_Thermal) == 0)) {
         return;
     }
 
@@ -446,8 +446,8 @@ void GUI_Helper_Timer_SpotUpdate(lv_timer_t *p_Timer)
                            ui_Label_Main_Thermal_Crosshair) / 2;
     ScreenPosition.y = lv_obj_get_y(ui_Label_Main_Thermal_Crosshair) + lv_obj_get_height(
                            ui_Label_Main_Thermal_Crosshair) / 2;
-    ScreenPosition.Width = lv_obj_get_width(ui_Image_Thermal);
-    ScreenPosition.Height = lv_obj_get_height(ui_Image_Thermal);
+    ScreenPosition.Width = lv_obj_get_width(ui_Image_Main_Thermal);
+    ScreenPosition.Height = lv_obj_get_height(ui_Image_Main_Thermal);
 
     ESP_LOGD(TAG, "Crosshair center in thermal canvas: (%d,%d), size (%d,%d)", ScreenPosition.x, ScreenPosition.y,
              ScreenPosition.Width, ScreenPosition.Height);

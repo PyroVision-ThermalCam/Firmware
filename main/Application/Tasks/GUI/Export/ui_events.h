@@ -13,6 +13,7 @@ extern "C" {
 void ScreenSplashLoaded(lv_event_t * e);
 void ScreenMainLoaded(lv_event_t * e);
 void ButtonMainSaveClicked(lv_event_t * e);
+void ButtonMainSwitchClicked(lv_event_t * e);
 void ScreenMenuLoaded(lv_event_t * e);
 void ButtonMenuSaveClicked(lv_event_t * e);
 void ScreenInfoLoaded(lv_event_t * e);

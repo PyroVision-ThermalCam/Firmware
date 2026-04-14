@@ -129,6 +129,6 @@ typedef struct {
     bool Button2;   /**< Button 2 (P1.1, active high). */
     bool Button3;   /**< Button 3 (P1.2, active high). */
     bool Button4;   /**< Button 4 (P1.3, active high). */
-} Devices_InputState_t;
+} Devices_Input_State_t;
 
 #endif /* DEVICES_TYPES_H_ */

@@ -28,7 +28,7 @@ static void on_main_screen_key(lv_event_t *e)
             break;
         }
         case GUI_KEYPAD_BTN3: {
-            lv_obj_send_event(ui_Button_Main_Info, LV_EVENT_CLICKED, NULL);
+            lv_obj_send_event(ui_Button_Main_Switch, LV_EVENT_CLICKED, NULL);
             break;
         }
         case GUI_KEYPAD_BTN4: {
@@ -51,6 +51,13 @@ static void on_menu_screen_key(lv_event_t *e)
             lv_obj_send_event(ui_Button_Menu_Back, LV_EVENT_CLICKED, NULL);
             break;
         }
+        case GUI_KEYPAD_BTN2: {
+            break;
+        }
+        case GUI_KEYPAD_BTN3: {
+            lv_obj_send_event(ui_Button_Menu_Info, LV_EVENT_CLICKED, NULL);
+            break;
+        }
         case GUI_KEYPAD_BTN4: {
             lv_obj_send_event(ui_Button_Menu_Save, LV_EVENT_CLICKED, NULL);
             break;
@@ -66,8 +73,23 @@ static void on_menu_screen_key(lv_event_t *e)
  */
 static void on_info_screen_key(lv_event_t *e)
 {
-    if (lv_event_get_key(e) == GUI_KEYPAD_BTN1) {
-        lv_obj_send_event(ui_Button_Info_Back, LV_EVENT_CLICKED, NULL);
+    switch (lv_event_get_key(e)) {
+        case GUI_KEYPAD_BTN1: {
+            lv_obj_send_event(ui_Button_Info_Back, LV_EVENT_CLICKED, NULL);
+            break;
+        }
+        case GUI_KEYPAD_BTN2: {
+            break;
+        }
+        case GUI_KEYPAD_BTN3: {
+            break;
+        }
+        case GUI_KEYPAD_BTN4: {
+            break;
+        }
+        default: {
+            break;
+        }
     }
 }
 
@@ -107,15 +129,16 @@ void ScreenMainLoaded(lv_event_t *e)
     /* Set the symbols for the UI */
     lv_label_set_text(ui_Image_Main_WiFi, LV_SYMBOL_WIFI);
     lv_label_set_text(ui_Image_Main_SDCard, LV_SYMBOL_SD_CARD);
-    lv_label_set_text(ui_Label_Menu_Button_Save, LV_SYMBOL_SAVE);
     lv_label_set_text(ui_Label_Main_Button_Save, LV_SYMBOL_SAVE);
     lv_label_set_text(ui_Label_Main_Button_Menu, "\uF0C9");
-    lv_label_set_text(ui_Label_Main_Button_Info, "\uF129");
     lv_label_set_text(ui_Label_Main_Button_ROI, "\uE595");
+    lv_label_set_text(ui_Label_Main_Button_Switch, "\uE0D8");
     lv_label_set_text(ui_Label_Main_Thermal_Crosshair, "\uF05B");
-    lv_label_set_text(ui_Label_Menu_Back, "\uF060");
-    lv_label_set_text(ui_Label_Info_Back, "\uF060");
     lv_label_set_text(ui_Label_Main_Statusbar_Temperatur_Icon, "\uF2C7");
+    lv_label_set_text(ui_Label_Info_Back, "\uF060");
+    lv_label_set_text(ui_Label_Info_Button_Info, "\uF129");
+    lv_label_set_text(ui_Label_Menu_Button_Save, LV_SYMBOL_SAVE);
+    lv_label_set_text(ui_Label_Menu_Back, "\uF060");
 
     p_Keypad = GUI_Task_GetKeypadIndev();
     if (p_Keypad != NULL) {
@@ -128,7 +151,9 @@ void ScreenMainLoaded(lv_event_t *e)
     lv_obj_set_style_outline_width(ui_Button_Main_Menu, 0, static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUSED));
     lv_obj_set_style_outline_width(ui_Button_Main_Menu, 0, static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUS_KEY));
 
+    lv_obj_remove_event_cb(ui_Button_Main_Menu, on_main_screen_key);
     lv_obj_add_event_cb(ui_Button_Main_Menu, on_main_screen_key, LV_EVENT_KEY, NULL);
+    lv_obj_remove_event_cb(ui_Main, on_screen_keypad_group_cleanup);
     lv_obj_add_event_cb(ui_Main, on_screen_keypad_group_cleanup, LV_EVENT_SCREEN_UNLOAD_START, NULL);
 
     /* Force full screen repaint to clear any artifacts from previous screen */
@@ -151,7 +176,9 @@ void ScreenMenuLoaded(lv_event_t *e)
     lv_obj_set_style_outline_width(ui_Button_Menu_Back, 0, static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUSED));
     lv_obj_set_style_outline_width(ui_Button_Menu_Back, 0, static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUS_KEY));
 
+    lv_obj_remove_event_cb(ui_Button_Menu_Back, on_menu_screen_key);
     lv_obj_add_event_cb(ui_Button_Menu_Back, on_menu_screen_key, LV_EVENT_KEY, NULL);
+    lv_obj_remove_event_cb(ui_Menu, on_screen_keypad_group_cleanup);
     lv_obj_add_event_cb(ui_Menu, on_screen_keypad_group_cleanup, LV_EVENT_SCREEN_UNLOAD_START, NULL);
 }
 
@@ -172,16 +199,13 @@ void ScreenInfoLoaded(lv_event_t *e)
     lv_obj_set_style_outline_width(ui_Button_Info_Back, 0, static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUSED));
     lv_obj_set_style_outline_width(ui_Button_Info_Back, 0, static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUS_KEY));
 
+    lv_obj_remove_event_cb(ui_Button_Info_Back, on_info_screen_key);
     lv_obj_add_event_cb(ui_Button_Info_Back, on_info_screen_key, LV_EVENT_KEY, NULL);
+    lv_obj_remove_event_cb(ui_Info, on_screen_keypad_group_cleanup);
     lv_obj_add_event_cb(ui_Info, on_screen_keypad_group_cleanup, LV_EVENT_SCREEN_UNLOAD_START, NULL);
 
     /* Force full screen repaint to clear any artifacts from previous screen */
     lv_obj_invalidate(lv_screen_active());
-}
-
-void ButtonMainWiFiClicked(lv_event_t *e)
-{
-    esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_OPEN_WIFI_REQUEST, NULL, 0, 0);
 }
 
 void ScreenSplashLoaded(lv_event_t *e)
@@ -198,4 +222,9 @@ void ButtonMenuSaveClicked(lv_event_t *e)
 {
     SettingsManager_Save();
     MessageBox_Show("Settings Saved");
+}
+
+void ButtonMainSwitchClicked(lv_event_t * e)
+{
+    GUI_Task_ToggleCameraView();
 }

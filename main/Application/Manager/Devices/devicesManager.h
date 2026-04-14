@@ -308,7 +308,7 @@ esp_err_t DevicesManager_GetSDDetect(bool *p_Inserted);
  *                      DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
  *                      DEVICES_ERR_I2C_COMM if I2C communication fails
  */
-esp_err_t DevicesManager_HandleDisplayboardExpanderInterrupt(Devices_InputState_t *p_State);
+esp_err_t DevicesManager_HandleDisplayboardExpanderInterrupt(Devices_Input_State_t *p_State);
 
 /** @brief              Handle a pending port expander interrupt.
  *                      Non-blocking: checks whether the GPIO ISR signalled a new INT# falling
@@ -346,6 +346,6 @@ esp_err_t DevicesManager_SetLED(bool R, bool G, bool B);
  *                      ESP_ERR_NOT_SUPPORTED if displayboard not present
  *                      DEVICES_ERR_I2C_COMM if I2C communication fails
  */
-esp_err_t DevicesManager_GetDisplayboardInputs(Devices_InputState_t *p_State);
+esp_err_t DevicesManager_GetDisplayboardInputs(Devices_Input_State_t *p_State);
 
 #endif /* DEVICESMANAGER_H_ */

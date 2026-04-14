@@ -116,11 +116,6 @@ static void on_Camera_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t B
 
             break;
         }
-        case CAMERA_TASK_EVENT_REQUEST_UPDATE_QUALITY: {
-            _CameraConfig.jpeg_quality = *static_cast<const uint8_t *>(p_Data);
-
-            break;
-        }
         default: {
             ESP_LOGW(TAG, "Unhandled camera task event ID: 0x%X", ID);
 
@@ -201,14 +196,17 @@ static void Task_Camera(void *p_Parameters)
 
         camera_fb_t *Pic = esp_camera_fb_get();
         if (Pic != NULL) {
+            uint32_t Width  = Pic->width;
+            uint32_t Height = Pic->height;
+
             /* Copy frame to PSRAM buffer and immediately release the DMA buffer back to the driver. */
             memcpy(_CameraTaskState.p_FrameBuffer, Pic->buf, Pic->len);
             esp_camera_fb_return(Pic);
 
             App_Camera_Frame_t Frame = {
                 .Buffer = _CameraTaskState.p_FrameBuffer,
-                .Width  = Pic->width,
-                .Height = Pic->height
+                .Width  = Width,
+                .Height = Height
             };
 
             xQueueOverwrite(((App_Context_t *)p_Parameters)->Camera_FrameQueue, &Frame);

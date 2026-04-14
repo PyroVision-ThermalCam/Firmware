@@ -22,17 +22,14 @@
 #include <esp_log.h>
 #include <esp_event.h>
 #include <esp_task_wdt.h>
-#include <wear_levelling.h>
 
 #include <string.h>
-
-#include <nvs_flash.h>
 
 #include "managers.h"
 #include "Application/Tasks/tasks.h"
 #include "Application/application.h"
 
-static App_Context_t _App_Context;
+static App_Context_t _AppContext;
 
 static const char *TAG = "main";
 
@@ -45,28 +42,28 @@ extern "C" void app_main(void)
 
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    _App_Context.Lepton_FrameQueue = xQueueCreate(1, sizeof(App_Lepton_Frame_t));
-    if (_App_Context.Lepton_FrameQueue == NULL) {
-        ESP_LOGE(TAG, "Failed to create frame queue!");
+    _AppContext.Lepton_FrameQueue = xQueueCreate(1, sizeof(App_Lepton_Frame_t));
+    if (_AppContext.Lepton_FrameQueue == NULL) {
+        ESP_LOGE(TAG, "Failed to create Lepton frame queue!");
 
         return;
     }
 
-    _App_Context.Camera_FrameQueue = xQueueCreate(1, sizeof(App_Camera_Frame_t));
-    if (_App_Context.Camera_FrameQueue == NULL) {
+    _AppContext.Camera_FrameQueue = xQueueCreate(1, sizeof(App_Camera_Frame_t));
+    if (_AppContext.Camera_FrameQueue == NULL) {
         ESP_LOGE(TAG, "Failed to create camera frame queue!");
 
         return;
     }
 
-    _App_Context.InputMutex = xSemaphoreCreateMutex();
-    if (_App_Context.InputMutex == NULL) {
+    _AppContext.InputMutex = xSemaphoreCreateMutex();
+    if (_AppContext.InputMutex == NULL) {
         ESP_LOGE(TAG, "Failed to create input mutex!");
 
         return;
     }
 
-    memset(&_App_Context.InputState, 0, sizeof(Devices_InputState_t));
+    memset(&_AppContext.InputState, 0, sizeof(Devices_Input_State_t));
 
     ESP_ERROR_CHECK(SettingsManager_Init());
     ESP_ERROR_CHECK(Devices_Task_Init());
@@ -88,15 +85,15 @@ extern "C" void app_main(void)
 
     ESP_ERROR_CHECK(GUI_Task_Init());
     ESP_ERROR_CHECK(Lepton_Task_Init());
-    ESP_ERROR_CHECK(Network_Task_Init(&_App_Context));
+    ESP_ERROR_CHECK(Network_Task_Init(&_AppContext));
     ESP_ERROR_CHECK(Camera_Task_Init());
     ESP_LOGI(TAG, "Initialization successful");
 
     ESP_LOGI(TAG, "Starting tasks...");
-    ESP_ERROR_CHECK(Devices_Task_Start(&_App_Context));
-    ESP_ERROR_CHECK(GUI_Task_Start(&_App_Context));
-    ESP_ERROR_CHECK(Lepton_Task_Start(&_App_Context));
-    ESP_ERROR_CHECK(Camera_Task_Start(&_App_Context));
+    ESP_ERROR_CHECK(Devices_Task_Start(&_AppContext));
+    ESP_ERROR_CHECK(GUI_Task_Start(&_AppContext));
+    ESP_ERROR_CHECK(Lepton_Task_Start(&_AppContext));
+    ESP_ERROR_CHECK(Camera_Task_Start(&_AppContext));
     ESP_ERROR_CHECK(Network_Task_Start());
     ESP_LOGI(TAG, "Tasks started");
 

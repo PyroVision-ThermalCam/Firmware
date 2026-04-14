@@ -117,8 +117,8 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
  */
 static void Task_Devices(void *p_Parameters)
 {
-    Devices_InputState_t InputState;
-    Devices_InputState_t PendingInputState;
+    Devices_Input_State_t InputState;
+    Devices_Input_State_t PendingInputState;
     TickType_t PendingChangeTime;
     TickType_t LastBatteryPoll;
     TickType_t LastTemperaturePoll;
@@ -135,8 +135,8 @@ static void Task_Devices(void *p_Parameters)
 
     ESP_LOGD(TAG, "Devices task started on core %d", xPortGetCoreID());
 
-    memset(&InputState, 0, sizeof(Devices_InputState_t));
-    memset(&PendingInputState, 0, sizeof(Devices_InputState_t));
+    memset(&InputState, 0, sizeof(Devices_Input_State_t));
+    memset(&PendingInputState, 0, sizeof(Devices_Input_State_t));
 
     PendingChangeTime = 0;
     HasPendingInput = false;
@@ -267,9 +267,9 @@ static void Task_Devices(void *p_Parameters)
         }
 
         if (DevicesManager_HandleDisplayboardExpanderInterrupt(&InputState) == ESP_OK) {
-            if (memcmp(&InputState, &PendingInputState, sizeof(Devices_InputState_t)) != 0) {
+            if (memcmp(&InputState, &PendingInputState, sizeof(Devices_Input_State_t)) != 0) {
                 /* New raw state from INT# � restart debounce timer */
-                memcpy(&PendingInputState, &InputState, sizeof(Devices_InputState_t));
+                memcpy(&PendingInputState, &InputState, sizeof(Devices_Input_State_t));
                 PendingChangeTime = xTaskGetTickCount();
                 HasPendingInput = true;
             }
@@ -278,7 +278,7 @@ static void Task_Devices(void *p_Parameters)
         /* Commit pending state after 30 ms of stability */
         if (HasPendingInput && ((xTaskGetTickCount() - PendingChangeTime) >= pdMS_TO_TICKS(30))) {
             xSemaphoreTake(AppContext->InputMutex, portMAX_DELAY);
-            memcpy(&AppContext->InputState, &PendingInputState, sizeof(Devices_InputState_t));
+            memcpy(&AppContext->InputState, &PendingInputState, sizeof(Devices_Input_State_t));
             xSemaphoreGive(AppContext->InputMutex);
 
             HasPendingInput = false;

@@ -18,7 +18,7 @@ The Devices Task is a FreeRTOS task that drives two responsibilities:
 2. *Displayboard input polling* -- At a fixed interval (configured via
    `CONFIG_DEVICES_TASK_POLL_INTERVAL_MS`) it reads the displayboard PCAL6416AHF
    (joystick + buttons) and, when the state differs from the previous reading,
-   posts a `DEVICES_EVENT_INPUT_CHANGED` event carrying `Devices_InputState_t`.
+   posts a `DEVICES_EVENT_INPUT_CHANGED` event carrying `Devices_Input_State_t`.
 
 The task also calls `DevicesManager_Init()` during initialization and
 `DevicesManager_Deinit()` on shutdown, so it owns the full hardware lifecycle.
@@ -193,11 +193,11 @@ while (_Devices_Task_State.isRunning) {
         LastInputPoll = xTaskGetTickCount();
 
         if (DevicesManager_GetDisplayboardInputs(&InputState) == ESP_OK) {
-            if (memcmp(&InputState, &PrevInputState, sizeof(Devices_InputState_t)) != 0) {
+            if (memcmp(&InputState, &PrevInputState, sizeof(Devices_Input_State_t)) != 0) {
                 esp_event_post(DEVICES_EVENTS, DEVICES_EVENT_INPUT_CHANGED,
-                               &InputState, sizeof(Devices_InputState_t),
+                               &InputState, sizeof(Devices_Input_State_t),
                                pdMS_TO_TICKS(100));
-                memcpy(&PrevInputState, &InputState, sizeof(Devices_InputState_t));
+                memcpy(&PrevInputState, &InputState, sizeof(Devices_Input_State_t));
             }
         }
     }
@@ -255,7 +255,7 @@ memcmp(InputState, PrevInputState)
     |
     `-- changed:
             esp_event_post(DEVICES_EVENTS, DEVICES_EVENT_INPUT_CHANGED,
-                           &InputState, sizeof(Devices_InputState_t), ...)
+                           &InputState, sizeof(Devices_Input_State_t), ...)
             memcpy(PrevInputState, InputState)
 ----
 
@@ -294,11 +294,11 @@ The task posts events on the default event loop using the `DEVICES_EVENTS` base.
 | SD-card detect state changed (true = inserted)
 
 | `DEVICES_EVENT_INPUT_CHANGED`
-| `Devices_InputState_t`
+| `Devices_Input_State_t`
 | Joystick or button state changed on displayboard
 |===
 
-The `Devices_InputState_t` structure contains:
+The `Devices_Input_State_t` structure contains:
 
 [source,cpp]
 ----
@@ -312,7 +312,7 @@ typedef struct {
     bool Button2;   /**< Push-button 2. */
     bool Button3;   /**< Push-button 3. */
     bool Button4;   /**< Push-button 4. */
-} Devices_InputState_t;
+} Devices_Input_State_t;
 ----
 
 All fields are `true` when the corresponding input is *pressed/active*.
@@ -335,8 +335,8 @@ All fields are `true` when the corresponding input is *pressed/active*.
 ----
 static void on_input_changed(void *p_Arg, esp_event_base_t Base, int32_t ID, void *p_Data)
 {
-    const Devices_InputState_t *p_State =
-        static_cast<const Devices_InputState_t *>(p_Data);
+    const Devices_Input_State_t *p_State =
+        static_cast<const Devices_Input_State_t *>(p_Data);
 
     if (p_State->JoyUp) {
         /* Handle joystick up */

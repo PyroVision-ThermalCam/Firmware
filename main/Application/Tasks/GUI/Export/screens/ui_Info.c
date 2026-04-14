@@ -77,7 +77,7 @@ void ui_event_Button_Info_Back(lv_event_t * e)
     lv_event_code_t event_code = lv_event_get_code(e);
 
     if(event_code == LV_EVENT_CLICKED) {
-        _ui_screen_change(&ui_Main, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Main_screen_init);
+        _ui_screen_change(&ui_Menu, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Menu_screen_init);
     }
 }
 
@@ -870,7 +870,7 @@ void ui_Info_screen_init(void)
     ui_Button_Info_Back = lv_button_create(ui_Container_Info_Buttons);
     lv_obj_set_width(ui_Button_Info_Back, 50);
     lv_obj_set_height(ui_Button_Info_Back, lv_pct(95));
-    lv_obj_set_x(ui_Button_Info_Back, -80);
+    lv_obj_set_x(ui_Button_Info_Back, -130);
     lv_obj_set_y(ui_Button_Info_Back, 0);
     lv_obj_set_align(ui_Button_Info_Back, LV_ALIGN_CENTER);
     lv_obj_remove_flag(ui_Button_Info_Back,

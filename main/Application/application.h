@@ -83,8 +83,6 @@ enum {
  */
 enum {
     CAMERA_TASK_EVENT_REQUEST_FOCUS,            /**< Request to trigger autofocus. */
-    CAMERA_TASK_EVENT_REQUEST_UPDATE_QUALITY,   /**< Request to update camera quality settings.
-                                                     Data is transmitted in as an uint8_t. */
 };
 
 /** @brief Structure representing a screen position.
@@ -171,7 +169,7 @@ typedef struct {
     QueueHandle_t Lepton_FrameQueue;            /**< Queue for Lepton frame ready events. */
     QueueHandle_t Camera_FrameQueue;            /**< Queue (depth 1) for visible-light camera frame ready events. */
     SemaphoreHandle_t InputMutex;               /**< Protects InputState against concurrent access. */
-    Devices_InputState_t InputState;            /**< Debounced displayboard input state, written by
+    Devices_Input_State_t InputState;            /**< Debounced displayboard input state, written by
                                                      Devices Task and read by the LVGL keypad indev. */
 } App_Context_t;
 

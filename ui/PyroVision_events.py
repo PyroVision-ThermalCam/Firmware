@@ -66,3 +66,7 @@ def ScreenSplahLoaded(event_struct):
 def ButtonMainSaveClicked(event_struct):
     return
 
+
+def ButtonMainSwitchClicked(event_struct):
+    return
+

@@ -21,17 +21,17 @@
  * Errors and commissions should be reported to DanielKampert@kampis-elektroecke.de
  */
 
-#include <esp_log.H>
-#include <esp_mac.H>
-#include <esp_efuse.H>
+#include <esp_log.h>
+#include <esp_mac.h>
+#include <esp_efuse.h>
 
-#include <nvs_flash.H>
-#include <nvs.H>
+#include <nvs_flash.h>
+#include <nvs.h>
 
-#include <string.H>
+#include <string.h>
 
-#include "settingsLoader.H"
-#include "../settingsManager.H"
+#include "settingsLoader.h"
+#include "../settingsManager.h"
 
 static const char *TAG = "Settings-Default-Loader";
 

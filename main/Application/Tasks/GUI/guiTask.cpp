@@ -50,6 +50,9 @@
 
 #include "lepton.h"
 
+#define UI_IMAGE_CANVAS_WIDTH                   240
+#define UI_IMAGE_CANVAS_HEIGHT                  180
+
 ESP_EVENT_DEFINE_BASE(GUI_TASK_EVENTS);
 
 GUI_Task_State_t _GUITaskState;
@@ -389,8 +392,8 @@ static void GUI_Update_ROI(Settings_ROI_t ROI)
     ESP_LOGD(TAG, "Updating ROI rectangle - Start: (%ld,%ld), End: (%ld,%ld), Size: %ldx%ld",
              ROI.x, ROI.y, ROI.x + ROI.w, ROI.y + ROI.h, ROI.w, ROI.h);
 
-    DisplayWidth = lv_obj_get_width(ui_Image_Thermal);
-    DisplayHeight = lv_obj_get_height(ui_Image_Thermal);
+    DisplayWidth = lv_obj_get_width(ui_Image_Main_Thermal);
+    DisplayHeight = lv_obj_get_height(ui_Image_Main_Thermal);
 
     int32_t DispX = (ROI.x * DisplayWidth) / 160;
     int32_t DispY = (ROI.y * DisplayHeight) / 120;
@@ -456,12 +459,12 @@ static void GUI_Update_ROI(Settings_ROI_t ROI)
     /* Copy the new ROI in the existing settings structure. */
     memcpy(&SettingsLepton.ROI[ROI.Type], &ROI, sizeof(Settings_ROI_t));
 
-    /* Save the new ROI to NVS */
+    /* Save the new ROI to NVS. */
     // TODO: Fix me. Causes crashes during boot
     //SettingsManager_UpdateLepton(&SettingsLepton);
     SettingsManager_Save();
 
-    /* The Lepton task needs the ROI with the Lepton coordinates */
+    /* The Lepton task needs the ROI with the Lepton coordinates. */
     SettingsLepton.ROI[ROI.Type] = {
         .Type = ROI.Type,
         .x = static_cast<uint16_t>(ROI.x),
@@ -491,19 +494,105 @@ static void UI_Canvas_AddTempGradient(void)
          */
         Index = 255 - (y * 255 / (_GUITaskState.GradientImageDescriptor.header.h - 1));
 
-        /* Get RGB888 values from palette */
+        /* Get RGB888 values from palette. */
         uint8_t R8 = Lepton_Palette_Iron[Index][0];
         uint8_t G8 = Lepton_Palette_Iron[Index][1];
         uint8_t B8 = Lepton_Palette_Iron[Index][2];
 
-        /* Convert RGB888 to RGB565 */
+        /* Convert RGB888 to RGB565. */
         uint16_t R5 = (R8 >> 3) & 0x1F;
         uint16_t G6 = (G8 >> 2) & 0x3F;
         uint16_t B5 = (B8 >> 3) & 0x1F;
 
-        /* Fill entire row with same color */
+        /* Fill entire row with same color. */
         for (uint32_t x = 0; x < _GUITaskState.GradientImageDescriptor.header.w; x++) {
             Buffer[y * _GUITaskState.GradientImageDescriptor.header.w + x] = (R5 << 11) | (G6 << 5) | B5;
+        }
+    }
+}
+
+/** @brief              Scale an RGB565 source frame to a smaller RGB565 destination frame using bilinear interpolation.
+ *                      X-axis bilinear coefficients are precomputed into static LUTs to avoid per-pixel divisions.
+ *                      The function is only ever called from the GUI task and therefore not thread-safe.
+ *  @param p_Src        Pointer to source RGB565 frame data (little-endian: low byte at even offsets).
+ *  @param SrcWidth     Source frame width in pixels.
+ *  @param SrcHeight    Source frame height in pixels.
+ *  @param p_Dst        Pointer to destination RGB565 frame buffer.
+ *  @param DstWidth     Destination frame width in pixels (max CONFIG_GUI_WIDTH).
+ *  @param DstHeight    Destination frame height in pixels.
+ */
+static void UI_Scale_Camera(const uint8_t *p_Src, uint32_t SrcWidth, uint32_t SrcHeight,
+                                     uint8_t *p_Dst, uint32_t DstWidth, uint32_t DstHeight)
+{
+    /* Precompute x bilinear coefficients into static LUTs to avoid per-pixel divisions.
+     * Static storage prevents stack pressure when called from within the large Task_GUI stack frame.
+     */
+    static uint32_t XLutX0[CONFIG_GUI_WIDTH];
+    static uint32_t XLutX1[CONFIG_GUI_WIDTH];
+    static uint8_t  XLutXf[CONFIG_GUI_WIDTH];
+
+    for (uint32_t x = 0; x < DstWidth; x++) {
+        uint32_t SrcXFixed = static_cast<uint32_t>((uint64_t)(DstWidth - 1 - x) * ((SrcWidth - 1) << 16) / DstWidth);
+        uint32_t Xp = SrcXFixed >> 16;
+
+        XLutX0[x] = Xp;
+        XLutX1[x] = ((Xp + 1) < SrcWidth) ? (Xp + 1) : Xp;
+        XLutXf[x] = static_cast<uint8_t>((SrcXFixed >> 8) & 0xFF);
+    }
+
+    for (uint32_t y = 0; y < DstHeight; y++) {
+        uint32_t SrcYFixed = static_cast<uint32_t>((uint64_t)y * ((SrcHeight - 1) << 16) / DstHeight);
+        uint32_t Y0 = SrcYFixed >> 16;
+        uint32_t Y1 = ((Y0 + 1) < SrcHeight) ? (Y0 + 1) : Y0;
+        uint32_t YFrac = (SrcYFixed >> 8) & 0xFF;
+        uint32_t YInv = 256 - YFrac;
+
+        for (uint32_t x = 0; x < DstWidth; x++) {
+            uint32_t X0 = XLutX0[x];
+            uint32_t X1 = XLutX1[x];
+            uint32_t XFrac = XLutXf[x];
+            uint32_t XInv = 256u - XFrac;
+
+            uint32_t Off00 = (Y0 * SrcWidth + X0) * 2;
+            uint32_t Off10 = (Y0 * SrcWidth + X1) * 2;
+            uint32_t Off01 = (Y1 * SrcWidth + X0) * 2;
+            uint32_t Off11 = (Y1 * SrcWidth + X1) * 2;
+
+            /* Read four surrounding RGB565 pixels.
+             * The esp32-camera library outputs RGB565 big-endian (high byte first),
+             * so reconstruct the 16-bit value with byte 0 as the high byte.
+             */
+            uint32_t P00 = static_cast<uint32_t>((p_Src[Off00] << 8) | p_Src[Off00 + 1]);
+            uint32_t P10 = static_cast<uint32_t>((p_Src[Off10] << 8) | p_Src[Off10 + 1]);
+            uint32_t P01 = static_cast<uint32_t>((p_Src[Off01] << 8) | p_Src[Off01 + 1]);
+            uint32_t P11 = static_cast<uint32_t>((p_Src[Off11] << 8) | p_Src[Off11 + 1]);
+
+            /* Extract RGB565 channels: R[4:0] in bits 15:11, G[5:0] in bits 10:5, B[4:0] in bits 4:0. */
+            uint32_t R00 = (P00 >> 11) & 0x1F; uint32_t G00 = (P00 >> 5) & 0x3F; uint32_t B00 = P00 & 0x1F;
+            uint32_t R10 = (P10 >> 11) & 0x1F; uint32_t G10 = (P10 >> 5) & 0x3F; uint32_t B10 = P10 & 0x1F;
+            uint32_t R01 = (P01 >> 11) & 0x1F; uint32_t G01 = (P01 >> 5) & 0x3F; uint32_t B01 = P01 & 0x1F;
+            uint32_t R11 = (P11 >> 11) & 0x1F; uint32_t G11 = (P11 >> 5) & 0x3F; uint32_t B11 = P11 & 0x1F;
+
+            /* Bilinear weights (8.8 fixed-point, same convention as thermal scaling). */
+            uint32_t W00 = (XInv * YInv) >> 8;
+            uint32_t W10 = (XFrac * YInv) >> 8;
+            uint32_t W01 = (XInv * YFrac) >> 8;
+            uint32_t W11 = (XFrac * YFrac) >> 8;
+
+            uint32_t R = (R00 * W00 + R10 * W10 + R01 * W01 + R11 * W11) >> 8;
+            uint32_t G = (G00 * W00 + G10 * W10 + G01 * W01 + G11 * W11) >> 8;
+            uint32_t B = (B00 * W00 + B10 * W10 + B01 * W01 + B11 * W11) >> 8;
+
+            /* Write RGB565 little-endian — same layout as the thermal canvas path.
+             * Destination index is reversed (180° pre-rotation) so that the final
+             * image appears upright after the LVGL 1800-unit rotation applied to
+             * ui_Image_Main_Thermal.
+             */
+            uint16_t Out = static_cast<uint16_t>((R << 11) | (G << 5) | B);
+            uint32_t DstOff = ((DstHeight - 1 - y) * DstWidth + (DstWidth - 1 - x)) * 2;
+
+            p_Dst[DstOff + 0] = Out & 0xFF;
+            p_Dst[DstOff + 1] = (Out >> 8) & 0xFF;
         }
     }
 }
@@ -533,7 +622,7 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
         { GUI_KEYPAD_BTN4, "BTN4"  },
     };
 
-    Devices_InputState_t State;
+    Devices_Input_State_t State;
     uint32_t Key = 0;
     bool Pressed = false;
     const char *p_KeyName = "?";
@@ -545,7 +634,7 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
     }
 
     xSemaphoreTake(_GUITaskState.AppContext->InputMutex, portMAX_DELAY);
-    memcpy(&State, &_GUITaskState.AppContext->InputState, sizeof(Devices_InputState_t));
+    memcpy(&State, &_GUITaskState.AppContext->InputState, sizeof(Devices_Input_State_t));
     xSemaphoreGive(_GUITaskState.AppContext->InputMutex);
 
     const bool InputArray[] = {
@@ -788,9 +877,9 @@ void Task_GUI(void *p_Parameters)
      *
      * NOTE on coordinate spaces:
      * - Labels [3] (Crosshair) and [4] (PixelTemperature) are DIRECT children of
-     *   ui_Image_Thermal, so lv_obj_get_x/y() already returns image-relative coords.
+     *   ui_Image_Main_Thermal, so lv_obj_get_x/y() already returns image-relative coords.
      * - Labels [0..2] (Max/Min/Mean) are children of ui_Container_Main_Thermal_Scene_Statistics,
-     *   which itself is a child of ui_Image_Thermal. Their lv_obj_get_x/y() is relative
+     *   which itself is a child of ui_Image_Main_Thermal. Their lv_obj_get_x/y() is relative
      *   to the container, so the container's own offset within the image must be added.
      */
     int32_t SceneStatsContainerX = lv_obj_get_x(ui_Container_Main_Thermal_Scene_Statistics);
@@ -829,11 +918,8 @@ void Task_GUI(void *p_Parameters)
 
         /* Check for new thermal frame. */
         if (xQueueReceive(App_Context->Lepton_FrameQueue, &LeptonFrame, 0) == pdTRUE) {
-            /* During UVC streaming, skip expensive image processing to avoid
-             *  SPI contention and watchdog timeouts. Just drain the queue.
-             */
-            if (_GUITaskState.IsUVCStreaming) {
-                ESP_LOGD(TAG, "UVC streaming active - skipping GUI frame processing");
+            if (_GUITaskState.IsUVCStreaming || _GUITaskState.ShowCameraView) {
+                ESP_LOGD(TAG, "UVC streaming or camera view active - skipping GUI thermal frame processing");
             } else {
                 uint8_t *Dst;
                 uint32_t ImageWidth;
@@ -846,10 +932,10 @@ void Task_GUI(void *p_Parameters)
                 /* Reset watchdog before image processing. */
                 esp_task_wdt_reset();
 
-                /* Scale from source (160x120) to destination (240x180) using bilinear interpolation. */
+                /* Scale from source to destination using bilinear interpolation. */
                 Dst = _GUITaskState.ThermalCanvasBuffer;
-                ImageWidth = lv_obj_get_width(ui_Image_Thermal);
-                ImageHeight = lv_obj_get_height(ui_Image_Thermal);
+                ImageWidth = lv_obj_get_width(ui_Image_Main_Thermal);
+                ImageHeight = lv_obj_get_height(ui_Image_Main_Thermal);
 
                 /* Skip if image widget not properly initialized yet. */
                 if ((ImageWidth == 0) || (ImageHeight == 0)) {
@@ -1012,40 +1098,17 @@ void Task_GUI(void *p_Parameters)
                 /* Max temperature (top of gradient) */
                 float TempMaxCelsius = (LeptonFrame.Max / 100.0f) - 273.15f;
                 snprintf(Buffer, sizeof(Buffer), "%.1f \xC2\xB0""C", TempMaxCelsius);
-                lv_label_set_text(ui_Label_TempScaleMax, Buffer);
+                lv_label_set_text(ui_Label_Main_TempScaleMax, Buffer);
 
                 /* Min temperature (bottom of gradient) */
                 float TempMinCelsius = (LeptonFrame.Min / 100.0f) - 273.15f;
                 snprintf(Buffer, sizeof(Buffer), "%.1f \xC2\xB0""C", TempMinCelsius);
-                lv_label_set_text(ui_Label_TempScaleMin, Buffer);
+                lv_label_set_text(ui_Label_Main_TempScaleMin, Buffer);
 
                 /* Trigger LVGL to redraw the image */
-                lv_obj_invalidate(ui_Image_Thermal);
+                lv_obj_invalidate(ui_Image_Main_Thermal);
                 ESP_LOGD(TAG, "Updated thermal image display (src: %ux%u -> dst: %ux%u)", LeptonFrame.Width, LeptonFrame.Height,
                          ImageWidth, ImageHeight);
-
-                /* Save frame if requested */
-                if (_GUITaskState.SaveNextFrameRequested) {
-                    App_Lepton_Frame_t SaveFrame;
-
-                    _GUITaskState.SaveNextFrameRequested = false;
-
-                    /* Prepare frame data for save task (using scaled RGB565 buffer) */
-                    SaveFrame.Buffer = _GUITaskState.ThermalCanvasBuffer;  /* Use scaled display buffer */
-                    SaveFrame.Width = ImageWidth;
-                    SaveFrame.Height = ImageHeight;
-
-                    /* RGB565 = 2 bytes per pixel */
-                    SaveFrame.Channels = 2;
-                    SaveFrame.Min = LeptonFrame.Min;
-                    SaveFrame.Max = LeptonFrame.Max;
-
-                    if (xQueueSend(_GUITaskState.ImageSaveQueue, &SaveFrame, 0) != pdTRUE) {
-                        ESP_LOGW(TAG, "Image save queue full, skipping save");
-
-                        esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, pdMS_TO_TICKS(100));
-                    }
-                }
 
                 /* Update network frame for server streaming if server is running */
                 if (Server_IsRunning()) {
@@ -1092,11 +1155,41 @@ void Task_GUI(void *p_Parameters)
             App_Camera_Frame_t CameraFrame;
 
             if (xQueueReceive(App_Context->Camera_FrameQueue, &CameraFrame, 0) == pdTRUE) {
-                memcpy(_GUITaskState.CameraCanvasBuffer, CameraFrame.Buffer, CameraFrame.Width * CameraFrame.Height * 2);
-
-                if (_GUITaskState.CameraImageWidget != NULL) {
-                    lv_obj_invalidate(_GUITaskState.CameraImageWidget);
+                if (_GUITaskState.ShowCameraView) {
+                    /* Scale camera frame down and render in the thermal canvas */
+                    UI_Scale_Camera(CameraFrame.Buffer, CameraFrame.Width, CameraFrame.Height,
+                                            _GUITaskState.ThermalCanvasBuffer, UI_IMAGE_CANVAS_WIDTH, UI_IMAGE_CANVAS_HEIGHT);
+                    lv_obj_invalidate(ui_Image_Main_Thermal);
                 }
+            }
+        }
+
+        /* Save the currently displayed frame (thermal or camera) if requested.
+         * A dedicated snapshot copy (SaveCanvasBuffer) is used to prevent a data race
+         * between Task_GUI overwriting ThermalCanvasBuffer and Task_ImageSave reading it.
+         */
+        if (_GUITaskState.SaveNextFrameRequested) {
+            App_Lepton_Frame_t SaveFrame;
+
+            _GUITaskState.SaveNextFrameRequested = false;
+
+            /* Take a snapshot of the current canvas before handing the pointer to Task_ImageSave. */
+            memcpy(_GUITaskState.SaveCanvasBuffer, _GUITaskState.ThermalCanvasBuffer,
+                   UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2);
+
+            SaveFrame.Buffer = _GUITaskState.SaveCanvasBuffer;
+            SaveFrame.Width = UI_IMAGE_CANVAS_WIDTH;
+            SaveFrame.Height = UI_IMAGE_CANVAS_HEIGHT;
+
+            /* RGB565 = 2 bytes per pixel */
+            SaveFrame.Channels = 2;
+            SaveFrame.Min = 0;
+            SaveFrame.Max = 0;
+
+            if (xQueueSend(_GUITaskState.ImageSaveQueue, &SaveFrame, 0) != pdTRUE) {
+                ESP_LOGW(TAG, "Image save queue full, skipping save");
+
+                esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, pdMS_TO_TICKS(100));
             }
         }
 
@@ -1289,8 +1382,8 @@ void Task_GUI(void *p_Parameters)
         if (EventBits & GUI_TASK_UVC_STREAMING_STATE_CHANGED) {
             if (_GUITaskState.IsUVCStreaming) {
                 /* Clear thermal canvas to black */
-                memset(_GUITaskState.ThermalCanvasBuffer, 0x00, 240 * 180 * 2);
-                lv_obj_invalidate(ui_Image_Thermal);
+                memset(_GUITaskState.ThermalCanvasBuffer, 0x00, UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2);
+                lv_obj_invalidate(ui_Image_Main_Thermal);
 
                 /* Show UVC overlay */
                 lv_obj_remove_flag(_GUITaskState.UVCOverlayLabel, LV_OBJ_FLAG_HIDDEN);
@@ -1308,8 +1401,8 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
 
                 /* Hide temperature scale labels */
-                lv_obj_add_flag(ui_Label_TempScaleMax, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Label_TempScaleMin, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Label_Main_TempScaleMax, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Label_Main_TempScaleMin, LV_OBJ_FLAG_HIDDEN);
             } else {
                 /* Hide UVC overlay */
                 lv_obj_add_flag(_GUITaskState.UVCOverlayLabel, LV_OBJ_FLAG_HIDDEN);
@@ -1327,11 +1420,48 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
 
                 /* Restore temperature scale labels */
-                lv_obj_remove_flag(ui_Label_TempScaleMax, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Label_TempScaleMin, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Label_Main_TempScaleMax, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Label_Main_TempScaleMin, LV_OBJ_FLAG_HIDDEN);
             }
 
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_UVC_STREAMING_STATE_CHANGED);
+        }
+
+        if (EventBits & GUI_TASK_CAMERA_VIEW_CHANGED) {
+            if (_GUITaskState.ShowCameraView) {
+                memset(_GUITaskState.ThermalCanvasBuffer, 0x00, UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2);
+                lv_obj_invalidate(ui_Image_Main_Thermal);
+
+                /* Hide temperature overlay and scale labels */
+                lv_obj_add_flag(ui_Label_Main_Thermal_PixelTemperature, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Max, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Min, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Label_Main_TempScaleMax, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Label_Main_TempScaleMin, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Label_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Image_Main_Gradient, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
+            } else {
+                /* Leaving camera view: restore temperature overlay */
+                lv_obj_remove_flag(ui_Label_Main_Thermal_PixelTemperature, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Max, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Min, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Label_Main_TempScaleMax, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Label_Main_TempScaleMin, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Label_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Image_Main_Gradient, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
+            }
+
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_VIEW_CHANGED);
         }
 
         if (EventBits & GUI_TASK_TEMPERATURE_SENSOR_READY) {
@@ -1379,10 +1509,10 @@ esp_err_t GUI_Task_Init(void)
 
     ui_init();
 
-    _GUITaskState.ThermalCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(240 * 180 * 2, MALLOC_CAP_SPIRAM));
+    _GUITaskState.ThermalCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2, MALLOC_CAP_SPIRAM));
     _GUITaskState.GradientCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(20 * 180 * 2, MALLOC_CAP_SPIRAM));
     _GUITaskState.NetworkRGBBuffer = static_cast<uint8_t *>(heap_caps_malloc(240 * 180 * 3, MALLOC_CAP_SPIRAM));
-    _GUITaskState.CameraCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(320 * 240 * 2, MALLOC_CAP_SPIRAM));
+    _GUITaskState.SaveCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2, MALLOC_CAP_SPIRAM));
 
     if (_GUITaskState.ThermalCanvasBuffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate thermal canvas buffer!");
@@ -1410,8 +1540,8 @@ esp_err_t GUI_Task_Init(void)
         return ESP_ERR_NO_MEM;
     }
 
-    if (_GUITaskState.CameraCanvasBuffer == NULL) {
-        ESP_LOGE(TAG, "Failed to allocate camera canvas buffer!");
+    if (_GUITaskState.SaveCanvasBuffer == NULL) {
+        ESP_LOGE(TAG, "Failed to allocate save canvas buffer!");
         APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
 
         heap_caps_free(_GUITaskState.ThermalCanvasBuffer);
@@ -1429,6 +1559,7 @@ esp_err_t GUI_Task_Init(void)
         heap_caps_free(_GUITaskState.ThermalCanvasBuffer);
         heap_caps_free(_GUITaskState.GradientCanvasBuffer);
         heap_caps_free(_GUITaskState.NetworkRGBBuffer);
+        heap_caps_free(_GUITaskState.SaveCanvasBuffer);
 
         return ESP_ERR_NO_MEM;
     }
@@ -1444,19 +1575,20 @@ esp_err_t GUI_Task_Init(void)
         heap_caps_free(_GUITaskState.ThermalCanvasBuffer);
         heap_caps_free(_GUITaskState.GradientCanvasBuffer);
         heap_caps_free(_GUITaskState.NetworkRGBBuffer);
+        heap_caps_free(_GUITaskState.SaveCanvasBuffer);
 
         _GUITaskState.ImageSaveQueue = NULL;
         _GUITaskState.ThermalCanvasBuffer = NULL;
         _GUITaskState.GradientCanvasBuffer = NULL;
         _GUITaskState.NetworkRGBBuffer = NULL;
+        _GUITaskState.SaveCanvasBuffer = NULL;
 
         return ESP_FAIL;
     }
 
     /* Initialize buffers with black pixels (RGB565 = 0x0000) */
-    memset(_GUITaskState.ThermalCanvasBuffer, 0x00, 240 * 180 * 2);
+    memset(_GUITaskState.ThermalCanvasBuffer, 0x00, UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2);
     memset(_GUITaskState.GradientCanvasBuffer, 0x00, 20 * 180 * 2);
-    memset(_GUITaskState.CameraCanvasBuffer, 0x00, 320 * 240 * 2);
 
     /* Now configure the image descriptors with allocated buffers */
     _GUITaskState.ThermalImageDescriptor.header.cf = LV_COLOR_FORMAT_RGB565;
@@ -1471,23 +1603,10 @@ esp_err_t GUI_Task_Init(void)
     _GUITaskState.GradientImageDescriptor.data = _GUITaskState.GradientCanvasBuffer;
     _GUITaskState.GradientImageDescriptor.data_size = 20 * 180 * 2;
 
-    _GUITaskState.CameraImageDescriptor.header.cf = LV_COLOR_FORMAT_RGB565;
-    _GUITaskState.CameraImageDescriptor.header.w = 320;
-    _GUITaskState.CameraImageDescriptor.header.h = 240;
-    _GUITaskState.CameraImageDescriptor.data = _GUITaskState.CameraCanvasBuffer;
-    _GUITaskState.CameraImageDescriptor.data_size = 320 * 240 * 2;
-
     UI_Canvas_AddTempGradient();
 
-    lv_img_set_src(ui_Image_Thermal, &_GUITaskState.ThermalImageDescriptor);
-    lv_img_set_src(ui_Image_Gradient, &_GUITaskState.GradientImageDescriptor);
-
-    /* Create visible-light camera image widget (hidden by default, shown when first frame arrives) */
-    _GUITaskState.CameraImageWidget = lv_image_create(lv_screen_active());
-    lv_image_set_src(_GUITaskState.CameraImageWidget, &_GUITaskState.CameraImageDescriptor);
-    lv_obj_set_size(_GUITaskState.CameraImageWidget, 320, 240);
-    lv_obj_center(_GUITaskState.CameraImageWidget);
-    lv_obj_add_flag(_GUITaskState.CameraImageWidget, LV_OBJ_FLAG_HIDDEN);
+    lv_img_set_src(ui_Image_Main_Thermal, &_GUITaskState.ThermalImageDescriptor);
+    lv_img_set_src(ui_Image_Main_Gradient, &_GUITaskState.GradientImageDescriptor);
 
     /* Create UVC streaming overlay label (hidden by default) */
     _GUITaskState.UVCOverlayLabel = lv_label_create(ui_Container_Main_Thermal);
@@ -1507,6 +1626,7 @@ esp_err_t GUI_Task_Init(void)
         heap_caps_free(_GUITaskState.ThermalCanvasBuffer);
         heap_caps_free(_GUITaskState.GradientCanvasBuffer);
         heap_caps_free(_GUITaskState.NetworkRGBBuffer);
+        heap_caps_free(_GUITaskState.SaveCanvasBuffer);
 
         return ESP_ERR_NO_MEM;
     }
@@ -1523,6 +1643,7 @@ esp_err_t GUI_Task_Init(void)
     esp_event_handler_register(CAMERA_TASK_EVENTS, CAMERA_EVENT_INIT_FAILED, on_Camera_Task_Event_Handler, NULL);
 
     _GUITaskState.SaveNextFrameRequested = false;
+    _GUITaskState.ShowCameraView = false;
     _GUITaskState.IsInitialized = true;
 
     return ESP_OK;
@@ -1549,11 +1670,6 @@ void GUI_Task_Deinit(void)
     if (_GUITaskState.NetworkFrame.Mutex != NULL) {
         vSemaphoreDelete(_GUITaskState.NetworkFrame.Mutex);
         _GUITaskState.NetworkFrame.Mutex = NULL;
-    }
-
-    if (_GUITaskState.CameraCanvasBuffer != NULL) {
-        heap_caps_free(_GUITaskState.CameraCanvasBuffer);
-        _GUITaskState.CameraCanvasBuffer = NULL;
     }
 
     _GUITaskState.Display = NULL;
@@ -1625,4 +1741,16 @@ esp_err_t GUI_SaveThermalImage(void)
     ESP_LOGD(TAG, "Image save requested - will capture next frame");
 
     return ESP_OK;
+}
+
+void GUI_Task_SetCameraView(bool Enable)
+{
+    _GUITaskState.ShowCameraView = Enable;
+    xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_VIEW_CHANGED);
+}
+
+void GUI_Task_ToggleCameraView(void)
+{
+    _GUITaskState.ShowCameraView = !_GUITaskState.ShowCameraView;
+    xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_VIEW_CHANGED);
 }

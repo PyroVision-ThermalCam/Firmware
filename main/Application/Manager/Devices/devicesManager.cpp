@@ -775,7 +775,7 @@ esp_err_t DevicesManager_HandleExpanderInterrupt(void)
     return ESP_OK;
 }
 
-esp_err_t DevicesManager_HandleDisplayboardExpanderInterrupt(Devices_InputState_t *p_State)
+esp_err_t DevicesManager_HandleDisplayboardExpanderInterrupt(Devices_Input_State_t *p_State)
 {
     uint8_t Status0, Status1, In0, In1;
 
@@ -1049,7 +1049,7 @@ esp_err_t DevicesManager_GetDistance(uint16_t *p_Distance_mm, bool *p_IsValid)
     return ESP_OK;
 }
 
-esp_err_t DevicesManager_GetDisplayboardInputs(Devices_InputState_t *p_State)
+esp_err_t DevicesManager_GetDisplayboardInputs(Devices_Input_State_t *p_State)
 {
     uint8_t In0;
     uint8_t In1;

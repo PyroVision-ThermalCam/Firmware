@@ -103,6 +103,21 @@ void GUI_Toggle_ROI_EditMode(void);
  */
 esp_err_t GUI_SaveThermalImage(void);
 
+/** @brief          Enable or disable the visible-light camera view in the thermal canvas.
+ *                  When enabled, incoming camera frames are scaled from 320x240 to 240x180 using
+ *                  bilinear interpolation and rendered in place of the thermal image. Temperature
+ *                  overlay labels are hidden automatically. When disabled, the thermal view is
+ *                  restored and the temperature labels are shown again.
+ *  @note           Thread-safe. The change takes effect on the next task loop iteration.
+ *  @param Enable   true to show the camera view, false to restore the thermal view.
+ */
+void GUI_Task_SetCameraView(bool Enable);
+
+/** @brief          Toggle the visible-light camera view in the thermal canvas.
+ *  @note           Thread-safe. The change takes effect on the next task loop iteration.
+ */
+void GUI_Task_ToggleCameraView(void);
+
 /** @brief  Return the LVGL keypad input device handle.
  *  @note   Required to bind an lv_group_t to the physical keypad.
  *          Returns NULL if the GUI has not been initialised yet.

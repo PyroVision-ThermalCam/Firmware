@@ -25,6 +25,9 @@ extern lv_obj_t * ui_Label_Menu_Back;
 extern void ui_event_Button_Menu_Save(lv_event_t * e);
 extern lv_obj_t * ui_Button_Menu_Save;
 extern lv_obj_t * ui_Label_Menu_Button_Save;
+extern void ui_event_Button_Menu_Info(lv_event_t * e);
+extern lv_obj_t * ui_Button_Menu_Info;
+extern lv_obj_t * ui_Label_Info_Button_Info;
 // CUSTOM VARIABLES
 
 #ifdef __cplusplus

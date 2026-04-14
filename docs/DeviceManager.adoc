@@ -1103,7 +1103,7 @@ typedef struct {
     bool Button2;   /**< Button 2        (P1.1, active high). */
     bool Button3;   /**< Button 3        (P1.2, active high). */
     bool Button4;   /**< Button 4        (P1.3, active high). */
-} Devices_InputState_t;
+} Devices_Input_State_t;
 ----
 
 === Events (DEVICES_EVENTS)
@@ -1139,7 +1139,7 @@ Events are posted on the default event loop using the `DEVICES_EVENTS` event bas
 | SD-card detection state changed (true = card inserted; P1.4, polarity-inverted)
 
 | `DEVICES_EVENT_INPUT_CHANGED`
-| `Devices_InputState_t`
+| `Devices_Input_State_t`
 | Displayboard joystick or button state changed
 |===
 
@@ -1435,7 +1435,7 @@ is pending.
 
 [source,cpp]
 ----
-esp_err_t DevicesManager_GetDisplayboardInputs(Devices_InputState_t *p_State);
+esp_err_t DevicesManager_GetDisplayboardInputs(Devices_Input_State_t *p_State);
 ----
 
 Reads the five joystick directions (P0.3--P0.7) and four push-buttons (P1.0--P1.3) from
@@ -1523,8 +1523,8 @@ if (DevicesManager_GetDistance(&Distance, &Valid) == ESP_OK && Valid) {
 static void on_devices_event(void *p_Arg, esp_event_base_t Base, int32_t ID, void *p_Data)
 {
     if (Base == DEVICES_EVENTS && ID == DEVICES_EVENT_INPUT_CHANGED) {
-        const Devices_InputState_t *p_State =
-            static_cast<const Devices_InputState_t *>(p_Data);
+        const Devices_Input_State_t *p_State =
+            static_cast<const Devices_Input_State_t *>(p_Data);
 
         if (p_State->JoyUp) {
             ESP_LOGI(TAG, "Joystick UP");
