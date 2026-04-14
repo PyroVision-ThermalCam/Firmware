@@ -43,8 +43,8 @@
 #define HTTP_SERVER_API_KEY_HEADER          "X-API-Key"
 
 typedef struct {
-    bool isInitialized;
-    bool isRunning;
+    bool IsInitialized;
+    bool IsRunning;
     httpd_handle_t Handle;
     Network_HTTP_Server_Config_t Config;
     Network_Thermal_Frame_t *ThermalFrame;
@@ -606,7 +606,7 @@ esp_err_t HTTP_Server_Init(const Network_HTTP_Server_Config_t *p_Config)
 {
     if (p_Config == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (_HTTP_Server_State.isInitialized) {
+    } else if (_HTTP_Server_State.IsInitialized) {
         ESP_LOGW(TAG, "Already initialized, updating config");
 
         memcpy(&_HTTP_Server_State.Config, p_Config, sizeof(Network_HTTP_Server_Config_t));
@@ -620,19 +620,19 @@ esp_err_t HTTP_Server_Init(const Network_HTTP_Server_Config_t *p_Config)
     _HTTP_Server_State.Handle = NULL;
     _HTTP_Server_State.ThermalFrame = NULL;
     _HTTP_Server_State.RequestCount = 0;
-    _HTTP_Server_State.isInitialized = true;
+    _HTTP_Server_State.IsInitialized = true;
 
     return ESP_OK;
 }
 
 void HTTP_Server_Deinit(void)
 {
-    if (_HTTP_Server_State.isInitialized == false) {
+    if (_HTTP_Server_State.IsInitialized == false) {
         return;
     }
 
     HTTP_Server_Stop();
-    _HTTP_Server_State.isInitialized = false;
+    _HTTP_Server_State.IsInitialized = false;
 
     ESP_LOGD(TAG, "HTTP server deinitialized");
 }
@@ -641,9 +641,9 @@ esp_err_t HTTP_Server_Start(void)
 {
     esp_err_t Error;
 
-    if (_HTTP_Server_State.isInitialized == false) {
+    if (_HTTP_Server_State.IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
-    } else if (_HTTP_Server_State.isRunning) {
+    } else if (_HTTP_Server_State.IsRunning) {
         ESP_LOGW(TAG, "Server already running");
 
         return ESP_OK;
@@ -698,7 +698,7 @@ esp_err_t HTTP_Server_Start(void)
         httpd_register_uri_handler(_HTTP_Server_State.Handle, &_URI_Options);
     }
 
-    _HTTP_Server_State.isRunning = true;
+    _HTTP_Server_State.IsRunning = true;
     _HTTP_Server_State.StartTime = esp_timer_get_time() / 1000000;
 
     ESP_LOGD(TAG, "HTTP server started");
@@ -710,13 +710,13 @@ esp_err_t HTTP_Server_Stop(void)
 {
     esp_err_t Error;
 
-    if (_HTTP_Server_State.isRunning == false) {
+    if (_HTTP_Server_State.IsRunning == false) {
         return ESP_OK;
     }
 
     ESP_LOGD(TAG, "Stopping HTTP server");
 
-    _HTTP_Server_State.isRunning = false;
+    _HTTP_Server_State.IsRunning = false;
 
     if (_HTTP_Server_State.Handle != NULL) {
         Error = httpd_stop(_HTTP_Server_State.Handle);
@@ -731,7 +731,7 @@ esp_err_t HTTP_Server_Stop(void)
 
 bool HTTP_Server_IsRunning(void)
 {
-    return _HTTP_Server_State.isRunning;
+    return _HTTP_Server_State.IsRunning;
 }
 
 void HTTP_Server_SetThermalFrame(Network_Thermal_Frame_t *p_Frame)

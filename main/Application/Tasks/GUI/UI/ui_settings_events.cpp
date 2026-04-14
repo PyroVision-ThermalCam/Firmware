@@ -22,6 +22,7 @@
  */
 
 #include <esp_log.h>
+#include <esp_event.h>
 
 #include "managers.h"
 
@@ -106,11 +107,11 @@ void on_WiFi_Autoconnect_Callback(lv_event_t *e)
     if (lv_obj_has_state(switch_obj, LV_STATE_CHECKED)) {
         WiFiSettings.AutoConnect = true;
 
-        ESP_LOGI(TAG, "WiFi autoconnect enabled");
+        ESP_LOGD(TAG, "WiFi autoconnect enabled");
     } else {
         WiFiSettings.AutoConnect = false;
 
-        ESP_LOGI(TAG, "WiFi autoconnect disabled");
+        ESP_LOGD(TAG, "WiFi autoconnect disabled");
     }
 
     SettingsManager_UpdateWiFi(&WiFiSettings);
@@ -118,8 +119,6 @@ void on_WiFi_Autoconnect_Callback(lv_event_t *e)
 
 void on_WiFi_Connect_Callback(lv_event_t *e)
 {
-    ESP_LOGI(TAG, "WiFi connect button clicked, posting network event...");
-
     esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_OPEN_WIFI_REQUEST, NULL, 0, 0);
 }
 
@@ -230,19 +229,17 @@ void on_Image_Format_Dropdown_Callback(lv_event_t *e)
 
     SettingsManager_GetSystem(&SystemSettings);
 
-    /* Update image format */
     SystemSettings.ImageFormat = static_cast<Settings_Image_Format_t>(lv_dropdown_get_selected(static_cast<lv_obj_t *>
                                                                                                (lv_event_get_target(e))));
     SettingsManager_UpdateSystem(&SystemSettings, NULL);
 
-    /* Show/hide JPEG quality section based on format */
     if (SystemSettings.ImageFormat == IMAGE_FORMAT_JPEG) {
         lv_obj_remove_flag(jpeg_quality_row, LV_OBJ_FLAG_HIDDEN);
     } else {
         lv_obj_add_flag(jpeg_quality_row, LV_OBJ_FLAG_HIDDEN);
     }
 
-    ESP_LOGI(TAG, "Image format changed to: 0x%X", SystemSettings.ImageFormat);
+    ESP_LOGD(TAG, "Image format changed to: 0x%X", SystemSettings.ImageFormat);
 }
 
 void on_Image_JpegQuality_Slider_Callback(lv_event_t *e)
@@ -257,7 +254,6 @@ void on_Image_JpegQuality_Slider_Callback(lv_event_t *e)
     Value = static_cast<int>(lv_slider_get_value(Slider));
     lv_label_set_text_fmt(widgets->Label, "%d", Value);
 
-    /* Update immediately for live preview */
     SystemSettings.JpegQuality = static_cast<uint8_t>(Value);
     SettingsManager_UpdateSystem(&SystemSettings, NULL);
 }
@@ -270,7 +266,7 @@ void on_Memory_ClearStorage_Callback(lv_event_t *e)
 
     Error = MemoryManager_EraseStorage();
     if (Error == ESP_OK) {
-        ESP_LOGI(TAG, "Storage partition erased successfully");
+        ESP_LOGD(TAG, "Storage partition erased successfully");
 
         ui_settings_update_memory_usage();
     } else {
@@ -286,7 +282,7 @@ void on_Memory_ClearCoredump_Callback(lv_event_t *e)
 
     Error = MemoryManager_EraseCoredump();
     if (Error == ESP_OK) {
-        ESP_LOGI(TAG, "Coredump partition erased successfully");
+        ESP_LOGD(TAG, "Coredump partition erased successfully");
 
         ui_settings_update_memory_usage();
     } else {

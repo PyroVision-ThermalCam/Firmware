@@ -67,14 +67,29 @@ The settings are divided into the following categories:
 
 [source,cpp]
 ----
+typedef enum {
+    ROI_TYPE_SPOTMETER,    // Spotmeter ROI
+    ROI_TYPE_SCENE,        // Scene statistics ROI
+    ROI_TYPE_AGC,          // AGC ROI
+    ROI_TYPE_VIDEO_FOCUS,  // Video focus ROI
+} Settings_ROI_Type_t;
+
 typedef struct {
-    Settings_ROI_t ROI[4];                      // Camera ROIs
+    Settings_ROI_Type_t Type; // ROI type
+    uint16_t x;               // X coordinate of top-left corner (display pixels)
+    uint16_t y;               // Y coordinate of top-left corner (display pixels)
+    uint16_t w;               // Width of the ROI (display pixels)
+    uint16_t h;               // Height of the ROI (display pixels)
+} Settings_ROI_t;
+
+typedef struct {
+    Settings_ROI_t ROI[4];                       // Camera ROIs
     Settings_Emissivity_t EmissivityPresets[128]; // Emissivity presets
-    size_t EmissivityPresetsCount;                    // Number of presets
+    size_t EmissivityPresetsCount;                // Number of presets
 } Settings_Lepton_t;
 ----
 
-* *ROIs*: Up to 4 Regions of Interest (Spotmeter, Scene, AGC, Video Focus)
+* *ROIs*: Up to 4 Regions of Interest (Spotmeter, Scene, AGC, Video Focus); configured via `Settings_ROI_t`
 * *Emissivity Presets*: Predefined material emissivities (e.g. Concrete: 0.92, Skin: 0.98)
 
 ==== 2. WiFi Settings (`Settings_WiFi_t`)

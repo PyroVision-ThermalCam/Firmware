@@ -29,7 +29,7 @@
 #include <string.h>
 
 #include "timeManager.h"
-#include "../appDiag.h"
+#include "../AppDiag/appDiag.h"
 #include "../Devices/devicesManager.h"
 
 ESP_EVENT_DEFINE_BASE(TIME_EVENTS);
@@ -39,25 +39,25 @@ ESP_EVENT_DEFINE_BASE(TIME_EVENTS);
 #define TIME_MANAGER_VALID_YEAR_MIN             2025    /* Minimum valid year */
 
 typedef struct {
-    bool isInitialized;
-    bool hasRTC;
-    bool hasNetwork;
-    bool timeSynchronized;
-    TimeManager_Source_t activeSource;
-    time_t lastSNTP_Sync;
-    time_t lastRTC_Sync;
-    time_t lastRTC_Backup;
-    uint32_t sntpSyncCount;
-    uint32_t rtcSyncCount;
-    esp_timer_handle_t syncTimer;
+    bool IsInitialized;
+    bool HasRTC;
+    bool HasNetwork;
+    bool TimeSynchronized;
+    TimeManager_Source_t ActiveSource;
+    time_t LastSNTPSync;
+    time_t LastRTCSync;
+    time_t LastRTCBackup;
+    uint32_t SNTPSyncCount;
+    uint32_t RTCSyncCount;
+    esp_timer_handle_t SyncTimer;
 } TimeManager_State_t;
 
-static TimeManager_State_t _TimeManager_State;
+static TimeManager_State_t _TimeManagerState;
 
 static const char *TAG = "Time-Manager";
 
-/** @brief  SNTP time synchronization notification callback.
- *  @param tv Pointer to the synchronized time value
+/** @brief      SNTP time synchronization notification callback.
+ *  @param tv   Pointer to the synchronized time value
  */
 static void TimeManager_SNTP_Sync_Callback(struct timeval *tv)
 {
@@ -70,23 +70,23 @@ static void TimeManager_SNTP_Sync_Callback(struct timeval *tv)
              Timeinfo.tm_year + 1900, Timeinfo.tm_mon + 1, Timeinfo.tm_mday,
              Timeinfo.tm_hour, Timeinfo.tm_min, Timeinfo.tm_sec);
 
-    _TimeManager_State.lastSNTP_Sync = Now;
-    _TimeManager_State.activeSource = TIME_SOURCE_SNTP;
-    _TimeManager_State.timeSynchronized = true;
-    _TimeManager_State.sntpSyncCount++;
+    _TimeManagerState.LastSNTPSync = Now;
+    _TimeManagerState.ActiveSource = TIME_SOURCE_SNTP;
+    _TimeManagerState.TimeSynchronized = true;
+    _TimeManagerState.SNTPSyncCount++;
 
     /* Post time synchronized event */
     esp_event_post(TIME_EVENTS, TIME_EVENT_SYNCHRONIZED, &Timeinfo, sizeof(struct tm), portMAX_DELAY);
 
     /* Backup time to RTC if available */
-    if (_TimeManager_State.hasRTC) {
+    if (_TimeManagerState.HasRTC) {
         esp_err_t Error;
 
         Error = DevicesManager_SetTime(&Timeinfo);
         if (Error == ESP_OK) {
             ESP_LOGD(TAG, "Time backed up to RTC");
 
-            _TimeManager_State.lastRTC_Backup = Now;
+            _TimeManagerState.LastRTCBackup = Now;
         } else {
             ESP_LOGW(TAG, "Failed to backup time to RTC: 0x%X!", Error);
         }
@@ -103,10 +103,10 @@ static void TimeManager_Sync_Timer_Callback(void *p_Arg)
     time(&Now);
 
     /* If network is available and SNTP sync is due */
-    if (_TimeManager_State.hasNetwork) {
+    if (_TimeManagerState.HasNetwork) {
         time_t TimeSinceSync;
 
-        TimeSinceSync = Now - _TimeManager_State.lastSNTP_Sync;
+        TimeSinceSync = Now - _TimeManagerState.LastSNTPSync;
 
         if (TimeSinceSync >= TIME_MANAGER_SYNC_INTERVAL_SEC) {
             ESP_LOGD(TAG, "Periodic SNTP synchronization (last sync: %ld sec ago)", TimeSinceSync);
@@ -116,8 +116,8 @@ static void TimeManager_Sync_Timer_Callback(void *p_Arg)
         }
 
         /* Backup system time to RTC periodically */
-        if (_TimeManager_State.hasRTC && _TimeManager_State.timeSynchronized) {
-            time_t TimeSinceBackup = Now - _TimeManager_State.lastRTC_Backup;
+        if (_TimeManagerState.HasRTC && _TimeManagerState.TimeSynchronized) {
+            time_t TimeSinceBackup = Now - _TimeManagerState.LastRTCBackup;
 
             if (TimeSinceBackup >= TIME_MANAGER_RTC_BACKUP_INTERVAL_SEC) {
                 struct tm Timeinfo;
@@ -126,7 +126,7 @@ static void TimeManager_Sync_Timer_Callback(void *p_Arg)
                 if (DevicesManager_SetTime(&Timeinfo) == ESP_OK) {
                     ESP_LOGD(TAG, "Periodic RTC backup");
 
-                    _TimeManager_State.lastRTC_Backup = Now;
+                    _TimeManagerState.LastRTCBackup = Now;
                 }
             }
         }
@@ -138,7 +138,7 @@ esp_err_t TimeManager_Init(void *p_RTC_Handle)
     esp_err_t Error;
     struct tm RtcTime;
 
-    if (_TimeManager_State.isInitialized) {
+    if (_TimeManagerState.IsInitialized) {
         ESP_LOGW(TAG, "Already initialized");
 
         return ESP_OK;
@@ -146,9 +146,9 @@ esp_err_t TimeManager_Init(void *p_RTC_Handle)
 
     ESP_LOGD(TAG, "Initializing Time Manager");
 
-    memset(&_TimeManager_State, 0, sizeof(TimeManager_State_t));
+    memset(&_TimeManagerState, 0, sizeof(TimeManager_State_t));
 
-    _TimeManager_State.hasRTC = true;
+    _TimeManagerState.HasRTC = true;
     ESP_LOGD(TAG, "RTC available for time backup");
 
     /* Try to load time from RTC */
@@ -162,10 +162,10 @@ esp_err_t TimeManager_Init(void *p_RTC_Handle)
 
             settimeofday(&Tv, NULL);
 
-            _TimeManager_State.activeSource = TIME_SOURCE_RTC;
-            _TimeManager_State.timeSynchronized = true;
-            _TimeManager_State.lastRTC_Sync = T;
-            _TimeManager_State.rtcSyncCount++;
+            _TimeManagerState.ActiveSource = TIME_SOURCE_RTC;
+            _TimeManagerState.TimeSynchronized = true;
+            _TimeManagerState.LastRTCSync = T;
+            _TimeManagerState.RTCSyncCount++;
 
             ESP_LOGD(TAG, "System time initialized from RTC: %04d-%02d-%02d %02d:%02d:%02d",
                      RtcTime.tm_year + 1900, RtcTime.tm_mon + 1, RtcTime.tm_mday,
@@ -191,7 +191,7 @@ esp_err_t TimeManager_Init(void *p_RTC_Handle)
         .skip_unhandled_events = false,
     };
 
-    Error = esp_timer_create(&TimerArgs, &_TimeManager_State.syncTimer);
+    Error = esp_timer_create(&TimerArgs, &_TimeManagerState.SyncTimer);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to create sync timer: 0x%X!", Error);
 
@@ -199,41 +199,41 @@ esp_err_t TimeManager_Init(void *p_RTC_Handle)
     }
 
     /* Start timer with 60 second period */
-    Error = esp_timer_start_periodic(_TimeManager_State.syncTimer, 60 * 1000000ULL);
+    Error = esp_timer_start_periodic(_TimeManagerState.SyncTimer, 60 * 1000000ULL);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to start sync timer: 0x%X!", Error);
 
-        esp_timer_delete(_TimeManager_State.syncTimer);
+        esp_timer_delete(_TimeManagerState.SyncTimer);
 
         return Error;
     }
 
-    _TimeManager_State.isInitialized = true;
+    _TimeManagerState.IsInitialized = true;
 
     ESP_LOGD(TAG, "Time Manager initialized (Source: %s)",
-             _TimeManager_State.activeSource == TIME_SOURCE_RTC ? "RTC" :
-             _TimeManager_State.activeSource == TIME_SOURCE_SNTP ? "SNTP" : "None");
+             _TimeManagerState.ActiveSource == TIME_SOURCE_RTC ? "RTC" :
+             _TimeManagerState.ActiveSource == TIME_SOURCE_SNTP ? "SNTP" : "None");
 
     return ESP_OK;
 }
 
 esp_err_t TimeManager_Deinit(void)
 {
-    if (_TimeManager_State.isInitialized == false) {
+    if (_TimeManagerState.IsInitialized == false) {
         return ESP_OK;
     }
 
-    if (_TimeManager_State.syncTimer != NULL) {
-        esp_timer_stop(_TimeManager_State.syncTimer);
-        esp_timer_delete(_TimeManager_State.syncTimer);
-        _TimeManager_State.syncTimer = NULL;
+    if (_TimeManagerState.SyncTimer != NULL) {
+        esp_timer_stop(_TimeManagerState.SyncTimer);
+        esp_timer_delete(_TimeManagerState.SyncTimer);
+        _TimeManagerState.SyncTimer = NULL;
     }
 
     if (esp_sntp_enabled()) {
         esp_sntp_stop();
     }
 
-    _TimeManager_State.isInitialized = false;
+    _TimeManagerState.IsInitialized = false;
 
     ESP_LOGD(TAG, "Time Manager deinitialized");
 
@@ -244,7 +244,7 @@ esp_err_t TimeManager_OnNetworkConnected(void)
 {
     ESP_LOGD(TAG, "Network connected, starting SNTP synchronization");
 
-    _TimeManager_State.hasNetwork = true;
+    _TimeManagerState.HasNetwork = true;
 
     /* Initialize SNTP if not already done */
     if (esp_sntp_enabled()) {
@@ -267,24 +267,24 @@ esp_err_t TimeManager_OnNetworkDisconnected(void)
 {
     ESP_LOGD(TAG, "Network disconnected, switching to RTC time source");
 
-    _TimeManager_State.hasNetwork = false;
+    _TimeManagerState.HasNetwork = false;
 
     /* Switch to RTC if available */
-    if (_TimeManager_State.hasRTC) {
-        TimeManager_Source_t OldSource = _TimeManager_State.activeSource;
-        _TimeManager_State.activeSource = TIME_SOURCE_RTC;
+    if (_TimeManagerState.HasRTC) {
+        TimeManager_Source_t OldSource = _TimeManagerState.ActiveSource;
+        _TimeManagerState.ActiveSource = TIME_SOURCE_RTC;
 
         /* Post source changed event if source actually changed */
         if (OldSource != TIME_SOURCE_RTC) {
             esp_event_post(TIME_EVENTS, TIME_EVENT_SOURCE_CHANGED,
-                           &_TimeManager_State.activeSource,
+                           &_TimeManagerState.ActiveSource,
                            sizeof(TimeManager_Source_t), portMAX_DELAY);
         }
 
         ESP_LOGD(TAG, "Now using RTC as time source");
     } else {
         ESP_LOGW(TAG, "No RTC available, system time will drift");
-        _TimeManager_State.activeSource = TIME_SOURCE_SYSTEM;
+        _TimeManagerState.ActiveSource = TIME_SOURCE_SYSTEM;
     }
 
     return ESP_OK;
@@ -303,7 +303,7 @@ esp_err_t TimeManager_GetTime(struct tm *p_Time, TimeManager_Source_t *p_Source)
     localtime_r(&Now, p_Time);
 
     if (p_Source != NULL) {
-        *p_Source = _TimeManager_State.activeSource;
+        *p_Source = _TimeManagerState.ActiveSource;
     }
 
     return ESP_OK;
@@ -318,7 +318,7 @@ esp_err_t TimeManager_GetTimestamp(time_t *p_Time, TimeManager_Source_t *p_Sourc
     time(p_Time);
 
     if (p_Source != NULL) {
-        *p_Source = _TimeManager_State.activeSource;
+        *p_Source = _TimeManagerState.ActiveSource;
     }
 
     return ESP_OK;
@@ -330,20 +330,20 @@ esp_err_t TimeManager_GetStatus(TimeManager_Status_t *p_Status)
         return ESP_ERR_INVALID_ARG;
     }
 
-    p_Status->ActiveSource = _TimeManager_State.activeSource;
-    p_Status->SNTP_Available = _TimeManager_State.hasNetwork;
-    p_Status->RTC_Available = _TimeManager_State.hasRTC;
-    p_Status->LastSync_SNTP = _TimeManager_State.lastSNTP_Sync;
-    p_Status->LastSync_RTC = _TimeManager_State.lastRTC_Sync;
-    p_Status->SNTP_SyncCount = _TimeManager_State.sntpSyncCount;
-    p_Status->RTC_SyncCount = _TimeManager_State.rtcSyncCount;
+    p_Status->ActiveSource = _TimeManagerState.ActiveSource;
+    p_Status->SNTP_Available = _TimeManagerState.HasNetwork;
+    p_Status->RTC_Available = _TimeManagerState.HasRTC;
+    p_Status->LastSync_SNTP = _TimeManagerState.LastSNTPSync;
+    p_Status->LastSync_RTC = _TimeManagerState.LastRTCSync;
+    p_Status->SNTP_SyncCount = _TimeManagerState.SNTPSyncCount;
+    p_Status->RTC_SyncCount = _TimeManagerState.RTCSyncCount;
 
     return ESP_OK;
 }
 
 esp_err_t TimeManager_ForceSync(void)
 {
-    if (_TimeManager_State.hasNetwork == false) {
+    if (_TimeManagerState.HasNetwork == false) {
         ESP_LOGW(TAG, "Cannot force sync: no network connection");
 
         return TIME_ERR_SNTP_NOT_STARTED;
@@ -358,7 +358,7 @@ esp_err_t TimeManager_ForceSync(void)
 
 bool TimeManager_IsTimeSynchronized(void)
 {
-    return _TimeManager_State.timeSynchronized;
+    return _TimeManagerState.TimeSynchronized;
 }
 
 esp_err_t TimeManager_GetTimeString(char *p_Buffer, size_t Size, const char *Format)

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * image_encoder.cpp
  *
  *  Copyright (C) Daniel Kampert, 2026
@@ -34,7 +34,7 @@
 #include "lepton.h"
 
 typedef struct {
-    bool isInitialized;
+    bool IsInitialized;
     uint8_t JpegQuality;
 } Image_Image_Encoder_State_t;
 
@@ -63,7 +63,7 @@ static esp_err_t ImageEncoder_ApplyPalette(const Network_Thermal_Frame_t *p_Fram
 
 esp_err_t ImageEncoder_Init(uint8_t Quality)
 {
-    if (_Image_Encoder_State.isInitialized) {
+    if (_Image_Encoder_State.IsInitialized) {
         ESP_LOGW(TAG, "Already initialized");
 
         return ESP_OK;
@@ -80,18 +80,18 @@ esp_err_t ImageEncoder_Init(uint8_t Quality)
         _Image_Encoder_State.JpegQuality = 100;
     }
 
-    _Image_Encoder_State.isInitialized = true;
+    _Image_Encoder_State.IsInitialized = true;
 
     return ESP_OK;
 }
 
 void ImageEncoder_Deinit(void)
 {
-    if (_Image_Encoder_State.isInitialized == false) {
+    if (_Image_Encoder_State.IsInitialized == false) {
         return;
     }
 
-    _Image_Encoder_State.isInitialized = false;
+    _Image_Encoder_State.IsInitialized = false;
 
     ESP_LOGD(TAG, "Image encoder deinitialized");
 }

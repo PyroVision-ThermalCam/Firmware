@@ -1,4 +1,4 @@
-/*
+﻿/*
  * pca9633dp1.cpp
  *
  *  Copyright (C) Daniel Kampert, 2026
@@ -236,7 +236,7 @@ esp_err_t PCA9633DP1_Init(i2c_master_bus_handle_t *p_Bus_Handle, PCA9633DP1_Dev_
 
     ESP_LOGD(TAG, "PCA9633DP1 initialized successfully");
 
-    p_Device->isInitialized = true;
+    p_Device->IsInitialized = true;
 
     return ESP_OK;
 }
@@ -268,7 +268,7 @@ esp_err_t PCA9633DP1_Deinit(PCA9633DP1_Dev_t *p_Device)
 
     ESP_LOGD(TAG, "PCA9633DP1 deinitialized");
 
-    p_Device->isInitialized = false;
+    p_Device->IsInitialized = false;
     p_Device->Handle = NULL;
 
     return ESP_OK;
@@ -284,7 +284,7 @@ esp_err_t PCA9633DP1_SetLEDBrightness(PCA9633DP1_Dev_t *p_Device, PCA9633_LED_t 
         ESP_LOGE(TAG, "Invalid device handle!");
 
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     } else if (LED > PCA9633_LED3) {
         ESP_LOGE(TAG, "Invalid LED index!");
@@ -332,7 +332,7 @@ esp_err_t PCA9633DP1_SetLEDState(PCA9633DP1_Dev_t *p_Device, PCA9633_LED_t LED, 
 
     if (p_Device == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     } else if (LED > PCA9633_LED3) {
         return ESP_ERR_INVALID_ARG;
@@ -367,7 +367,7 @@ esp_err_t PCA9633DP1_SetSleepMode(PCA9633DP1_Dev_t *p_Device, bool Sleep)
 
     if (p_Device == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 

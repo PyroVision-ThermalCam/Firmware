@@ -200,7 +200,7 @@ static int VISA_CMD_TST(char *p_Response, size_t MaxLen)
 {
     /* Perform basic self-test */
     /* 0 = pass, non-zero = fail */
-    int result = 0;
+    int Result = 0;
     size_t Length;
     std::string Response;
 
@@ -209,7 +209,7 @@ static int VISA_CMD_TST(char *p_Response, size_t MaxLen)
     // Check display
     // Check memory
 
-    Response = std::to_string(result) + "\n";
+    Response = std::to_string(Result) + "\n";
     Length = std::min(Response.length(), MaxLen - 1);
     memcpy(p_Response, Response.c_str(), Length);
     p_Response[Length] = '\0';
@@ -251,11 +251,11 @@ static int VISA_CMD_SYST_ERR(char *p_Response, size_t MaxLen)
  */
 static int VISA_CMD_SYST_VERS(char *p_Response, size_t MaxLen)
 {
-    std::string result = "1999.0\n"; /* SCPI-99 */
+    std::string Result = "1999.0\n"; /* SCPI-99 */
     size_t Length;
 
-    Length = std::min(result.length(), MaxLen - 1);
-    memcpy(p_Response, result.c_str(), Length);
+    Length = std::min(Result.length(), MaxLen - 1);
+    memcpy(p_Response, Result.c_str(), Length);
     p_Response[Length] = '\0';
 
     return static_cast<int>(Length);
@@ -354,7 +354,7 @@ esp_err_t VISACommands_Deinit(void)
 int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
 {
     std::vector<std::string> Tokens;
-    bool isQuery;
+    bool IsQuery;
 
     if ((Command == NULL) || (Response == NULL)) {
         return SCPI_ERROR_COMMAND_ERROR;
@@ -369,16 +369,16 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
     }
 
     /* Check for queries */
-    isQuery = VISA_IsQuery(Tokens.back());
+    IsQuery = VISA_IsQuery(Tokens.back());
 
     /* Remove ? from last token if query */
-    if (isQuery && (Tokens.back().empty() == false)) {
+    if (IsQuery && (Tokens.back().empty() == false)) {
         Tokens.back().pop_back();
     }
 
     /* IEEE 488.2 Common Commands */
     if (Tokens[0] == "*IDN") {
-        if (isQuery) {
+        if (IsQuery) {
             return VISA_CMD_IDN(Response, MaxLen);
         }
     } else if (Tokens[0] == "*RST") {
@@ -386,26 +386,26 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
     } else if (Tokens[0] == "*CLS") {
         return VISA_CMD_CLS(Response, MaxLen);
     } else if (Tokens[0] == "*OPC") {
-        if (isQuery) {
+        if (IsQuery) {
             return VISA_CMD_OPC(Response, MaxLen);
         }
     } else if (Tokens[0] == "*TST") {
-        if (isQuery) {
+        if (IsQuery) {
             return VISA_CMD_TST(Response, MaxLen);
         }
     }
     /* SCPI System Commands */
     else if (string_iequals(Tokens[0], "SYST") || string_iequals(Tokens[0], "SYSTem")) {
         if ((Tokens.size() >= 2) && (string_iequals(Tokens[1], "ERR") || string_iequals(Tokens[1], "ERRor"))) {
-            if (isQuery) {
+            if (IsQuery) {
                 return VISA_CMD_SYST_ERR(Response, MaxLen);
             }
         } else if ((Tokens.size() >= 2) && (string_iequals(Tokens[1], "VERS") || string_iequals(Tokens[1], "VERSion"))) {
-            if (isQuery) {
+            if (IsQuery) {
                 return VISA_CMD_SYST_VERS(Response, MaxLen);
             }
         } else if ((Tokens.size() >= 2) && string_iequals(Tokens[1], "TIME")) {
-            if (isQuery) {
+            if (IsQuery) {
                 return VISA_Cmd_GetTime(Response, MaxLen);
             } else {
                 std::vector<char *> TokenList;
@@ -417,7 +417,7 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
                 return VISA_Cmd_SetTime(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
             }
         } else if ((Tokens.size() >= 2) && string_iequals(Tokens[1], "LOCK")) {
-            if (isQuery) {
+            if (IsQuery) {
                 return VISA_Cmd_GetLockState(Response, MaxLen);
             } else {
                 std::vector<char *> TokenList;
@@ -433,12 +433,12 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
     /* Device-Specific Commands - SENSe */
     else if (string_iequals(Tokens[0], "SENS") || string_iequals(Tokens[0], "SENSe")) {
         if ((Tokens.size() >= 2) && (string_iequals(Tokens[1], "TEMP") || string_iequals(Tokens[1], "TEMPerature"))) {
-            if (isQuery) {
+            if (IsQuery) {
                 return VISA_Cmd_GetTemperature(Response, MaxLen);
             }
         } else if ((Tokens.size() >= 2) && (string_iequals(Tokens[1], "BATT") || string_iequals(Tokens[1], "BATTery"))) {
             if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "VOLT") || string_iequals(Tokens[2], "VOLTage"))) {
-                if (isQuery) {
+                if (IsQuery) {
                     return VISA_Cmd_GetBatteryVoltage(Response, MaxLen);
                 }
             }
@@ -446,11 +446,11 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
             if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "CAPT") || string_iequals(Tokens[2], "CAPTure"))) {
                 return VISA_CMD_SENS_IMG_CAPT(Response, MaxLen);
             } else if ((Tokens.size() >= 3) && string_iequals(Tokens[2], "DATA")) {
-                if (isQuery) {
+                if (IsQuery) {
                     return VISA_CMD_SENS_IMG_DATA(Response, MaxLen);
                 }
             } else if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "FORM") || string_iequals(Tokens[2], "FORMat"))) {
-                if (isQuery) {
+                if (IsQuery) {
                     return VISA_Cmd_GetImageFormat(Response, MaxLen);
                 } else {
                     std::vector<char *> TokenList;
@@ -471,7 +471,7 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
                 return VISA_Cmd_SetImagePalette(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
             } else if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "LEP") || string_iequals(Tokens[2], "LEPton"))) {
                 if ((Tokens.size() >= 4) && (string_iequals(Tokens[3], "EMIS") || string_iequals(Tokens[3], "EMISsivity"))) {
-                    if (isQuery) {
+                    if (IsQuery) {
                         return VISA_Cmd_GetLeptonEmissivity(Response, MaxLen);
                     } else {
                         std::vector<char *> TokenList;
@@ -483,11 +483,11 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
                         return VISA_Cmd_SetLeptonEmissivity(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
                     }
                 } else if ((Tokens.size() >= 4) && (string_iequals(Tokens[3], "STAT") || string_iequals(Tokens[3], "STATistics"))) {
-                    if (isQuery) {
+                    if (IsQuery) {
                         return VISA_Cmd_GetLeptonStats(Response, MaxLen);
                     }
                 } else if ((Tokens.size() >= 4) && string_iequals(Tokens[3], "ROI")) {
-                    if (isQuery) {
+                    if (IsQuery) {
                         return VISA_Cmd_GetLeptonROI(Response, MaxLen);
                     } else {
                         std::vector<char *> TokenList;
@@ -499,7 +499,7 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
                         return VISA_Cmd_SetLeptonROI(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
                     }
                 } else if ((Tokens.size() >= 4) && (string_iequals(Tokens[3], "SPOT") || string_iequals(Tokens[3], "SPOTmeter"))) {
-                    if (isQuery) {
+                    if (IsQuery) {
 
                         return VISA_Cmd_GetLeptonSpotmeter(Response, MaxLen);
                     }
@@ -529,7 +529,7 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
             }
         } else if ((Tokens.size() >= 2) && string_iequals(Tokens[1], "FLASH")) {
             if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "POW") || string_iequals(Tokens[2], "POWer"))) {
-                if (isQuery) {
+                if (IsQuery) {
                     return VISA_Cmd_GetFlashPower(Response, MaxLen);
                 } else {
                     std::vector<char *> TokenList;
@@ -541,7 +541,7 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
                     return VISA_Cmd_SetFlashPower(TokenList.data(), static_cast<int>(Tokens.size()), Response, MaxLen);
                 }
             } else if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "STAT") || string_iequals(Tokens[2], "STATe"))) {
-                if (isQuery) {
+                if (IsQuery) {
                     return VISA_Cmd_GetFlashState(Response, MaxLen);
                 } else {
                     std::vector<char *> TokenList;
@@ -567,7 +567,7 @@ int VISACommands_Execute(const char *Command, char *Response, size_t MaxLen)
     else if (string_iequals(Tokens[0], "MEM") || string_iequals(Tokens[0], "MEMory")) {
         if ((Tokens.size() >= 2) && string_iequals(Tokens[1], "SD")) {
             if ((Tokens.size() >= 3) && (string_iequals(Tokens[2], "STAT") || string_iequals(Tokens[2], "STATe"))) {
-                if (isQuery) {
+                if (IsQuery) {
                     return VISA_Cmd_GetSDCardState(Response, MaxLen);
                 }
             }

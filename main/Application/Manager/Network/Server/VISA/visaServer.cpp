@@ -51,8 +51,8 @@ typedef struct {
     uint16_t Port;                      /**< Server port */
     uint16_t Timeout;                   /**< Socket timeout in milliseconds */
     TaskHandle_t ServerTask;            /**< Server task handle */
-    bool isRunning;                     /**< Server running flag */
-    bool isInitialized;                 /**< Initialization flag */
+    bool IsRunning;                     /**< Server running flag */
+    bool IsInitialized;                 /**< Initialization flag */
     SemaphoreHandle_t Mutex;            /**< Thread safety mutex */
 } VISA_Server_State_t;
 
@@ -103,7 +103,7 @@ static void VISA_HandleClient(int ClientSocket)
 
     ESP_LOGI(TAG, "Client connected");
 
-    while (_VISA_Server_State.isRunning) {
+    while (_VISA_Server_State.IsRunning) {
         int Length;
 
         memset(RxBuffer, 0, sizeof(RxBuffer));
@@ -162,7 +162,7 @@ static void VISA_HandleClient(int ClientSocket)
  */
 static void Task_VisaServer(void *p_Args)
 {
-    int opt = 1;
+    int Opt = 1;
     int Error;
     struct sockaddr_in Addr;
 
@@ -174,20 +174,20 @@ static void Task_VisaServer(void *p_Args)
     if (_VISA_Server_State.ListenSocket < 0) {
         ESP_LOGE(TAG, "Unable to create socket: 0x%X!", errno);
 
-        _VISA_Server_State.isRunning = false;
+        _VISA_Server_State.IsRunning = false;
         vTaskDelete(NULL);
 
         return;
     }
 
-    setsockopt(_VISA_Server_State.ListenSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    setsockopt(_VISA_Server_State.ListenSocket, SOL_SOCKET, SO_REUSEADDR, &Opt, sizeof(Opt));
 
     Error = bind(_VISA_Server_State.ListenSocket, (struct sockaddr *)&Addr, sizeof(Addr));
     if (Error != 0) {
         ESP_LOGE(TAG, "Socket unable to bind: 0x%X!", errno);
 
         close(_VISA_Server_State.ListenSocket);
-        _VISA_Server_State.isRunning = false;
+        _VISA_Server_State.IsRunning = false;
         vTaskDelete(NULL);
 
         return;
@@ -198,7 +198,7 @@ static void Task_VisaServer(void *p_Args)
         ESP_LOGE(TAG, "Error occurred during listen: 0x%X!", errno);
 
         close(_VISA_Server_State.ListenSocket);
-        _VISA_Server_State.isRunning = false;
+        _VISA_Server_State.IsRunning = false;
         vTaskDelete(NULL);
 
         return;
@@ -206,7 +206,7 @@ static void Task_VisaServer(void *p_Args)
 
     ESP_LOGI(TAG, "VISA server listening on port %d", _VISA_Server_State.Port);
 
-    while (_VISA_Server_State.isRunning) {
+    while (_VISA_Server_State.IsRunning) {
         struct sockaddr_in Source;
         socklen_t Length = sizeof(Source);
         int Socket;
@@ -234,7 +234,7 @@ static void Task_VisaServer(void *p_Args)
 
     close(_VISA_Server_State.ListenSocket);
     _VISA_Server_State.ListenSocket = -1;
-    _VISA_Server_State.isRunning = false;
+    _VISA_Server_State.IsRunning = false;
 
     ESP_LOGI(TAG, "VISA server stopped");
 
@@ -246,7 +246,7 @@ esp_err_t VISAServer_Init(void)
     esp_err_t Error;
     Settings_VISA_Server_t Config;
 
-    if (_VISA_Server_State.isInitialized) {
+    if (_VISA_Server_State.IsInitialized) {
         ESP_LOGW(TAG, "Already initialized");
 
         return ESP_OK;
@@ -275,7 +275,7 @@ esp_err_t VISAServer_Init(void)
     }
 
     _VISA_Server_State.ListenSocket = -1;
-    _VISA_Server_State.isInitialized = true;
+    _VISA_Server_State.IsInitialized = true;
 
     ESP_LOGD(TAG, "VISA server initialized");
 
@@ -284,7 +284,7 @@ esp_err_t VISAServer_Init(void)
 
 esp_err_t VISAServer_Deinit(void)
 {
-    if (_VISA_Server_State.isInitialized == false) {
+    if (_VISA_Server_State.IsInitialized == false) {
         return ESP_OK;
     }
 
@@ -296,7 +296,7 @@ esp_err_t VISAServer_Deinit(void)
         _VISA_Server_State.Mutex = NULL;
     }
 
-    _VISA_Server_State.isInitialized = false;
+    _VISA_Server_State.IsInitialized = false;
 
     ESP_LOGD(TAG, "VISA server deinitialized");
 
@@ -305,18 +305,18 @@ esp_err_t VISAServer_Deinit(void)
 
 bool VISAServer_IsRunning(void)
 {
-    return _VISA_Server_State.isRunning;
+    return _VISA_Server_State.IsRunning;
 }
 
 esp_err_t VISAServer_Start(void)
 {
     BaseType_t Error;
 
-    if (_VISA_Server_State.isInitialized == false) {
+    if (_VISA_Server_State.IsInitialized == false) {
         ESP_LOGE(TAG, "Not initialized!");
 
         return ESP_ERR_INVALID_STATE;
-    } else if (_VISA_Server_State.isRunning) {
+    } else if (_VISA_Server_State.IsRunning) {
         ESP_LOGW(TAG, "Already running");
 
         return ESP_OK;
@@ -324,13 +324,13 @@ esp_err_t VISAServer_Start(void)
 
     xSemaphoreTake(_VISA_Server_State.Mutex, portMAX_DELAY);
 
-    _VISA_Server_State.isRunning = true;
+    _VISA_Server_State.IsRunning = true;
 
     Error = xTaskCreate(Task_VisaServer, "visa_server", 4096, NULL, 5, &_VISA_Server_State.ServerTask);
     if (Error != pdPASS) {
         ESP_LOGE(TAG, "Failed to create server task!");
 
-        _VISA_Server_State.isRunning = false;
+        _VISA_Server_State.IsRunning = false;
         xSemaphoreGive(_VISA_Server_State.Mutex);
 
         return ESP_ERR_NO_MEM;
@@ -345,13 +345,13 @@ esp_err_t VISAServer_Start(void)
 
 esp_err_t VISAServer_Stop(void)
 {
-    if (_VISA_Server_State.isRunning == false) {
+    if (_VISA_Server_State.IsRunning == false) {
         return ESP_OK;
     }
 
     xSemaphoreTake(_VISA_Server_State.Mutex, portMAX_DELAY);
 
-    _VISA_Server_State.isRunning = false;
+    _VISA_Server_State.IsRunning = false;
 
     if (_VISA_Server_State.ListenSocket >= 0) {
         shutdown(_VISA_Server_State.ListenSocket, SHUT_RDWR);

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * usbMSC.cpp
  *
  *  Copyright (C) Daniel Kampert, 2026
@@ -38,11 +38,11 @@
 /** @brief USB MSC internal state.
  */
 typedef struct {
-    bool isInitialized;                     /**< Initialization state. */
+    bool IsInitialized;                     /**< Initialization state. */
     tinyusb_msc_storage_handle_t Storage;   /**< Storage handle. */
 } USBMSC_State_t;
 
-static USBMSC_State_t _USBMSC_State;
+static USBMSC_State_t _MSCState;
 
 static const char *TAG = "USB-MSC";
 
@@ -55,7 +55,7 @@ esp_err_t USBMSC_Init(const USB_MSC_Config_t *p_Config)
         ESP_LOGE(TAG, "Invalid configuration pointer!");
 
         return ESP_ERR_INVALID_ARG;
-    } else if (_USBMSC_State.isInitialized) {
+    } else if (_MSCState.IsInitialized) {
         ESP_LOGW(TAG, "USB MSC already initialized!");
 
         return ESP_ERR_INVALID_STATE;
@@ -65,7 +65,7 @@ esp_err_t USBMSC_Init(const USB_MSC_Config_t *p_Config)
         return ESP_ERR_INVALID_ARG;
     }
 
-    memset(&_USBMSC_State, 0, sizeof(USBMSC_State_t));
+    memset(&_MSCState, 0, sizeof(USBMSC_State_t));
 
     /* Detect active storage type from MemoryManager */
     StorageLocation = MemoryManager_GetStorageLocation();
@@ -115,7 +115,7 @@ esp_err_t USBMSC_Init(const USB_MSC_Config_t *p_Config)
         Storage_Config.medium.card = Card;
         Storage_Config.mount_point = TINYUSB_MSC_STORAGE_MOUNT_USB;
 
-        Error = tinyusb_msc_new_storage_sdmmc(&Storage_Config, &_USBMSC_State.Storage);
+        Error = tinyusb_msc_new_storage_sdmmc(&Storage_Config, &_MSCState.Storage);
         if (Error != ESP_OK) {
             ESP_LOGE(TAG, "Failed to create SD card MSC storage: 0x%X!", Error);
 
@@ -146,7 +146,7 @@ esp_err_t USBMSC_Init(const USB_MSC_Config_t *p_Config)
         Storage_Config.medium.wl_handle = WL_Handle;
         Storage_Config.mount_point = TINYUSB_MSC_STORAGE_MOUNT_USB;
 
-        Error = tinyusb_msc_new_storage_spiflash(&Storage_Config, &_USBMSC_State.Storage);
+        Error = tinyusb_msc_new_storage_spiflash(&Storage_Config, &_MSCState.Storage);
         if (Error != ESP_OK) {
             ESP_LOGE(TAG, "Failed to create internal flash MSC storage: 0x%X!", Error);
 
@@ -167,7 +167,7 @@ esp_err_t USBMSC_Init(const USB_MSC_Config_t *p_Config)
     ESP_LOGD(TAG, "USB Mass Storage Device ready");
     ESP_LOGD(TAG, "   WARNING: Do not access filesystem from application while USB is connected!");
 
-    _USBMSC_State.isInitialized = true;
+    _MSCState.IsInitialized = true;
 
     return ESP_OK;
 }
@@ -176,7 +176,7 @@ esp_err_t USBMSC_Deinit(void)
 {
     esp_err_t Error;
 
-    if (_USBMSC_State.isInitialized == false) {
+    if (_MSCState.IsInitialized == false) {
         ESP_LOGW(TAG, "USB MSC not initialized!");
 
         return ESP_ERR_INVALID_STATE;
@@ -184,15 +184,15 @@ esp_err_t USBMSC_Deinit(void)
 
     ESP_LOGD(TAG, "Deinitializing USB MSC...");
 
-    if (_USBMSC_State.Storage != NULL) {
-        Error = tinyusb_msc_delete_storage(_USBMSC_State.Storage);
+    if (_MSCState.Storage != NULL) {
+        Error = tinyusb_msc_delete_storage(_MSCState.Storage);
         if (Error != ESP_OK) {
             ESP_LOGW(TAG, "Failed to delete MSC storage: 0x%X!", Error);
         } else {
             ESP_LOGD(TAG, "MSC storage deleted successfully");
         }
 
-        _USBMSC_State.Storage = NULL;
+        _MSCState.Storage = NULL;
     }
 
     Error = MemoryManager_SoftRemountStorage();
@@ -209,7 +209,7 @@ esp_err_t USBMSC_Deinit(void)
         ESP_LOGD(TAG, "Filesystem unlocked for application");
     }
 
-    _USBMSC_State.isInitialized = false;
+    _MSCState.IsInitialized = false;
 
     ESP_LOGD(TAG, "USB MSC deinitialized successfully");
 
@@ -218,5 +218,5 @@ esp_err_t USBMSC_Deinit(void)
 
 bool USBMSC_IsInitialized(void)
 {
-    return _USBMSC_State.isInitialized;
+    return _MSCState.IsInitialized;
 }

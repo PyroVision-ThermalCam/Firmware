@@ -1,4 +1,4 @@
-/*
+﻿/*
  * settingsManager.cpp
  *
  *  Copyright (C) Daniel Kampert, 2026
@@ -34,14 +34,14 @@
 #include <cJSON.h>
 
 #include "settingsManager.h"
-#include "../appDiag.h"
+#include "../AppDiag/appDiag.h"
 #include "Private/settingsLoader.h"
 
 static const char *TAG = "Settings-Manager";
 
 ESP_EVENT_DEFINE_BASE(SETTINGS_EVENTS);
 
-static Settings_Manager_State_t _Settings_Manager_State;
+static Settings_Manager_State_t _SettingsManagerState;
 
 /** @brief                  Update a specific settings section in the Settings Manager RAM and emit the corresponding event.
  *  @param p_Src            Pointer to source settings structure
@@ -54,17 +54,17 @@ static Settings_Manager_State_t _Settings_Manager_State;
 static esp_err_t SettingsManager_Update(void *p_Src, void *p_Dst, size_t Size, int EventID,
                                         SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL)
 {
-    if (_Settings_Manager_State.isInitialized == false) {
+    if (_SettingsManagerState.IsInitialized == false) {
         return SETTINGS_ERR_NOT_INITIALIZED;
     } else if ((p_Src == NULL) || (p_Dst == NULL) || (Size == 0)) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    xSemaphoreTake(_Settings_Manager_State.Mutex, portMAX_DELAY);
+    xSemaphoreTake(_SettingsManagerState.Mutex, portMAX_DELAY);
 
     memcpy(p_Dst, p_Src, Size);
 
-    xSemaphoreGive(_Settings_Manager_State.Mutex);
+    xSemaphoreGive(_SettingsManagerState.Mutex);
 
     /* Only include event data if p_ChangedSetting is valid */
     esp_event_post(SETTINGS_EVENTS, EventID, p_ChangedSetting,
@@ -83,13 +83,13 @@ static esp_err_t SettingsManager_Get(void* p_Output, void* p_Source, size_t Size
 {
     if ( p_Output == NULL ) {
         return ESP_ERR_INVALID_ARG;
-    } else if (_Settings_Manager_State.isInitialized == false) {
+    } else if (_SettingsManagerState.IsInitialized == false) {
         return SETTINGS_ERR_NOT_INITIALIZED;
     }
 
-    xSemaphoreTake(_Settings_Manager_State.Mutex, portMAX_DELAY);
+    xSemaphoreTake(_SettingsManagerState.Mutex, portMAX_DELAY);
     memcpy(p_Output, p_Source, Size);
-    xSemaphoreGive(_Settings_Manager_State.Mutex);
+    xSemaphoreGive(_SettingsManagerState.Mutex);
 
     return ESP_OK;
 }
@@ -99,7 +99,7 @@ esp_err_t SettingsManager_Init(void)
     uint16_t Serial;
     esp_err_t Error;
 
-    if (_Settings_Manager_State.isInitialized) {
+    if (_SettingsManagerState.IsInitialized) {
         ESP_LOGW(TAG, "Already initialized");
 
         return ESP_OK;
@@ -107,7 +107,7 @@ esp_err_t SettingsManager_Init(void)
 
     ESP_LOGI(TAG, "Initializing Settings Manager...");
 
-    memset(&_Settings_Manager_State, 0, sizeof(Settings_Manager_State_t));
+    memset(&_SettingsManagerState, 0, sizeof(Settings_Manager_State_t));
 
     ESP_ERROR_CHECK(nvs_flash_init());
 
@@ -123,66 +123,66 @@ esp_err_t SettingsManager_Init(void)
         return Error;
     }
 
-    _Settings_Manager_State.Mutex = xSemaphoreCreateMutex();
-    if (_Settings_Manager_State.Mutex == NULL) {
+    _SettingsManagerState.Mutex = xSemaphoreCreateMutex();
+    if (_SettingsManagerState.Mutex == NULL) {
         ESP_LOGE(TAG, "Failed to create mutex!");
 
         return ESP_ERR_NO_MEM;
     }
 
     Error = nvs_open_from_partition("settings", CONFIG_SETTINGS_NAMESPACE, NVS_READWRITE,
-                                    &_Settings_Manager_State.NVS_Handle);
+                                    &_SettingsManagerState.NVSHandle);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to open NVS handle: 0x%X!", Error);
 
-        vSemaphoreDelete(_Settings_Manager_State.Mutex);
+        vSemaphoreDelete(_SettingsManagerState.Mutex);
 
         return Error;
     }
 
-    _Settings_Manager_State.isInitialized = true;
+    _SettingsManagerState.IsInitialized = true;
 
-    xSemaphoreTake(_Settings_Manager_State.Mutex, portMAX_DELAY);
+    xSemaphoreTake(_SettingsManagerState.Mutex, portMAX_DELAY);
 
     /* Get the serial from NVS. Use a temporary variable to prevent alignment errors. */
-    Error = nvs_get_u16(_Settings_Manager_State.NVS_Handle, "serial", &Serial);
+    Error = nvs_get_u16(_SettingsManagerState.NVSHandle, "serial", &Serial);
     if (Error != ESP_OK) {
         ESP_LOGW(TAG, "Failed to get serial number from NVS: 0x%X!. Using 0", Error);
 
         Serial = 0;
     }
 
-    xSemaphoreGive(_Settings_Manager_State.Mutex);
+    xSemaphoreGive(_SettingsManagerState.Mutex);
 
     /* Copy the read-only data */
-    sprintf(_Settings_Manager_State.Info.FirmwareVersion, "%u.%u.%u", PYROVISION_VERSION_MAJOR, PYROVISION_VERSION_MINOR,
+    sprintf(_SettingsManagerState.Info.FirmwareVersion, "%u.%u.%u", PYROVISION_VERSION_MAJOR, PYROVISION_VERSION_MINOR,
             PYROVISION_VERSION_BUILD);
-    sprintf(_Settings_Manager_State.Info.Manufacturer, "%s", CONFIG_DEVICE_MANUFACTURER);
-    sprintf(_Settings_Manager_State.Info.Name, "%s", CONFIG_DEVICE_NAME);
-    sprintf(_Settings_Manager_State.Info.Serial, "%u", Serial);
-    sprintf(_Settings_Manager_State.Info.SDK, "%s", IDF_VER);
+    sprintf(_SettingsManagerState.Info.Manufacturer, "%s", CONFIG_DEVICE_MANUFACTURER);
+    sprintf(_SettingsManagerState.Info.Name, "%s", CONFIG_DEVICE_NAME);
+    sprintf(_SettingsManagerState.Info.Serial, "%u", Serial);
+    sprintf(_SettingsManagerState.Info.SDK, "%s", IDF_VER);
 
     /* Get application description with version info */
     const esp_app_desc_t *p_AppDesc = esp_app_get_description();
-    sprintf(_Settings_Manager_State.Info.Commit, "%s", p_AppDesc->version);
+    sprintf(_SettingsManagerState.Info.Commit, "%s", p_AppDesc->version);
     ESP_LOGI(TAG, "Firmware Version: %s", p_AppDesc->version);
     ESP_LOGI(TAG, "Firmware Date: %s %s", p_AppDesc->date, p_AppDesc->time);
     ESP_LOGI(TAG, "Firmware IDF: %s", p_AppDesc->idf_ver);
-    ESP_LOGI(TAG, "Manufacturer: %s", _Settings_Manager_State.Info.Manufacturer);
-    ESP_LOGI(TAG, "Device Name: %s", _Settings_Manager_State.Info.Name);
-    ESP_LOGI(TAG, "Serial: %s", _Settings_Manager_State.Info.Serial);
+    ESP_LOGI(TAG, "Manufacturer: %s", _SettingsManagerState.Info.Manufacturer);
+    ESP_LOGI(TAG, "Device Name: %s", _SettingsManagerState.Info.Name);
+    ESP_LOGI(TAG, "Serial: %s", _SettingsManagerState.Info.Serial);
 
     /* Read the bootloader information */
     const esp_partition_t *p_BootloaderPartition = esp_partition_find_first(ESP_PARTITION_TYPE_APP,
                                                                             ESP_PARTITION_SUBTYPE_APP_FACTORY,
                                                                             NULL);
     if (p_BootloaderPartition != NULL) {
-        Error = esp_ota_get_partition_description(p_BootloaderPartition, &_Settings_Manager_State.Info.Bootloader);
+        Error = esp_ota_get_partition_description(p_BootloaderPartition, &_SettingsManagerState.Info.Bootloader);
         if (Error == ESP_OK) {
-            ESP_LOGD(TAG, "Bootloader version: %s", _Settings_Manager_State.Info.Bootloader.version);
-            ESP_LOGD(TAG, "Bootloader date: %s %s", _Settings_Manager_State.Info.Bootloader.date,
-                     _Settings_Manager_State.Info.Bootloader.time);
-            ESP_LOGD(TAG, "Bootloader IDF version: %s", _Settings_Manager_State.Info.Bootloader.idf_ver);
+            ESP_LOGD(TAG, "Bootloader version: %s", _SettingsManagerState.Info.Bootloader.version);
+            ESP_LOGD(TAG, "Bootloader date: %s %s", _SettingsManagerState.Info.Bootloader.date,
+                     _SettingsManagerState.Info.Bootloader.time);
+            ESP_LOGD(TAG, "Bootloader IDF version: %s", _SettingsManagerState.Info.Bootloader.idf_ver);
         } else {
             ESP_LOGW(TAG, "Failed to read bootloader description: 0x%X!", Error);
         }
@@ -191,28 +191,28 @@ esp_err_t SettingsManager_Init(void)
     }
 
     /* Load the settings from the NVS */
-    Error = SettingsManager_LoadFromNVS(&_Settings_Manager_State.Settings);
+    Error = SettingsManager_LoadFromNVS(&_SettingsManagerState.Settings);
     if (Error != ESP_OK) {
         ESP_LOGI(TAG, "No settings found, using JSON config defaults");
 
         /* Try to load default settings from JSON first (on first boot) */
-        if (SettingsManager_LoadFromJSON(&_Settings_Manager_State, "/storage/settings.json") != ESP_OK) {
+        if (SettingsManager_LoadFromJSON(&_SettingsManagerState, "/storage/settings.json") != ESP_OK) {
             ESP_LOGW(TAG, "Failed to load default settings from JSON, using built-in defaults");
 
             /* Use built-in defaults */
-            SettingsManager_LoadFromDefaults(&_Settings_Manager_State);
+            SettingsManager_LoadFromDefaults(&_SettingsManagerState);
         }
 
         /* Save the default settings to NVS */
         SettingsManager_Save();
 
         /* Load the JSON presets into the settings structure */
-        SettingsManager_LoadFromNVS(&_Settings_Manager_State.Settings);
+        SettingsManager_LoadFromNVS(&_SettingsManagerState.Settings);
     }
 
     ESP_LOGI(TAG, "Settings Manager initialized");
 
-    esp_event_post(SETTINGS_EVENTS, SETTINGS_EVENT_LOADED, &_Settings_Manager_State.Settings, sizeof(Settings_t),
+    esp_event_post(SETTINGS_EVENTS, SETTINGS_EVENT_LOADED, &_SettingsManagerState.Settings, sizeof(Settings_t),
                    portMAX_DELAY);
 
     return ESP_OK;
@@ -220,14 +220,14 @@ esp_err_t SettingsManager_Init(void)
 
 esp_err_t SettingsManager_Deinit(void)
 {
-    if (_Settings_Manager_State.isInitialized == false) {
+    if (_SettingsManagerState.IsInitialized == false) {
         return ESP_OK;
     }
 
-    nvs_close(_Settings_Manager_State.NVS_Handle);
-    vSemaphoreDelete(_Settings_Manager_State.Mutex);
+    nvs_close(_SettingsManagerState.NVSHandle);
+    vSemaphoreDelete(_SettingsManagerState.Mutex);
 
-    _Settings_Manager_State.isInitialized = false;
+    _SettingsManagerState.IsInitialized = false;
 
     ESP_LOGI(TAG, "Settings Manager deinitialized");
 
@@ -240,16 +240,16 @@ esp_err_t SettingsManager_LoadFromNVS(Settings_t *p_Settings)
     size_t RequiredSize;
     uint8_t ConfigValid;
 
-    if (_Settings_Manager_State.isInitialized == false) {
+    if (_SettingsManagerState.IsInitialized == false) {
         return SETTINGS_ERR_NOT_INITIALIZED;
     } else if (p_Settings == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    xSemaphoreTake(_Settings_Manager_State.Mutex, portMAX_DELAY);
+    xSemaphoreTake(_SettingsManagerState.Mutex, portMAX_DELAY);
 
     /* Check if the config is valid */
-    Error = nvs_get_u8(_Settings_Manager_State.NVS_Handle, "config_valid", &ConfigValid);
+    Error = nvs_get_u8(_SettingsManagerState.NVSHandle, "config_valid", &ConfigValid);
     if ((Error != ESP_OK) || (ConfigValid != 1)) {
         ESP_LOGE(TAG, "Failed to read config_valid flag: 0x%X!", Error);
 
@@ -259,9 +259,9 @@ esp_err_t SettingsManager_LoadFromNVS(Settings_t *p_Settings)
     }
 
     /* Get the settings version from NVS. Continue loading if the version numbers match. */
-    Error = nvs_get_u32(_Settings_Manager_State.NVS_Handle, "version", &p_Settings->Version);
+    Error = nvs_get_u32(_SettingsManagerState.NVSHandle, "version", &p_Settings->Version);
     if ((Error == ESP_OK) && (p_Settings->Version == SETTINGS_VERSION)) {
-        Error = nvs_get_blob(_Settings_Manager_State.NVS_Handle, "settings", NULL, &RequiredSize);
+        Error = nvs_get_blob(_SettingsManagerState.NVSHandle, "settings", NULL, &RequiredSize);
         if (Error == ESP_ERR_NVS_NOT_FOUND) {
             ESP_LOGW(TAG, "Settings not found in NVS!");
 
@@ -271,7 +271,7 @@ esp_err_t SettingsManager_LoadFromNVS(Settings_t *p_Settings)
         } else if (Error != ESP_OK) {
             ESP_LOGE(TAG, "Failed to get settings size: 0x%X!", Error);
 
-            xSemaphoreGive(_Settings_Manager_State.Mutex);
+            xSemaphoreGive(_SettingsManagerState.Mutex);
 
             goto SettingsManager_LoadFromNVS_Exit;
         }
@@ -281,22 +281,22 @@ esp_err_t SettingsManager_LoadFromNVS(Settings_t *p_Settings)
                      sizeof(Settings_t), RequiredSize);
 
             /* Erase the old settings */
-            nvs_erase_key(_Settings_Manager_State.NVS_Handle, "settings");
-            nvs_commit(_Settings_Manager_State.NVS_Handle);
+            nvs_erase_key(_SettingsManagerState.NVSHandle, "settings");
+            nvs_commit(_SettingsManagerState.NVSHandle);
 
             Error = SETTINGS_ERR_SIZE_MISMATCH;
 
             goto SettingsManager_LoadFromNVS_Exit;
         }
 
-        Error = nvs_get_blob(_Settings_Manager_State.NVS_Handle, "settings", &_Settings_Manager_State.Settings, &RequiredSize);
+        Error = nvs_get_blob(_SettingsManagerState.NVSHandle, "settings", &_SettingsManagerState.Settings, &RequiredSize);
         if (Error != ESP_OK) {
             ESP_LOGE(TAG, "Failed to read settings: 0x%X!", Error);
 
             goto SettingsManager_LoadFromNVS_Exit;
         }
 
-        memcpy(p_Settings, &_Settings_Manager_State.Settings, sizeof(Settings_t));
+        memcpy(p_Settings, &_SettingsManagerState.Settings, sizeof(Settings_t));
 
         ESP_LOGD(TAG, "Settings loaded from NVS");
 
@@ -311,7 +311,7 @@ esp_err_t SettingsManager_LoadFromNVS(Settings_t *p_Settings)
     }
 
 SettingsManager_LoadFromNVS_Exit:
-    xSemaphoreGive(_Settings_Manager_State.Mutex);
+    xSemaphoreGive(_SettingsManagerState.Mutex);
 
     return Error;
 }
@@ -320,21 +320,21 @@ esp_err_t SettingsManager_Save(void)
 {
     esp_err_t Error;
 
-    if (_Settings_Manager_State.isInitialized == false) {
+    if (_SettingsManagerState.IsInitialized == false) {
         return SETTINGS_ERR_NOT_INITIALIZED;
     }
 
-    xSemaphoreTake(_Settings_Manager_State.Mutex, portMAX_DELAY);
+    xSemaphoreTake(_SettingsManagerState.Mutex, portMAX_DELAY);
 
     /* Save the version number first */
-    Error = nvs_set_u32(_Settings_Manager_State.NVS_Handle, "version", _Settings_Manager_State.Settings.Version);
+    Error = nvs_set_u32(_SettingsManagerState.NVSHandle, "version", _SettingsManagerState.Settings.Version);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to write version: 0x%X!", Error);
 
         goto SettingsManager_Save_Error;
     }
 
-    Error = nvs_set_blob(_Settings_Manager_State.NVS_Handle, "settings", &_Settings_Manager_State.Settings,
+    Error = nvs_set_blob(_SettingsManagerState.NVSHandle, "settings", &_SettingsManagerState.Settings,
                          sizeof(Settings_t));
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to write settings: 0x%X!", Error);
@@ -343,30 +343,30 @@ esp_err_t SettingsManager_Save(void)
     }
 
     /* Mark config as valid */
-    Error = nvs_set_u8(_Settings_Manager_State.NVS_Handle, "config_valid", true);
+    Error = nvs_set_u8(_SettingsManagerState.NVSHandle, "config_valid", true);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to set config_valid flag: 0x%X!", Error);
 
         goto SettingsManager_Save_Error;
     }
 
-    Error = nvs_commit(_Settings_Manager_State.NVS_Handle);
+    Error = nvs_commit(_SettingsManagerState.NVSHandle);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to commit settings: 0x%X!", Error);
 
         goto SettingsManager_Save_Error;
     }
 
-    xSemaphoreGive(_Settings_Manager_State.Mutex);
+    xSemaphoreGive(_SettingsManagerState.Mutex);
 
-    ESP_LOGI(TAG, "Settings saved to NVS (version %u)", _Settings_Manager_State.Settings.Version);
+    ESP_LOGI(TAG, "Settings saved to NVS (version %u)", _SettingsManagerState.Settings.Version);
 
     esp_event_post(SETTINGS_EVENTS, SETTINGS_EVENT_SAVED, NULL, 0, portMAX_DELAY);
 
     return ESP_OK;
 
 SettingsManager_Save_Error:
-    xSemaphoreGive(_Settings_Manager_State.Mutex);
+    xSemaphoreGive(_SettingsManagerState.Mutex);
 
     APP_DIAG_RECORD(APP_DIAG_SOURCE_SETTINGS, SETTINGS_ERR_NVS_WRITE);
 
@@ -377,129 +377,129 @@ SettingsManager_Save_Error:
 
 esp_err_t SettingsManager_GetInfo(Settings_Info_t *p_Settings)
 {
-    return SettingsManager_Get(p_Settings, &_Settings_Manager_State.Info, sizeof(Settings_Info_t));
+    return SettingsManager_Get(p_Settings, &_SettingsManagerState.Info, sizeof(Settings_Info_t));
 }
 
 esp_err_t SettingsManager_GetLepton(Settings_Lepton_t *p_Settings)
 {
-    return SettingsManager_Get(p_Settings, &_Settings_Manager_State.Settings.Lepton, sizeof(Settings_Lepton_t));
+    return SettingsManager_Get(p_Settings, &_SettingsManagerState.Settings.Lepton, sizeof(Settings_Lepton_t));
 }
 
 esp_err_t SettingsManager_UpdateLepton(Settings_Lepton_t *p_Settings,
                                        SettingsManager_ChangeNotification_t *p_ChangedSetting)
 {
-    return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.Lepton, sizeof(Settings_Lepton_t),
+    return SettingsManager_Update(p_Settings, &_SettingsManagerState.Settings.Lepton, sizeof(Settings_Lepton_t),
                                   SETTINGS_EVENT_LEPTON_CHANGED, p_ChangedSetting);
 }
 
 esp_err_t SettingsManager_GetWiFi(Settings_WiFi_t *p_Settings)
 {
-    return SettingsManager_Get(p_Settings, &_Settings_Manager_State.Settings.WiFi, sizeof(Settings_WiFi_t));
+    return SettingsManager_Get(p_Settings, &_SettingsManagerState.Settings.WiFi, sizeof(Settings_WiFi_t));
 }
 
 esp_err_t SettingsManager_UpdateWiFi(Settings_WiFi_t *p_Settings,
                                      SettingsManager_ChangeNotification_t *p_ChangedSetting)
 {
-    return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.WiFi, sizeof(Settings_WiFi_t),
+    return SettingsManager_Update(p_Settings, &_SettingsManagerState.Settings.WiFi, sizeof(Settings_WiFi_t),
                                   SETTINGS_EVENT_WIFI_CHANGED, p_ChangedSetting);
 }
 
 esp_err_t SettingsManager_GetProvisioning(Settings_Provisioning_t *p_Settings)
 {
-    return SettingsManager_Get(p_Settings, &_Settings_Manager_State.Settings.Provisioning, sizeof(Settings_Provisioning_t));
+    return SettingsManager_Get(p_Settings, &_SettingsManagerState.Settings.Provisioning, sizeof(Settings_Provisioning_t));
 }
 
 esp_err_t SettingsManager_UpdateProvisioning(Settings_Provisioning_t *p_Settings,
                                              SettingsManager_ChangeNotification_t *p_ChangedSetting)
 {
-    return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.Provisioning,
+    return SettingsManager_Update(p_Settings, &_SettingsManagerState.Settings.Provisioning,
                                   sizeof(Settings_Provisioning_t),
                                   SETTINGS_EVENT_PROVISIONING_CHANGED, p_ChangedSetting);
 }
 
 esp_err_t SettingsManager_GetDisplay(Settings_Display_t *p_Settings)
 {
-    return SettingsManager_Get(p_Settings, &_Settings_Manager_State.Settings.Display, sizeof(Settings_Display_t));
+    return SettingsManager_Get(p_Settings, &_SettingsManagerState.Settings.Display, sizeof(Settings_Display_t));
 }
 
 esp_err_t SettingsManager_UpdateDisplay(Settings_Display_t *p_Settings,
                                         SettingsManager_ChangeNotification_t *p_ChangedSetting)
 {
-    return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.Display, sizeof(Settings_Display_t),
+    return SettingsManager_Update(p_Settings, &_SettingsManagerState.Settings.Display, sizeof(Settings_Display_t),
                                   SETTINGS_EVENT_DISPLAY_CHANGED, p_ChangedSetting);
 }
 
 esp_err_t SettingsManager_GetHTTPServer(Settings_HTTP_Server_t *p_Settings)
 {
-    return SettingsManager_Get(p_Settings, &_Settings_Manager_State.Settings.HTTPServer, sizeof(Settings_HTTP_Server_t));
+    return SettingsManager_Get(p_Settings, &_SettingsManagerState.Settings.HTTPServer, sizeof(Settings_HTTP_Server_t));
 }
 
 esp_err_t SettingsManager_UpdateHTTPServer(Settings_HTTP_Server_t *p_Settings,
                                            SettingsManager_ChangeNotification_t *p_ChangedSetting)
 {
-    return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.HTTPServer,
+    return SettingsManager_Update(p_Settings, &_SettingsManagerState.Settings.HTTPServer,
                                   sizeof(Settings_HTTP_Server_t),
                                   SETTINGS_EVENT_HTTP_SERVER_CHANGED, p_ChangedSetting);
 }
 
 esp_err_t SettingsManager_GetVISAServer(Settings_VISA_Server_t *p_Settings)
 {
-    return SettingsManager_Get(p_Settings, &_Settings_Manager_State.Settings.VISAServer, sizeof(Settings_VISA_Server_t));
+    return SettingsManager_Get(p_Settings, &_SettingsManagerState.Settings.VISAServer, sizeof(Settings_VISA_Server_t));
 }
 
 esp_err_t SettingsManager_UpdateVISAServer(Settings_VISA_Server_t *p_Settings,
                                            SettingsManager_ChangeNotification_t *p_ChangedSetting)
 {
-    return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.VISAServer,
+    return SettingsManager_Update(p_Settings, &_SettingsManagerState.Settings.VISAServer,
                                   sizeof(Settings_VISA_Server_t),
                                   SETTINGS_EVENT_VISA_SERVER_CHANGED, p_ChangedSetting);
 }
 
 esp_err_t SettingsManager_GetSystem(Settings_System_t *p_Settings)
 {
-    return SettingsManager_Get(p_Settings, &_Settings_Manager_State.Settings.System, sizeof(Settings_System_t));
+    return SettingsManager_Get(p_Settings, &_SettingsManagerState.Settings.System, sizeof(Settings_System_t));
 }
 
 esp_err_t SettingsManager_UpdateSystem(Settings_System_t *p_Settings,
                                        SettingsManager_ChangeNotification_t *p_ChangedSetting)
 {
-    return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.System, sizeof(Settings_System_t),
+    return SettingsManager_Update(p_Settings, &_SettingsManagerState.Settings.System, sizeof(Settings_System_t),
                                   SETTINGS_EVENT_SYSTEM_CHANGED, p_ChangedSetting);
 }
 
 esp_err_t SettingsManager_GetLEDFlash(Settings_LED_Flash_t *p_Settings)
 {
-    return SettingsManager_Get(p_Settings, &_Settings_Manager_State.Settings.LEDFlash, sizeof(Settings_LED_Flash_t));
+    return SettingsManager_Get(p_Settings, &_SettingsManagerState.Settings.LEDFlash, sizeof(Settings_LED_Flash_t));
 }
 
 esp_err_t SettingsManager_UpdateLEDFlash(Settings_LED_Flash_t *p_Settings,
                                          SettingsManager_ChangeNotification_t *p_ChangedSetting)
 {
-    return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.LEDFlash, sizeof(Settings_LED_Flash_t),
+    return SettingsManager_Update(p_Settings, &_SettingsManagerState.Settings.LEDFlash, sizeof(Settings_LED_Flash_t),
                                   SETTINGS_EVENT_LED_FLASH_CHANGED, p_ChangedSetting);
 }
 
 esp_err_t SettingsManager_GetUSB(Settings_USB_t *p_Settings)
 {
-    return SettingsManager_Get(p_Settings, &_Settings_Manager_State.Settings.USB, sizeof(Settings_USB_t));
+    return SettingsManager_Get(p_Settings, &_SettingsManagerState.Settings.USB, sizeof(Settings_USB_t));
 }
 
 esp_err_t SettingsManager_UpdateUSB(Settings_USB_t *p_Settings, SettingsManager_ChangeNotification_t *p_ChangedSetting)
 {
-    return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.USB, sizeof(Settings_USB_t),
+    return SettingsManager_Update(p_Settings, &_SettingsManagerState.Settings.USB, sizeof(Settings_USB_t),
                                   SETTINGS_EVENT_USB_CHANGED, p_ChangedSetting);
 }
 
 esp_err_t SettingsManager_GetCalibration(Settings_Calibration_t *p_Settings)
 {
-    return SettingsManager_Get(p_Settings, &_Settings_Manager_State.Settings.Calibration,
+    return SettingsManager_Get(p_Settings, &_SettingsManagerState.Settings.Calibration,
                                sizeof(Settings_Calibration_t));
 }
 
 esp_err_t SettingsManager_UpdateCalibration(Settings_Calibration_t *p_Settings,
                                             SettingsManager_ChangeNotification_t *p_ChangedSetting)
 {
-    return SettingsManager_Update(p_Settings, &_Settings_Manager_State.Settings.Calibration,
+    return SettingsManager_Update(p_Settings, &_SettingsManagerState.Settings.Calibration,
                                   sizeof(Settings_Calibration_t),
                                   SETTINGS_EVENT_CALIBRATION_CHANGED, p_ChangedSetting);
 }
@@ -508,43 +508,43 @@ esp_err_t SettingsManager_ResetToDefaults(void)
 {
     esp_err_t Error;
 
-    if (_Settings_Manager_State.isInitialized == false) {
+    if (_SettingsManagerState.IsInitialized == false) {
         return SETTINGS_ERR_NOT_INITIALIZED;
     }
 
     ESP_LOGW(TAG, "Resetting settings to factory defaults");
 
-    xSemaphoreTake(_Settings_Manager_State.Mutex, portMAX_DELAY);
+    xSemaphoreTake(_SettingsManagerState.Mutex, portMAX_DELAY);
 
-    Error = nvs_erase_key(_Settings_Manager_State.NVS_Handle, "settings");
+    Error = nvs_erase_key(_SettingsManagerState.NVSHandle, "settings");
     if (Error != ESP_OK && Error != ESP_ERR_NVS_NOT_FOUND) {
         ESP_LOGE(TAG, "Failed to erase settings: 0x%X!", Error);
 
-        xSemaphoreGive(_Settings_Manager_State.Mutex);
+        xSemaphoreGive(_SettingsManagerState.Mutex);
 
         return Error;
     }
 
-    Error = nvs_commit(_Settings_Manager_State.NVS_Handle);
+    Error = nvs_commit(_SettingsManagerState.NVSHandle);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to commit erase: 0x%X!", Error);
 
-        xSemaphoreGive(_Settings_Manager_State.Mutex);
+        xSemaphoreGive(_SettingsManagerState.Mutex);
 
         return Error;
     }
 
     /* Reset config_valid flag to allow reloading default config */
-    Error = nvs_set_u8(_Settings_Manager_State.NVS_Handle, "config_valid", false);
+    Error = nvs_set_u8(_SettingsManagerState.NVSHandle, "config_valid", false);
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to set config_valid flag: 0x%X!", Error);
 
-        xSemaphoreGive(_Settings_Manager_State.Mutex);
+        xSemaphoreGive(_SettingsManagerState.Mutex);
 
         return Error;
     }
 
-    xSemaphoreGive(_Settings_Manager_State.Mutex);
+    xSemaphoreGive(_SettingsManagerState.Mutex);
 
     /* Reboot the ESP to allow reloading the settings config */
     esp_restart();

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * guiTask.cpp
  *
  *  Copyright (C) Daniel Kampert, 2026
@@ -52,11 +52,11 @@
 
 ESP_EVENT_DEFINE_BASE(GUI_TASK_EVENTS);
 
-GUI_Task_State_t _GUI_Task_State;
+GUI_Task_State_t _GUITaskState;
 
 static const char *TAG = "GUI-Task";
 
-/** @brief                  Event handler for the Lepton task events to receive updates when Lepton events are triggered (e.g., new frame ready, camera errors).
+/** @brief                  Event handler for the Lepton task events to receive updates when Lepton events are triggered (e.G., new frame ready, camera errors).
  *  @param p_HandlerArgs    Handler argument
  *  @param Base             Event base
  *  @param ID               Event ID
@@ -68,43 +68,43 @@ static void on_Lepton_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t B
 
     switch (ID) {
         case LEPTON_TASK_EVENT_CAMERA_READY: {
-            memcpy(&_GUI_Task_State.LeptonDeviceInfo, static_cast<const App_Lepton_Device_t *>(p_Data),
+            memcpy(&_GUITaskState.LeptonDeviceInfo, static_cast<const App_Lepton_Device_t *>(p_Data),
                    sizeof(App_Lepton_Device_t));
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_READY);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_READY);
 
             break;
         }
         case LEPTON_TASK_EVENT_CAMERA_ERROR: {
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_ERROR);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_ERROR);
 
             break;
         }
         case LEPTON_TASK_EVENT_RESPONSE_FPA_AUX_TEMP: {
-            memcpy(&_GUI_Task_State.LeptonTemperatures, p_Data, sizeof(App_Lepton_Temperatures_t));
+            memcpy(&_GUITaskState.LeptonTemperatures, p_Data, sizeof(App_Lepton_Temperatures_t));
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_TEMP_READY);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_TEMPERATURE_READY);
 
             break;
         }
         case LEPTON_TASK_EVENT_RESPONSE_SCENE_STATISTICS: {
-            memcpy(&_GUI_Task_State.ROIResult, p_Data, sizeof(App_Lepton_ROI_Result_t));
+            memcpy(&_GUITaskState.ROIResult, p_Data, sizeof(App_Lepton_ROI_Result_t));
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_SCENE_STATISTICS_READY);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_SCENE_STATISTICS_READY);
 
             break;
         }
         case LEPTON_TASK_EVENT_RESPONSE_UPTIME: {
-            memcpy(&_GUI_Task_State.LeptonUptime, p_Data, sizeof(uint32_t));
+            memcpy(&_GUITaskState.LeptonUptime, p_Data, sizeof(uint32_t));
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_UPTIME_READY);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_UPTIME_READY);
 
             break;
         }
         case LEPTON_TASK_EVENT_RESPONSE_PIXEL_TEMPERATURE: {
-            memcpy(&_GUI_Task_State.SpotTemperature, p_Data, sizeof(float));
+            memcpy(&_GUITaskState.SpotTemperature, p_Data, sizeof(float));
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_PIXEL_TEMPERATURE_READY);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_PIXEL_TEMPERATURE_READY);
 
             break;
         }
@@ -126,12 +126,12 @@ static void on_Camera_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t B
 {
     switch (ID) {
         case CAMERA_EVENT_INIT_COMPLETE: {
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_CAMERA_READY);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_READY);
 
             break;
         }
         case CAMERA_EVENT_INIT_FAILED: {
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_CAMERA_ERROR);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_ERROR);
 
             break;
         }
@@ -141,7 +141,7 @@ static void on_Camera_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t B
     }
 }
 
-/** @brief                  Event handler for GUI task events (e.g., image save completion).
+/** @brief                  Event handler for GUI task events (e.G., image save completion).
  *  @param p_HandlerArgs    Handler argument
  *  @param Base             Event base
  *  @param ID               Event ID
@@ -159,6 +159,7 @@ static void on_GUI_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
         }
         case GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED: {
             ESP_LOGE(TAG, "Thermal image save failed");
+            APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_FAIL);
 
             break;
         }
@@ -177,13 +178,22 @@ static void on_Devices_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t 
 
     switch (ID) {
         case DEVICES_TASK_EVENT_RESPONSE_BATTERY: {
-            memcpy(&_GUI_Task_State.BatteryInfo, p_Data, sizeof(App_Devices_Battery_t));
+            memcpy(&_GUITaskState.BatteryInfo, p_Data, sizeof(App_Devices_Battery_t));
 
             ESP_LOGD(TAG, "Battery status updated: Voltage=%dmV, Percentage=%d%%, Charging=%s",
-                     _GUI_Task_State.BatteryInfo.Voltage, _GUI_Task_State.BatteryInfo.Percentage,
-                     _GUI_Task_State.BatteryInfo.Charging ? "Yes" : "No");
+                     _GUITaskState.BatteryInfo.Voltage, _GUITaskState.BatteryInfo.Percentage,
+                     _GUITaskState.BatteryInfo.Charging ? "Yes" : "No");
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_BATTERY_STATUS_CHANGED);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_BATTERY_STATUS_CHANGED);
+
+            break;
+        }
+        case DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE: {
+            memcpy(&_GUITaskState.TemperatureInfo, p_Data, sizeof(App_Devices_Temperature_t));
+
+            ESP_LOGD(TAG, "Room temperature updated: %.1f \xC2\xB0""C", _GUITaskState.TemperatureInfo.TempSensor);
+
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_TEMPERATURE_SENSOR_READY);
 
             break;
         }
@@ -202,16 +212,16 @@ static void on_Devices_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base,
 
     switch (ID) {
         case DEVICES_EVENT_SD_DETECT: {
-            _GUI_Task_State.CardPresent = *static_cast<const bool *>(p_Data);
+            _GUITaskState.CardPresent = *static_cast<const bool *>(p_Data);
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_SD_CARD_STATE_CHANGED);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_SD_CARD_STATE_CHANGED);
 
             break;
         }
     }
 }
 
-/** @brief                  Event handler for the Network events to receive updates when network events are triggered (e.g., WiFi connection changes).
+/** @brief                  Event handler for the Network events to receive updates when network events are triggered (e.G., WiFi connection changes).
  *  @param p_HandlerArgs    Handler argument
  *  @param Base             Event base
  *  @param ID               Event ID
@@ -226,50 +236,50 @@ static void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base,
             break;
         }
         case NETWORK_EVENT_WIFI_GOT_IP: {
-            memcpy(&_GUI_Task_State.IP_Info, p_Data, sizeof(Network_IP_Info_t));
-            _GUI_Task_State.WiFiConnected = true;
+            memcpy(&_GUITaskState.IP_Info, p_Data, sizeof(Network_IP_Info_t));
+            _GUITaskState.WiFiConnected = true;
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_WIFI_CONNECTION_STATE_CHANGED);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_WIFI_CONNECTION_STATE_CHANGED);
 
             break;
         }
         case NETWORK_EVENT_WIFI_DISCONNECTED: {
-            _GUI_Task_State.WiFiConnected = false;
+            _GUITaskState.WiFiConnected = false;
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_WIFI_CONNECTION_STATE_CHANGED);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_WIFI_CONNECTION_STATE_CHANGED);
 
             break;
         }
         case NETWORK_EVENT_PROV_STARTED: {
-            _GUI_Task_State.ProvisioningActive = true;
-            _GUI_Task_State.WiFiConnected = false;
+            _GUITaskState.ProvisioningActive = true;
+            _GUITaskState.WiFiConnected = false;
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_PROVISIONING_STATE_CHANGED);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_PROVISIONING_STATE_CHANGED);
 
             break;
         }
         case NETWORK_EVENT_PROV_STOPPED: {
-            _GUI_Task_State.ProvisioningActive = false;
-            _GUI_Task_State.WiFiConnected = false;
+            _GUITaskState.ProvisioningActive = false;
+            _GUITaskState.WiFiConnected = false;
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_PROVISIONING_STATE_CHANGED);
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_WIFI_CONNECTION_STATE_CHANGED);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_PROVISIONING_STATE_CHANGED);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_WIFI_CONNECTION_STATE_CHANGED);
 
             break;
         }
         case NETWORK_EVENT_PROV_SUCCESS: {
-            _GUI_Task_State.ProvisioningActive = false;
+            _GUITaskState.ProvisioningActive = false;
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_PROVISIONING_STATE_CHANGED);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_PROVISIONING_STATE_CHANGED);
 
             break;
         }
         case NETWORK_EVENT_PROV_TIMEOUT: {
-            _GUI_Task_State.ProvisioningActive = false;
-            _GUI_Task_State.WiFiConnected = false;
+            _GUITaskState.ProvisioningActive = false;
+            _GUITaskState.WiFiConnected = false;
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_PROVISIONING_STATE_CHANGED);
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_WIFI_CONNECTION_STATE_CHANGED);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_PROVISIONING_STATE_CHANGED);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_WIFI_CONNECTION_STATE_CHANGED);
 
             break;
         }
@@ -277,7 +287,7 @@ static void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base,
             ESP_LOGD(TAG, "Network frame registered with server");
 
             /* Register thermal frame with server (called after server is started) */
-            Server_SetThermalFrame(&_GUI_Task_State.NetworkFrame);
+            Server_SetThermalFrame(&_GUITaskState.NetworkFrame);
 
             break;
         }
@@ -302,24 +312,24 @@ static void on_USB_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
 
     switch (ID) {
         case USB_EVENT_UVC_STREAMING_START: {
-            _GUI_Task_State.isUVCStreaming = true;
+            _GUITaskState.IsUVCStreaming = true;
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_UVC_STREAMING_STATE_CHANGED);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_UVC_STREAMING_STATE_CHANGED);
 
             break;
         }
         case USB_EVENT_UVC_STREAMING_STOP: {
-            _GUI_Task_State.isUVCStreaming = false;
+            _GUITaskState.IsUVCStreaming = false;
 
-            xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_UVC_STREAMING_STATE_CHANGED);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_UVC_STREAMING_STATE_CHANGED);
 
             break;
         }
         case USB_EVENT_UNINITIALIZED: {
-            if (_GUI_Task_State.isUVCStreaming) {
-                _GUI_Task_State.isUVCStreaming = false;
+            if (_GUITaskState.IsUVCStreaming) {
+                _GUITaskState.IsUVCStreaming = false;
 
-                xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_UVC_STREAMING_STATE_CHANGED);
+                xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_UVC_STREAMING_STATE_CHANGED);
             }
 
             break;
@@ -340,10 +350,10 @@ static void GUI_Update_Info(void)
     esp_efuse_mac_get_default(MAC);
     snprintf(Buffer, sizeof(Buffer), "%02X:%02X:%02X:%02X:%02X:%02X", MAC[0], MAC[1], MAC[2], MAC[3], MAC[4], MAC[5]);
 
-    lv_label_set_text(ui_Label_Info_Lepton_Serial, _GUI_Task_State.LeptonDeviceInfo.SerialNumber);
-    lv_label_set_text(ui_Label_Info_Lepton_Part, _GUI_Task_State.LeptonDeviceInfo.PartNumber);
-    lv_label_set_text(ui_Label_Info_Lepton_GPP_Revision, _GUI_Task_State.LeptonDeviceInfo.SoftwareRevision.GPP_Revision);
-    lv_label_set_text(ui_Label_Info_Lepton_DSP_Revision, _GUI_Task_State.LeptonDeviceInfo.SoftwareRevision.DSP_Revision);
+    lv_label_set_text(ui_Label_Info_Lepton_Serial, _GUITaskState.LeptonDeviceInfo.SerialNumber);
+    lv_label_set_text(ui_Label_Info_Lepton_Part, _GUITaskState.LeptonDeviceInfo.PartNumber);
+    lv_label_set_text(ui_Label_Info_Lepton_GPP_Revision, _GUITaskState.LeptonDeviceInfo.SoftwareRevision.GPP_Revision);
+    lv_label_set_text(ui_Label_Info_Lepton_DSP_Revision, _GUITaskState.LeptonDeviceInfo.SoftwareRevision.DSP_Revision);
     lv_label_set_text(ui_Label_Info_MAC, Buffer);
 }
 
@@ -375,24 +385,24 @@ static void GUI_Update_ROI(Settings_ROI_t ROI)
         ROI.h = 1;
     }
 
-    /* Update visual rectangle on display (convert Lepton coords to display coords) */
+    /* Update visual rectangle on display (convert Lepton coords to display coords). */
     ESP_LOGD(TAG, "Updating ROI rectangle - Start: (%ld,%ld), End: (%ld,%ld), Size: %ldx%ld",
              ROI.x, ROI.y, ROI.x + ROI.w, ROI.y + ROI.h, ROI.w, ROI.h);
 
     DisplayWidth = lv_obj_get_width(ui_Image_Thermal);
     DisplayHeight = lv_obj_get_height(ui_Image_Thermal);
 
-    int32_t disp_x = (ROI.x * DisplayWidth) / 160;
-    int32_t disp_y = (ROI.y * DisplayHeight) / 120;
-    int32_t disp_w = (ROI.w * DisplayWidth) / 160;
-    int32_t disp_h = (ROI.h * DisplayHeight) / 120;
+    int32_t DispX = (ROI.x * DisplayWidth) / 160;
+    int32_t DispY = (ROI.y * DisplayHeight) / 120;
+    int32_t DispW = (ROI.w * DisplayWidth) / 160;
+    int32_t DispH = (ROI.h * DisplayHeight) / 120;
 
     switch (ROI.Type) {
         case ROI_TYPE_SPOTMETER: {
             if (ui_Image_Main_Thermal_Spotmeter_ROI != NULL) {
                 lv_obj_set_align(ui_Image_Main_Thermal_Spotmeter_ROI, LV_ALIGN_TOP_LEFT);
-                lv_obj_set_pos(ui_Image_Main_Thermal_Spotmeter_ROI, disp_x, disp_y);
-                lv_obj_set_size(ui_Image_Main_Thermal_Spotmeter_ROI, disp_w, disp_h);
+                lv_obj_set_pos(ui_Image_Main_Thermal_Spotmeter_ROI, DispX, DispY);
+                lv_obj_set_size(ui_Image_Main_Thermal_Spotmeter_ROI, DispW, DispH);
             }
 
             break;
@@ -400,8 +410,8 @@ static void GUI_Update_ROI(Settings_ROI_t ROI)
         case ROI_TYPE_SCENE: {
             if (ui_Image_Main_Thermal_Scene_ROI != NULL) {
                 lv_obj_set_align(ui_Image_Main_Thermal_Scene_ROI, LV_ALIGN_TOP_LEFT);
-                lv_obj_set_pos(ui_Image_Main_Thermal_Scene_ROI, disp_x, disp_y);
-                lv_obj_set_size(ui_Image_Main_Thermal_Scene_ROI, disp_w, disp_h);
+                lv_obj_set_pos(ui_Image_Main_Thermal_Scene_ROI, DispX, DispY);
+                lv_obj_set_size(ui_Image_Main_Thermal_Scene_ROI, DispW, DispH);
             }
 
             break;
@@ -409,8 +419,8 @@ static void GUI_Update_ROI(Settings_ROI_t ROI)
         case ROI_TYPE_AGC: {
             if (ui_Image_Main_Thermal_AGC_ROI != NULL) {
                 lv_obj_set_align(ui_Image_Main_Thermal_AGC_ROI, LV_ALIGN_TOP_LEFT);
-                lv_obj_set_pos(ui_Image_Main_Thermal_AGC_ROI, disp_x, disp_y);
-                lv_obj_set_size(ui_Image_Main_Thermal_AGC_ROI, disp_w, disp_h);
+                lv_obj_set_pos(ui_Image_Main_Thermal_AGC_ROI, DispX, DispY);
+                lv_obj_set_size(ui_Image_Main_Thermal_AGC_ROI, DispW, DispH);
             }
 
             break;
@@ -418,8 +428,8 @@ static void GUI_Update_ROI(Settings_ROI_t ROI)
         case ROI_TYPE_VIDEO_FOCUS: {
             if (ui_Image_Main_Thermal_Video_Focus_ROI != NULL) {
                 lv_obj_set_align(ui_Image_Main_Thermal_Video_Focus_ROI, LV_ALIGN_TOP_LEFT);
-                lv_obj_set_pos(ui_Image_Main_Thermal_Video_Focus_ROI, disp_x, disp_y);
-                lv_obj_set_size(ui_Image_Main_Thermal_Video_Focus_ROI, disp_w, disp_h);
+                lv_obj_set_pos(ui_Image_Main_Thermal_Video_Focus_ROI, DispX, DispY);
+                lv_obj_set_size(ui_Image_Main_Thermal_Video_Focus_ROI, DispW, DispH);
             }
 
             break;
@@ -433,7 +443,7 @@ static void GUI_Update_ROI(Settings_ROI_t ROI)
 
     SettingsManager_GetLepton(&SettingsLepton);
 
-    /* Check if an update is required */
+    /* Check if an update is required. */
     if ((SettingsLepton.ROI[ROI.Type].x == ROI.x) &&
         (SettingsLepton.ROI[ROI.Type].y == ROI.y) &&
         (SettingsLepton.ROI[ROI.Type].w == ROI.w) &&
@@ -443,7 +453,7 @@ static void GUI_Update_ROI(Settings_ROI_t ROI)
         return;
     }
 
-    /* Copy the new ROI in the existing settings structure */
+    /* Copy the new ROI in the existing settings structure. */
     memcpy(&SettingsLepton.ROI[ROI.Type], &ROI, sizeof(Settings_ROI_t));
 
     /* Save the new ROI to NVS */
@@ -469,96 +479,105 @@ static void GUI_Update_ROI(Settings_ROI_t ROI)
  */
 static void UI_Canvas_AddTempGradient(void)
 {
-    /* Generate gradient pixel by pixel */
-    uint16_t *Buffer = reinterpret_cast<uint16_t *>(_GUI_Task_State.GradientCanvasBuffer);
+    /* Generate gradient pixel by pixel. */
+    uint16_t *Buffer = reinterpret_cast<uint16_t *>(_GUITaskState.GradientCanvasBuffer);
 
-    for (uint32_t y = 0; y < _GUI_Task_State.GradientImageDescriptor.header.h; y++) {
+    for (uint32_t y = 0; y < _GUITaskState.GradientImageDescriptor.header.h; y++) {
         uint32_t Index;
 
         /* Map y position to palette index (0 = top/hot = white, 179 = bottom/cold = black)
          * Iron palette: index 0 = black (cold), index 255 = white (hot)
-         * So we need to invert: top (y=0) should be index 255, bottom (y=179) should be index 0
+         * So we need to invert: top (y=0) should be index 255, bottom (y=179) should be index 0.
          */
-        Index = 255 - (y * 255 / (_GUI_Task_State.GradientImageDescriptor.header.h - 1));
+        Index = 255 - (y * 255 / (_GUITaskState.GradientImageDescriptor.header.h - 1));
 
         /* Get RGB888 values from palette */
-        uint8_t r8 = Lepton_Palette_Iron[Index][0];
-        uint8_t g8 = Lepton_Palette_Iron[Index][1];
-        uint8_t b8 = Lepton_Palette_Iron[Index][2];
+        uint8_t R8 = Lepton_Palette_Iron[Index][0];
+        uint8_t G8 = Lepton_Palette_Iron[Index][1];
+        uint8_t B8 = Lepton_Palette_Iron[Index][2];
 
         /* Convert RGB888 to RGB565 */
-        uint16_t r5 = (r8 >> 3) & 0x1F;
-        uint16_t g6 = (g8 >> 2) & 0x3F;
-        uint16_t b5 = (b8 >> 3) & 0x1F;
+        uint16_t R5 = (R8 >> 3) & 0x1F;
+        uint16_t G6 = (G8 >> 2) & 0x3F;
+        uint16_t B5 = (B8 >> 3) & 0x1F;
 
         /* Fill entire row with same color */
-        for (uint32_t x = 0; x < _GUI_Task_State.GradientImageDescriptor.header.w; x++) {
-            Buffer[y * _GUI_Task_State.GradientImageDescriptor.header.w + x] = (r5 << 11) | (g6 << 5) | b5;
+        for (uint32_t x = 0; x < _GUITaskState.GradientImageDescriptor.header.w; x++) {
+            Buffer[y * _GUITaskState.GradientImageDescriptor.header.w + x] = (R5 << 11) | (G6 << 5) | B5;
         }
     }
 }
 
 /** @brief          LVGL keypad read callback.
  *                  Maps the debounced displayboard input state (joystick + buttons) to a
- *                  single LVGL key event. Button priority: joystick directions first, then
- *                  joystick center, then Button1–4.
- *                  Key mapping:
- *                    JoyUp -> LV_KEY_UP
- *                    JoyDown -> LV_KEY_DOWN
- *                    JoyLeft -> LV_KEY_LEFT
- *                    JoyRight -> LV_KEY_RIGHT
- *                    JoyCenter / Button1 -> LV_KEY_ENTER
- *                    Button2 -> LV_KEY_ESC
- *                    Button3 -> LV_KEY_NEXT
- *                    Button4 -> LV_KEY_PREV
+ *                  single LVGL key event. First matching entry in KEY_MAP wins.
+ *                  BTN1�4 use custom key codes to avoid interception by the LVGL group
+ *                  navigation engine, and have key-repeat suppressed (rising edge only).
  *  @param p_Indev  Input device handle
  *  @param p_Data   Input device data
  */
 static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Data)
 {
+    static const struct {
+        uint32_t Key;
+        const char *Name;
+    } KEY_MAP[] = {
+        { LV_KEY_UP,       "UP"    },
+        { LV_KEY_DOWN,     "DOWN"  },
+        { LV_KEY_LEFT,     "LEFT"  },
+        { LV_KEY_RIGHT,    "RIGHT" },
+        { LV_KEY_ENTER,    "ENTER" },
+        { GUI_KEYPAD_BTN1, "BTN1"  },
+        { GUI_KEYPAD_BTN2, "BTN2"  },
+        { GUI_KEYPAD_BTN3, "BTN3"  },
+        { GUI_KEYPAD_BTN4, "BTN4"  },
+    };
+
     Devices_InputState_t State;
     uint32_t Key = 0;
     bool Pressed = false;
+    const char *p_KeyName = "?";
 
-    if ((_GUI_Task_State.AppContext == NULL) || (_GUI_Task_State.AppContext->InputMutex == NULL)) {
+    if ((_GUITaskState.AppContext == NULL) || (_GUITaskState.AppContext->InputMutex == NULL)) {
         p_Data->state = LV_INDEV_STATE_RELEASED;
 
         return;
     }
 
-    xSemaphoreTake(_GUI_Task_State.AppContext->InputMutex, portMAX_DELAY);
-    memcpy(&State, &_GUI_Task_State.AppContext->InputState, sizeof(Devices_InputState_t));
-    xSemaphoreGive(_GUI_Task_State.AppContext->InputMutex);
+    xSemaphoreTake(_GUITaskState.AppContext->InputMutex, portMAX_DELAY);
+    memcpy(&State, &_GUITaskState.AppContext->InputState, sizeof(Devices_InputState_t));
+    xSemaphoreGive(_GUITaskState.AppContext->InputMutex);
 
-    /* First matching active input wins */
-    if (State.JoyUp)         {
-        Key = LV_KEY_UP;
-        Pressed = true;
-    } else if (State.JoyDown)  {
-        Key = LV_KEY_DOWN;
-        Pressed = true;
-    } else if (State.JoyLeft)  {
-        Key = LV_KEY_LEFT;
-        Pressed = true;
-    } else if (State.JoyRight) {
-        Key = LV_KEY_RIGHT;
-        Pressed = true;
-    } else if (State.JoyCenter) {
-        Key = LV_KEY_ENTER;
-        Pressed = true;
-    } else if (State.Button1)  {
-        Key = LV_KEY_ENTER;
-        Pressed = true;
-    } else if (State.Button2)  {
-        Key = LV_KEY_ESC;
-        Pressed = true;
-    } else if (State.Button3)  {
-        Key = LV_KEY_NEXT;
-        Pressed = true;
-    } else if (State.Button4)  {
-        Key = LV_KEY_PREV;
-        Pressed = true;
+    const bool InputArray[] = {
+        State.JoyUp, State.JoyDown, State.JoyLeft, State.JoyRight, State.JoyCenter,
+        State.Button1, State.Button2, State.Button3, State.Button4,
+    };
+
+    for (size_t i = 0; i < (sizeof(KEY_MAP) / sizeof(KEY_MAP[0])); i++) {
+        if (InputArray[i]) {
+            Key = KEY_MAP[i].Key;
+            p_KeyName = KEY_MAP[i].Name;
+            Pressed = true;
+
+            break;
+        }
     }
+
+    /* BTN1-4 are action buttons, not navigation buttons so we must suppress key-repeat.
+     * LVGL re-fires LV_EVENT_KEY on every indev tick while PRESSED is reported,
+     * which would trigger multiple screen changes per button press.
+     * Only the rising edge (first tick) passes through; subsequent ticks with
+     * the same button still held are suppressed by reporting RELEASED.
+     */
+    static uint32_t PrevBtnKey = 0;
+    uint32_t CurrentBtnKey = ((Key >= GUI_KEYPAD_BTN1) && (Key <= GUI_KEYPAD_BTN4)) ? Key : 0;
+
+    if ((CurrentBtnKey != 0) && (CurrentBtnKey == PrevBtnKey)) {
+        Key = 0;
+        Pressed = false;
+    }
+
+    PrevBtnKey = CurrentBtnKey;
 
     p_Data->key = Key;
     p_Data->state = Pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
@@ -569,41 +588,9 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
 
     if ((Pressed != PrevPressed) || (Pressed && (Key != PrevKey))) {
         if (Pressed) {
-            const char *p_KeyName;
-
-            switch (Key) {
-                case LV_KEY_UP:
-                    p_KeyName = "UP";
-                    break;
-                case LV_KEY_DOWN:
-                    p_KeyName = "DOWN";
-                    break;
-                case LV_KEY_LEFT:
-                    p_KeyName = "LEFT";
-                    break;
-                case LV_KEY_RIGHT:
-                    p_KeyName = "RIGHT";
-                    break;
-                case LV_KEY_ENTER:
-                    p_KeyName = "ENTER";
-                    break;
-                case LV_KEY_ESC:
-                    p_KeyName = "ESC";
-                    break;
-                case LV_KEY_NEXT:
-                    p_KeyName = "NEXT";
-                    break;
-                case LV_KEY_PREV:
-                    p_KeyName = "PREV";
-                    break;
-                default:
-                    p_KeyName = "?";
-                    break;
-            }
-
-            ESP_LOGI(TAG, "Keypad: %s pressed", p_KeyName);
+            ESP_LOGD(TAG, "Keypad: %s pressed", p_KeyName);
         } else {
-            ESP_LOGI(TAG, "Keypad: released");
+            ESP_LOGD(TAG, "Keypad: released");
         }
     }
 
@@ -650,25 +637,25 @@ void Task_GUI(void *p_Parameters)
     /* Precompute x bilinear coefficients once per frame (constant across all rows).
      * Saves ImageHeight (180) redundant divisions per pixel column.
      * Stack cost: 3 * CONFIG_GUI_WIDTH = 960 bytes.
-     * NOTE: x_lut_xi is NOT stored - computing 256 - x_frac inline avoids a uint8_t
-     * overflow: when x_frac == 0, 256 would truncate to 0, zeroing all weights leads to black
-     * pixels. x_inv is computed as uint32_t in the inner loop instead.
+     * NOTE: x_lut_xi is NOT stored - computing 256 - XFrac inline avoids a uint8_t
+     * overflow: when XFrac == 0, 256 would truncate to 0, zeroing all weights leads to black
+     * pixels. XInv is computed as uint32_t in the inner loop instead.
      */
-    uint8_t x_lut_x0[CONFIG_GUI_WIDTH];
-    uint8_t x_lut_x1[CONFIG_GUI_WIDTH];
-    uint8_t x_lut_xf[CONFIG_GUI_WIDTH];
+    uint8_t XLutX0[CONFIG_GUI_WIDTH];
+    uint8_t XLutX1[CONFIG_GUI_WIDTH];
+    uint8_t XLutXf[CONFIG_GUI_WIDTH];
 
     esp_task_wdt_add(NULL);
 
     App_Context = static_cast<App_Context_t *>(p_Parameters);
-    _GUI_Task_State.AppContext = App_Context;
+    _GUITaskState.AppContext = App_Context;
     ESP_LOGD(TAG, "GUI Task started on core %d", xPortGetCoreID());
 
     /* Show splash screen first and wait for all components to become ready before starting the application.
      *
      * Sequencing:
      *   - Camera init runs as a background task (Camera_Task_InitAsync) and posts
-     *     CAMERA_EVENT_INIT_COMPLETE / CAMERA_EVENT_INIT_FAILED when done (~0–2 s).
+     *     CAMERA_EVENT_INIT_COMPLETE / CAMERA_EVENT_INIT_FAILED when done (~0�2 s).
      *     On receipt, the bar snaps to 50 % ("Camera ready") if not yet past that value.
      *   - The Lepton requires ~5 s to boot. During the boot window the bar is animated
      *     at 2 %/100 ms so it naturally reaches ~99 % just as the LEPTON_READY event
@@ -699,7 +686,8 @@ void Task_GUI(void *p_Parameters)
         CurrentBarValue = lv_bar_get_value(ui_SplashScreen_LoadingBar);
 
         /* Advance bar by 2 % per 100 ms iteration (fills 0 -> 99 in ~5 s, matching Lepton boot time).
-         * Do not auto-advance past 99 % — wait for the LEPTON_READY event to set it to 100 %. */
+         * Do not auto-advance past 99 % � wait for the LEPTON_READY event to set it to 100 %.
+         */
         if (CurrentBarValue < 99) {
             int32_t NextValue = CurrentBarValue + 2;
 
@@ -721,7 +709,7 @@ void Task_GUI(void *p_Parameters)
             CurrentBarValue = NextValue;
         }
 
-        EventBits = xEventGroupGetBits(_GUI_Task_State.EventGroup);
+        EventBits = xEventGroupGetBits(_GUITaskState.EventGroup);
         if (EventBits & GUI_TASK_CAMERA_READY) {
             /* Camera async init completed. Snap bar to 50 % milestone if not already past it. */
             if (CurrentBarValue < 50) {
@@ -729,7 +717,7 @@ void Task_GUI(void *p_Parameters)
                 lv_label_set_text(ui_SplashScreen_StatusText, "Camera ready");
             }
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_CAMERA_READY);
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_READY);
         }
 
         if (EventBits & GUI_TASK_LEPTON_READY) {
@@ -737,22 +725,23 @@ void Task_GUI(void *p_Parameters)
 
             /* Lepton has finished booting. Initialize GT911 now - GT911 was intentionally
              * kept in hardware reset until this point to avoid I2C bus interference
-             * during CCI_WaitForBoot. */
-            GUI_Helper_InitTouch(&_GUI_Task_State, Touch_LVGL_ReadCallback);
+             * during CCI_WaitForBoot.
+             */
+            GUI_Helper_InitTouch(&_GUITaskState, Touch_LVGL_ReadCallback);
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_READY);
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_READY);
         }
 
         if (EventBits & GUI_TASK_LEPTON_ERROR) {
             lv_label_set_text(ui_SplashScreen_StatusText, "Lepton Error");
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_ERROR);
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_ERROR);
         }
 
         if (EventBits & GUI_TASK_CAMERA_ERROR) {
             lv_label_set_text(ui_SplashScreen_StatusText, "Camera Error");
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_CAMERA_ERROR);
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_ERROR);
         }
 
         if (Timeout >= 30000) {
@@ -790,7 +779,7 @@ void Task_GUI(void *p_Parameters)
 
     /* Variables for Illuminance values for the scene label.
      * Fetch all these values at the beginning to not waste CPU performance because these
-     * functions aren´t simple get functions
+     * functions aren�t simple get functions
      *      0 = Max label
      *      1 = Min label
      *      2 = Mean label
@@ -804,45 +793,46 @@ void Task_GUI(void *p_Parameters)
      *   which itself is a child of ui_Image_Thermal. Their lv_obj_get_x/y() is relative
      *   to the container, so the container's own offset within the image must be added.
      */
-    int32_t SceneStatsContainer_x = lv_obj_get_x(ui_Container_Main_Thermal_Scene_Statistics);
-    int32_t SceneStatsContainer_y = lv_obj_get_y(ui_Container_Main_Thermal_Scene_Statistics);
+    int32_t SceneStatsContainerX = lv_obj_get_x(ui_Container_Main_Thermal_Scene_Statistics);
+    int32_t SceneStatsContainerY = lv_obj_get_y(ui_Container_Main_Thermal_Scene_Statistics);
 
-    int32_t SceneLabel_x0[5] = { SceneStatsContainer_x + lv_obj_get_x(ui_Label_Main_Thermal_Scene_Max),
-                                 SceneStatsContainer_x + lv_obj_get_x(ui_Label_Main_Thermal_Scene_Min),
-                                 SceneStatsContainer_x + lv_obj_get_x(ui_Label_Main_Thermal_Scene_Mean),
+    int32_t SceneLabelX0[5] = { SceneStatsContainerX + lv_obj_get_x(ui_Label_Main_Thermal_Scene_Max),
+                                 SceneStatsContainerX + lv_obj_get_x(ui_Label_Main_Thermal_Scene_Min),
+                                 SceneStatsContainerX + lv_obj_get_x(ui_Label_Main_Thermal_Scene_Mean),
                                  lv_obj_get_x(ui_Label_Main_Thermal_Crosshair),
                                  lv_obj_get_x(ui_Label_Main_Thermal_PixelTemperature)
                                };
-    int32_t SceneLabel_y0[5] = { SceneStatsContainer_y + lv_obj_get_y(ui_Label_Main_Thermal_Scene_Max),
-                                 SceneStatsContainer_y + lv_obj_get_y(ui_Label_Main_Thermal_Scene_Min),
-                                 SceneStatsContainer_y + lv_obj_get_y(ui_Label_Main_Thermal_Scene_Mean),
+    int32_t SceneLabelY0[5] = { SceneStatsContainerY + lv_obj_get_y(ui_Label_Main_Thermal_Scene_Max),
+                                 SceneStatsContainerY + lv_obj_get_y(ui_Label_Main_Thermal_Scene_Min),
+                                 SceneStatsContainerY + lv_obj_get_y(ui_Label_Main_Thermal_Scene_Mean),
                                  lv_obj_get_y(ui_Label_Main_Thermal_Crosshair),
                                  lv_obj_get_y(ui_Label_Main_Thermal_PixelTemperature)
                                };
-    int32_t SceneLabel_w[5] = { lv_obj_get_width(ui_Label_Main_Thermal_Scene_Max),
+    int32_t SceneLabelW[5] = { lv_obj_get_width(ui_Label_Main_Thermal_Scene_Max),
                                 lv_obj_get_width(ui_Label_Main_Thermal_Scene_Min),
                                 lv_obj_get_width(ui_Label_Main_Thermal_Scene_Mean),
                                 lv_obj_get_width(ui_Label_Main_Thermal_Crosshair),
                                 lv_obj_get_width(ui_Label_Main_Thermal_PixelTemperature)
                               };
-    int32_t SceneLabel_h[5] = { lv_obj_get_height(ui_Label_Main_Thermal_Scene_Max),
+    int32_t SceneLabelH[5] = { lv_obj_get_height(ui_Label_Main_Thermal_Scene_Max),
                                 lv_obj_get_height(ui_Label_Main_Thermal_Scene_Min),
                                 lv_obj_get_height(ui_Label_Main_Thermal_Scene_Mean),
                                 lv_obj_get_height(ui_Label_Main_Thermal_Crosshair),
                                 lv_obj_get_height(ui_Label_Main_Thermal_PixelTemperature)
                               };
 
-    while (_GUI_Task_State.isRunning) {
+    while (_GUITaskState.IsRunning) {
         EventBits_t EventBits;
-        App_Lepton_FrameReady_t LeptonFrame;
+        App_Lepton_Frame_t LeptonFrame;
 
         esp_task_wdt_reset();
 
         /* Check for new thermal frame. */
-        if (xQueueReceive(App_Context->Lepton_FrameEventQueue, &LeptonFrame, 0) == pdTRUE) {
+        if (xQueueReceive(App_Context->Lepton_FrameQueue, &LeptonFrame, 0) == pdTRUE) {
             /* During UVC streaming, skip expensive image processing to avoid
-               SPI contention and watchdog timeouts. Just drain the queue. */
-            if (_GUI_Task_State.isUVCStreaming) {
+             *  SPI contention and watchdog timeouts. Just drain the queue.
+             */
+            if (_GUITaskState.IsUVCStreaming) {
                 ESP_LOGD(TAG, "UVC streaming active - skipping GUI frame processing");
             } else {
                 uint8_t *Dst;
@@ -857,7 +847,7 @@ void Task_GUI(void *p_Parameters)
                 esp_task_wdt_reset();
 
                 /* Scale from source (160x120) to destination (240x180) using bilinear interpolation. */
-                Dst = _GUI_Task_State.ThermalCanvasBuffer;
+                Dst = _GUITaskState.ThermalCanvasBuffer;
                 ImageWidth = lv_obj_get_width(ui_Image_Thermal);
                 ImageHeight = lv_obj_get_height(ui_Image_Thermal);
 
@@ -869,11 +859,11 @@ void Task_GUI(void *p_Parameters)
                 }
 
                 for (uint32_t x = 0; x < ImageWidth; x++) {
-                    uint32_t src_x_fixed = x * ((LeptonFrame.Width - 1) << 16) / ImageWidth;
-                    uint32_t xp = src_x_fixed >> 16;
-                    x_lut_x0[x] = static_cast<uint8_t>(xp);
-                    x_lut_x1[x] = static_cast<uint8_t>(((xp + 1) < LeptonFrame.Width) ? (xp + 1) : xp);
-                    x_lut_xf[x] = static_cast<uint8_t>((src_x_fixed >> 8) & 0xFF);
+                    uint32_t SrcXFixed = x * ((LeptonFrame.Width - 1) << 16) / ImageWidth;
+                    uint32_t Xp = SrcXFixed >> 16;
+                    XLutX0[x] = static_cast<uint8_t>(Xp);
+                    XLutX1[x] = static_cast<uint8_t>(((Xp + 1) < LeptonFrame.Width) ? (Xp + 1) : Xp);
+                    XLutXf[x] = static_cast<uint8_t>((SrcXFixed >> 8) & 0xFF);
                 }
 
                 for (uint32_t y = 0; y < ImageHeight; y++) {
@@ -883,116 +873,116 @@ void Task_GUI(void *p_Parameters)
                     }
 
                     uint32_t src_y_fixed = y * ((LeptonFrame.Height - 1) << 16) / ImageHeight;
-                    uint32_t y0 = src_y_fixed >> 16;
-                    uint32_t y1 = ((y0 + 1) < LeptonFrame.Height) ? (y0 + 1) : y0;
-                    uint32_t y_frac = (src_y_fixed >> 8) & 0xFF; /* 8-bit fractional part */
-                    uint32_t y_inv = 256 - y_frac;
+                    uint32_t Y0 = src_y_fixed >> 16;
+                    uint32_t Y1 = ((Y0 + 1) < LeptonFrame.Height) ? (Y0 + 1) : Y0;
+                    uint32_t YFrac = (src_y_fixed >> 8) & 0xFF; /* 8-bit fractional part */
+                    uint32_t YInv = 256 - YFrac;
 
                     for (uint32_t x = 0; x < ImageWidth; x++) {
                         /* Use precomputed x LUT - avoids 1 multiply + 1 divide per pixel per row.
-                         * x_inv is computed inline (not cached) to avoid uint8_t overflow when x_frac==0. */
-                        uint32_t x0 = x_lut_x0[x];
-                        uint32_t x1 = x_lut_x1[x];
-                        uint32_t x_frac = x_lut_xf[x];
-                        uint32_t x_inv = 256u - x_frac;
+                         * XInv is computed inline (not cached) to avoid uint8_t overflow when XFrac==0. */
+                        uint32_t X0 = XLutX0[x];
+                        uint32_t X1 = XLutX1[x];
+                        uint32_t XFrac = XLutXf[x];
+                        uint32_t XInv = 256u - XFrac;
 
                         /* Get the four surrounding pixels. */
-                        uint32_t idx00 = ((y0 * LeptonFrame.Width) + x0) * 3;
-                        uint32_t idx10 = ((y0 * LeptonFrame.Width) + x1) * 3;
-                        uint32_t idx01 = ((y1 * LeptonFrame.Width) + x0) * 3;
-                        uint32_t idx11 = ((y1 * LeptonFrame.Width) + x1) * 3;
+                        uint32_t Idx00 = ((Y0 * LeptonFrame.Width) + X0) * 3;
+                        uint32_t Idx10 = ((Y0 * LeptonFrame.Width) + X1) * 3;
+                        uint32_t Idx01 = ((Y1 * LeptonFrame.Width) + X0) * 3;
+                        uint32_t Idx11 = ((Y1 * LeptonFrame.Width) + X1) * 3;
 
                         /* Bilinear interpolation using fixed-point arithmetic (8.8 format) */
-                        /* Weight: (256 - x_frac) * (256 - y_frac), x_frac*(256 - y_frac), etc. */
-                        uint32_t w00 = (x_inv * y_inv) >> 8;
-                        uint32_t w10 = (x_frac * y_inv) >> 8;
-                        uint32_t w01 = (x_inv * y_frac) >> 8;
-                        uint32_t w11 = (x_frac * y_frac) >> 8;
+                        /* Weight: (256 - XFrac) * (256 - YFrac), XFrac*(256 - YFrac), etc. */
+                        uint32_t W00 = (XInv * YInv) >> 8;
+                        uint32_t W10 = (XFrac * YInv) >> 8;
+                        uint32_t W01 = (XInv * YFrac) >> 8;
+                        uint32_t W11 = (XFrac * YFrac) >> 8;
 
-                        uint32_t r = (LeptonFrame.Buffer[idx00 + 0] * w00 +
-                                      LeptonFrame.Buffer[idx10 + 0] * w10 +
-                                      LeptonFrame.Buffer[idx01 + 0] * w01 +
-                                      LeptonFrame.Buffer[idx11 + 0] * w11) >> 8;
+                        uint32_t R = (LeptonFrame.Buffer[Idx00 + 0] * W00 +
+                                      LeptonFrame.Buffer[Idx10 + 0] * W10 +
+                                      LeptonFrame.Buffer[Idx01 + 0] * W01 +
+                                      LeptonFrame.Buffer[Idx11 + 0] * W11) >> 8;
 
-                        uint32_t g = (LeptonFrame.Buffer[idx00 + 1] * w00 +
-                                      LeptonFrame.Buffer[idx10 + 1] * w10 +
-                                      LeptonFrame.Buffer[idx01 + 1] * w01 +
-                                      LeptonFrame.Buffer[idx11 + 1] * w11) >> 8;
+                        uint32_t G = (LeptonFrame.Buffer[Idx00 + 1] * W00 +
+                                      LeptonFrame.Buffer[Idx10 + 1] * W10 +
+                                      LeptonFrame.Buffer[Idx01 + 1] * W01 +
+                                      LeptonFrame.Buffer[Idx11 + 1] * W11) >> 8;
 
-                        uint32_t b = (LeptonFrame.Buffer[idx00 + 2] * w00 +
-                                      LeptonFrame.Buffer[idx10 + 2] * w10 +
-                                      LeptonFrame.Buffer[idx01 + 2] * w01 +
-                                      LeptonFrame.Buffer[idx11 + 2] * w11) >> 8;
+                        uint32_t B = (LeptonFrame.Buffer[Idx00 + 2] * W00 +
+                                      LeptonFrame.Buffer[Idx10 + 2] * W10 +
+                                      LeptonFrame.Buffer[Idx01 + 2] * W01 +
+                                      LeptonFrame.Buffer[Idx11 + 2] * W11) >> 8;
 
                         /* Inside the image area under the label: Add the Luminance
-                         * Note: The image widget has 180° rotation applied via lv_image_set_rotation.
-                         * - x_rot = Image_Width - 1 - x (X axis is inverted due to rotation)
+                         * Note: The image widget has 180� rotation applied via lv_image_set_rotation.
+                         * - XRot = Image_Width - 1 - x (X axis is inverted due to rotation)
                          * - y is used directly (Y axis matches label position directly)
                          */
-                        /* Map buffer coordinates to display coordinates for 180° rotated image:
-                         * x: x_rot = ImageWidth - 1 - x  (horizontal mirror)
-                         * y: y_rot = ImageHeight - 1 - y  (vertical mirror)
+                        /* Map buffer coordinates to display coordinates for 180� rotated image:
+                         * x: XRot = ImageWidth - 1 - x  (horizontal mirror)
+                         * y: YRot = ImageHeight - 1 - y  (vertical mirror)
                          * Labels use display coordinates, so both axes must be inverted.
                          */
-                        uint32_t x_rot = ImageWidth - 1 - x;
-                        uint32_t y_rot = ImageHeight - 1 - y;
+                        uint32_t XRot = ImageWidth - 1 - x;
+                        uint32_t YRot = ImageHeight - 1 - y;
 
                         /* Max label */
-                        if ((x_rot >= SceneLabel_x0[0]) &&
-                            (x_rot < (SceneLabel_x0[0] + SceneLabel_w[0])) &&
-                            (y_rot >= SceneLabel_y0[0]) &&
-                            (y_rot < (SceneLabel_y0[0] + SceneLabel_h[0]))) {
+                        if ((XRot >= SceneLabelX0[0]) &&
+                            (XRot < (SceneLabelX0[0] + SceneLabelW[0])) &&
+                            (YRot >= SceneLabelY0[0]) &&
+                            (YRot < (SceneLabelY0[0] + SceneLabelH[0]))) {
                             /* BT.601 luma in integer: (77*R + 150*G + 29*B) >> 8 (coefficients sum to 256) */
-                            SceneLabelIlluminance[0] += ((77u * r) + (150u * g) + (29u * b)) >> 8u;
+                            SceneLabelIlluminance[0] += ((77u * R) + (150u * G) + (29u * B)) >> 8u;
                             SceneLabelCount[0]++;
                         }
 
                         /* Min label */
-                        if ((x_rot >= SceneLabel_x0[1]) &&
-                            (x_rot < (SceneLabel_x0[1] + SceneLabel_w[1])) &&
-                            (y_rot >= SceneLabel_y0[1]) &&
-                            (y_rot < (SceneLabel_y0[1] + SceneLabel_h[1]))) {
-                            SceneLabelIlluminance[1] += ((77u * r) + (150u * g) + (29u * b)) >> 8u;
+                        if ((XRot >= SceneLabelX0[1]) &&
+                            (XRot < (SceneLabelX0[1] + SceneLabelW[1])) &&
+                            (YRot >= SceneLabelY0[1]) &&
+                            (YRot < (SceneLabelY0[1] + SceneLabelH[1]))) {
+                            SceneLabelIlluminance[1] += ((77u * R) + (150u * G) + (29u * B)) >> 8u;
                             SceneLabelCount[1]++;
                         }
 
                         /* Mean label */
-                        if ((x_rot >= SceneLabel_x0[2]) &&
-                            (x_rot < (SceneLabel_x0[2] + SceneLabel_w[2])) &&
-                            (y_rot >= SceneLabel_y0[2]) &&
-                            (y_rot < (SceneLabel_y0[2] + SceneLabel_h[2]))) {
-                            SceneLabelIlluminance[2] += ((77u * r) + (150u * g) + (29u * b)) >> 8u;
+                        if ((XRot >= SceneLabelX0[2]) &&
+                            (XRot < (SceneLabelX0[2] + SceneLabelW[2])) &&
+                            (YRot >= SceneLabelY0[2]) &&
+                            (YRot < (SceneLabelY0[2] + SceneLabelH[2]))) {
+                            SceneLabelIlluminance[2] += ((77u * R) + (150u * G) + (29u * B)) >> 8u;
                             SceneLabelCount[2]++;
                         }
 
                         /* Crosshair label */
-                        if ((x_rot >= SceneLabel_x0[3]) &&
-                            (x_rot < (SceneLabel_x0[3] + SceneLabel_w[3])) &&
-                            (y_rot >= SceneLabel_y0[3]) &&
-                            (y_rot < (SceneLabel_y0[3] + SceneLabel_h[3]))) {
-                            SceneLabelIlluminance[3] += ((77u * r) + (150u * g) + (29u * b)) >> 8u;
+                        if ((XRot >= SceneLabelX0[3]) &&
+                            (XRot < (SceneLabelX0[3] + SceneLabelW[3])) &&
+                            (YRot >= SceneLabelY0[3]) &&
+                            (YRot < (SceneLabelY0[3] + SceneLabelH[3]))) {
+                            SceneLabelIlluminance[3] += ((77u * R) + (150u * G) + (29u * B)) >> 8u;
                             SceneLabelCount[3]++;
                         }
 
                         /* Pixel temperature label */
-                        if ((x_rot >= SceneLabel_x0[4]) &&
-                            (x_rot < (SceneLabel_x0[4] + SceneLabel_w[4])) &&
-                            (y_rot >= SceneLabel_y0[4]) &&
-                            (y_rot < (SceneLabel_y0[4] + SceneLabel_h[4]))) {
-                            SceneLabelIlluminance[4] += ((77u * r) + (150u * g) + (29u * b)) >> 8u;
+                        if ((XRot >= SceneLabelX0[4]) &&
+                            (XRot < (SceneLabelX0[4] + SceneLabelW[4])) &&
+                            (YRot >= SceneLabelY0[4]) &&
+                            (YRot < (SceneLabelY0[4] + SceneLabelH[4]))) {
+                            SceneLabelIlluminance[4] += ((77u * R) + (150u * G) + (29u * B)) >> 8u;
                             SceneLabelCount[4]++;
                         }
 
-                        uint32_t dst_idx = (y * ImageWidth) + x;
+                        uint32_t DstIdx = (y * ImageWidth) + x;
 
                         /* Convert to RGB565 - LVGL handles swapping with RGB565_SWAPPED */
-                        uint16_t rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+                        uint16_t Rgb565 = ((R & 0xF8) << 8) | ((G & 0xFC) << 3) | (B >> 3);
 
                         /* Low byte first */
-                        Dst[(dst_idx * 2) + 0] = rgb565 & 0xFF;
+                        Dst[(DstIdx * 2) + 0] = Rgb565 & 0xFF;
 
                         /* High byte second */
-                        Dst[(dst_idx * 2) + 1] = (rgb565 >> 8) & 0xFF;
+                        Dst[(DstIdx * 2) + 1] = (Rgb565 >> 8) & 0xFF;
                     }
                 }
 
@@ -1020,13 +1010,13 @@ void Task_GUI(void *p_Parameters)
                 esp_task_wdt_reset();
 
                 /* Max temperature (top of gradient) */
-                float temp_max_celsius = (LeptonFrame.Max / 100.0f) - 273.15f;
-                snprintf(Buffer, sizeof(Buffer), "%.1f °C", temp_max_celsius);
+                float TempMaxCelsius = (LeptonFrame.Max / 100.0f) - 273.15f;
+                snprintf(Buffer, sizeof(Buffer), "%.1f \xC2\xB0""C", TempMaxCelsius);
                 lv_label_set_text(ui_Label_TempScaleMax, Buffer);
 
                 /* Min temperature (bottom of gradient) */
-                float temp_min_celsius = (LeptonFrame.Min / 100.0f) - 273.15f;
-                snprintf(Buffer, sizeof(Buffer), "%.1f °C", temp_min_celsius);
+                float TempMinCelsius = (LeptonFrame.Min / 100.0f) - 273.15f;
+                snprintf(Buffer, sizeof(Buffer), "%.1f \xC2\xB0""C", TempMinCelsius);
                 lv_label_set_text(ui_Label_TempScaleMin, Buffer);
 
                 /* Trigger LVGL to redraw the image */
@@ -1035,13 +1025,13 @@ void Task_GUI(void *p_Parameters)
                          ImageWidth, ImageHeight);
 
                 /* Save frame if requested */
-                if (_GUI_Task_State.SaveNextFrameRequested) {
-                    App_Lepton_FrameReady_t SaveFrame;
+                if (_GUITaskState.SaveNextFrameRequested) {
+                    App_Lepton_Frame_t SaveFrame;
 
-                    _GUI_Task_State.SaveNextFrameRequested = false;
+                    _GUITaskState.SaveNextFrameRequested = false;
 
                     /* Prepare frame data for save task (using scaled RGB565 buffer) */
-                    SaveFrame.Buffer = _GUI_Task_State.ThermalCanvasBuffer;  /* Use scaled display buffer */
+                    SaveFrame.Buffer = _GUITaskState.ThermalCanvasBuffer;  /* Use scaled display buffer */
                     SaveFrame.Width = ImageWidth;
                     SaveFrame.Height = ImageHeight;
 
@@ -1050,7 +1040,7 @@ void Task_GUI(void *p_Parameters)
                     SaveFrame.Min = LeptonFrame.Min;
                     SaveFrame.Max = LeptonFrame.Max;
 
-                    if (xQueueSend(_GUI_Task_State.ImageSaveQueue, &SaveFrame, 0) != pdTRUE) {
+                    if (xQueueSend(_GUITaskState.ImageSaveQueue, &SaveFrame, 0) != pdTRUE) {
                         ESP_LOGW(TAG, "Image save queue full, skipping save");
 
                         esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, pdMS_TO_TICKS(100));
@@ -1059,34 +1049,34 @@ void Task_GUI(void *p_Parameters)
 
                 /* Update network frame for server streaming if server is running */
                 if (Server_IsRunning()) {
-                    if (xSemaphoreTake(_GUI_Task_State.NetworkFrame.Mutex, 0) == pdTRUE) {
+                    if (xSemaphoreTake(_GUITaskState.NetworkFrame.Mutex, 0) == pdTRUE) {
                         /* Convert scaled RGB565 buffer to RGB888 for network transmission */
-                        uint8_t *rgb888_dst = _GUI_Task_State.NetworkRGBBuffer;
+                        uint8_t *Rgb888Dst = _GUITaskState.NetworkRGBBuffer;
 
                         /* Reset watchdog before RGB conversion */
                         esp_task_wdt_reset();
 
                         for (uint32_t i = 0; i < (ImageWidth * ImageHeight); i++) {
                             /* Read RGB565 value (little endian) */
-                            uint16_t rgb565 = Dst[(i * 2) + 0] | (Dst[(i * 2) + 1] << 8);
+                            uint16_t Rgb565 = Dst[(i * 2) + 0] | (Dst[(i * 2) + 1] << 8);
 
                             /* Convert RGB565 to RGB888 */
-                            uint8_t r = (rgb565 >> 8) & 0xF8;
-                            uint8_t g = (rgb565 >> 3) & 0xFC;
-                            uint8_t b = (rgb565 << 3) & 0xF8;
+                            uint8_t R = (Rgb565 >> 8) & 0xF8;
+                            uint8_t G = (Rgb565 >> 3) & 0xFC;
+                            uint8_t B = (Rgb565 << 3) & 0xF8;
 
                             /* Store as RGB888 */
-                            rgb888_dst[(i * 3) + 0] = r;
-                            rgb888_dst[(i * 3) + 1] = g;
-                            rgb888_dst[(i * 3) + 2] = b;
+                            Rgb888Dst[(i * 3) + 0] = R;
+                            Rgb888Dst[(i * 3) + 1] = G;
+                            Rgb888Dst[(i * 3) + 2] = B;
                         }
 
-                        _GUI_Task_State.NetworkFrame.Buffer = _GUI_Task_State.NetworkRGBBuffer;
-                        _GUI_Task_State.NetworkFrame.Width = ImageWidth;
-                        _GUI_Task_State.NetworkFrame.Height = ImageHeight;
-                        _GUI_Task_State.NetworkFrame.Timestamp = esp_timer_get_time() / 1000;
+                        _GUITaskState.NetworkFrame.Buffer = _GUITaskState.NetworkRGBBuffer;
+                        _GUITaskState.NetworkFrame.Width = ImageWidth;
+                        _GUITaskState.NetworkFrame.Height = ImageHeight;
+                        _GUITaskState.NetworkFrame.Timestamp = esp_timer_get_time() / 1000;
 
-                        xSemaphoreGive(_GUI_Task_State.NetworkFrame.Mutex);
+                        xSemaphoreGive(_GUITaskState.NetworkFrame.Mutex);
 
                         /* Reset watchdog after RGB conversion */
                         esp_task_wdt_reset();
@@ -1097,14 +1087,27 @@ void Task_GUI(void *p_Parameters)
             }
         }
 
+        /* Check for new visible-light camera frame. */
+        if (App_Context->Camera_FrameQueue != NULL) {
+            App_Camera_Frame_t CameraFrame;
+
+            if (xQueueReceive(App_Context->Camera_FrameQueue, &CameraFrame, 0) == pdTRUE) {
+                memcpy(_GUITaskState.CameraCanvasBuffer, CameraFrame.Buffer, CameraFrame.Width * CameraFrame.Height * 2);
+
+                if (_GUITaskState.CameraImageWidget != NULL) {
+                    lv_obj_invalidate(_GUITaskState.CameraImageWidget);
+                }
+            }
+        }
+
         /* Process the recieved system events */
-        EventBits = xEventGroupGetBits(_GUI_Task_State.EventGroup);
+        EventBits = xEventGroupGetBits(_GUITaskState.EventGroup);
         if (EventBits & GUI_TASK_STOP_REQUEST) {
             ESP_LOGD(TAG, "Stop request received");
 
-            _GUI_Task_State.isRunning = false;
+            _GUITaskState.IsRunning = false;
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_STOP_REQUEST);
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_STOP_REQUEST);
 
             break;
         }
@@ -1112,51 +1115,54 @@ void Task_GUI(void *p_Parameters)
         if (EventBits & GUI_TASK_BATTERY_STATUS_CHANGED) {
             char Buffer[16];
 
-            snprintf(Buffer, sizeof(Buffer), "%d%%", _GUI_Task_State.BatteryInfo.Percentage);
+            snprintf(Buffer, sizeof(Buffer), "%d%%", _GUITaskState.BatteryInfo.Percentage);
 
-            if (_GUI_Task_State.BatteryInfo.Percentage == 100) {
-                snprintf(Buffer, sizeof(Buffer), LV_SYMBOL_BATTERY_FULL " %d%%", _GUI_Task_State.BatteryInfo.Percentage);
-                lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining, lv_color_hex(0x00FF00), 0);
-            } else if (_GUI_Task_State.BatteryInfo.Percentage >= 75) {
-                snprintf(Buffer, sizeof(Buffer), LV_SYMBOL_BATTERY_3 " %d%%", _GUI_Task_State.BatteryInfo.Percentage);
-                lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining, lv_color_hex(0x00FF00), 0);
-            } else if (_GUI_Task_State.BatteryInfo.Percentage >= 50) {
-                snprintf(Buffer, sizeof(Buffer), LV_SYMBOL_BATTERY_2 " %d%%", _GUI_Task_State.BatteryInfo.Percentage);
-                lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining, lv_color_hex(0xFFFF00), 0);
-            } else if (_GUI_Task_State.BatteryInfo.Percentage >= 25) {
-                snprintf(Buffer, sizeof(Buffer), LV_SYMBOL_BATTERY_1 " %d%%", _GUI_Task_State.BatteryInfo.Percentage);
-                lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining, lv_color_hex(0xFFFF00), 0);
+            if (_GUITaskState.BatteryInfo.Percentage == 100) {
+                lv_label_set_text(ui_Label_Main_Battery_Remaining_Icon, LV_SYMBOL_BATTERY_FULL);
+                lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining_Icon, lv_color_hex(0x00FF00), 0);
+            } else if (_GUITaskState.BatteryInfo.Percentage >= 75) {
+                lv_label_set_text(ui_Label_Main_Battery_Remaining_Icon, LV_SYMBOL_BATTERY_3);
+                lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining_Icon, lv_color_hex(0x00FF00), 0);
+            } else if (_GUITaskState.BatteryInfo.Percentage >= 50) {
+                lv_label_set_text(ui_Label_Main_Battery_Remaining_Icon, LV_SYMBOL_BATTERY_2);
+                lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining_Icon, lv_color_hex(0xFFFF00), 0);
+            } else if (_GUITaskState.BatteryInfo.Percentage >= 25) {
+                lv_label_set_text(ui_Label_Main_Battery_Remaining_Icon, LV_SYMBOL_BATTERY_1);
+                lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining_Icon, lv_color_hex(0xFFFF00), 0);
             } else {
-                snprintf(Buffer, sizeof(Buffer), LV_SYMBOL_BATTERY_EMPTY " %d%%", _GUI_Task_State.BatteryInfo.Percentage);
-                lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining, lv_color_hex(0xFF0000), 0);
+                lv_label_set_text(ui_Label_Main_Battery_Remaining_Icon, LV_SYMBOL_BATTERY_EMPTY);
+                lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining_Icon, lv_color_hex(0xFF0000), 0);
             }
 
-            lv_bar_set_value(ui_Info_Battery_Bar, _GUI_Task_State.BatteryInfo.Percentage, LV_ANIM_OFF);
-            lv_label_set_text(ui_Label_Main_Battery_Remaining, Buffer);
-            lv_label_set_text(ui_Label_Info_Battery_Remaining, Buffer);
+            lv_bar_set_value(ui_Info_Battery_Bar, _GUITaskState.BatteryInfo.Percentage, LV_ANIM_OFF);
+            snprintf(Buffer, sizeof(Buffer), "%d%%", _GUITaskState.BatteryInfo.Percentage);
+            lv_label_set_text(ui_Label_Main_Battery_Remaining_Value, Buffer);
+            lv_label_set_text(ui_Label_Main_Battery_Remaining_Value, Buffer);
 
-            if (_GUI_Task_State.BatteryInfo.Charging) {
+            if (_GUITaskState.BatteryInfo.Charging) {
                 lv_label_set_text(ui_Label_Info_Battery_Status, "Charging");
+                lv_obj_set_style_text_color(ui_Label_Main_Battery_Remaining_Icon, lv_color_hex(0x00FF00), LV_PART_MAIN);
             } else {
                 lv_label_set_text(ui_Label_Info_Battery_Status, "Not charging");
+                lv_obj_set_style_text_color(ui_Label_Main_Battery_Remaining_Icon, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
             }
 
-            snprintf(Buffer, sizeof(Buffer), "%d mV", _GUI_Task_State.BatteryInfo.Voltage);
+            snprintf(Buffer, sizeof(Buffer), "%d mV", _GUITaskState.BatteryInfo.Voltage);
             lv_label_set_text(ui_Label_Info_Battery_Voltage, Buffer);
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_BATTERY_STATUS_CHANGED);
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_BATTERY_STATUS_CHANGED);
         }
 
         if (EventBits & GUI_TASK_WIFI_CONNECTION_STATE_CHANGED) {
-            if (_GUI_Task_State.WiFiConnected) {
+            if (_GUITaskState.WiFiConnected) {
                 char Buffer[32];
 
                 memset(Buffer, 0, sizeof(Buffer));
                 snprintf(Buffer, sizeof(Buffer), "IP: %lu.%lu.%lu.%lu",
-                         (_GUI_Task_State.IP_Info.IP >> 0) & 0xFF,
-                         (_GUI_Task_State.IP_Info.IP >> 8) & 0xFF,
-                         (_GUI_Task_State.IP_Info.IP >> 16) & 0xFF,
-                         (_GUI_Task_State.IP_Info.IP >> 24) & 0xFF);
+                         (_GUITaskState.IP_Info.IP >> 0) & 0xFF,
+                         (_GUITaskState.IP_Info.IP >> 8) & 0xFF,
+                         (_GUITaskState.IP_Info.IP >> 16) & 0xFF,
+                         (_GUITaskState.IP_Info.IP >> 24) & 0xFF);
 
                 /* Skip "IP: " prefix for label */
                 lv_label_set_text(ui_Label_Info_IP, &Buffer[4]);
@@ -1176,21 +1182,21 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_add_flag(ui_settings_wifi_connect_btn, LV_OBJ_FLAG_CLICKABLE);
             }
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_WIFI_CONNECTION_STATE_CHANGED);
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_WIFI_CONNECTION_STATE_CHANGED);
         }
 
         if (EventBits & GUI_TASK_PROVISIONING_STATE_CHANGED) {
-            if ((_GUI_Task_State.WiFiConnected == false) && _GUI_Task_State.ProvisioningActive) {
+            if ((_GUITaskState.WiFiConnected == false) && _GUITaskState.ProvisioningActive) {
                 lv_obj_set_style_text_color(ui_Image_Main_WiFi, lv_color_hex(0xFF8800), LV_PART_MAIN);
             } else {
                 lv_obj_set_style_text_color(ui_Image_Main_WiFi, lv_color_hex(0xFF0000), LV_PART_MAIN);
             }
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_PROVISIONING_STATE_CHANGED);
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_PROVISIONING_STATE_CHANGED);
         }
 
         if (EventBits & GUI_TASK_SD_CARD_STATE_CHANGED) {
-            if (_GUI_Task_State.CardPresent) {
+            if (_GUITaskState.CardPresent) {
                 if (MemoryManager_HasSDCard()) {
                     /* MemoryManager already auto-mounted the SD card at init - just confirm green */
                     lv_obj_set_style_text_color(ui_Image_Main_SDCard, lv_color_hex(0x00FF00), LV_PART_MAIN);
@@ -1200,6 +1206,7 @@ void Task_GUI(void *p_Parameters)
                     /* Card present but not yet mounted: show orange while mounting */
                     lv_obj_set_style_text_color(ui_Image_Main_SDCard, lv_color_hex(0xFF8800), LV_PART_MAIN);
 
+                    esp_task_wdt_reset();
                     if (MemoryManager_SwitchToSDCard() == ESP_OK) {
                         /* Successfully mounted: show green */
                         lv_obj_set_style_text_color(ui_Image_Main_SDCard, lv_color_hex(0x00FF00), LV_PART_MAIN);
@@ -1209,11 +1216,15 @@ void Task_GUI(void *p_Parameters)
                         /* Mount failed: stay orange (card present but not usable) */
                         ESP_LOGW(TAG, "SD card detected but mount failed - keeping orange");
                     }
+
+                    esp_task_wdt_reset();
                 }
             } else {
                 /* Card removed: switch back to internal only if we are currently on SD */
                 if (MemoryManager_HasSDCard()) {
+                    esp_task_wdt_reset();
                     MemoryManager_SwitchToInternal();
+                    esp_task_wdt_reset();
 
                     ESP_LOGD(TAG, "Storage switched back to internal flash");
                 }
@@ -1221,68 +1232,68 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_set_style_text_color(ui_Image_Main_SDCard, lv_color_hex(0xFF0000), LV_PART_MAIN);
             }
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_SD_CARD_STATE_CHANGED);
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_SD_CARD_STATE_CHANGED);
         }
 
         if (EventBits & GUI_TASK_LEPTON_UPTIME_READY) {
             char Buffer[32];
             uint32_t Uptime;
 
-            Uptime = _GUI_Task_State.LeptonUptime / 1000;
+            Uptime = _GUITaskState.LeptonUptime / 1000;
 
             snprintf(Buffer, sizeof(Buffer), "%02lu:%02lu:%02lu", Uptime / 3600, (Uptime % 3600) / 60, Uptime % 60);
             lv_label_set_text(ui_Label_Info_Lepton_Uptime, Buffer);
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_UPTIME_READY);
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_UPTIME_READY);
         }
 
-        if (EventBits & GUI_TASK_LEPTON_TEMP_READY) {
+        if (EventBits & GUI_TASK_LEPTON_TEMPERATURE_READY) {
             char Buffer[32];
 
-            snprintf(Buffer, sizeof(Buffer), "%.2f °C", _GUI_Task_State.LeptonTemperatures.FPA);
+            snprintf(Buffer, sizeof(Buffer), "%.2f \xC2\xB0""C", _GUITaskState.LeptonTemperatures.FPA);
             lv_label_set_text(ui_Label_Info_Lepton_FPA, Buffer);
-            snprintf(Buffer, sizeof(Buffer), "%.2f °C", _GUI_Task_State.LeptonTemperatures.AUX);
+            snprintf(Buffer, sizeof(Buffer), "%.2f \xC2\xB0""C", _GUITaskState.LeptonTemperatures.AUX);
             lv_label_set_text(ui_Label_Info_Lepton_AUX, Buffer);
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_TEMP_READY);
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_TEMPERATURE_READY);
         }
 
         if (EventBits & GUI_TASK_LEPTON_PIXEL_TEMPERATURE_READY) {
             char Buffer[16];
 
-            snprintf(Buffer, sizeof(Buffer), "%.2f °C", _GUI_Task_State.SpotTemperature);
+            snprintf(Buffer, sizeof(Buffer), "%.2f \xC2\xB0""C", _GUITaskState.SpotTemperature);
             lv_label_set_text(ui_Label_Main_Thermal_PixelTemperature, Buffer);
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_PIXEL_TEMPERATURE_READY);
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_PIXEL_TEMPERATURE_READY);
         }
 
         if (EventBits & GUI_TASK_LEPTON_SCENE_STATISTICS_READY) {
             char Buffer[16];
             float Temp;
 
-            Temp = _GUI_Task_State.ROIResult.Max;
-            snprintf(Buffer, sizeof(Buffer), "%.1f °C", Temp);
+            Temp = _GUITaskState.ROIResult.Max;
+            snprintf(Buffer, sizeof(Buffer), "%.1f \xC2\xB0""C", Temp);
             lv_label_set_text(ui_Label_Main_Thermal_Scene_Max, Buffer);
 
-            Temp = _GUI_Task_State.ROIResult.Min;
-            snprintf(Buffer, sizeof(Buffer), "%.1f °C", Temp);
+            Temp = _GUITaskState.ROIResult.Min;
+            snprintf(Buffer, sizeof(Buffer), "%.1f \xC2\xB0""C", Temp);
             lv_label_set_text(ui_Label_Main_Thermal_Scene_Min, Buffer);
 
-            Temp = _GUI_Task_State.ROIResult.Mean ;
-            snprintf(Buffer, sizeof(Buffer), "%.1f °C", Temp);
+            Temp = _GUITaskState.ROIResult.Mean ;
+            snprintf(Buffer, sizeof(Buffer), "%.1f \xC2\xB0""C", Temp);
             lv_label_set_text(ui_Label_Main_Thermal_Scene_Mean, Buffer);
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_LEPTON_SCENE_STATISTICS_READY);
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_SCENE_STATISTICS_READY);
         }
 
         if (EventBits & GUI_TASK_UVC_STREAMING_STATE_CHANGED) {
-            if (_GUI_Task_State.isUVCStreaming) {
+            if (_GUITaskState.IsUVCStreaming) {
                 /* Clear thermal canvas to black */
-                memset(_GUI_Task_State.ThermalCanvasBuffer, 0x00, 240 * 180 * 2);
+                memset(_GUITaskState.ThermalCanvasBuffer, 0x00, 240 * 180 * 2);
                 lv_obj_invalidate(ui_Image_Thermal);
 
                 /* Show UVC overlay */
-                lv_obj_remove_flag(_GUI_Task_State.UVCOverlayLabel, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(_GUITaskState.UVCOverlayLabel, LV_OBJ_FLAG_HIDDEN);
 
                 /* Hide ROI rectangles */
                 lv_obj_add_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
@@ -1301,7 +1312,7 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_add_flag(ui_Label_TempScaleMin, LV_OBJ_FLAG_HIDDEN);
             } else {
                 /* Hide UVC overlay */
-                lv_obj_add_flag(_GUI_Task_State.UVCOverlayLabel, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(_GUITaskState.UVCOverlayLabel, LV_OBJ_FLAG_HIDDEN);
 
                 /* Restore ROI rectangles */
                 lv_obj_remove_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
@@ -1320,19 +1331,34 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_remove_flag(ui_Label_TempScaleMin, LV_OBJ_FLAG_HIDDEN);
             }
 
-            xEventGroupClearBits(_GUI_Task_State.EventGroup, GUI_TASK_UVC_STREAMING_STATE_CHANGED);
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_UVC_STREAMING_STATE_CHANGED);
         }
 
-        _lock_acquire(&_GUI_Task_State.LVGL_API_Lock);
+        if (EventBits & GUI_TASK_TEMPERATURE_SENSOR_READY) {
+            char Buffer[16];
+            float Offset;
+            Settings_Calibration_t Calibration;
+
+            SettingsManager_GetCalibration(&Calibration);
+
+            Offset = static_cast<float>(Calibration.RoomTemperature) - Calibration.SensorAtCalibration;
+
+            snprintf(Buffer, sizeof(Buffer), "%.1f \xC2\xB0""C", _GUITaskState.TemperatureInfo.TempSensor + Offset);
+            lv_label_set_text(ui_Label_Main_Statusbar_Temperatur_Value, Buffer);
+
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_TEMPERATURE_SENSOR_READY);
+        }
+
+        _lock_acquire(&_GUITaskState.LVGL_API_Lock);
         lv_timer_handler();
-        _lock_release(&_GUI_Task_State.LVGL_API_Lock);
+        _lock_release(&_GUITaskState.LVGL_API_Lock);
 
         esp_task_wdt_reset();
 
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 
-    _GUI_Task_State.TaskHandle = NULL;
+    _GUITaskState.TaskHandle = NULL;
 
     esp_task_wdt_delete(NULL);
     vTaskDelete(NULL);
@@ -1341,142 +1367,170 @@ void Task_GUI(void *p_Parameters)
 esp_err_t GUI_Task_Init(void)
 {
     BaseType_t Error;
-    uint32_t Caps;
 
-    if (_GUI_Task_State.isInitialized) {
+    if (_GUITaskState.IsInitialized) {
         ESP_LOGW(TAG, "Already initialized");
 
         return ESP_OK;
     }
 
-    ESP_ERROR_CHECK(GUI_Helper_Init(&_GUI_Task_State, Touch_LVGL_ReadCallback));
-    ESP_ERROR_CHECK(GUI_Helper_InitKeypad(&_GUI_Task_State, Keypad_LVGL_ReadCallback));
+    ESP_ERROR_CHECK(GUI_Helper_Init(&_GUITaskState, Touch_LVGL_ReadCallback));
+    ESP_ERROR_CHECK(GUI_Helper_InitKeypad(&_GUITaskState, Keypad_LVGL_ReadCallback));
 
     ui_init();
 
-#ifdef CONFIG_SPIRAM
-    Caps = MALLOC_CAP_SPIRAM;
-#else
-    Caps = 0;
-#endif
+    _GUITaskState.ThermalCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(240 * 180 * 2, MALLOC_CAP_SPIRAM));
+    _GUITaskState.GradientCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(20 * 180 * 2, MALLOC_CAP_SPIRAM));
+    _GUITaskState.NetworkRGBBuffer = static_cast<uint8_t *>(heap_caps_malloc(240 * 180 * 3, MALLOC_CAP_SPIRAM));
+    _GUITaskState.CameraCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(320 * 240 * 2, MALLOC_CAP_SPIRAM));
 
-    _GUI_Task_State.ThermalCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(240 * 180 * 2, Caps));
-    _GUI_Task_State.GradientCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(20 * 180 * 2, Caps));
-    _GUI_Task_State.NetworkRGBBuffer = static_cast<uint8_t *>(heap_caps_malloc(240 * 180 * 3, Caps));
-
-    if (_GUI_Task_State.ThermalCanvasBuffer == NULL) {
+    if (_GUITaskState.ThermalCanvasBuffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate thermal canvas buffer!");
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
 
         return ESP_ERR_NO_MEM;
     }
 
-    if (_GUI_Task_State.GradientCanvasBuffer == NULL) {
+    if (_GUITaskState.GradientCanvasBuffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate gradient canvas buffer!");
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
 
-        heap_caps_free(_GUI_Task_State.ThermalCanvasBuffer);
+        heap_caps_free(_GUITaskState.ThermalCanvasBuffer);
 
         return ESP_ERR_NO_MEM;
     }
 
-    if (_GUI_Task_State.NetworkRGBBuffer == NULL) {
+    if (_GUITaskState.NetworkRGBBuffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate network RGB buffer!");
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
 
-        heap_caps_free(_GUI_Task_State.ThermalCanvasBuffer);
-        heap_caps_free(_GUI_Task_State.GradientCanvasBuffer);
+        heap_caps_free(_GUITaskState.ThermalCanvasBuffer);
+        heap_caps_free(_GUITaskState.GradientCanvasBuffer);
 
         return ESP_ERR_NO_MEM;
     }
 
-    _GUI_Task_State.ImageSaveQueue = xQueueCreate(1, sizeof(App_Lepton_FrameReady_t));
-    if (_GUI_Task_State.ImageSaveQueue == NULL) {
-        ESP_LOGE(TAG, "Failed to create image save queue!");
+    if (_GUITaskState.CameraCanvasBuffer == NULL) {
+        ESP_LOGE(TAG, "Failed to allocate camera canvas buffer!");
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
 
-        heap_caps_free(_GUI_Task_State.ThermalCanvasBuffer);
-        heap_caps_free(_GUI_Task_State.GradientCanvasBuffer);
-        heap_caps_free(_GUI_Task_State.NetworkRGBBuffer);
+        heap_caps_free(_GUITaskState.ThermalCanvasBuffer);
+        heap_caps_free(_GUITaskState.GradientCanvasBuffer);
+        heap_caps_free(_GUITaskState.NetworkRGBBuffer);
+
+        return ESP_ERR_NO_MEM;
+    }
+
+    _GUITaskState.ImageSaveQueue = xQueueCreate(1, sizeof(App_Lepton_Frame_t));
+    if (_GUITaskState.ImageSaveQueue == NULL) {
+        ESP_LOGE(TAG, "Failed to create image save queue!");
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
+
+        heap_caps_free(_GUITaskState.ThermalCanvasBuffer);
+        heap_caps_free(_GUITaskState.GradientCanvasBuffer);
+        heap_caps_free(_GUITaskState.NetworkRGBBuffer);
 
         return ESP_ERR_NO_MEM;
     }
 
     Error = xTaskCreatePinnedToCore(Task_ImageSave, "Task_ImgSave", 8192, NULL, CONFIG_GUI_TASK_PRIO - 1,
-                                    &_GUI_Task_State.ImageSaveTaskHandle, 1);
+                                    &_GUITaskState.ImageSaveTaskHandle, 1);
     if (Error != pdPASS) {
         ESP_LOGE(TAG, "Failed to create image save task!");
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_FAIL);
 
-        vQueueDelete(_GUI_Task_State.ImageSaveQueue);
+        vQueueDelete(_GUITaskState.ImageSaveQueue);
 
-        heap_caps_free(_GUI_Task_State.ThermalCanvasBuffer);
-        heap_caps_free(_GUI_Task_State.GradientCanvasBuffer);
-        heap_caps_free(_GUI_Task_State.NetworkRGBBuffer);
+        heap_caps_free(_GUITaskState.ThermalCanvasBuffer);
+        heap_caps_free(_GUITaskState.GradientCanvasBuffer);
+        heap_caps_free(_GUITaskState.NetworkRGBBuffer);
 
-        _GUI_Task_State.ImageSaveQueue = NULL;
-        _GUI_Task_State.ThermalCanvasBuffer = NULL;
-        _GUI_Task_State.GradientCanvasBuffer = NULL;
-        _GUI_Task_State.NetworkRGBBuffer = NULL;
+        _GUITaskState.ImageSaveQueue = NULL;
+        _GUITaskState.ThermalCanvasBuffer = NULL;
+        _GUITaskState.GradientCanvasBuffer = NULL;
+        _GUITaskState.NetworkRGBBuffer = NULL;
 
         return ESP_FAIL;
     }
 
     /* Initialize buffers with black pixels (RGB565 = 0x0000) */
-    memset(_GUI_Task_State.ThermalCanvasBuffer, 0x00, 240 * 180 * 2);
-    memset(_GUI_Task_State.GradientCanvasBuffer, 0x00, 20 * 180 * 2);
+    memset(_GUITaskState.ThermalCanvasBuffer, 0x00, 240 * 180 * 2);
+    memset(_GUITaskState.GradientCanvasBuffer, 0x00, 20 * 180 * 2);
+    memset(_GUITaskState.CameraCanvasBuffer, 0x00, 320 * 240 * 2);
 
     /* Now configure the image descriptors with allocated buffers */
-    _GUI_Task_State.ThermalImageDescriptor.header.cf = LV_COLOR_FORMAT_RGB565;
-    _GUI_Task_State.ThermalImageDescriptor.header.w = 240;
-    _GUI_Task_State.ThermalImageDescriptor.header.h = 180;
-    _GUI_Task_State.ThermalImageDescriptor.data = _GUI_Task_State.ThermalCanvasBuffer;
-    _GUI_Task_State.ThermalImageDescriptor.data_size = 240 * 180 * 2;
+    _GUITaskState.ThermalImageDescriptor.header.cf = LV_COLOR_FORMAT_RGB565;
+    _GUITaskState.ThermalImageDescriptor.header.w = 240;
+    _GUITaskState.ThermalImageDescriptor.header.h = 180;
+    _GUITaskState.ThermalImageDescriptor.data = _GUITaskState.ThermalCanvasBuffer;
+    _GUITaskState.ThermalImageDescriptor.data_size = 240 * 180 * 2;
 
-    _GUI_Task_State.GradientImageDescriptor.header.cf = LV_COLOR_FORMAT_RGB565;
-    _GUI_Task_State.GradientImageDescriptor.header.w = 20;
-    _GUI_Task_State.GradientImageDescriptor.header.h = 180;
-    _GUI_Task_State.GradientImageDescriptor.data = _GUI_Task_State.GradientCanvasBuffer;
-    _GUI_Task_State.GradientImageDescriptor.data_size = 20 * 180 * 2;
+    _GUITaskState.GradientImageDescriptor.header.cf = LV_COLOR_FORMAT_RGB565;
+    _GUITaskState.GradientImageDescriptor.header.w = 20;
+    _GUITaskState.GradientImageDescriptor.header.h = 180;
+    _GUITaskState.GradientImageDescriptor.data = _GUITaskState.GradientCanvasBuffer;
+    _GUITaskState.GradientImageDescriptor.data_size = 20 * 180 * 2;
+
+    _GUITaskState.CameraImageDescriptor.header.cf = LV_COLOR_FORMAT_RGB565;
+    _GUITaskState.CameraImageDescriptor.header.w = 320;
+    _GUITaskState.CameraImageDescriptor.header.h = 240;
+    _GUITaskState.CameraImageDescriptor.data = _GUITaskState.CameraCanvasBuffer;
+    _GUITaskState.CameraImageDescriptor.data_size = 320 * 240 * 2;
 
     UI_Canvas_AddTempGradient();
 
-    lv_img_set_src(ui_Image_Thermal, &_GUI_Task_State.ThermalImageDescriptor);
-    lv_img_set_src(ui_Image_Gradient, &_GUI_Task_State.GradientImageDescriptor);
+    lv_img_set_src(ui_Image_Thermal, &_GUITaskState.ThermalImageDescriptor);
+    lv_img_set_src(ui_Image_Gradient, &_GUITaskState.GradientImageDescriptor);
+
+    /* Create visible-light camera image widget (hidden by default, shown when first frame arrives) */
+    _GUITaskState.CameraImageWidget = lv_image_create(lv_screen_active());
+    lv_image_set_src(_GUITaskState.CameraImageWidget, &_GUITaskState.CameraImageDescriptor);
+    lv_obj_set_size(_GUITaskState.CameraImageWidget, 320, 240);
+    lv_obj_center(_GUITaskState.CameraImageWidget);
+    lv_obj_add_flag(_GUITaskState.CameraImageWidget, LV_OBJ_FLAG_HIDDEN);
 
     /* Create UVC streaming overlay label (hidden by default) */
-    _GUI_Task_State.UVCOverlayLabel = lv_label_create(ui_Container_Main_Thermal);
-    lv_label_set_text(_GUI_Task_State.UVCOverlayLabel, "USB Video Mode");
-    lv_obj_set_align(_GUI_Task_State.UVCOverlayLabel, LV_ALIGN_CENTER);
-    lv_obj_set_style_text_color(_GUI_Task_State.UVCOverlayLabel, lv_color_white(), LV_PART_MAIN);
-    lv_obj_set_style_text_font(_GUI_Task_State.UVCOverlayLabel, &lv_font_montserrat_14, LV_PART_MAIN);
-    lv_obj_add_flag(_GUI_Task_State.UVCOverlayLabel, LV_OBJ_FLAG_HIDDEN);
-    _GUI_Task_State.isUVCStreaming = false;
+    _GUITaskState.UVCOverlayLabel = lv_label_create(ui_Container_Main_Thermal);
+    lv_label_set_text(_GUITaskState.UVCOverlayLabel, "USB Video Mode");
+    lv_obj_set_align(_GUITaskState.UVCOverlayLabel, LV_ALIGN_CENTER);
+    lv_obj_set_style_text_color(_GUITaskState.UVCOverlayLabel, lv_color_white(), LV_PART_MAIN);
+    lv_obj_set_style_text_font(_GUITaskState.UVCOverlayLabel, &lv_font_montserrat_14, LV_PART_MAIN);
+    lv_obj_add_flag(_GUITaskState.UVCOverlayLabel, LV_OBJ_FLAG_HIDDEN);
+    _GUITaskState.IsUVCStreaming = false;
 
     /* Initialize network frame for server streaming */
-    _GUI_Task_State.NetworkFrame.Mutex = xSemaphoreCreateMutex();
-    if (_GUI_Task_State.NetworkFrame.Mutex == NULL) {
+    _GUITaskState.NetworkFrame.Mutex = xSemaphoreCreateMutex();
+    if (_GUITaskState.NetworkFrame.Mutex == NULL) {
         ESP_LOGE(TAG, "Failed to create NetworkFrame mutex!");
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
 
-        heap_caps_free(_GUI_Task_State.ThermalCanvasBuffer);
-        heap_caps_free(_GUI_Task_State.GradientCanvasBuffer);
-        heap_caps_free(_GUI_Task_State.NetworkRGBBuffer);
+        heap_caps_free(_GUITaskState.ThermalCanvasBuffer);
+        heap_caps_free(_GUITaskState.GradientCanvasBuffer);
+        heap_caps_free(_GUITaskState.NetworkRGBBuffer);
 
         return ESP_ERR_NO_MEM;
     }
 
-    esp_event_handler_register(DEVICES_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Event_Handler, NULL);
+    esp_event_handler_register(DEVICES_EVENTS, DEVICES_EVENT_SD_DETECT, on_Devices_Event_Handler, NULL);
     esp_event_handler_register(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler, NULL);
     esp_event_handler_register(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler, NULL);
-    esp_event_handler_register(DEVICES_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Task_Event_Handler, NULL);
-    esp_event_handler_register(GUI_TASK_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Task_Event_Handler, NULL);
+    esp_event_handler_register(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_BATTERY, on_Devices_Task_Event_Handler, NULL);
+    esp_event_handler_register(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE, on_Devices_Task_Event_Handler, NULL);
+    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVED, on_GUI_Task_Event_Handler, NULL);
+    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED, on_GUI_Task_Event_Handler, NULL);
     esp_event_handler_register(LEPTON_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Task_Event_Handler, NULL);
-    esp_event_handler_register(CAMERA_EVENTS, ESP_EVENT_ANY_ID, on_Camera_Task_Event_Handler, NULL);
+    esp_event_handler_register(CAMERA_TASK_EVENTS, CAMERA_EVENT_INIT_COMPLETE, on_Camera_Task_Event_Handler, NULL);
+    esp_event_handler_register(CAMERA_TASK_EVENTS, CAMERA_EVENT_INIT_FAILED, on_Camera_Task_Event_Handler, NULL);
 
-    _GUI_Task_State.SaveNextFrameRequested = false;
-    _GUI_Task_State.isInitialized = true;
+    _GUITaskState.SaveNextFrameRequested = false;
+    _GUITaskState.IsInitialized = true;
 
     return ESP_OK;
 }
 
 void GUI_Task_Deinit(void)
 {
-    if (_GUI_Task_State.isInitialized == false) {
+    if (_GUITaskState.IsInitialized == false) {
         return;
     }
 
@@ -1486,19 +1540,24 @@ void GUI_Task_Deinit(void)
     esp_event_handler_unregister(DEVICES_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Task_Event_Handler);
     esp_event_handler_unregister(GUI_TASK_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Task_Event_Handler);
     esp_event_handler_unregister(LEPTON_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Task_Event_Handler);
-    esp_event_handler_unregister(CAMERA_EVENTS, ESP_EVENT_ANY_ID, on_Camera_Task_Event_Handler);
+    esp_event_handler_unregister(CAMERA_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Camera_Task_Event_Handler);
 
     ui_destroy();
 
-    GUI_Helper_Deinit(&_GUI_Task_State);
+    GUI_Helper_Deinit(&_GUITaskState);
 
-    if (_GUI_Task_State.NetworkFrame.Mutex != NULL) {
-        vSemaphoreDelete(_GUI_Task_State.NetworkFrame.Mutex);
-        _GUI_Task_State.NetworkFrame.Mutex = NULL;
+    if (_GUITaskState.NetworkFrame.Mutex != NULL) {
+        vSemaphoreDelete(_GUITaskState.NetworkFrame.Mutex);
+        _GUITaskState.NetworkFrame.Mutex = NULL;
     }
 
-    _GUI_Task_State.Display = NULL;
-    _GUI_Task_State.isInitialized = false;
+    if (_GUITaskState.CameraCanvasBuffer != NULL) {
+        heap_caps_free(_GUITaskState.CameraCanvasBuffer);
+        _GUITaskState.CameraCanvasBuffer = NULL;
+    }
+
+    _GUITaskState.Display = NULL;
+    _GUITaskState.IsInitialized = false;
 }
 
 esp_err_t GUI_Task_Start(App_Context_t *p_AppContext)
@@ -1507,22 +1566,23 @@ esp_err_t GUI_Task_Start(App_Context_t *p_AppContext)
 
     if (p_AppContext == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (_GUI_Task_State.isInitialized == false) {
+    } else if (_GUITaskState.IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
-    } else if (_GUI_Task_State.isRunning) {
+    } else if (_GUITaskState.IsRunning) {
         ESP_LOGW(TAG, "Task already running");
 
         return ESP_OK;
     }
 
-    _GUI_Task_State.isRunning = true;
+    _GUITaskState.IsRunning = true;
 
     ESP_LOGD(TAG, "Starting GUI Task");
 
     Error = xTaskCreatePinnedToCore(Task_GUI, "Task_GUI", CONFIG_GUI_TASK_STACKSIZE, p_AppContext, CONFIG_GUI_TASK_PRIO,
-                                    &_GUI_Task_State.TaskHandle, CONFIG_GUI_TASK_CORE);
+                                    &_GUITaskState.TaskHandle, CONFIG_GUI_TASK_CORE);
     if (Error != pdPASS) {
         ESP_LOGE(TAG, "Failed to create GUI task: 0x%X!", Error);
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
 
         return ESP_ERR_NO_MEM;
     }
@@ -1532,18 +1592,23 @@ esp_err_t GUI_Task_Start(App_Context_t *p_AppContext)
 
 esp_err_t GUI_Task_Stop(void)
 {
-    if (_GUI_Task_State.isRunning == false) {
+    if (_GUITaskState.IsRunning == false) {
         return ESP_OK;
     }
 
-    xEventGroupSetBits(_GUI_Task_State.EventGroup, GUI_TASK_STOP_REQUEST);
+    xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_STOP_REQUEST);
 
     return ESP_OK;
 }
 
 bool GUI_Task_IsRunning(void)
 {
-    return _GUI_Task_State.isRunning;
+    return _GUITaskState.IsRunning;
+}
+
+lv_indev_t *GUI_Task_GetKeypadIndev(void)
+{
+    return _GUITaskState.Keypad;
 }
 
 esp_err_t GUI_SaveThermalImage(void)
@@ -1556,7 +1621,7 @@ esp_err_t GUI_SaveThermalImage(void)
     }
 
     /* Set flag to trigger save on next frame update */
-    _GUI_Task_State.SaveNextFrameRequested = true;
+    _GUITaskState.SaveNextFrameRequested = true;
     ESP_LOGD(TAG, "Image save requested - will capture next frame");
 
     return ESP_OK;

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * leptonTask.c
  *
  *  Copyright (C) Daniel Kampert, 2026
@@ -37,10 +37,11 @@
 #include "lepton.h"
 #include "leptonTask.h"
 #include "Application/application.h"
+#include "AppDiag/appDiag.h"
 #include "Application/Manager/Devices/devicesManager.h"
 #include "Application/Manager/USB/usbManager.h"
 #include "Application/Manager/USB/UVC/usbUVC.h"
-#include <esp_jpeg_enc.h>
+#include "Application/Manager/Network/Server/ImageEncoder/JPEG/jpegEncoder.h"
 
 #define LEPTON_TASK_STOP_REQUEST                BIT0
 #define LEPTON_TASK_UPDATE_ROI_REQUEST          BIT1
@@ -50,43 +51,48 @@
 #define LEPTON_TASK_UPDATE_SCENE_STATISTICS     BIT6
 #define LEPTON_TASK_UPDATE_EMISSIVITY           BIT7
 #define LEPTON_TASK_TEMPERATURE_STATUS_CHANGED  BIT8
-#define LEPTON_TASK_CALIBRATION_CHANGED         BIT9
 
 ESP_EVENT_DEFINE_BASE(LEPTON_TASK_EVENTS);
 
+/** @brief Internal runtime state of the Lepton camera task.
+ *         Holds all FreeRTOS primitives, double-buffered RGB output, raw frame queue,
+ *         Lepton driver handles, and the latest ROI and temperature data used by the task loop.
+ */
 typedef struct {
-    bool isInitialized;
-    bool isRunning;
-    bool ApplicationStarted;
-    bool isUVCStreaming;                            /**< UVC streaming is active. */
-    uint8_t *p_JpegBuffer;                          /**< JPEG compression output buffer. */
-    size_t JpegBufferSize;                          /**< JPEG buffer allocated size. */
-    TaskHandle_t TaskHandle;
-    EventGroupHandle_t EventGroup;
-    uint8_t *RGB_Buffer[2];
-    uint8_t CurrentReadBuffer;
-    SemaphoreHandle_t BufferMutex;
-    QueueHandle_t RawFrameQueue;
-    Lepton_FrameBuffer_t RawFrame;
-    Lepton_Conf_t LeptonConf;
-    Lepton_t Lepton;
-    Settings_ROI_t ROI;
-    App_GUI_Screenposition_t ScreenPosition;
-    App_Devices_Temperature_t TemperatureInfo;
-    SettingsManager_ChangeNotification_t NewSetting;
+    bool IsInitialized;                                 /**< true after Lepton_Task_Init() has completed successfully. */
+    bool IsRunning;                                     /**< true while the FreeRTOS task is executing. */
+    bool ApplicationStarted;                            /**< true once the GUI task has signalled APP_STARTED. */
+    bool IsUVCStreaming;                                /**< true while a UVC host is actively receiving frames. */
+    TaskHandle_t TaskHandle;                            /**< FreeRTOS task handle; NULL before Lepton_Task_Start(). */
+    EventGroupHandle_t EventGroup;                      /**< Event group used for intra-task synchronisation. */
+    uint8_t *RGB_Buffer[2];                             /**< Double-buffered PSRAM RGB888 output; ping-pong scheme. */
+    uint8_t CurrentReadBuffer;                          /**< Index (0 or 1) of the buffer currently safe to read. */
+    SemaphoreHandle_t BufferMutex;                      /**< Mutex protecting RGB_Buffer access across tasks. */
+    QueueHandle_t RawFrameQueue;                        /**< Queue carrying raw Lepton frame pointers from the ISR. */
+    Lepton_FrameBuffer_t RawFrame;                      /**< Scratch buffer for the latest raw Lepton frame. */
+    Lepton_Conf_t LeptonConf;                           /**< Active Lepton camera configuration snapshot. */
+    Lepton_t Lepton;                                    /**< Lepton driver handle used for all CCI/SPI operations. */
+    Settings_ROI_t ROI;                                 /**< Current region-of-interest settings. */
+    App_GUI_Screenposition_t ScreenPosition;            /**< Mapping from Lepton pixel coordinates to display pixels. */
+    App_Devices_Temperature_t TemperatureInfo;          /**< Latest ambient/housing temperature readings. */
+    SettingsManager_ChangeNotification_t NewSetting;    /**< Staging area for incoming settings-change notifications. */
 } Lepton_Task_State_t;
 
-static Lepton_Task_State_t _Lepton_Task_State;
+static Lepton_Task_State_t _LeptonTaskState;
 
 static const char *TAG = "Lepton-Task";
 
-/** @brief Per-transaction I2C write wrapper for the Lepton CCI.
- *         Acquires and releases the shared I2C bus mutex for each individual I2C
- *         operation. This allows CCI_WaitBusy to release the bus between its 10 ms
- *         polling intervals, preventing other tasks (e.g. displayboard interrupt
- *         handler) from being starved for the full 5-second CCI timeout.
+/** @brief          Per-transaction I2C write wrapper for the Lepton CCI.
+ *                  Acquires and releases the shared I2C bus mutex for each individual I2C
+ *                  operation. This allows CCI_WaitBusy to release the bus between its 10 ms
+ *                  polling intervals, preventing other tasks (e.g. displayboard interrupt
+ *                  handler) from being starved for the full 5-second CCI timeout.
+ *  @param p_Dev    I2C master device handle for the Lepton CCI
+ *  @param p_Data   Pointer to the data buffer to write
+ *  @param Length   Number of bytes to write
+ *  @return         esp_err_t result code from the I2CM_Write operation
  */
-static int32_t lepton_cci_i2c_write(i2c_master_dev_handle_t *p_Dev, const uint8_t *p_Data, uint32_t Length)
+static int32_t Lepton_CCI_Write(i2c_master_dev_handle_t *p_Dev, const uint8_t *p_Data, uint32_t Length)
 {
     int32_t Result;
 
@@ -97,10 +103,14 @@ static int32_t lepton_cci_i2c_write(i2c_master_dev_handle_t *p_Dev, const uint8_
     return Result;
 }
 
-/** @brief Per-transaction I2C read wrapper for the Lepton CCI.
- *         See lepton_cci_i2c_write() for rationale.
+/** @brief          Per-transaction I2C read wrapper for the Lepton CCI.
+ *                  See Lepton_CCI_Write() for rationale.
+ *  @param p_Dev    I2C master device handle for the Lepton CCI
+ *  @param p_Data   Pointer to the data buffer to read into
+ *  @param Length   Number of bytes to read
+ *  @return         esp_err_t result code from the I2CM_Read operation
  */
-static int32_t lepton_cci_i2c_read(i2c_master_dev_handle_t *p_Dev, uint8_t *p_Data, uint32_t Length)
+static int32_t Lepton_CCI_Read(i2c_master_dev_handle_t *p_Dev, uint8_t *p_Data, uint32_t Length)
 {
     int32_t Result;
 
@@ -111,10 +121,16 @@ static int32_t lepton_cci_i2c_read(i2c_master_dev_handle_t *p_Dev, uint8_t *p_Da
     return Result;
 }
 
-/** @brief Per-transaction I2C write-read wrapper for the Lepton CCI.
- *         See lepton_cci_i2c_write() for rationale.
+/** @brief              Per-transaction I2C write-read wrapper for the Lepton CCI.
+ *                      See Lepton_CCI_Write() for rationale.
+ *  @param p_Dev        I2C master device handle for the Lepton CCI
+ *  @param p_WriteData  Pointer to the data buffer to write (e.g. register address bytes)
+ *  @param WriteLength  Number of bytes to write
+ *  @param p_ReadData   Pointer to the data buffer to read into
+ *  @param ReadLength   Number of bytes to read
+ *  @return             esp_err_t result code from the I2CM_WriteRead operation
  */
-static int32_t lepton_cci_i2c_writeread(i2c_master_dev_handle_t *p_Dev,
+static int32_t Lepton_CCI_WriteRead(i2c_master_dev_handle_t *p_Dev,
                                         const uint8_t *p_WriteData, uint32_t WriteLength,
                                         uint8_t *p_ReadData, uint32_t ReadLength)
 {
@@ -139,12 +155,17 @@ static void on_Devices_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t 
 
     switch (ID) {
         case DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE: {
-            memcpy(&_Lepton_Task_State.TemperatureInfo, p_Data, sizeof(App_Devices_Temperature_t));
+            memcpy(&_LeptonTaskState.TemperatureInfo, p_Data, sizeof(App_Devices_Temperature_t));
 
-            ESP_LOGD(TAG, "Temperature status updated: Temperature=%.2f°C",
-                     _Lepton_Task_State.TemperatureInfo.Temperature);
+            ESP_LOGD(TAG, "Temperature status updated: Temperature = %.2f\xC2\xB0""C",
+                     _LeptonTaskState.TemperatureInfo.TempSensor);
 
-            xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_TEMPERATURE_STATUS_CHANGED);
+            xEventGroupSetBits(_LeptonTaskState.EventGroup, LEPTON_TASK_TEMPERATURE_STATUS_CHANGED);
+
+            break;
+        }
+        default: {
+            ESP_LOGW(TAG, "Unhandled devices task event ID: 0x%X", ID);
 
             break;
         }
@@ -165,40 +186,40 @@ static void on_GUI_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
         case GUI_TASK_EVENT_APP_STARTED: {
             ESP_LOGD(TAG, "Application started event received");
 
-            _Lepton_Task_State.ApplicationStarted = true;
+            _LeptonTaskState.ApplicationStarted = true;
 
             break;
         }
         case GUI_TASK_EVENT_REQUEST_ROI: {
-            memcpy(&_Lepton_Task_State.ROI, p_Data, sizeof(Settings_ROI_t));
+            memcpy(&_LeptonTaskState.ROI, p_Data, sizeof(Settings_ROI_t));
 
-            xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_ROI_REQUEST);
+            xEventGroupSetBits(_LeptonTaskState.EventGroup, LEPTON_TASK_UPDATE_ROI_REQUEST);
 
             break;
         }
         case GUI_TASK_EVENT_REQUEST_FPA_AUX_TEMP: {
-            xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_TEMP_REQUEST);
+            xEventGroupSetBits(_LeptonTaskState.EventGroup, LEPTON_TASK_UPDATE_TEMP_REQUEST);
             break;
         }
         case GUI_TASK_EVENT_REQUEST_UPTIME: {
-            xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_UPTIME_REQUEST);
+            xEventGroupSetBits(_LeptonTaskState.EventGroup, LEPTON_TASK_UPDATE_UPTIME_REQUEST);
 
             break;
         }
         case GUI_TASK_EVENT_REQUEST_PIXEL_TEMPERATURE: {
-            _Lepton_Task_State.ScreenPosition = *static_cast<const App_GUI_Screenposition_t *>(p_Data);
+            _LeptonTaskState.ScreenPosition = *static_cast<const App_GUI_Screenposition_t *>(p_Data);
 
-            xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_PIXEL_TEMPERATURE);
+            xEventGroupSetBits(_LeptonTaskState.EventGroup, LEPTON_TASK_UPDATE_PIXEL_TEMPERATURE);
 
             break;
         }
         case GUI_TASK_EVENT_REQUEST_SCENE_STATISTICS: {
-            xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_SCENE_STATISTICS);
+            xEventGroupSetBits(_LeptonTaskState.EventGroup, LEPTON_TASK_UPDATE_SCENE_STATISTICS);
 
             break;
         }
         default: {
-            ESP_LOGW(TAG, "Unhandled GUI event ID: 0x%X", ID);
+            ESP_LOGW(TAG, "Unhandled GUI task event ID: 0x%X", ID);
 
             break;
         }
@@ -217,30 +238,14 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
 
     switch (ID) {
         case SETTINGS_EVENT_LEPTON_CHANGED: {
-            memcpy(&_Lepton_Task_State.NewSetting, p_Data, sizeof(SettingsManager_ChangeNotification_t));
+            memcpy(&_LeptonTaskState.NewSetting, p_Data, sizeof(SettingsManager_ChangeNotification_t));
 
-            ESP_LOGD(TAG, "Lepton settings changed: ID=%d", _Lepton_Task_State.NewSetting.ID);
-            ESP_LOGD(TAG, "Lepton settings changed: Value=%d", _Lepton_Task_State.NewSetting.Value);
+            ESP_LOGD(TAG, "Lepton settings changed: ID=%d", _LeptonTaskState.NewSetting.ID);
+            ESP_LOGD(TAG, "Lepton settings changed: Value=%d", _LeptonTaskState.NewSetting.Value);
 
-            if (_Lepton_Task_State.NewSetting.ID == SETTINGS_ID_LEPTON_EMISSIVITY) {
-                xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_EMISSIVITY);
+            if (_LeptonTaskState.NewSetting.ID == SETTINGS_ID_LEPTON_EMISSIVITY) {
+                xEventGroupSetBits(_LeptonTaskState.EventGroup, LEPTON_TASK_UPDATE_EMISSIVITY);
             }
-
-            break;
-        }
-        case SETTINGS_EVENT_CALIBRATION_CHANGED: {
-            /* Only react to user-initiated changes (p_Data != NULL).
-             * When LeptonTask stores the snapshot via SettingsManager_UpdateCalibration(NULL),
-             * it posts with NULL data - ignore to prevent an infinite feedback loop. */
-            if (p_Data == NULL) {
-                break;
-            }
-
-            /* Snapshot the current sensor reading as the calibration baseline.
-             * This establishes the persistent offset:
-             *   offset = RoomTemperature - SensorAtCalibration
-             * Applied later as: estimated_ambient = sensor_current + offset */
-            xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_CALIBRATION_CHANGED);
 
             break;
         }
@@ -260,20 +265,20 @@ static void on_USB_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
     switch (ID) {
         case USB_EVENT_UVC_STREAMING_START: {
             ESP_LOGD(TAG, "UVC streaming started - redirecting frames to USB");
-            _Lepton_Task_State.isUVCStreaming = true;
+            _LeptonTaskState.IsUVCStreaming = true;
 
             break;
         }
         case USB_EVENT_UVC_STREAMING_STOP: {
             ESP_LOGD(TAG, "UVC streaming stopped - resuming GUI frames");
-            _Lepton_Task_State.isUVCStreaming = false;
+            _LeptonTaskState.IsUVCStreaming = false;
 
             break;
         }
         case USB_EVENT_UNINITIALIZED: {
-            if (_Lepton_Task_State.isUVCStreaming) {
+            if (_LeptonTaskState.IsUVCStreaming) {
                 ESP_LOGI(TAG, "USB deinitialized while UVC streaming - resuming GUI frames");
-                _Lepton_Task_State.isUVCStreaming = false;
+                _LeptonTaskState.IsUVCStreaming = false;
             }
 
             break;
@@ -295,11 +300,11 @@ static void Lepton_LoadSettings(void)
     ESP_LOGD(TAG, "Loading Lepton settings...");
     ESP_LOGD(TAG, "Emissivity: 0x%X", LeptonSettings.CurrentEmissivity);
 
-    Lepton_SetEmissivity(&_Lepton_Task_State.Lepton, static_cast<Lepton_Emissivity_t>(LeptonSettings.CurrentEmissivity));
+    Lepton_SetEmissivity(&_LeptonTaskState.Lepton, static_cast<Lepton_Emissivity_t>(LeptonSettings.CurrentEmissivity));
 }
 
 /** @brief          Resets the Lepton camera.
- *  @param Enable   true to reset (power cycle), false to normal operation
+ *  @param Enable   true to reset (RESET_L LOW), false to release (RESET_L HIGH)
  */
 static void Lepton_Reset(bool Enable)
 {
@@ -311,7 +316,7 @@ static void Lepton_Reset(bool Enable)
  */
 static void Lepton_PowerDown(bool Enable)
 {
-    //DevicesManager_SetLeptonPower(Enable);
+    DevicesManager_SetLeptonPower(Enable == false);
 }
 
 /** @brief              Lepton camera task main loop.
@@ -328,9 +333,10 @@ static void Task_Lepton(void *p_Parameters)
 
     ESP_LOGD(TAG, "Lepton task started on core %d", xPortGetCoreID());
 
-    Lepton_Error = Lepton_Init(&_Lepton_Task_State.Lepton, &_Lepton_Task_State.LeptonConf);
+    Lepton_Error = Lepton_Init(&_LeptonTaskState.Lepton, &_LeptonTaskState.LeptonConf);
     if (Lepton_Error != LEPTON_ERR_OK) {
         ESP_LOGE(TAG, "Lepton initialization failed with error: 0x%X!", Lepton_Error);
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_LEPTON, static_cast<esp_err_t>(Lepton_Error));
 
         esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_CAMERA_ERROR, NULL, 0, pdMS_TO_TICKS(500));
         esp_task_wdt_delete(NULL);
@@ -341,33 +347,33 @@ static void Task_Lepton(void *p_Parameters)
     /* Format serial number as readable string: XXXX-XXXX-XXXX-XXXX */
     snprintf(DeviceInfo.SerialNumber, sizeof(DeviceInfo.SerialNumber),
              "%02X%02X-%02X%02X-%02X%02X-%02X%02X",
-             _Lepton_Task_State.Lepton.SerialNumber[0], _Lepton_Task_State.Lepton.SerialNumber[1],
-             _Lepton_Task_State.Lepton.SerialNumber[2], _Lepton_Task_State.Lepton.SerialNumber[3],
-             _Lepton_Task_State.Lepton.SerialNumber[4], _Lepton_Task_State.Lepton.SerialNumber[5],
-             _Lepton_Task_State.Lepton.SerialNumber[6], _Lepton_Task_State.Lepton.SerialNumber[7]);
-    memcpy(DeviceInfo.PartNumber, _Lepton_Task_State.Lepton.PartNumber, sizeof(DeviceInfo.PartNumber));
+             _LeptonTaskState.Lepton.SerialNumber[0], _LeptonTaskState.Lepton.SerialNumber[1],
+             _LeptonTaskState.Lepton.SerialNumber[2], _LeptonTaskState.Lepton.SerialNumber[3],
+             _LeptonTaskState.Lepton.SerialNumber[4], _LeptonTaskState.Lepton.SerialNumber[5],
+             _LeptonTaskState.Lepton.SerialNumber[6], _LeptonTaskState.Lepton.SerialNumber[7]);
+    memcpy(DeviceInfo.PartNumber, _LeptonTaskState.Lepton.PartNumber, sizeof(DeviceInfo.PartNumber));
 
     snprintf(DeviceInfo.SoftwareRevision.GPP_Revision, sizeof(DeviceInfo.SoftwareRevision.GPP_Revision),
              "%u.%u.%u",
-             _Lepton_Task_State.Lepton.SoftwareVersion.gpp_major,
-             _Lepton_Task_State.Lepton.SoftwareVersion.gpp_minor,
-             _Lepton_Task_State.Lepton.SoftwareVersion.gpp_build);
+             _LeptonTaskState.Lepton.SoftwareVersion.gpp_major,
+             _LeptonTaskState.Lepton.SoftwareVersion.gpp_minor,
+             _LeptonTaskState.Lepton.SoftwareVersion.gpp_build);
 
     snprintf(DeviceInfo.SoftwareRevision.DSP_Revision, sizeof(DeviceInfo.SoftwareRevision.DSP_Revision),
              "%u.%u.%u",
-             _Lepton_Task_State.Lepton.SoftwareVersion.dsp_major,
-             _Lepton_Task_State.Lepton.SoftwareVersion.dsp_minor,
-             _Lepton_Task_State.Lepton.SoftwareVersion.dsp_build);
+             _LeptonTaskState.Lepton.SoftwareVersion.dsp_major,
+             _LeptonTaskState.Lepton.SoftwareVersion.dsp_minor,
+             _LeptonTaskState.Lepton.SoftwareVersion.dsp_build);
 
-    ESP_LOGI(TAG, "	Part number: %s", DeviceInfo.PartNumber);
-    ESP_LOGI(TAG, "	Serial number: %s", DeviceInfo.SerialNumber);
-    ESP_LOGI(TAG, "	GPP revision: %s", DeviceInfo.SoftwareRevision.GPP_Revision);
-    ESP_LOGI(TAG, "	DSP revision: %s", DeviceInfo.SoftwareRevision.DSP_Revision);
+    ESP_LOGI(TAG, "Part number: %s", DeviceInfo.PartNumber);
+    ESP_LOGI(TAG, "Serial number: %s", DeviceInfo.SerialNumber);
+    ESP_LOGI(TAG, "GPP revision: %s", DeviceInfo.SoftwareRevision.GPP_Revision);
+    ESP_LOGI(TAG, "DSP revision: %s", DeviceInfo.SoftwareRevision.DSP_Revision);
 
     esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_CAMERA_READY, &DeviceInfo, sizeof(App_Lepton_Device_t),
                    pdMS_TO_TICKS(500));
 
-    while (_Lepton_Task_State.ApplicationStarted == false) {
+    while (_LeptonTaskState.ApplicationStarted == false) {
         esp_task_wdt_reset();
         vTaskDelay(pdMS_TO_TICKS(100));
     }
@@ -376,14 +382,14 @@ static void Task_Lepton(void *p_Parameters)
 
     Lepton_LoadSettings();
 
-    if (Lepton_StartCapture(&_Lepton_Task_State.Lepton, _Lepton_Task_State.RawFrameQueue) != LEPTON_ERR_OK) {
+    if (Lepton_StartCapture(&_LeptonTaskState.Lepton, _LeptonTaskState.RawFrameQueue) != LEPTON_ERR_OK) {
         ESP_LOGE(TAG, "Can not start image capturing!");
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_LEPTON, ESP_FAIL);
 
         esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_CAMERA_ERROR, NULL, 0, pdMS_TO_TICKS(500));
 
-        /* Critical error - cannot continue without capture task */
-        _Lepton_Task_State.isRunning = false;
-        _Lepton_Task_State.TaskHandle = NULL;
+        _LeptonTaskState.IsRunning = false;
+        _LeptonTaskState.TaskHandle = NULL;
 
         esp_task_wdt_delete(NULL);
         vTaskDelete(NULL);
@@ -391,13 +397,13 @@ static void Task_Lepton(void *p_Parameters)
         return;
     }
 
-    while (_Lepton_Task_State.isRunning) {
+    while (_LeptonTaskState.IsRunning) {
         EventBits_t EventBits;
 
         esp_task_wdt_reset();
 
         /* Wait for a new raw frame with longer timeout to avoid busy waiting */
-        if (xQueueReceive(_Lepton_Task_State.RawFrameQueue, &_Lepton_Task_State.RawFrame, pdMS_TO_TICKS(500)) == pdTRUE) {
+        if (xQueueReceive(_LeptonTaskState.RawFrameQueue, &_LeptonTaskState.RawFrame, pdMS_TO_TICKS(500)) == pdTRUE) {
             uint8_t WriteBufferIdx;
             uint8_t *WriteBuffer;
             int16_t Min = 0;
@@ -405,8 +411,8 @@ static void Task_Lepton(void *p_Parameters)
             Lepton_Telemetry_t Telemetry;
             Lepton_VideoFormat_t VideoFormat;
 
-            if (_Lepton_Task_State.RawFrame.Telemetry_Buffer != NULL) {
-                memcpy(&Telemetry, _Lepton_Task_State.RawFrame.Telemetry_Buffer, sizeof(Lepton_Telemetry_t));
+            if (_LeptonTaskState.RawFrame.Telemetry_Buffer != NULL) {
+                memcpy(&Telemetry, _LeptonTaskState.RawFrame.Telemetry_Buffer, sizeof(Lepton_Telemetry_t));
                 ESP_LOGD(TAG, "Telemetry - FrameCounter: %u, FPA_Temp: %uK, Housing_Temp: %uK",
                          Telemetry.FrameCounter,
                          Telemetry.FPA_Temp,
@@ -416,11 +422,11 @@ static void Task_Lepton(void *p_Parameters)
             ESP_LOGD(TAG, "Processing frame...");
 
             /* Determine which buffer to write to (ping-pong) */
-            if (xSemaphoreTake(_Lepton_Task_State.BufferMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+            if (xSemaphoreTake(_LeptonTaskState.BufferMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
                 /* Find a buffer that's not currently being read */
-                WriteBufferIdx = (_Lepton_Task_State.CurrentReadBuffer + 1) % 2;
-                WriteBuffer = _Lepton_Task_State.RGB_Buffer[WriteBufferIdx];
-                xSemaphoreGive(_Lepton_Task_State.BufferMutex);
+                WriteBufferIdx = (_LeptonTaskState.CurrentReadBuffer + 1) % 2;
+                WriteBuffer = _LeptonTaskState.RGB_Buffer[WriteBufferIdx];
+                xSemaphoreGive(_LeptonTaskState.BufferMutex);
             } else {
                 ESP_LOGW(TAG, "Failed to acquire mutex for buffer selection!");
 
@@ -428,28 +434,32 @@ static void Task_Lepton(void *p_Parameters)
             }
 
             /* Process frame based on video format */
-            Lepton_GetVideoFormat(&_Lepton_Task_State.Lepton, &VideoFormat);
+            if (Lepton_GetVideoFormat(&_LeptonTaskState.Lepton, &VideoFormat) != LEPTON_ERR_OK) {
+                ESP_LOGE(TAG, "Failed to get video format!");
+
+                continue;
+            }
 
             if (VideoFormat == LEPTON_FORMAT_RGB888) {
                 /* RGB888: Data is already in RGB format, just copy it */
-                size_t ImageSize = _Lepton_Task_State.RawFrame.Width * _Lepton_Task_State.RawFrame.Height *
-                                   _Lepton_Task_State.RawFrame.BytesPerPixel;
+                size_t ImageSize = _LeptonTaskState.RawFrame.Width * _LeptonTaskState.RawFrame.Height *
+                                   _LeptonTaskState.RawFrame.BytesPerPixel;
 
-                memcpy(WriteBuffer, _Lepton_Task_State.RawFrame.Image_Buffer, ImageSize);
+                memcpy(WriteBuffer, _LeptonTaskState.RawFrame.Image_Buffer, ImageSize);
 
-                ESP_LOGD(TAG, "Copied RGB888 frame: %ux%u (%u bytes)", _Lepton_Task_State.RawFrame.Width,
-                         _Lepton_Task_State.RawFrame.Height, static_cast<unsigned int>(ImageSize));
+                ESP_LOGD(TAG, "Copied RGB888 frame: %ux%u (%u bytes)", _LeptonTaskState.RawFrame.Width,
+                         _LeptonTaskState.RawFrame.Height, static_cast<unsigned int>(ImageSize));
             } else {
                 /* RAW14: Convert to RGB */
-                Lepton_Raw14ToRGB(&_Lepton_Task_State.Lepton, _Lepton_Task_State.RawFrame.Image_Buffer, WriteBuffer, &Min, &Max,
-                                  _Lepton_Task_State.RawFrame.Width,
-                                  _Lepton_Task_State.RawFrame.Height);
+                Lepton_Raw14ToRGB(&_LeptonTaskState.Lepton, _LeptonTaskState.RawFrame.Image_Buffer, WriteBuffer, &Min, &Max,
+                                  _LeptonTaskState.RawFrame.Width,
+                                  _LeptonTaskState.RawFrame.Height);
             }
 
             /* Mark buffer as ready and update read buffer index */
-            if (xSemaphoreTake(_Lepton_Task_State.BufferMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-                _Lepton_Task_State.CurrentReadBuffer = WriteBufferIdx;
-                xSemaphoreGive(_Lepton_Task_State.BufferMutex);
+            if (xSemaphoreTake(_LeptonTaskState.BufferMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+                _LeptonTaskState.CurrentReadBuffer = WriteBufferIdx;
+                xSemaphoreGive(_LeptonTaskState.BufferMutex);
             } else {
                 ESP_LOGW(TAG, "Failed to acquire mutex for buffer ready!");
 
@@ -457,108 +467,103 @@ static void Task_Lepton(void *p_Parameters)
             }
 
             /* If UVC streaming is active, also send frames to USB */
-            if (_Lepton_Task_State.isUVCStreaming && (_Lepton_Task_State.p_JpegBuffer != NULL)) {
+            if (_LeptonTaskState.IsUVCStreaming) {
                 /* Double-check streaming state to avoid submitting after host closed stream */
                 if (USBUVC_IsStreaming() == false) {
-                    _Lepton_Task_State.isUVCStreaming = false;
+                    _LeptonTaskState.IsUVCStreaming = false;
 
                     ESP_LOGI(TAG, "UVC streaming ended - resuming GUI frames");
                 } else {
-                    jpeg_error_t JpegError;
-                    jpeg_enc_config_t EncConfig = DEFAULT_JPEG_ENC_CONFIG();
-                    jpeg_enc_handle_t JpegEncoder = NULL;
-                    int JpegSize = 0;
+                    uint8_t *p_JpegData = NULL;
+                    size_t JpegSize = 0;
 
-                    /* Configure JPEG encoder for Lepton thermal camera */
-                    EncConfig.src_type = JPEG_PIXEL_FORMAT_RGB888;
-                    EncConfig.subsampling = JPEG_SUBSAMPLE_420;
-                    EncConfig.quality = 80;
-                    EncConfig.width = _Lepton_Task_State.RawFrame.Width;
-                    EncConfig.height = _Lepton_Task_State.RawFrame.Height;
+                    esp_err_t JpegError = JPEGEncoder_Encode(WriteBuffer,
+                                                             _LeptonTaskState.RawFrame.Width,
+                                                             _LeptonTaskState.RawFrame.Height,
+                                                             80,
+                                                             &p_JpegData,
+                                                             &JpegSize);
+                    if (JpegError == ESP_OK) {
+                        esp_err_t UVCError;
+                        
+                        UVCError = USBUVC_SubmitFrame(p_JpegData, JpegSize);
+                        if (UVCError == ESP_ERR_INVALID_STATE) {
+                            /* Streaming was stopped - immediately stop submitting.
+                               Next frame iteration will route to GUI path. */
+                            _LeptonTaskState.IsUVCStreaming = false;
 
-                    /* Create encoder instance */
-                    JpegError = jpeg_enc_open(&EncConfig, &JpegEncoder);
-                    if (JpegError == JPEG_ERR_OK) {
-                        JpegError = jpeg_enc_process(JpegEncoder, WriteBuffer,
-                                                     static_cast<int>(_Lepton_Task_State.RawFrame.Width * _Lepton_Task_State.RawFrame.Height * 3),
-                                                     _Lepton_Task_State.p_JpegBuffer,
-                                                     static_cast<int>(_Lepton_Task_State.JpegBufferSize),
-                                                     &JpegSize);
-                        if (JpegError == JPEG_ERR_OK) {
-                            /* Submit JPEG frame to UVC */
-                            esp_err_t UVCError = USBUVC_SubmitFrame(_Lepton_Task_State.p_JpegBuffer, static_cast<size_t>(JpegSize));
-                            if (UVCError == ESP_ERR_INVALID_STATE) {
-                                /* Streaming was stopped - immediately stop submitting.
-                                   Next frame iteration will route to GUI path. */
-                                _Lepton_Task_State.isUVCStreaming = false;
-
-                                ESP_LOGI(TAG, "UVC stream no longer active - resuming GUI frames");
-                            } else if (UVCError != ESP_OK) {
-                                ESP_LOGW(TAG, "Failed to submit frame to UVC: 0x%X", UVCError);
-                            } else {
-                                ESP_LOGD(TAG, "UVC frame submitted: %d bytes JPEG", JpegSize);
-                            }
+                            ESP_LOGI(TAG, "UVC stream no longer active - resuming GUI frames");
+                        } else if (UVCError != ESP_OK) {
+                            ESP_LOGW(TAG, "Failed to submit frame to UVC: 0x%X", UVCError);
                         } else {
-                            ESP_LOGW(TAG, "JPEG encoding failed: 0x%X", JpegError);
+                            ESP_LOGD(TAG, "UVC frame submitted: %zu bytes JPEG", JpegSize);
                         }
 
-                        jpeg_enc_close(JpegEncoder);
+                        heap_caps_free(p_JpegData);
                     } else {
-                        ESP_LOGW(TAG, "Failed to open JPEG encoder: 0x%X", JpegError);
+                        ESP_LOGW(TAG, "JPEG encoding failed: 0x%X", JpegError);
                     }
                 }
             }
 
-            /* Send frame notification to GUI/network task */
-            App_Lepton_FrameReady_t FrameEvent = {
+            App_Lepton_Frame_t FrameEvent = {
                 .Buffer = WriteBuffer,
-                .Width = _Lepton_Task_State.RawFrame.Width,
-                .Height = _Lepton_Task_State.RawFrame.Height,
+                .Width = _LeptonTaskState.RawFrame.Width,
+                .Height = _LeptonTaskState.RawFrame.Height,
                 .Channels = 3,
                 .Min = Min,
                 .Max = Max
             };
 
-            /* Use xQueueOverwrite to always have the latest frame */
-            xQueueOverwrite(App_Context->Lepton_FrameEventQueue, &FrameEvent);
+            xQueueOverwrite(App_Context->Lepton_FrameQueue, &FrameEvent);
             ESP_LOGD(TAG, "Frame sent to queue successfully");
         } else {
             ESP_LOGW(TAG, "No raw frame received from VoSPI");
         }
 
-        EventBits = xEventGroupGetBits(_Lepton_Task_State.EventGroup);
+        EventBits = xEventGroupGetBits(_LeptonTaskState.EventGroup);
+        if (EventBits & LEPTON_TASK_STOP_REQUEST) {
+            ESP_LOGI(TAG, "Stop request received");
+
+            _LeptonTaskState.IsRunning = false;
+
+            xEventGroupClearBits(_LeptonTaskState.EventGroup, LEPTON_TASK_STOP_REQUEST);
+
+            break;
+        }
+
         if (EventBits & LEPTON_TASK_UPDATE_ROI_REQUEST) {
             Lepton_ROI_t ROI;
             Lepton_Error_t Error;
 
-            ROI.Start_Col = _Lepton_Task_State.ROI.x;
-            ROI.Start_Row = _Lepton_Task_State.ROI.y;
-            ROI.End_Col = _Lepton_Task_State.ROI.x + _Lepton_Task_State.ROI.w - 1;
-            ROI.End_Row = _Lepton_Task_State.ROI.y + _Lepton_Task_State.ROI.h - 1;
+            ROI.Start_Col = _LeptonTaskState.ROI.x;
+            ROI.Start_Row = _LeptonTaskState.ROI.y;
+            ROI.End_Col = _LeptonTaskState.ROI.x + _LeptonTaskState.ROI.w - 1;
+            ROI.End_Row = _LeptonTaskState.ROI.y + _LeptonTaskState.ROI.h - 1;
 
-            switch (_Lepton_Task_State.ROI.Type) {
+            switch (_LeptonTaskState.ROI.Type) {
                 case ROI_TYPE_SPOTMETER: {
-                    Error = Lepton_SetSpotmeterROI(&_Lepton_Task_State.Lepton, &ROI);
+                    Error = Lepton_SetSpotmeterROI(&_LeptonTaskState.Lepton, &ROI);
 
                     break;
                 }
                 case ROI_TYPE_SCENE: {
-                    Error = Lepton_SetSceneROI(&_Lepton_Task_State.Lepton, &ROI);
+                    Error = Lepton_SetSceneROI(&_LeptonTaskState.Lepton, &ROI);
 
                     break;
                 }
                 case ROI_TYPE_AGC: {
-                    Error = Lepton_SetAGCROI(&_Lepton_Task_State.Lepton, &ROI);
+                    Error = Lepton_SetAGCROI(&_LeptonTaskState.Lepton, &ROI);
 
                     break;
                 }
                 case ROI_TYPE_VIDEO_FOCUS: {
-                    Error = Lepton_SetVideoFocusROI(&_Lepton_Task_State.Lepton, &ROI);
+                    Error = Lepton_SetVideoFocusROI(&_LeptonTaskState.Lepton, &ROI);
 
                     break;
                 }
                 default: {
-                    ESP_LOGW(TAG, "Invalid ROI type in GUI event: 0x%X", _Lepton_Task_State.ROI.Type);
+                    ESP_LOGW(TAG, "Invalid ROI type in GUI event: 0x%X", _LeptonTaskState.ROI.Type);
 
                     return;
                 }
@@ -566,16 +571,17 @@ static void Task_Lepton(void *p_Parameters)
 
             if (Error == LEPTON_ERR_OK) {
                 ESP_LOGD(TAG, "New Lepton ROI (Type %d) - Start_Col: %u, Start_Row: %u, End_Col: %u, End_Row: %u",
-                         _Lepton_Task_State.ROI.Type,
+                         _LeptonTaskState.ROI.Type,
                          ROI.Start_Col,
                          ROI.Start_Row,
                          ROI.End_Col,
                          ROI.End_Row);
             } else {
-                ESP_LOGE(TAG, "Failed to update Lepton ROI with type %d!", _Lepton_Task_State.ROI.Type);
+                ESP_LOGE(TAG, "Failed to update Lepton ROI with type %d!", _LeptonTaskState.ROI.Type);
+                APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_LEPTON, static_cast<esp_err_t>(Error));
             }
 
-            xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_ROI_REQUEST);
+            xEventGroupClearBits(_LeptonTaskState.EventGroup, LEPTON_TASK_UPDATE_ROI_REQUEST);
         }
 
         if (EventBits & LEPTON_TASK_UPDATE_TEMP_REQUEST) {
@@ -583,34 +589,24 @@ static void Task_Lepton(void *p_Parameters)
             uint16_t AUX_Temp;
             App_Lepton_Temperatures_t Temperatures;
 
-            Lepton_GetTemperature(&_Lepton_Task_State.Lepton, &FPA_Temp, &AUX_Temp);
+            Lepton_GetTemperature(&_LeptonTaskState.Lepton, &FPA_Temp, &AUX_Temp);
 
             Temperatures.FPA = (static_cast<float>(FPA_Temp) * 0.01f) - 273.15f;
             Temperatures.AUX = (static_cast<float>(AUX_Temp) * 0.01f) - 273.15f;
             esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_FPA_AUX_TEMP, &Temperatures,
                            sizeof(App_Lepton_Temperatures_t), 0);
 
-            xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_TEMP_REQUEST);
+            xEventGroupClearBits(_LeptonTaskState.EventGroup, LEPTON_TASK_UPDATE_TEMP_REQUEST);
         }
 
         if (EventBits & LEPTON_TASK_UPDATE_UPTIME_REQUEST) {
             uint32_t Uptime;
 
-            Uptime = Lepton_GetUptime(&_Lepton_Task_State.Lepton);
+            Uptime = Lepton_GetUptime(&_LeptonTaskState.Lepton);
 
             esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_UPTIME, &Uptime, sizeof(uint32_t), 0);
 
-            xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_UPTIME_REQUEST);
-        }
-
-        if (EventBits & LEPTON_TASK_STOP_REQUEST) {
-            ESP_LOGI(TAG, "Stop request received");
-
-            _Lepton_Task_State.isRunning = false;
-
-            xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_STOP_REQUEST);
-
-            break;
+            xEventGroupClearBits(_LeptonTaskState.EventGroup, LEPTON_TASK_UPDATE_UPTIME_REQUEST);
         }
 
         if (EventBits & LEPTON_TASK_UPDATE_PIXEL_TEMPERATURE) {
@@ -619,27 +615,27 @@ static void Task_Lepton(void *p_Parameters)
             float Temperature;
             Lepton_VideoFormat_t VideoFormat;
 
-            Lepton_GetVideoFormat(&_Lepton_Task_State.Lepton, &VideoFormat);
-            if (((_Lepton_Task_State.RawFrame.Width == 0) || (_Lepton_Task_State.RawFrame.Height == 0)) &&
+            Lepton_GetVideoFormat(&_LeptonTaskState.Lepton, &VideoFormat);
+            if (((_LeptonTaskState.RawFrame.Width == 0) || (_LeptonTaskState.RawFrame.Height == 0)) &&
                 (VideoFormat != LEPTON_FORMAT_RAW14)) {
                 ESP_LOGW(TAG, "Invalid Lepton frame! Cannot get pixel temperature!");
 
-                xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_PIXEL_TEMPERATURE);
+                xEventGroupClearBits(_LeptonTaskState.EventGroup, LEPTON_TASK_UPDATE_PIXEL_TEMPERATURE);
 
                 continue;
             }
 
             /* Convert the screen position to the Lepton frame coordinates */
-            x = (_Lepton_Task_State.ScreenPosition.x * _Lepton_Task_State.RawFrame.Width) / _Lepton_Task_State.ScreenPosition.Width;
-            y = (_Lepton_Task_State.ScreenPosition.y * _Lepton_Task_State.RawFrame.Height) /
-                _Lepton_Task_State.ScreenPosition.Height;
+            x = (_LeptonTaskState.ScreenPosition.x * _LeptonTaskState.RawFrame.Width) / _LeptonTaskState.ScreenPosition.Width;
+            y = (_LeptonTaskState.ScreenPosition.y * _LeptonTaskState.RawFrame.Height) /
+                _LeptonTaskState.ScreenPosition.Height;
 
-            ESP_LOGD(TAG, "Crosshair center in Lepton Frame: (%d,%d), size (%d,%d)", x, y, _Lepton_Task_State.RawFrame.Width,
-                     _Lepton_Task_State.RawFrame.Height);
+            ESP_LOGD(TAG, "Crosshair center in Lepton Frame: (%d,%d), size (%d,%d)", x, y, _LeptonTaskState.RawFrame.Width,
+                     _LeptonTaskState.RawFrame.Height);
 
-            if (_Lepton_Task_State.RawFrame.Image_Buffer != NULL) {
-                Lepton_Error_t LeptonError = Lepton_GetPixelTemperature(&_Lepton_Task_State.Lepton,
-                                                                        _Lepton_Task_State.RawFrame.Image_Buffer[(y * _Lepton_Task_State.RawFrame.Width) + x],
+            if (_LeptonTaskState.RawFrame.Image_Buffer != NULL) {
+                Lepton_Error_t LeptonError = Lepton_GetPixelTemperature(&_LeptonTaskState.Lepton,
+                                                                        _LeptonTaskState.RawFrame.Image_Buffer[(y * _LeptonTaskState.RawFrame.Width) + x],
                                                                         &Temperature);
 
                 if (LeptonError == LEPTON_ERR_OK) {
@@ -651,20 +647,20 @@ static void Task_Lepton(void *p_Parameters)
                 ESP_LOGW(TAG, "Image buffer is NULL, cannot get pixel temperature");
             }
 
-            xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_PIXEL_TEMPERATURE);
+            xEventGroupClearBits(_LeptonTaskState.EventGroup, LEPTON_TASK_UPDATE_PIXEL_TEMPERATURE);
         }
 
         if (EventBits & LEPTON_TASK_UPDATE_SCENE_STATISTICS) {
             Lepton_SceneStatistics_t SceneStats;
 
-            if (Lepton_GetSceneStatistics(&_Lepton_Task_State.Lepton, &SceneStats) == LEPTON_ERR_OK) {
+            if (Lepton_GetSceneStatistics(&_LeptonTaskState.Lepton, &SceneStats) == LEPTON_ERR_OK) {
                 App_Lepton_ROI_Result_t App_Lepton_Scene;
 
                 App_Lepton_Scene.Min = SceneStats.MinIntensity;
                 App_Lepton_Scene.Max = SceneStats.MaxIntensity;
                 App_Lepton_Scene.Average = SceneStats.MeanIntensity;
 
-                ESP_LOGD(TAG, "Scene Statistics: Min=%.2f°C, Max=%.2f°C, Average=%.2f°C",
+                ESP_LOGD(TAG, "Scene Statistics: Min=%.2f\xC2\xB0""C, Max=%.2f\xC2\xB0""C, Average=%.2f\xC2\xB0""C",
                          App_Lepton_Scene.Min, App_Lepton_Scene.Max, App_Lepton_Scene.Average);
 
                 esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_SCENE_STATISTICS, &App_Lepton_Scene,
@@ -673,71 +669,37 @@ static void Task_Lepton(void *p_Parameters)
                 ESP_LOGW(TAG, "Failed to read scene statistics!");
             }
 
-            xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_SCENE_STATISTICS);
+            xEventGroupClearBits(_LeptonTaskState.EventGroup, LEPTON_TASK_UPDATE_SCENE_STATISTICS);
         }
 
         if (EventBits & LEPTON_TASK_UPDATE_EMISSIVITY) {
             Lepton_Error_t Error;
 
-            Error = Lepton_SetEmissivity(&_Lepton_Task_State.Lepton,
-                                         static_cast<Lepton_Emissivity_t>(_Lepton_Task_State.NewSetting.Value));
+            Error = Lepton_SetEmissivity(&_LeptonTaskState.Lepton,
+                                         static_cast<Lepton_Emissivity_t>(_LeptonTaskState.NewSetting.Value));
 
             if (Error == LEPTON_ERR_OK) {
-                ESP_LOGD(TAG, "Updated emissivity to %u", _Lepton_Task_State.NewSetting.Value);
+                ESP_LOGD(TAG, "Updated emissivity to %u", _LeptonTaskState.NewSetting.Value);
             } else {
-                ESP_LOGE(TAG, "Failed to update emissivity to %u!", _Lepton_Task_State.NewSetting.Value);
+                ESP_LOGE(TAG, "Failed to update emissivity to %u!", _LeptonTaskState.NewSetting.Value);
+                APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_LEPTON, static_cast<esp_err_t>(Error));
             }
 
-            xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_UPDATE_EMISSIVITY);
-        }
-
-        if (EventBits & LEPTON_TASK_CALIBRATION_CHANGED) {
-            Settings_Calibration_t Calibration;
-
-            SettingsManager_GetCalibration(&Calibration);
-
-            /* Record the sensor reading at the moment of calibration.
-             * From this point on: offset = RoomTemperature - SensorAtCalibration */
-            Calibration.SensorAtCalibration = _Lepton_Task_State.TemperatureInfo.Temperature;
-            SettingsManager_UpdateCalibration(&Calibration, NULL);
-
-            ESP_LOGI(TAG, "Calibration snapshot: room=%d\xC2\xB0""C, sensor=%.2f\xC2\xB0""C, offset=%.2f\xC2\xB0""C",
-                     static_cast<int>(Calibration.RoomTemperature),
-                     Calibration.SensorAtCalibration,
-                     static_cast<float>(Calibration.RoomTemperature) - Calibration.SensorAtCalibration);
-
-            xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_CALIBRATION_CHANGED);
+            xEventGroupClearBits(_LeptonTaskState.EventGroup, LEPTON_TASK_UPDATE_EMISSIVITY);
         }
 
         if (EventBits & LEPTON_TASK_TEMPERATURE_STATUS_CHANGED) {
-            Settings_Calibration_t Calibration;
+            float Offset;
+            float T_Compensated;
             Lepton_FluxLinearParams_t FluxParams;
+            Settings_Calibration_t Calibration;
 
             SettingsManager_GetCalibration(&Calibration);
 
-            /* Auto-initialize SensorAtCalibration on the first temperature reading.
-             * SensorAtCalibration == 0.0f is the "never calibrated" sentinel.
-             * On first reading: store the current sensor value so the persistent offset
-             * reflects the factory/power-on deviation from the configured room temperature.
-             * offset = RoomTemperature - SensorAtCalibration
-             * estimated_ambient = sensor_current + offset
-             * Example: room=20, sensor_cal=24.3 -> offset=-4.3
-             *          sensor_now=24.5           -> ambient=24.5+(-4.3)=20.2 */
-            if (Calibration.SensorAtCalibration == 0.0f) {
-                Calibration.SensorAtCalibration = _Lepton_Task_State.TemperatureInfo.Temperature;
-                SettingsManager_UpdateCalibration(&Calibration, NULL);
+            Offset = static_cast<float>(Calibration.SensorAtCalibration) - Calibration.RoomTemperature;
+            T_Compensated = _LeptonTaskState.TemperatureInfo.TempSensor + Offset;
 
-                ESP_LOGI(TAG,
-                         "Calibration baseline auto-initialized: sensor=%.2f\xC2\xB0""C, room=%d\xC2\xB0""C, offset=%.2f\xC2\xB0""C",
-                         Calibration.SensorAtCalibration,
-                         static_cast<int>(Calibration.RoomTemperature),
-                         static_cast<float>(Calibration.RoomTemperature) - Calibration.SensorAtCalibration);
-            }
-
-            float Offset = static_cast<float>(Calibration.RoomTemperature) - Calibration.SensorAtCalibration;
-            float T_Compensated = _Lepton_Task_State.TemperatureInfo.Temperature + Offset;
-
-            Lepton_GetFluxLinearParameters(&_Lepton_Task_State.Lepton, &FluxParams);
+            Lepton_GetFluxLinearParameters(&_LeptonTaskState.Lepton, &FluxParams);
             ESP_LOGD(TAG,
                      "Flux Linear Parameters - Scene Emissivity: %u, TBkgK: %u, TauWindow: %u, TWindowK: %u, TauAtm: %u, TAtmK: %u, ReflWindow: %u, TReflK: %u",
                      FluxParams.SceneEmissivity,
@@ -752,24 +714,23 @@ static void Task_Lepton(void *p_Parameters)
             /* TBkgK: estimated ambient temperature in Kelvin for Lepton flux linear parameters */
             FluxParams.TBkgK = static_cast<uint32_t>((T_Compensated + 273.15f) * 100);
 
-            Lepton_SetFluxLinearParameters(&_Lepton_Task_State.Lepton, &FluxParams);
+            Lepton_SetFluxLinearParameters(&_LeptonTaskState.Lepton, &FluxParams);
 
             ESP_LOGD(TAG,
                      "Temperature status changed - sensor: %.2f\xC2\xB0""C, offset: %.2f\xC2\xB0""C, estimated ambient: %.2f\xC2\xB0""C, TBkgK: %u K",
-                     _Lepton_Task_State.TemperatureInfo.Temperature,
+                     _LeptonTaskState.TemperatureInfo.TempSensor,
                      Offset,
                      T_Compensated,
                      FluxParams.TBkgK);
 
-
-            xEventGroupClearBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_TEMPERATURE_STATUS_CHANGED);
+            xEventGroupClearBits(_LeptonTaskState.EventGroup, LEPTON_TASK_TEMPERATURE_STATUS_CHANGED);
         }
     }
 
     ESP_LOGD(TAG, "Lepton task shutting down");
-    Lepton_Deinit(&_Lepton_Task_State.Lepton);
+    Lepton_Deinit(&_LeptonTaskState.Lepton);
 
-    _Lepton_Task_State.TaskHandle = NULL;
+    _LeptonTaskState.TaskHandle = NULL;
 
     esp_task_wdt_delete(NULL);
     vTaskDelete(NULL);
@@ -777,168 +738,146 @@ static void Task_Lepton(void *p_Parameters)
 
 esp_err_t Lepton_Task_Init(void)
 {
-    uint32_t Caps;
+    size_t BufferSize;
 
-    if (_Lepton_Task_State.isInitialized) {
+    if (_LeptonTaskState.IsInitialized) {
         ESP_LOGW(TAG, "Already initialized");
 
         return ESP_OK;
     }
 
     ESP_LOGD(TAG, "Initializing Lepton Task");
-    _Lepton_Task_State.CurrentReadBuffer = 0;
+    _LeptonTaskState.CurrentReadBuffer = 0;
 
-    _Lepton_Task_State.EventGroup = xEventGroupCreate();
-    if (_Lepton_Task_State.EventGroup == NULL) {
+    _LeptonTaskState.EventGroup = xEventGroupCreate();
+    if (_LeptonTaskState.EventGroup == NULL) {
         ESP_LOGE(TAG, "Failed to create event group!");
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_LEPTON, ESP_ERR_NO_MEM);
 
         return ESP_ERR_NO_MEM;
     }
 
-    _Lepton_Task_State.BufferMutex = xSemaphoreCreateMutex();
-    if (_Lepton_Task_State.BufferMutex == NULL) {
+    _LeptonTaskState.BufferMutex = xSemaphoreCreateMutex();
+    if (_LeptonTaskState.BufferMutex == NULL) {
         ESP_LOGE(TAG, "Failed to create buffer mutex!");
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_LEPTON, ESP_ERR_NO_MEM);
 
-        vEventGroupDelete(_Lepton_Task_State.EventGroup);
+        vEventGroupDelete(_LeptonTaskState.EventGroup);
 
         return ESP_ERR_NO_MEM;
     }
 
-    _Lepton_Task_State.LeptonConf = LEPTON_DEFAULT_CONF;
-    LEPTON_ASSIGN_FUNC(_Lepton_Task_State.LeptonConf, NULL, NULL, lepton_cci_i2c_write, lepton_cci_i2c_read);
-    _Lepton_Task_State.LeptonConf.CCI.I2C_WriteRead = lepton_cci_i2c_writeread;
-    LEPTON_ASSIGN_I2C_HANDLE(_Lepton_Task_State.LeptonConf, DevicesManager_GetI2CBusHandle());
-    _Lepton_Task_State.LeptonConf.Reset = Lepton_Reset;
-    _Lepton_Task_State.LeptonConf.PowerDown = Lepton_PowerDown;
+    _LeptonTaskState.LeptonConf = LEPTON_DEFAULT_CONF;
+    LEPTON_ASSIGN_I2C_FUNC(_LeptonTaskState.LeptonConf, NULL, NULL, Lepton_CCI_Write, Lepton_CCI_Read, Lepton_CCI_WriteRead);
+    LEPTON_ASSIGN_I2C_HANDLE(_LeptonTaskState.LeptonConf, DevicesManager_GetI2CBusHandle());
+    LEPTON_ASSIGN_GPIO_FUNC(_LeptonTaskState.LeptonConf, Lepton_Reset, Lepton_PowerDown);
 
     /* Allocate RGB buffers - both RAW14 and RGB888 use 160x120 resolution
      * RAW14: 160x120x3 = 57,600 bytes (after conversion to RGB)
      * RGB888: 160x120x3 = 57,600 bytes (native RGB data)
      */
-    size_t RGB_Buffer_Size = 160 * 120 * 3;
+    BufferSize = 160 * 120 * 3;
 
-#ifdef CONFIG_SPIRAM
-    Caps = MALLOC_CAP_SIMD | MALLOC_CAP_SPIRAM;
-#else
-    Caps = MALLOC_CAP_SIMD;
-#endif
+    _LeptonTaskState.RGB_Buffer[0] = static_cast<uint8_t *>(heap_caps_malloc(BufferSize, MALLOC_CAP_SIMD | MALLOC_CAP_SPIRAM));
+    _LeptonTaskState.RGB_Buffer[1] = static_cast<uint8_t *>(heap_caps_malloc(BufferSize, MALLOC_CAP_SIMD | MALLOC_CAP_SPIRAM));
 
-    _Lepton_Task_State.RGB_Buffer[0] = static_cast<uint8_t *>(heap_caps_malloc(RGB_Buffer_Size, Caps));
-    _Lepton_Task_State.RGB_Buffer[1] = static_cast<uint8_t *>(heap_caps_malloc(RGB_Buffer_Size, Caps));
-
-    if ((_Lepton_Task_State.RGB_Buffer[0] == NULL) || (_Lepton_Task_State.RGB_Buffer[1] == NULL)) {
+    if ((_LeptonTaskState.RGB_Buffer[0] == NULL) || (_LeptonTaskState.RGB_Buffer[1] == NULL)) {
         ESP_LOGE(TAG, "Can not allocate RGB buffers!");
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_LEPTON, ESP_ERR_NO_MEM);
 
-        if (_Lepton_Task_State.RGB_Buffer[0]) {
-            heap_caps_free(_Lepton_Task_State.RGB_Buffer[0]);
+        if (_LeptonTaskState.RGB_Buffer[0]) {
+            heap_caps_free(_LeptonTaskState.RGB_Buffer[0]);
         }
 
-        if (_Lepton_Task_State.RGB_Buffer[1]) {
-            heap_caps_free(_Lepton_Task_State.RGB_Buffer[1]);
+        if (_LeptonTaskState.RGB_Buffer[1]) {
+            heap_caps_free(_LeptonTaskState.RGB_Buffer[1]);
         }
 
-        Lepton_Deinit(&_Lepton_Task_State.Lepton);
-        vSemaphoreDelete(_Lepton_Task_State.BufferMutex);
-        vEventGroupDelete(_Lepton_Task_State.EventGroup);
+        Lepton_Deinit(&_LeptonTaskState.Lepton);
+        vSemaphoreDelete(_LeptonTaskState.BufferMutex);
+        vEventGroupDelete(_LeptonTaskState.EventGroup);
 
         return ESP_ERR_NO_MEM;
     }
 
-    ESP_LOGD(TAG, "RGB buffers allocated: 2 x %u bytes", static_cast<unsigned int>(RGB_Buffer_Size));
+    ESP_LOGD(TAG, "RGB buffers allocated: 2 x %u bytes", static_cast<unsigned int>(BufferSize));
 
     /* Create internal queue to receive raw frames from VoSPI capture task */
-    _Lepton_Task_State.RawFrameQueue = xQueueCreate(1, sizeof(Lepton_FrameBuffer_t));
-    if (_Lepton_Task_State.RawFrameQueue == NULL) {
+    _LeptonTaskState.RawFrameQueue = xQueueCreate(1, sizeof(Lepton_FrameBuffer_t));
+    if (_LeptonTaskState.RawFrameQueue == NULL) {
         ESP_LOGE(TAG, "Failed to create raw frame queue!");
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_LEPTON, ESP_ERR_NO_MEM);
 
-        heap_caps_free(_Lepton_Task_State.RGB_Buffer[0]);
-        heap_caps_free(_Lepton_Task_State.RGB_Buffer[1]);
-        Lepton_Deinit(&_Lepton_Task_State.Lepton);
-        vSemaphoreDelete(_Lepton_Task_State.BufferMutex);
-        vEventGroupDelete(_Lepton_Task_State.EventGroup);
+        heap_caps_free(_LeptonTaskState.RGB_Buffer[0]);
+        heap_caps_free(_LeptonTaskState.RGB_Buffer[1]);
+        Lepton_Deinit(&_LeptonTaskState.Lepton);
+        vSemaphoreDelete(_LeptonTaskState.BufferMutex);
+        vEventGroupDelete(_LeptonTaskState.EventGroup);
 
         return ESP_ERR_NO_MEM;
     }
 
     esp_event_handler_register(GUI_TASK_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Task_Event_Handler, NULL);
-    esp_event_handler_register(DEVICES_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Task_Event_Handler, NULL);
-    esp_event_handler_register(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler, NULL);
+    esp_event_handler_register(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE, on_Devices_Task_Event_Handler, NULL);
+    esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_LEPTON_CHANGED, on_Settings_Event_Handler, NULL);
+    esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_CALIBRATION_CHANGED, on_Settings_Event_Handler, NULL);
     esp_event_handler_register(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler, NULL);
 
-#ifdef CONFIG_SPIRAM
-    Caps = MALLOC_CAP_SPIRAM;
-#else
-    Caps = 0;
-#endif
-
-    /* Allocate JPEG compression buffer in PSRAM */
-    _Lepton_Task_State.JpegBufferSize = 160 * 120 * 3;
-    _Lepton_Task_State.p_JpegBuffer = static_cast<uint8_t *>(heap_caps_malloc(_Lepton_Task_State.JpegBufferSize, Caps));
-    if (_Lepton_Task_State.p_JpegBuffer == NULL) {
-        ESP_LOGW(TAG, "Failed to allocate JPEG buffer - UVC streaming will not work");
-    } else {
-        ESP_LOGD(TAG, "JPEG buffer allocated: %u bytes", static_cast<unsigned int>(_Lepton_Task_State.JpegBufferSize));
-    }
-
-    _Lepton_Task_State.isUVCStreaming = false;
+    _LeptonTaskState.IsUVCStreaming = false;
 
     ESP_LOGD(TAG, "Lepton Task initialized");
 
-    _Lepton_Task_State.isInitialized = true;
+    _LeptonTaskState.IsInitialized = true;
 
     return ESP_OK;
 }
 
 void Lepton_Task_Deinit(void)
 {
-    if (_Lepton_Task_State.isInitialized == false) {
+    if (_LeptonTaskState.IsInitialized == false) {
         return;
     }
 
-    if (_Lepton_Task_State.isRunning) {
+    if (_LeptonTaskState.IsRunning) {
         Lepton_Task_Stop();
     }
 
     ESP_LOGI(TAG, "Deinitializing Lepton Task");
 
-    if (_Lepton_Task_State.EventGroup != NULL) {
-        vEventGroupDelete(_Lepton_Task_State.EventGroup);
-        _Lepton_Task_State.EventGroup = NULL;
+    if (_LeptonTaskState.EventGroup != NULL) {
+        vEventGroupDelete(_LeptonTaskState.EventGroup);
+        _LeptonTaskState.EventGroup = NULL;
     }
 
     esp_event_handler_unregister(GUI_TASK_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Task_Event_Handler);
-    esp_event_handler_unregister(DEVICES_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Task_Event_Handler);
-    esp_event_handler_unregister(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler);
+    esp_event_handler_unregister(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE, on_Devices_Task_Event_Handler);
+    esp_event_handler_unregister(SETTINGS_EVENTS, SETTINGS_EVENT_LEPTON_CHANGED, on_Settings_Event_Handler);
+    esp_event_handler_unregister(SETTINGS_EVENTS, SETTINGS_EVENT_CALIBRATION_CHANGED, on_Settings_Event_Handler);
     esp_event_handler_unregister(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler);
 
-    if (_Lepton_Task_State.p_JpegBuffer != NULL) {
-        heap_caps_free(_Lepton_Task_State.p_JpegBuffer);
-        _Lepton_Task_State.p_JpegBuffer = NULL;
+    Lepton_Deinit(&_LeptonTaskState.Lepton);
+
+    if (_LeptonTaskState.BufferMutex != NULL) {
+        vSemaphoreDelete(_LeptonTaskState.BufferMutex);
+        _LeptonTaskState.BufferMutex = NULL;
     }
 
-    Lepton_Deinit(&_Lepton_Task_State.Lepton);
-
-    if (_Lepton_Task_State.BufferMutex != NULL) {
-        vSemaphoreDelete(_Lepton_Task_State.BufferMutex);
-        _Lepton_Task_State.BufferMutex = NULL;
+    if (_LeptonTaskState.RGB_Buffer[0] != NULL) {
+        heap_caps_free(_LeptonTaskState.RGB_Buffer[0]);
+        _LeptonTaskState.RGB_Buffer[0] = NULL;
     }
 
-    if (_Lepton_Task_State.RGB_Buffer[0] != NULL) {
-        heap_caps_free(_Lepton_Task_State.RGB_Buffer[0]);
-        _Lepton_Task_State.RGB_Buffer[0] = NULL;
+    if (_LeptonTaskState.RGB_Buffer[1] != NULL) {
+        heap_caps_free(_LeptonTaskState.RGB_Buffer[1]);
+        _LeptonTaskState.RGB_Buffer[1] = NULL;
     }
 
-    if (_Lepton_Task_State.RGB_Buffer[1] != NULL) {
-        heap_caps_free(_Lepton_Task_State.RGB_Buffer[1]);
-        _Lepton_Task_State.RGB_Buffer[1] = NULL;
+    if (_LeptonTaskState.RawFrameQueue != NULL) {
+        vQueueDelete(_LeptonTaskState.RawFrameQueue);
+        _LeptonTaskState.RawFrameQueue = NULL;
     }
 
-    if (_Lepton_Task_State.RawFrameQueue != NULL) {
-        vQueueDelete(_Lepton_Task_State.RawFrameQueue);
-        _Lepton_Task_State.RawFrameQueue = NULL;
-    }
-
-    _Lepton_Task_State.isInitialized = false;
+    _LeptonTaskState.IsInitialized = false;
 }
 
 esp_err_t Lepton_Task_Start(App_Context_t *p_AppContext)
@@ -947,22 +886,23 @@ esp_err_t Lepton_Task_Start(App_Context_t *p_AppContext)
 
     if (p_AppContext == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (_Lepton_Task_State.isInitialized == false) {
+    } else if (_LeptonTaskState.IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
-    } else if (_Lepton_Task_State.isRunning) {
+    } else if (_LeptonTaskState.IsRunning) {
         ESP_LOGW(TAG, "Task already Running");
 
         return ESP_OK;
     }
 
-    _Lepton_Task_State.isRunning = true;
+    _LeptonTaskState.IsRunning = true;
 
     ESP_LOGD(TAG, "Starting Lepton Task");
 
     Error = xTaskCreatePinnedToCore(Task_Lepton, "Task_Lepton", CONFIG_LEPTON_TASK_STACKSIZE, p_AppContext,
-                                    CONFIG_LEPTON_TASK_PRIO, &_Lepton_Task_State.TaskHandle, CONFIG_LEPTON_TASK_CORE);
+                                    CONFIG_LEPTON_TASK_PRIO, &_LeptonTaskState.TaskHandle, CONFIG_LEPTON_TASK_CORE);
     if (Error != pdPASS) {
         ESP_LOGE(TAG, "Failed to create Lepton Task: 0x%X!", Error);
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_LEPTON, ESP_ERR_NO_MEM);
 
         return ESP_ERR_NO_MEM;
     }
@@ -972,18 +912,18 @@ esp_err_t Lepton_Task_Start(App_Context_t *p_AppContext)
 
 esp_err_t Lepton_Task_Stop(void)
 {
-    if (_Lepton_Task_State.isRunning == false) {
+    if (_LeptonTaskState.IsRunning == false) {
         return ESP_OK;
     }
 
     ESP_LOGI(TAG, "Stopping Lepton Task");
 
-    xEventGroupSetBits(_Lepton_Task_State.EventGroup, LEPTON_TASK_STOP_REQUEST);
+    xEventGroupSetBits(_LeptonTaskState.EventGroup, LEPTON_TASK_STOP_REQUEST);
 
     return ESP_OK;
 }
 
 bool Lepton_Task_IsRunning(void)
 {
-    return _Lepton_Task_State.isRunning;
+    return _LeptonTaskState.IsRunning;
 }

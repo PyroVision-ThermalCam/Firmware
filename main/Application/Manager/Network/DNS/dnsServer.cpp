@@ -50,7 +50,7 @@ typedef struct {
 }  __attribute__((packed)) DNS_Header_t;
 
 typedef struct {
-    bool isRunning;
+    bool IsRunning;
     int Socket;
     TaskHandle_t Task;
 } DNS_Server_State_t;
@@ -70,7 +70,7 @@ static void DNS_Server_Task(void *p_Arg)
     esp_netif_ip_info_t IP_Info;
     esp_netif_t *AP_NetIF;
 
-    _DNS_Server_State.isRunning = true;
+    _DNS_Server_State.IsRunning = true;
 
     /* Get AP IP address */
     AP_NetIF = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
@@ -88,7 +88,7 @@ static void DNS_Server_Task(void *p_Arg)
 
     ESP_LOGD(TAG, "DNS server started, redirecting all queries to " IPSTR, IP2STR(&IP_Info.ip));
 
-    while (_DNS_Server_State.isRunning) {
+    while (_DNS_Server_State.IsRunning) {
         DNS_Header_t *Header;
         int Length;
         uint16_t *AnswerPtr;
@@ -154,7 +154,7 @@ esp_err_t DNS_Server_Start(void)
 {
     struct sockaddr_in ServerAddr;
 
-    if (_DNS_Server_State.isRunning) {
+    if (_DNS_Server_State.IsRunning) {
         ESP_LOGW(TAG, "DNS server already running");
 
         return ESP_OK;
@@ -192,7 +192,7 @@ esp_err_t DNS_Server_Start(void)
         ESP_LOGE(TAG, "Failed to create DNS server task!");
 
         close(_DNS_Server_State.Socket);
-        _DNS_Server_State.isRunning = false;
+        _DNS_Server_State.IsRunning = false;
 
         return ESP_ERR_NO_MEM;
     }
@@ -204,11 +204,11 @@ esp_err_t DNS_Server_Start(void)
 
 void DNS_Server_Stop(void)
 {
-    if (_DNS_Server_State.isRunning == false) {
+    if (_DNS_Server_State.IsRunning == false) {
         return;
     }
 
-    _DNS_Server_State.isRunning = false;
+    _DNS_Server_State.IsRunning = false;
 
     if (_DNS_Server_State.Socket >= 0) {
         close(_DNS_Server_State.Socket);

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * settingsLoader.h
  *
  *  Copyright (C) Daniel Kampert, 2026
@@ -77,8 +77,8 @@
 /** @brief Settings Manager state.
  */
 typedef struct {
-    bool isInitialized;
-    nvs_handle_t NVS_Handle;
+    bool IsInitialized;
+    nvs_handle_t NVSHandle;
     Settings_t Settings;
     Settings_Info_t Info;
     SemaphoreHandle_t Mutex;

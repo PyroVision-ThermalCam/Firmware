@@ -27,6 +27,7 @@
 #include <esp_task_wdt.h>
 #include <esp_camera.h>
 #include <esp_camera_af.h>
+#include <esp_heap_caps.h>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -37,12 +38,14 @@
 
 #include "cameraTask.h"
 #include "Application/application.h"
+#include "AppDiag/appDiag.h"
 
 #define CAMERA_TASK_STOP_REQUEST           BIT0
+#define CAMERA_TASK_FOCUS_REQUEST          BIT1
 
-ESP_EVENT_DEFINE_BASE(CAMERA_EVENTS);
+ESP_EVENT_DEFINE_BASE(CAMERA_TASK_EVENTS);
 
-static const camera_config_t _Camera_Config = {
+static camera_config_t _CameraConfig = {
     .pin_pwdn = -1,
     .pin_reset = -1,
     .pin_xclk = -1,
@@ -78,16 +81,53 @@ static const camera_config_t _Camera_Config = {
 #endif
 };
 
+/** @brief Internal runtime state of the camera task.
+ *         Holds all FreeRTOS primitives required to manage the visible-light camera
+ *         hardware initialisation sequence and the running task lifecycle.
+ */
 typedef struct {
-    bool isInitialized;
-    bool isRunning;
-    TaskHandle_t TaskHandle;
-    EventGroupHandle_t EventGroup;
+    bool IsInitialized;                 /**< true after Camera_Task_Init() has completed successfully. */
+    bool IsRunning;                     /**< true while the FreeRTOS task is executing. */
+    TaskHandle_t TaskHandle;            /**< FreeRTOS task handle; NULL before Camera_Task_Start(). */
+    EventGroupHandle_t EventGroup;      /**< Event group used for intra-task synchronisation. */
+    sensor_t *Sensor;                   /**< Pointer to the camera sensor object, obtained from esp_camera_sensor_get() after initialisation. */
+    uint8_t *p_FrameBuffer;             /**< PSRAM frame buffer for one RGB565 QVGA frame (320 x 240 x 2 = 153,600 bytes); NULL before init. */
 } Camera_Task_State_t;
 
-static Camera_Task_State_t _Camera_Task_State;
+static Camera_Task_State_t _CameraTaskState;
 
 static const char *TAG = "cameraTask";
+
+/** @brief                  Event handler for the camera task to receive updates when camera events are triggered (e.g., focus requests).
+ *  @param p_HandlerArgs    Handler argument
+ *  @param Base             Event base
+ *  @param ID               Event ID
+ *  @param p_Data           Event-specific data
+ */
+static void on_Camera_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+{
+    ESP_LOGD(TAG, "Camera task event received: ID=%d", ID);
+
+    switch (ID) {
+        case CAMERA_TASK_EVENT_REQUEST_FOCUS: {
+            ESP_LOGD(TAG, "Focus request event received");
+
+            xEventGroupSetBits(_CameraTaskState.EventGroup, CAMERA_TASK_FOCUS_REQUEST);
+
+            break;
+        }
+        case CAMERA_TASK_EVENT_REQUEST_UPDATE_QUALITY: {
+            _CameraConfig.jpeg_quality = *static_cast<const uint8_t *>(p_Data);
+
+            break;
+        }
+        default: {
+            ESP_LOGW(TAG, "Unhandled camera task event ID: 0x%X", ID);
+
+            break;
+        }
+    }
+}
 
 /** @brief              Camera task main loop. Performs hardware initialisation on entry,
  *                      then posts CAMERA_EVENT_INIT_COMPLETE or CAMERA_EVENT_INIT_FAILED
@@ -97,9 +137,8 @@ static const char *TAG = "cameraTask";
 static void Task_Camera(void *p_Parameters)
 {
     esp_err_t Error;
-    sensor_t *s;
-    esp_camera_af_config_t Autofocus_Config = {
-        .mode = ESP_CAMERA_AF_MODE_AUTO,
+    esp_camera_af_config_t AutofocusConfig = {
+        .mode = ESP_CAMERA_AF_MODE_MANUAL,
         .step_size = 0,
         .range_min = 0,
         .range_max = 0,
@@ -108,48 +147,81 @@ static void Task_Camera(void *p_Parameters)
 
     ESP_LOGD(TAG, "Camera task started on core %d", xPortGetCoreID());
 
-    Error = esp_camera_init(&_Camera_Config);
-    if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize camera: 0x%x!", Error);
+    if (esp_camera_af_is_supported(_CameraTaskState.Sensor) == false) {
+        ESP_LOGE(TAG, "AF not supported by this sensor");
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_CAMERA, ESP_ERR_NOT_SUPPORTED);
     }
 
-    s = esp_camera_sensor_get();
-
-    if (esp_camera_af_is_supported(s) == false) {
-        ESP_LOGI(TAG, "AF: not supported by this sensor");
-    }
-
-    Error = esp_camera_af_init(s, &Autofocus_Config);
+    Error = esp_camera_af_init(_CameraTaskState.Sensor, &AutofocusConfig);
     if (Error != ESP_OK) {
-        /* AF init failure is non-fatal. Most likely cause: OV5640 module is fixed-focus
-         * (no VCM actuator). The internal MCU firmware is loaded but the actuator is
-         * missing, causing a timeout in ov5640_af_wait_fw_idle(). */
-        ESP_LOGW(TAG, "AF init failed (%d) - fixed-focus module? Continuing without AF.", Error);
+        ESP_LOGW(TAG, "AF init failed: 0x%x!", Error);
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_CAMERA, Error);
     } else {
-        ESP_LOGI(TAG, "AF initialized (AUTO mode)");
+        ESP_LOGD(TAG, "AF initialized (MANUAL mode)");
     }
 
     if (Error == ESP_OK) {
-        _Camera_Task_State.isInitialized = true;
-        esp_event_post(CAMERA_EVENTS, CAMERA_EVENT_INIT_COMPLETE, NULL, 0, portMAX_DELAY);
+        _CameraTaskState.IsInitialized = true;
 
         ESP_LOGI(TAG, "Camera initialized");
-    } else {
-        esp_event_post(CAMERA_EVENTS, CAMERA_EVENT_INIT_FAILED, &Error, sizeof(Error), portMAX_DELAY);
 
+        esp_event_post(CAMERA_TASK_EVENTS, CAMERA_EVENT_INIT_COMPLETE, NULL, 0, portMAX_DELAY);
+    } else {
         ESP_LOGE(TAG, "Camera init failed: 0x%x", Error);
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_CAMERA, Error);
+
+        esp_event_post(CAMERA_TASK_EVENTS, CAMERA_EVENT_INIT_FAILED, &Error, sizeof(Error), portMAX_DELAY);
     }
 
     esp_task_wdt_add(NULL);
 
-    while (_Camera_Task_State.isRunning) {
+    while (_CameraTaskState.IsRunning) {
+        EventBits_t EventBits;
+
         esp_task_wdt_reset();
-        vTaskDelay(pdMS_TO_TICKS(10));
+
+        EventBits = xEventGroupGetBits(_CameraTaskState.EventGroup);
+        if (EventBits & CAMERA_TASK_STOP_REQUEST) {
+            ESP_LOGI(TAG, "Stop request received");
+
+            _CameraTaskState.IsRunning = false;
+
+            xEventGroupClearBits(_CameraTaskState.EventGroup, CAMERA_TASK_STOP_REQUEST);
+
+            break;
+        }
+
+        if (EventBits & CAMERA_TASK_EVENT_REQUEST_FOCUS) {
+            ESP_LOGD(TAG, "Focus request received");
+
+            esp_camera_af_trigger(_CameraTaskState.Sensor);
+
+            xEventGroupClearBits(_CameraTaskState.EventGroup, CAMERA_TASK_EVENT_REQUEST_FOCUS);
+        }
+
+        camera_fb_t *Pic = esp_camera_fb_get();
+        if (Pic != NULL) {
+            /* Copy frame to PSRAM buffer and immediately release the DMA buffer back to the driver. */
+            memcpy(_CameraTaskState.p_FrameBuffer, Pic->buf, Pic->len);
+            esp_camera_fb_return(Pic);
+
+            App_Camera_Frame_t Frame = {
+                .Buffer = _CameraTaskState.p_FrameBuffer,
+                .Width  = Pic->width,
+                .Height = Pic->height
+            };
+
+            xQueueOverwrite(((App_Context_t *)p_Parameters)->Camera_FrameQueue, &Frame);
+        } else {
+            ESP_LOGW(TAG, "Failed to get camera frame buffer");
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(33));
     }
 
     ESP_LOGD(TAG, "Camera task shutting down");
 
-    _Camera_Task_State.TaskHandle = NULL;
+    _CameraTaskState.TaskHandle = NULL;
 
     esp_task_wdt_delete(NULL);
     vTaskDelete(NULL);
@@ -157,36 +229,67 @@ static void Task_Camera(void *p_Parameters)
 
 esp_err_t Camera_Task_Init(void)
 {
-    if (_Camera_Task_State.EventGroup != NULL) {
+    esp_err_t Error;
+
+    if (_CameraTaskState.EventGroup != NULL) {
         ESP_LOGW(TAG, "Already initialized");
 
         return ESP_OK;
     }
 
-    esp_camera_deinit();
-
-    _Camera_Task_State.EventGroup = xEventGroupCreate();
-    if (_Camera_Task_State.EventGroup == NULL) {
+    _CameraTaskState.EventGroup = xEventGroupCreate();
+    if (_CameraTaskState.EventGroup == NULL) {
         ESP_LOGE(TAG, "Failed to create event group!");
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_CAMERA, ESP_ERR_NO_MEM);
 
         return ESP_ERR_NO_MEM;
     }
+
+    /* RGB565 QVGA frame buffer: 320 x 240 x 2 = 153,600 bytes (PSRAM) */
+    _CameraTaskState.p_FrameBuffer = static_cast<uint8_t *>(heap_caps_malloc(320 * 240 * 2, MALLOC_CAP_SPIRAM));
+    if (_CameraTaskState.p_FrameBuffer == NULL) {
+        ESP_LOGE(TAG, "Failed to allocate camera frame buffer!");
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_CAMERA, ESP_ERR_NO_MEM);
+        vEventGroupDelete(_CameraTaskState.EventGroup);
+        _CameraTaskState.EventGroup = NULL;
+
+        return ESP_ERR_NO_MEM;
+    }
+
+    Error = esp_camera_init(&_CameraConfig);
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize camera: 0x%x!", Error);
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_CAMERA, Error);
+    }
+
+    _CameraTaskState.Sensor = esp_camera_sensor_get();
+
+    esp_event_handler_register(CAMERA_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Camera_Task_Event_Handler, NULL);
 
     return ESP_OK;
 }
 
 void Camera_Task_Deinit(void)
 {
-    if (_Camera_Task_State.isInitialized == false) {
+    if (_CameraTaskState.IsInitialized == false) {
         return;
     }
 
-    if (_Camera_Task_State.EventGroup != NULL) {
-        vEventGroupDelete(_Camera_Task_State.EventGroup);
-        _Camera_Task_State.EventGroup = NULL;
+    esp_camera_deinit();
+
+    if (_CameraTaskState.EventGroup != NULL) {
+        vEventGroupDelete(_CameraTaskState.EventGroup);
+        _CameraTaskState.EventGroup = NULL;
     }
 
-    _Camera_Task_State.isInitialized = false;
+    esp_event_handler_unregister(CAMERA_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Camera_Task_Event_Handler);
+
+    if (_CameraTaskState.p_FrameBuffer != NULL) {
+        heap_caps_free(_CameraTaskState.p_FrameBuffer);
+        _CameraTaskState.p_FrameBuffer = NULL;
+    }
+
+    _CameraTaskState.IsInitialized = false;
 
     return;
 }
@@ -197,19 +300,20 @@ esp_err_t Camera_Task_Start(App_Context_t *p_AppContext)
 
     if (p_AppContext == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (_Camera_Task_State.isRunning) {
+    } else if (_CameraTaskState.IsRunning) {
         ESP_LOGW(TAG, "Task already running");
         return ESP_OK;
     }
 
-    _Camera_Task_State.isRunning = true;
+    _CameraTaskState.IsRunning = true;
 
     ESP_LOGD(TAG, "Starting Camera Task");
 
     Error = xTaskCreatePinnedToCore(Task_Camera, "Task_Camera", CONFIG_CAMERA_TASK_STACKSIZE, p_AppContext,
-                                    CONFIG_CAMERA_TASK_PRIO, &_Camera_Task_State.TaskHandle, CONFIG_CAMERA_TASK_CORE);
+                                    CONFIG_CAMERA_TASK_PRIO, &_CameraTaskState.TaskHandle, CONFIG_CAMERA_TASK_CORE);
     if (Error != pdPASS) {
         ESP_LOGE(TAG, "Failed to create Camera Task: 0x%X!", Error);
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_CAMERA, ESP_ERR_NO_MEM);
 
         return ESP_ERR_NO_MEM;
     }
@@ -219,18 +323,18 @@ esp_err_t Camera_Task_Start(App_Context_t *p_AppContext)
 
 esp_err_t Camera_Task_Stop(void)
 {
-    if (_Camera_Task_State.isRunning == false) {
+    if (_CameraTaskState.IsRunning == false) {
         return ESP_OK;
     }
 
     ESP_LOGD(TAG, "Stopping Camera Task");
 
-    xEventGroupSetBits(_Camera_Task_State.EventGroup, CAMERA_TASK_STOP_REQUEST);
+    xEventGroupSetBits(_CameraTaskState.EventGroup, CAMERA_TASK_STOP_REQUEST);
 
     return ESP_OK;
 }
 
 bool Camera_Task_IsRunning(void)
 {
-    return _Camera_Task_State.isRunning;
+    return _CameraTaskState.IsRunning;
 }

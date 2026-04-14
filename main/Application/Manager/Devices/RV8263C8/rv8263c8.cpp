@@ -1,4 +1,4 @@
-/*
+﻿/*
  * rv8263c8.cpp
  *
  *  Copyright (C) Daniel Kampert, 2026
@@ -257,7 +257,7 @@ esp_err_t RV8263C8_Init(i2c_master_bus_handle_t *p_Bus_Handle, RV8263C8_Dev_t *p
 
     ESP_LOGD(TAG, "RV8263-C8 RTC initialized successfully");
 
-    p_Device->isInitialized = true;
+    p_Device->IsInitialized = true;
 
     return ESP_OK;
 }
@@ -279,7 +279,7 @@ esp_err_t RV8263C8_Deinit(RV8263C8_Dev_t *p_Device)
 
     ESP_LOGD(TAG, "RV8263C8 deinitialized");
 
-    p_Device->isInitialized = false;
+    p_Device->IsInitialized = false;
     p_Device->Handle = NULL;
 
     return ESP_OK;
@@ -292,7 +292,7 @@ esp_err_t RV8263C8_GetTime(RV8263C8_Dev_t *p_Device, struct tm *p_Time)
 
     if ((p_Time == NULL) || (p_Device == NULL)) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -335,7 +335,7 @@ esp_err_t RV8263C8_SetTime(RV8263C8_Dev_t *p_Device, const struct tm *p_Time)
 
     if ((p_Time == NULL) || (p_Device == NULL)) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -379,7 +379,7 @@ esp_err_t RV8263C8_SetAlarm(RV8263C8_Dev_t *p_Device, const RV8263C8_Alarm_t *p_
 
     if ((p_Alarm == NULL) || (p_Device == NULL)) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -397,7 +397,7 @@ esp_err_t RV8263C8_EnableAlarmInterrupt(RV8263C8_Dev_t *p_Device, bool Enable)
 {
     if (p_Device == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -409,7 +409,7 @@ esp_err_t RV8263C8_ClearAlarmFlag(RV8263C8_Dev_t *p_Device)
 {
     if (p_Device == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -422,7 +422,7 @@ bool RV8263C8_IsAlarmTriggered(RV8263C8_Dev_t *p_Device)
 
     if (p_Device == NULL) {
         return false;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return false;
     }
 
@@ -443,7 +443,7 @@ esp_err_t RV8263C8_SetTimer(RV8263C8_Dev_t *p_Device, uint8_t Value, RV8263C8_Ti
 
     if (p_Device == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -466,7 +466,7 @@ esp_err_t RV8263C8_StopTimer(RV8263C8_Dev_t *p_Device)
 {
     if (p_Device == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -477,7 +477,7 @@ esp_err_t RV8263C8_SoftwareReset(RV8263C8_Dev_t *p_Device)
 {
     if (p_Device == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 

@@ -33,13 +33,13 @@
 #include "Application/application.h"
 #include "Application/Manager/Memory/memoryManager.h"
 
-extern GUI_Task_State_t _GUI_Task_State;
+extern GUI_Task_State_t _GUITaskState;
 
 static const char *TAG = "GUI-ImgSave";
 
 void Task_ImageSave(void *p_Param)
 {
-    App_Lepton_FrameReady_t Frame;
+    App_Lepton_Frame_t Frame;
     char FilePath[128];
 
     ESP_LOGD(TAG, "Image save task started");
@@ -47,7 +47,7 @@ void Task_ImageSave(void *p_Param)
     while (true) {
         uint32_t Caps;
 
-        if (xQueueReceive(_GUI_Task_State.ImageSaveQueue, &Frame, portMAX_DELAY) != pdTRUE) {
+        if (xQueueReceive(_GUITaskState.ImageSaveQueue, &Frame, portMAX_DELAY) != pdTRUE) {
             continue;
         }
 
@@ -152,18 +152,18 @@ void Task_ImageSave(void *p_Param)
         /* Write image data row by row */
         for (uint32_t y = 0; y < Frame.Height; y++) {
             for (uint32_t x = 0; x < Frame.Width; x++) {
-                uint32_t idx = (y * Frame.Width + x) * 2;  /* RGB565 = 2 bytes per pixel */
-                uint16_t rgb565 = Frame.Buffer[idx] | (Frame.Buffer[idx + 1] << 8);
+                uint32_t Idx = (y * Frame.Width + x) * 2;  /* RGB565 = 2 bytes per pixel */
+                uint16_t Rgb565 = Frame.Buffer[Idx] | (Frame.Buffer[Idx + 1] << 8);
 
                 /* Convert RGB565 to RGB888 */
-                uint8_t r = ((rgb565 >> 11) & 0x1F) << 3;
-                uint8_t g = ((rgb565 >> 5) & 0x3F) << 2;
-                uint8_t b = (rgb565 & 0x1F) << 3;
+                uint8_t R = ((Rgb565 >> 11) & 0x1F) << 3;
+                uint8_t G = ((Rgb565 >> 5) & 0x3F) << 2;
+                uint8_t B = (Rgb565 & 0x1F) << 3;
 
                 /* PNG uses RGB format */
-                LineBuffer[x * 3 + 0] = r;
-                LineBuffer[x * 3 + 1] = g;
-                LineBuffer[x * 3 + 2] = b;
+                LineBuffer[x * 3 + 0] = R;
+                LineBuffer[x * 3 + 1] = G;
+                LineBuffer[x * 3 + 2] = B;
             }
 
             png_write_row(png_ptr, LineBuffer);

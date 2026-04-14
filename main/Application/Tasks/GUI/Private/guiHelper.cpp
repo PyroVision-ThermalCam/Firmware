@@ -169,80 +169,67 @@ inline void GUI_LVGL_TickTimer_CB(void *p_Arg)
  */
 static void GUI_LCD_Flush_CB(lv_display_t *p_Disp, const lv_area_t *p_Area, uint8_t *p_PxMap)
 {
-    int offsetx1 = p_Area->x1;
-    int offsetx2 = p_Area->x2;
-    int offsety1 = p_Area->y1;
-    int offsety2 = p_Area->y2;
+    int OffsetX1 = p_Area->x1;
+    int OffsetX2 = p_Area->x2;
+    int OffsetY1 = p_Area->y1;
+    int OffsetY2 = p_Area->y2;
 
-    esp_lcd_panel_draw_bitmap(static_cast<esp_lcd_panel_handle_t>(lv_display_get_user_data(p_Disp)), offsetx1, offsety1,
-                              offsetx2 + 1, offsety2 + 1, p_PxMap);
+    esp_lcd_panel_draw_bitmap(static_cast<esp_lcd_panel_handle_t>(lv_display_get_user_data(p_Disp)), OffsetX1, OffsetY1,
+                              OffsetX2 + 1, OffsetY2 + 1, p_PxMap);
 }
 
-esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t Touch_Read_Callback)
+esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUITaskState, lv_indev_read_cb_t Touch_Read_Callback)
 {
     uint32_t Caps;
 
-#if (CONFIG_LCD_BL != -1)
-    ESP_LOGD(TAG, "Configure LCD backlight GPIO...");
-    gpio_config_t bk_gpio_config = {
-        .pin_bit_mask = 1ULL << CONFIG_LCD_BL,
-        .mode = GPIO_MODE_OUTPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE,
-    };
-    ESP_ERROR_CHECK(gpio_config(&bk_gpio_config));
-    gpio_set_level(static_cast<gpio_num_t>(CONFIG_LCD_BL), LCD_BK_LIGHT_ON_LEVEL);
-#endif
-
     ESP_LOGD(TAG, "Create I2C bus for touch controller...");
 
-    p_GUI_Task_State->Touch_Bus_Handle = DevicesManager_GetTouchI2CBusHandle();
+    p_GUITaskState->Touch_Bus_Handle = DevicesManager_GetTouchI2CBusHandle();
 
     ESP_LOGD(TAG, "Create panel IO...");
     ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(static_cast<esp_lcd_spi_bus_handle_t>(LCD_SPI_HOST), &_GUI_Panel_IO_Config,
-                                             &p_GUI_Task_State->Panel_IO_Handle));
-    ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(p_GUI_Task_State->Touch_Bus_Handle, &_GUI_Touch_IO_Config,
-                                             &p_GUI_Task_State->Touch_IO_Handle));
+                                             &p_GUITaskState->Panel_IO_Handle));
+    ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(p_GUITaskState->Touch_Bus_Handle, &_GUI_Touch_IO_Config,
+                                             &p_GUITaskState->Touch_IO_Handle));
 
     ESP_LOGD(TAG, "Initialize LVGL library and display...");
     lv_init();
-    p_GUI_Task_State->Display = lv_display_create(CONFIG_GUI_WIDTH, CONFIG_GUI_HEIGHT);
+    p_GUITaskState->Display = lv_display_create(CONFIG_GUI_WIDTH, CONFIG_GUI_HEIGHT);
 
     ESP_LOGD(TAG, "Register LCD panel IO callbacks...");
-    ESP_ERROR_CHECK(esp_lcd_panel_io_register_event_callbacks(p_GUI_Task_State->Panel_IO_Handle, &_GUI_Panel_Callbacks,
-                                                              p_GUI_Task_State->Display));
+    ESP_ERROR_CHECK(esp_lcd_panel_io_register_event_callbacks(p_GUITaskState->Panel_IO_Handle, &_GUI_Panel_Callbacks,
+                                                              p_GUITaskState->Display));
 
     ESP_LOGD(TAG, "Install ILI9341 panel driver...");
-    ESP_ERROR_CHECK(esp_lcd_new_panel_ili9341(p_GUI_Task_State->Panel_IO_Handle, &_GUI_Panel_Config,
-                                              &p_GUI_Task_State->PanelHandle));
+    ESP_ERROR_CHECK(esp_lcd_new_panel_ili9341(p_GUITaskState->Panel_IO_Handle, &_GUI_Panel_Config,
+                                              &p_GUITaskState->PanelHandle));
     ESP_LOGD(TAG, " ILI9341 panel driver installed");
 
     ESP_LOGD(TAG, "Reset the panel...");
-    ESP_ERROR_CHECK(esp_lcd_panel_reset(p_GUI_Task_State->PanelHandle));
+    ESP_ERROR_CHECK(esp_lcd_panel_reset(p_GUITaskState->PanelHandle));
     vTaskDelay(pdMS_TO_TICKS(100));
     ESP_LOGD(TAG, " Panel reset complete");
 
     ESP_LOGD(TAG, "Initialize the panel...");
-    ESP_ERROR_CHECK(esp_lcd_panel_init(p_GUI_Task_State->PanelHandle));
+    ESP_ERROR_CHECK(esp_lcd_panel_init(p_GUITaskState->PanelHandle));
     vTaskDelay(pdMS_TO_TICKS(100));
     ESP_LOGD(TAG, " Panel initialized");
 
     ESP_LOGD(TAG, "Configure panel for landscape mode...");
-    ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(p_GUI_Task_State->PanelHandle, true));
+    ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(p_GUITaskState->PanelHandle, true));
     ESP_LOGD(TAG, " Panel swap_xy enabled for landscape");
 
     ESP_LOGD(TAG, "Configure panel mirroring...");
-    ESP_ERROR_CHECK(esp_lcd_panel_mirror(p_GUI_Task_State->PanelHandle, true, true));
+    ESP_ERROR_CHECK(esp_lcd_panel_mirror(p_GUITaskState->PanelHandle, true, true));
     ESP_LOGD(TAG, " Panel mirroring configured (180 degree rotation)");
 
     ESP_LOGD(TAG, "Turn ON the panel display...");
-    ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(p_GUI_Task_State->PanelHandle, true));
+    ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(p_GUITaskState->PanelHandle, true));
     vTaskDelay(pdMS_TO_TICKS(100));
     ESP_LOGD(TAG, " Panel display turned ON");
 
-    lv_display_set_flush_cb(p_GUI_Task_State->Display, GUI_LCD_Flush_CB);
-    lv_display_set_user_data(p_GUI_Task_State->Display, p_GUI_Task_State->PanelHandle);
+    lv_display_set_flush_cb(p_GUITaskState->Display, GUI_LCD_Flush_CB);
+    lv_display_set_user_data(p_GUITaskState->Display, p_GUITaskState->PanelHandle);
 
 #ifdef CONFIG_SPIRAM
     Caps = MALLOC_CAP_SPIRAM;
@@ -250,18 +237,18 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t
     Caps = 0;
 #endif
 
-    p_GUI_Task_State->DisplayBuffer1 = heap_caps_malloc(GUI_DRAW_BUFFER_SIZE, Caps);
-    p_GUI_Task_State->DisplayBuffer2 = heap_caps_malloc(GUI_DRAW_BUFFER_SIZE, Caps);
+    p_GUITaskState->DisplayBuffer1 = heap_caps_malloc(GUI_DRAW_BUFFER_SIZE, Caps);
+    p_GUITaskState->DisplayBuffer2 = heap_caps_malloc(GUI_DRAW_BUFFER_SIZE, Caps);
     ESP_LOGD(TAG, "Allocated LVGL buffers: %d bytes each in PSRAM", GUI_DRAW_BUFFER_SIZE);
-    if ((p_GUI_Task_State->DisplayBuffer1 == NULL) || (p_GUI_Task_State->DisplayBuffer2 == NULL)) {
+    if ((p_GUITaskState->DisplayBuffer1 == NULL) || (p_GUITaskState->DisplayBuffer2 == NULL)) {
         ESP_LOGE(TAG, "Failed to allocate LVGL draw buffers!");
 
         return ESP_ERR_NO_MEM;
     }
 
-    lv_display_set_buffers(p_GUI_Task_State->Display,
-                           p_GUI_Task_State->DisplayBuffer1,
-                           p_GUI_Task_State->DisplayBuffer2,
+    lv_display_set_buffers(p_GUITaskState->Display,
+                           p_GUITaskState->DisplayBuffer1,
+                           p_GUITaskState->DisplayBuffer2,
                            GUI_DRAW_BUFFER_SIZE,
                            LV_DISPLAY_RENDER_MODE_PARTIAL);
 
@@ -274,8 +261,8 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t
      * GT911 is initialized later via GUI_Helper_InitTouch(), called from the GUI task
      * once the LEPTON_CAMERA_READY event is received.
      */
-    p_GUI_Task_State->TouchHandle = NULL;
-    p_GUI_Task_State->Touch = NULL;
+    p_GUITaskState->TouchHandle = NULL;
+    p_GUITaskState->Touch = NULL;
 
     const esp_timer_create_args_t LVGL_TickTimer_args = {
         .callback = &GUI_LVGL_TickTimer_CB,
@@ -285,144 +272,144 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t
         .skip_unhandled_events = false,
     };
 
-    p_GUI_Task_State->EventGroup = xEventGroupCreate();
-    if (p_GUI_Task_State->EventGroup == NULL) {
+    p_GUITaskState->EventGroup = xEventGroupCreate();
+    if (p_GUITaskState->EventGroup == NULL) {
         ESP_LOGE(TAG, "Failed to create GUI event group!");
 
         return ESP_ERR_NO_MEM;
     }
 
-    ESP_ERROR_CHECK(esp_timer_create(&LVGL_TickTimer_args, &p_GUI_Task_State->LVGL_TickTimer));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(p_GUI_Task_State->LVGL_TickTimer, CONFIG_GUI_LVGL_TICK_PERIOD_MS * 1000));
+    ESP_ERROR_CHECK(esp_timer_create(&LVGL_TickTimer_args, &p_GUITaskState->LVGL_TickTimer));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(p_GUITaskState->LVGL_TickTimer, CONFIG_GUI_LVGL_TICK_PERIOD_MS * 1000));
 
-    p_GUI_Task_State->UpdateTimer[0] = lv_timer_create(GUI_Helper_Timer_ClockUpdate, 100, NULL);
-    p_GUI_Task_State->UpdateTimer[1] = lv_timer_create(GUI_Helper_Timer_SpotUpdate, 2000, NULL);
-    p_GUI_Task_State->UpdateTimer[2] = lv_timer_create(GUI_Helper_Timer_SceneStatisticsUpdate, 5000, NULL);
-    p_GUI_Task_State->UpdateTimer[3] = lv_timer_create(GUI_Helper_Timer_RAMUpdate, 5000, NULL);
-    p_GUI_Task_State->UpdateTimer[4] = lv_timer_create(GUI_Helper_Timer_MemoryUpdate, 3000, NULL);
+    p_GUITaskState->UpdateTimer[0] = lv_timer_create(GUI_Helper_Timer_ClockUpdate, 100, NULL);
+    p_GUITaskState->UpdateTimer[1] = lv_timer_create(GUI_Helper_Timer_SpotUpdate, 2000, NULL);
+    p_GUITaskState->UpdateTimer[2] = lv_timer_create(GUI_Helper_Timer_SceneStatisticsUpdate, 5000, NULL);
+    p_GUITaskState->UpdateTimer[3] = lv_timer_create(GUI_Helper_Timer_RAMUpdate, 5000, NULL);
+    p_GUITaskState->UpdateTimer[4] = lv_timer_create(GUI_Helper_Timer_MemoryUpdate, 3000, NULL);
 
-    _lock_init(&p_GUI_Task_State->LVGL_API_Lock);
+    _lock_init(&p_GUITaskState->LVGL_API_Lock);
 
     return ESP_OK;
 }
 
-void GUI_Helper_Deinit(GUI_Task_State_t *p_GUI_Task_State)
+void GUI_Helper_Deinit(GUI_Task_State_t *p_GUITaskState)
 {
-    if (p_GUI_Task_State->isInitialized == false) {
+    if (p_GUITaskState->IsInitialized == false) {
         return;
     }
 
-    for (uint32_t i = 0; i < sizeof(p_GUI_Task_State->UpdateTimer) / sizeof(p_GUI_Task_State->UpdateTimer[0]); i++) {
-        if (p_GUI_Task_State->UpdateTimer[i] != NULL) {
-            lv_timer_delete(p_GUI_Task_State->UpdateTimer[i]);
-            p_GUI_Task_State->UpdateTimer[i] = NULL;
+    for (uint32_t i = 0; i < sizeof(p_GUITaskState->UpdateTimer) / sizeof(p_GUITaskState->UpdateTimer[0]); i++) {
+        if (p_GUITaskState->UpdateTimer[i] != NULL) {
+            lv_timer_delete(p_GUITaskState->UpdateTimer[i]);
+            p_GUITaskState->UpdateTimer[i] = NULL;
         }
     }
 
-    if (p_GUI_Task_State->LVGL_TickTimer != NULL) {
-        esp_timer_stop(p_GUI_Task_State->LVGL_TickTimer);
-        esp_timer_delete(p_GUI_Task_State->LVGL_TickTimer);
-        p_GUI_Task_State->LVGL_TickTimer = NULL;
+    if (p_GUITaskState->LVGL_TickTimer != NULL) {
+        esp_timer_stop(p_GUITaskState->LVGL_TickTimer);
+        esp_timer_delete(p_GUITaskState->LVGL_TickTimer);
+        p_GUITaskState->LVGL_TickTimer = NULL;
     }
 
-    if (p_GUI_Task_State->EventGroup != NULL) {
-        vEventGroupDelete(p_GUI_Task_State->EventGroup);
-        p_GUI_Task_State->EventGroup = NULL;
+    if (p_GUITaskState->EventGroup != NULL) {
+        vEventGroupDelete(p_GUITaskState->EventGroup);
+        p_GUITaskState->EventGroup = NULL;
     }
 
-    if (p_GUI_Task_State->Touch != NULL) {
-        lv_indev_delete(p_GUI_Task_State->Touch);
-        p_GUI_Task_State->Touch = NULL;
+    if (p_GUITaskState->Touch != NULL) {
+        lv_indev_delete(p_GUITaskState->Touch);
+        p_GUITaskState->Touch = NULL;
     }
 
-    if (p_GUI_Task_State->Keypad != NULL) {
-        lv_indev_delete(p_GUI_Task_State->Keypad);
-        p_GUI_Task_State->Keypad = NULL;
+    if (p_GUITaskState->Keypad != NULL) {
+        lv_indev_delete(p_GUITaskState->Keypad);
+        p_GUITaskState->Keypad = NULL;
     }
 
-    esp_lcd_touch_del(p_GUI_Task_State->TouchHandle);
+    esp_lcd_touch_del(p_GUITaskState->TouchHandle);
 
-    if (p_GUI_Task_State->Display != NULL) {
-        lv_display_delete(p_GUI_Task_State->Display);
-        p_GUI_Task_State->Display = NULL;
+    if (p_GUITaskState->Display != NULL) {
+        lv_display_delete(p_GUITaskState->Display);
+        p_GUITaskState->Display = NULL;
     }
 
-    if (p_GUI_Task_State->DisplayBuffer1 != NULL) {
-        heap_caps_free(p_GUI_Task_State->DisplayBuffer1);
-        p_GUI_Task_State->DisplayBuffer1 = NULL;
+    if (p_GUITaskState->DisplayBuffer1 != NULL) {
+        heap_caps_free(p_GUITaskState->DisplayBuffer1);
+        p_GUITaskState->DisplayBuffer1 = NULL;
     }
 
-    if (p_GUI_Task_State->DisplayBuffer2 != NULL) {
-        heap_caps_free(p_GUI_Task_State->DisplayBuffer2);
-        p_GUI_Task_State->DisplayBuffer2 = NULL;
+    if (p_GUITaskState->DisplayBuffer2 != NULL) {
+        heap_caps_free(p_GUITaskState->DisplayBuffer2);
+        p_GUITaskState->DisplayBuffer2 = NULL;
     }
 
-    if (p_GUI_Task_State->Touch_IO_Handle != NULL) {
-        esp_lcd_panel_io_del(p_GUI_Task_State->Touch_IO_Handle);
-        p_GUI_Task_State->Touch_IO_Handle = NULL;
+    if (p_GUITaskState->Touch_IO_Handle != NULL) {
+        esp_lcd_panel_io_del(p_GUITaskState->Touch_IO_Handle);
+        p_GUITaskState->Touch_IO_Handle = NULL;
     }
 
-    if (p_GUI_Task_State->PanelHandle != NULL) {
-        esp_lcd_panel_del(p_GUI_Task_State->PanelHandle);
-        p_GUI_Task_State->PanelHandle = NULL;
+    if (p_GUITaskState->PanelHandle != NULL) {
+        esp_lcd_panel_del(p_GUITaskState->PanelHandle);
+        p_GUITaskState->PanelHandle = NULL;
     }
 
-    _lock_close(&p_GUI_Task_State->LVGL_API_Lock);
+    _lock_close(&p_GUITaskState->LVGL_API_Lock);
 }
 
-esp_err_t GUI_Helper_InitTouch(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t Touch_Read_Callback)
+esp_err_t GUI_Helper_InitTouch(GUI_Task_State_t *p_GUITaskState, lv_indev_read_cb_t Touch_Read_Callback)
 {
     esp_err_t Error;
 
-    if (p_GUI_Task_State == NULL) {
+    if (p_GUITaskState == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    if (p_GUI_Task_State->Touch_IO_Handle == NULL) {
+    if (p_GUITaskState->Touch_IO_Handle == NULL) {
         ESP_LOGE(TAG, "Touch IO handle not initialized!");
 
         return ESP_ERR_INVALID_STATE;
     }
 
-    if (p_GUI_Task_State->TouchHandle != NULL) {
+    if (p_GUITaskState->TouchHandle != NULL) {
         ESP_LOGW(TAG, "GT911 already initialized, skipping");
 
         return ESP_OK;
     }
 
     ESP_LOGD(TAG, "Initializing GT911 touch controller (post-Lepton-boot)...");
-    Error = esp_lcd_touch_new_i2c_gt911(p_GUI_Task_State->Touch_IO_Handle, &_GUI_Touch_Config,
-                                        &p_GUI_Task_State->TouchHandle);
+    Error = esp_lcd_touch_new_i2c_gt911(p_GUITaskState->Touch_IO_Handle, &_GUI_Touch_Config,
+                                        &p_GUITaskState->TouchHandle);
     if (Error != ESP_OK) {
         ESP_LOGW(TAG, "GT911 touch controller initialization failed (0x%x)", Error);
         ESP_LOGW(TAG, "System will continue without touch functionality");
 
-        p_GUI_Task_State->TouchHandle = NULL;
-        p_GUI_Task_State->Touch = NULL;
+        p_GUITaskState->TouchHandle = NULL;
+        p_GUITaskState->Touch = NULL;
 
         return ESP_OK;
     }
 
     ESP_LOGD(TAG, "GT911 initialized, registering LVGL indev...");
-    p_GUI_Task_State->Touch = lv_indev_create();
-    lv_indev_set_type(p_GUI_Task_State->Touch, LV_INDEV_TYPE_POINTER);
-    lv_indev_set_display(p_GUI_Task_State->Touch, p_GUI_Task_State->Display);
-    lv_indev_set_read_cb(p_GUI_Task_State->Touch, Touch_Read_Callback);
-    lv_indev_set_user_data(p_GUI_Task_State->Touch, p_GUI_Task_State->TouchHandle);
+    p_GUITaskState->Touch = lv_indev_create();
+    lv_indev_set_type(p_GUITaskState->Touch, LV_INDEV_TYPE_POINTER);
+    lv_indev_set_display(p_GUITaskState->Touch, p_GUITaskState->Display);
+    lv_indev_set_read_cb(p_GUITaskState->Touch, Touch_Read_Callback);
+    lv_indev_set_user_data(p_GUITaskState->Touch, p_GUITaskState->TouchHandle);
 
     return ESP_OK;
 }
 
-esp_err_t GUI_Helper_InitKeypad(GUI_Task_State_t *p_GUI_Task_State, lv_indev_read_cb_t Keypad_Read_Callback)
+esp_err_t GUI_Helper_InitKeypad(GUI_Task_State_t *p_GUITaskState, lv_indev_read_cb_t Keypad_Read_Callback)
 {
-    if (p_GUI_Task_State == NULL) {
+    if (p_GUITaskState == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    p_GUI_Task_State->Keypad = lv_indev_create();
-    lv_indev_set_type(p_GUI_Task_State->Keypad, LV_INDEV_TYPE_KEYPAD);
-    lv_indev_set_display(p_GUI_Task_State->Keypad, p_GUI_Task_State->Display);
-    lv_indev_set_read_cb(p_GUI_Task_State->Keypad, Keypad_Read_Callback);
+    p_GUITaskState->Keypad = lv_indev_create();
+    lv_indev_set_type(p_GUITaskState->Keypad, LV_INDEV_TYPE_KEYPAD);
+    lv_indev_set_display(p_GUITaskState->Keypad, p_GUITaskState->Display);
+    lv_indev_set_read_cb(p_GUITaskState->Keypad, Keypad_Read_Callback);
 
     ESP_LOGD(TAG, "Keypad indev registered");
 
@@ -480,15 +467,15 @@ void GUI_Helper_Timer_SceneStatisticsUpdate(lv_timer_t *p_Timer)
 void GUI_Helper_Timer_RAMUpdate(lv_timer_t *p_Timer)
 {
     (void)p_Timer;
-    char Buffer[16];
+    char Buffer[32];
 
-    if (lv_display_get_screen_active(lv_display_get_default()) != ui_Menu) {
+    if (lv_display_get_screen_active(lv_display_get_default()) != ui_Info) {
         return;
     }
 
-    sprintf(Buffer, "%u KB", heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024);
+    snprintf(Buffer, sizeof(Buffer), "%u KB / %u KB", heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024, heap_caps_get_total_size(MALLOC_CAP_SPIRAM) / 1024);
     lv_label_set_text(ui_Label_Info_PSRAM_Free, Buffer);
-    sprintf(Buffer, "%u KB", heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024);
+    snprintf(Buffer, sizeof(Buffer), "%u KB / %u KB", heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024, heap_caps_get_total_size(MALLOC_CAP_INTERNAL) / 1024);
     lv_label_set_text(ui_Label_Info_RAM_Free, Buffer);
 }
 
@@ -496,7 +483,7 @@ void GUI_Helper_Timer_MemoryUpdate(lv_timer_t *p_Timer)
 {
     (void)p_Timer;
 
-    if (lv_display_get_screen_active(lv_display_get_default()) != ui_Menu) {
+    if (lv_display_get_screen_active(lv_display_get_default()) != ui_Info) {
         return;
     }
 

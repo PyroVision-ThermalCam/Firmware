@@ -4,7 +4,7 @@
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
  *  File info: Global diagnostics / error-capture system.
- *             Collects runtime errors from all managers in a thread-safe ring buffer
+ *             Collects runtime errors from all managers and tasks in a thread-safe ring buffer
  *             together with a microsecond timestamp and a short context string.
  *             The buffer can later be read back for on-screen display, VISA queries,
  *             or logging to SD card.
@@ -43,7 +43,7 @@
 #define APP_DIAG_CONTEXT_LEN        48
 
 /** @defgroup APP_DIAG_SOURCES Diagnostic Source Identifiers
- *  @brief Identifies which manager produced a diagnostic entry.
+ *  @brief Identifies which manager or task produced a diagnostic entry.
  *  @{
  */
 
@@ -56,6 +56,11 @@ typedef enum {
     APP_DIAG_SOURCE_TIME,           /**< Time Manager. */
     APP_DIAG_SOURCE_USB,            /**< USB Manager. */
     APP_DIAG_SOURCE_APPLICATION,    /**< Application / task layer. */
+    APP_DIAG_SOURCE_TASK_LEPTON,    /**< Lepton camera task. */
+    APP_DIAG_SOURCE_TASK_NETWORK,   /**< Network task. */
+    APP_DIAG_SOURCE_TASK_DEVICES,   /**< Devices task. */
+    APP_DIAG_SOURCE_TASK_GUI,       /**< GUI task. */
+    APP_DIAG_SOURCE_TASK_CAMERA,    /**< Camera task. */
     APP_DIAG_SOURCE_COUNT,          /**< Number of source identifiers — keep last. */
 } AppDiag_Source_t;
 
@@ -64,10 +69,10 @@ typedef enum {
 /** @brief Single diagnostic entry stored in the ring buffer.
  */
 typedef struct {
-    int64_t             TimestampUs;                    /**< Microseconds since boot (esp_timer_get_time()). */
-    AppDiag_Source_t    Source;                         /**< Manager or subsystem that recorded the entry. */
-    esp_err_t           ErrorCode;                      /**< esp_err_t value (may be a manager-specific code). */
-    char                Context[APP_DIAG_CONTEXT_LEN];  /**< Short NUL-terminated context string (caller-supplied). */
+    int64_t TimestampUs;                        /**< Microseconds since boot (esp_timer_get_time()). */
+    AppDiag_Source_t Source;                    /**< Manager or subsystem that recorded the entry. */
+    esp_err_t ErrorCode;                        /**< esp_err_t value (may be a manager-specific code). */
+    char Context[APP_DIAG_CONTEXT_LEN];         /**< Short NUL-terminated context string (caller-supplied). */
 } AppDiag_Entry_t;
 
 /** @brief          Initialise the diagnostics module.
@@ -128,7 +133,7 @@ void AppDiag_Clear(void);
 
 /** @brief          Convenience macro: record an error and use the calling function's name
  *                  as the context string automatically.
- *  @param source   AppDiag_Source_t value identifying the calling manager.
+ *  @param source   AppDiag_Source_t value identifying the calling manager or task.
  *  @param code     esp_err_t error code to record.
  */
 #define APP_DIAG_RECORD(source, code)   AppDiag_RecordError((source), (code), __func__)

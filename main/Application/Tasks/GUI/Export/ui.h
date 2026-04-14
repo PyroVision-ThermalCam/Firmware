@@ -28,14 +28,15 @@ extern "C" {
 
 // EVENTS
 
-extern lv_obj_t *ui____initial_actions0;
+extern lv_obj_t * ui____initial_actions0;
 
 // IMAGES AND IMAGE SETS
 LV_IMG_DECLARE(ui_img_logo_80x44_png);    // assets/Logo_80x44.png
 LV_IMG_DECLARE(ui_img_text_218x40_png);    // assets/Text_218x40.png
 
 // FONTS
-LV_FONT_DECLARE(ui_font_fa);
+LV_FONT_DECLARE(ui_font_fa12);
+LV_FONT_DECLARE(ui_font_fa16);
 
 // UI INIT
 void ui_init(void);

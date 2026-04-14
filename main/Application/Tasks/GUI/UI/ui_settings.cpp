@@ -22,6 +22,7 @@
  */
 
 #include <esp_event.h>
+#include <esp_task_wdt.h>
 
 #include <string>
 #include <string.h>
@@ -895,8 +896,7 @@ void ui_settings_init(lv_obj_t *p_Parent)
     lv_obj_remove_flag(ui_Button_Menu_Save, LV_OBJ_FLAG_HIDDEN);
 
     esp_event_handler_register(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler, NULL);
-    esp_event_handler_register(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler, NULL);
-    esp_event_handler_register(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler, NULL);
+    esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_WIFI_CHANGED, on_Settings_Event_Handler, NULL);
 
     /* Synchronize USB switch state with current cable connection status.
        If the cable was already connected before the settings page was opened,
@@ -914,8 +914,7 @@ void ui_settings_deinit(lv_obj_t *p_Parent)
         lv_obj_delete(settings_Menu);
 
         esp_event_handler_unregister(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler);
-        esp_event_handler_unregister(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler);
-        esp_event_handler_unregister(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler);
+        esp_event_handler_unregister(SETTINGS_EVENTS, SETTINGS_EVENT_WIFI_CHANGED, on_Settings_Event_Handler);
     }
 }
 
@@ -929,26 +928,26 @@ void ui_settings_update_memory_usage(void)
         return;
     }
 
-    if (memory_storage_used_label && memory_storage_free_label) {
-        if (MemoryManager_GetStorageUsage(&Usage) == ESP_OK) {
-            if (Usage.TotalBytes >= (1024 * 1024)) {
-                lv_label_set_text_fmt(memory_storage_used_label, "%.2f MB", Usage.UsedBytes / (1024.0f * 1024.0f));
-                lv_label_set_text_fmt(memory_storage_free_label, "%.2f MB", Usage.FreeBytes / (1024.0f * 1024.0f));
-            } else {
-                lv_label_set_text_fmt(memory_storage_used_label, "%.1f KB", Usage.UsedBytes / 1024.0f);
-                lv_label_set_text_fmt(memory_storage_free_label, "%.1f KB", Usage.FreeBytes / 1024.0f);
-            }
+    esp_task_wdt_reset();
 
-            ESP_LOGD(TAG, "Updated flash storage usage: Used %u bytes, Free %u bytes", Usage.UsedBytes, Usage.FreeBytes);
+    if (MemoryManager_GetStorageUsage(&Usage) == ESP_OK) {
+        if (Usage.TotalBytes >= (1024 * 1024)) {
+            lv_label_set_text_fmt(memory_storage_used_label, "%.2f MB", Usage.UsedBytes / (1024.0f * 1024.0f));
+            lv_label_set_text_fmt(memory_storage_free_label, "%.2f MB", Usage.FreeBytes / (1024.0f * 1024.0f));
+        } else {
+            lv_label_set_text_fmt(memory_storage_used_label, "%.1f KB", Usage.UsedBytes / 1024.0f);
+            lv_label_set_text_fmt(memory_storage_free_label, "%.1f KB", Usage.FreeBytes / 1024.0f);
         }
+
+        ESP_LOGD(TAG, "Updated flash storage usage: Used %u bytes, Free %u bytes", Usage.UsedBytes, Usage.FreeBytes);
     }
 
-    if (memory_coredump_used_label && memory_coredump_total_label) {
-        if (MemoryManager_GetCoredumpUsage(&Usage) == ESP_OK) {
-            lv_label_set_text_fmt(memory_coredump_used_label, "%u KB", Usage.UsedBytes / 1024);
-            lv_label_set_text_fmt(memory_coredump_total_label, "%u KB", Usage.TotalBytes / 1024);
+    esp_task_wdt_reset();
 
-            ESP_LOGD(TAG, "Updated flash coredump usage: Used %u bytes, Total %u bytes", Usage.UsedBytes, Usage.TotalBytes);
-        }
+    if (MemoryManager_GetCoredumpUsage(&Usage) == ESP_OK) {
+        lv_label_set_text_fmt(memory_coredump_used_label, "%u KB", Usage.UsedBytes / 1024);
+        lv_label_set_text_fmt(memory_coredump_total_label, "%u KB", Usage.TotalBytes / 1024);
+
+        ESP_LOGD(TAG, "Updated flash coredump usage: Used %u bytes, Total %u bytes", Usage.UsedBytes, Usage.TotalBytes);
     }
 }

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * networkManager.cpp
  *
  *  Copyright (C) Daniel Kampert, 2026
@@ -38,7 +38,7 @@
 #include "Provisioning/provisioning.h"
 
 #include "networkManager.h"
-#include "../appDiag.h"
+#include "../AppDiag/appDiag.h"
 
 ESP_EVENT_DEFINE_BASE(NETWORK_EVENTS);
 
@@ -51,7 +51,7 @@ ESP_EVENT_DEFINE_BASE(NETWORK_EVENTS);
 #define WIFI_STARTED_BIT        BIT2
 
 typedef struct {
-    bool isInitialized;
+    bool IsInitialized;
     Network_State_t State;
     esp_netif_t *STA_NetIF;
     esp_netif_t *AP_NetIF;
@@ -60,7 +60,7 @@ typedef struct {
     esp_netif_ip_info_t IP_Info;
 } Network_Manager_State_t;
 
-static Network_Manager_State_t _Network_Manager_State;
+static Network_Manager_State_t _NetworkManagerState;
 
 static const char *TAG = "Network-Manager";
 
@@ -76,7 +76,7 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
         case WIFI_EVENT_STA_START: {
             ESP_LOGD(TAG, "WiFi STA started");
 
-            xEventGroupSetBits(_Network_Manager_State.EventGroup, WIFI_STARTED_BIT);
+            xEventGroupSetBits(_NetworkManagerState.EventGroup, WIFI_STARTED_BIT);
             esp_wifi_connect();
 
             break;
@@ -84,7 +84,7 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
         case WIFI_EVENT_STA_CONNECTED: {
             ESP_LOGD(TAG, "Connected to AP");
 
-            _Network_Manager_State.RetryCount = 0;
+            _NetworkManagerState.RetryCount = 0;
             esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_WIFI_CONNECTED, NULL, 0, portMAX_DELAY);
 
             break;
@@ -98,114 +98,144 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
             /* Decode disconnect reason for better debugging */
             const char *ReasonStr = "Unknown";
             switch (Event->reason) {
-                case WIFI_REASON_UNSPECIFIED:
+                case WIFI_REASON_UNSPECIFIED: {
                     ReasonStr = "Unspecified";
                     break;
-                case WIFI_REASON_AUTH_EXPIRE:
+                }
+                case WIFI_REASON_AUTH_EXPIRE: {
                     ReasonStr = "Auth expired";
                     break;
-                case WIFI_REASON_AUTH_LEAVE:
+                }
+                case WIFI_REASON_AUTH_LEAVE: {
                     ReasonStr = "Auth leave";
                     break;
-                case WIFI_REASON_ASSOC_EXPIRE:
+                }
+                case WIFI_REASON_ASSOC_EXPIRE: {
                     ReasonStr = "Assoc expired";
                     break;
-                case WIFI_REASON_ASSOC_TOOMANY:
+                }
+                case WIFI_REASON_ASSOC_TOOMANY: {
                     ReasonStr = "Too many assocs";
                     break;
-                case WIFI_REASON_NOT_AUTHED:
+                }
+                case WIFI_REASON_NOT_AUTHED: {
                     ReasonStr = "Not authenticated";
                     break;
-                case WIFI_REASON_NOT_ASSOCED:
+                }
+                case WIFI_REASON_NOT_ASSOCED: {
                     ReasonStr = "Not associated";
                     break;
-                case WIFI_REASON_ASSOC_LEAVE:
+                }
+                case WIFI_REASON_ASSOC_LEAVE: {
                     ReasonStr = "Assoc leave";
                     break;
-                case WIFI_REASON_ASSOC_NOT_AUTHED:
+                }
+                case WIFI_REASON_ASSOC_NOT_AUTHED: {
                     ReasonStr = "Assoc not authed";
                     break;
-                case WIFI_REASON_DISASSOC_PWRCAP_BAD:
+                }
+                case WIFI_REASON_DISASSOC_PWRCAP_BAD: {
                     ReasonStr = "Bad power capability";
                     break;
-                case WIFI_REASON_DISASSOC_SUPCHAN_BAD:
+                }
+                case WIFI_REASON_DISASSOC_SUPCHAN_BAD: {
                     ReasonStr = "Bad supported channels";
                     break;
-                case WIFI_REASON_IE_INVALID:
+                }
+                case WIFI_REASON_IE_INVALID: {
                     ReasonStr = "Invalid IE";
                     break;
-                case WIFI_REASON_MIC_FAILURE:
+                }
+                case WIFI_REASON_MIC_FAILURE: {
                     ReasonStr = "MIC failure";
                     break;
-                case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT:
+                }
+                case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT: {
                     ReasonStr = "4-way handshake timeout";
                     break;
-                case WIFI_REASON_GROUP_KEY_UPDATE_TIMEOUT:
+                }
+                case WIFI_REASON_GROUP_KEY_UPDATE_TIMEOUT: {
                     ReasonStr = "Group key update timeout";
                     break;
-                case WIFI_REASON_IE_IN_4WAY_DIFFERS:
+                }
+                case WIFI_REASON_IE_IN_4WAY_DIFFERS: {
                     ReasonStr = "IE in 4-way differs";
                     break;
-                case WIFI_REASON_GROUP_CIPHER_INVALID:
+                }
+                case WIFI_REASON_GROUP_CIPHER_INVALID: {
                     ReasonStr = "Invalid group cipher";
                     break;
-                case WIFI_REASON_PAIRWISE_CIPHER_INVALID:
+                }
+                case WIFI_REASON_PAIRWISE_CIPHER_INVALID: {
                     ReasonStr = "Invalid pairwise cipher";
                     break;
-                case WIFI_REASON_AKMP_INVALID:
+                }
+                case WIFI_REASON_AKMP_INVALID: {
                     ReasonStr = "Invalid AKMP";
                     break;
-                case WIFI_REASON_UNSUPP_RSN_IE_VERSION:
+                }
+                case WIFI_REASON_UNSUPP_RSN_IE_VERSION: {
                     ReasonStr = "Unsupported RSN IE version";
                     break;
-                case WIFI_REASON_INVALID_RSN_IE_CAP:
+                }
+                case WIFI_REASON_INVALID_RSN_IE_CAP: {
                     ReasonStr = "Invalid RSN IE cap";
                     break;
-                case WIFI_REASON_802_1X_AUTH_FAILED:
+                }
+                case WIFI_REASON_802_1X_AUTH_FAILED: {
                     ReasonStr = "802.1X auth failed";
                     break;
-                case WIFI_REASON_CIPHER_SUITE_REJECTED:
+                }
+                case WIFI_REASON_CIPHER_SUITE_REJECTED: {
                     ReasonStr = "Cipher suite rejected";
                     break;
-                case WIFI_REASON_BEACON_TIMEOUT:
+                }
+                case WIFI_REASON_BEACON_TIMEOUT: {
                     ReasonStr = "Beacon timeout";
                     break;
-                case WIFI_REASON_NO_AP_FOUND:
+                }
+                case WIFI_REASON_NO_AP_FOUND: {
                     ReasonStr = "No AP found";
                     break;
-                case WIFI_REASON_AUTH_FAIL:
+                }
+                case WIFI_REASON_AUTH_FAIL: {
                     ReasonStr = "Auth failed";
                     break;
-                case WIFI_REASON_ASSOC_FAIL:
+                }
+                case WIFI_REASON_ASSOC_FAIL: {
                     ReasonStr = "Assoc failed";
                     break;
-                case WIFI_REASON_HANDSHAKE_TIMEOUT:
+                }
+                case WIFI_REASON_HANDSHAKE_TIMEOUT: {
                     ReasonStr = "Handshake timeout";
                     break;
-                case WIFI_REASON_CONNECTION_FAIL:
+                }
+                case WIFI_REASON_CONNECTION_FAIL: {
                     ReasonStr = "Connection failed";
                     break;
-                default:
+                }
+                default: {
                     break;
+                }
             }
 
             ESP_LOGW(TAG, "Disconnected from AP, reason: 0x%X (%s)", Event->reason, ReasonStr);
 
-            _Network_Manager_State.State = NETWORK_STATE_DISCONNECTED;
+            _NetworkManagerState.State = NETWORK_STATE_DISCONNECTED;
             esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_WIFI_DISCONNECTED, p_Data, sizeof(wifi_event_sta_disconnected_t),
                            portMAX_DELAY);
 
-            if (_Network_Manager_State.RetryCount < WiFiSettings.MaxRetries) {
-                ESP_LOGD(TAG, "Retry %d/%d", _Network_Manager_State.RetryCount++, WiFiSettings.MaxRetries);
+            if (_NetworkManagerState.RetryCount < WiFiSettings.MaxRetries) {
+                ESP_LOGD(TAG, "Retry %d/%d", _NetworkManagerState.RetryCount++, WiFiSettings.MaxRetries);
 
                 vTaskDelay(pdMS_TO_TICKS(WiFiSettings.RetryInterval));
                 esp_wifi_connect();
-                _Network_Manager_State.State = NETWORK_STATE_CONNECTING;
+                _NetworkManagerState.State = NETWORK_STATE_CONNECTING;
             } else {
                 ESP_LOGE(TAG, "Max retries reached!");
 
-                xEventGroupSetBits(_Network_Manager_State.EventGroup, WIFI_FAIL_BIT);
-                _Network_Manager_State.State = NETWORK_STATE_ERROR;
+                xEventGroupSetBits(_NetworkManagerState.EventGroup, WIFI_FAIL_BIT);
+                _NetworkManagerState.State = NETWORK_STATE_ERROR;
             }
 
             break;
@@ -213,7 +243,7 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
         case WIFI_EVENT_AP_START: {
             ESP_LOGD(TAG, "WiFi AP started");
 
-            _Network_Manager_State.State = NETWORK_STATE_AP_STARTED;
+            _NetworkManagerState.State = NETWORK_STATE_AP_STARTED;
             esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_AP_STARTED, NULL, 0, portMAX_DELAY);
 
             break;
@@ -266,22 +296,22 @@ static void on_IP_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, 
 
             ESP_LOGD(TAG, "Got IP: " IPSTR, IP2STR(&Event->ip_info.ip));
 
-            memcpy(&_Network_Manager_State.IP_Info, &Event->ip_info, sizeof(esp_netif_ip_info_t));
-            _Network_Manager_State.State = NETWORK_STATE_CONNECTED;
+            memcpy(&_NetworkManagerState.IP_Info, &Event->ip_info, sizeof(esp_netif_ip_info_t));
+            _NetworkManagerState.State = NETWORK_STATE_CONNECTED;
 
             IP_Data.IP = Event->ip_info.ip.addr;
             IP_Data.Netmask = Event->ip_info.netmask.addr;
             IP_Data.Gateway = Event->ip_info.gw.addr;
             esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_WIFI_GOT_IP, &IP_Data, sizeof(IP_Data), portMAX_DELAY);
 
-            xEventGroupSetBits(_Network_Manager_State.EventGroup, WIFI_CONNECTED_BIT);
+            xEventGroupSetBits(_NetworkManagerState.EventGroup, WIFI_CONNECTED_BIT);
 
             break;
         }
         case IP_EVENT_STA_LOST_IP: {
             ESP_LOGW(TAG, "Lost IP address");
 
-            memset(&_Network_Manager_State.IP_Info, 0, sizeof(esp_netif_ip_info_t));
+            memset(&_NetworkManagerState.IP_Info, 0, sizeof(esp_netif_ip_info_t));
 
             break;
         }
@@ -296,44 +326,44 @@ esp_err_t NetworkManager_Init(void)
     esp_err_t Error;
     wifi_init_config_t WifiInitConfig = WIFI_INIT_CONFIG_DEFAULT();
 
-    if (_Network_Manager_State.isInitialized) {
+    if (_NetworkManagerState.IsInitialized) {
         ESP_LOGW(TAG, "Already initialized");
         return ESP_OK;
     }
 
     ESP_LOGD(TAG, "Initializing WiFi Manager");
 
-    memset(&_Network_Manager_State, 0, sizeof(Network_Manager_State_t));
+    memset(&_NetworkManagerState, 0, sizeof(Network_Manager_State_t));
 
     ESP_ERROR_CHECK(esp_netif_init());
 
-    _Network_Manager_State.EventGroup = xEventGroupCreate();
-    if (_Network_Manager_State.EventGroup == NULL) {
+    _NetworkManagerState.EventGroup = xEventGroupCreate();
+    if (_NetworkManagerState.EventGroup == NULL) {
         ESP_LOGE(TAG, "Failed to create event group!");
 
         return ESP_ERR_NO_MEM;
     }
 
-    _Network_Manager_State.STA_NetIF = esp_netif_create_default_wifi_sta();
-    if (_Network_Manager_State.STA_NetIF == NULL) {
+    _NetworkManagerState.STA_NetIF = esp_netif_create_default_wifi_sta();
+    if (_NetworkManagerState.STA_NetIF == NULL) {
         ESP_LOGE(TAG, "Failed to create STA netif!");
 
-        vEventGroupDelete(_Network_Manager_State.EventGroup);
-        _Network_Manager_State.EventGroup = NULL;
+        vEventGroupDelete(_NetworkManagerState.EventGroup);
+        _NetworkManagerState.EventGroup = NULL;
 
         APP_DIAG_RECORD(APP_DIAG_SOURCE_NETWORK, NETWORK_ERR_NETIF_CREATE);
 
         return NETWORK_ERR_NETIF_CREATE;
     }
 
-    _Network_Manager_State.AP_NetIF = esp_netif_create_default_wifi_ap();
-    if (_Network_Manager_State.AP_NetIF == NULL) {
+    _NetworkManagerState.AP_NetIF = esp_netif_create_default_wifi_ap();
+    if (_NetworkManagerState.AP_NetIF == NULL) {
         ESP_LOGE(TAG, "Failed to create AP netif!");
 
-        esp_netif_destroy(_Network_Manager_State.STA_NetIF);
-        _Network_Manager_State.STA_NetIF = NULL;
-        vEventGroupDelete(_Network_Manager_State.EventGroup);
-        _Network_Manager_State.EventGroup = NULL;
+        esp_netif_destroy(_NetworkManagerState.STA_NetIF);
+        _NetworkManagerState.STA_NetIF = NULL;
+        vEventGroupDelete(_NetworkManagerState.EventGroup);
+        _NetworkManagerState.EventGroup = NULL;
 
         APP_DIAG_RECORD(APP_DIAG_SOURCE_NETWORK, NETWORK_ERR_NETIF_CREATE);
 
@@ -344,13 +374,13 @@ esp_err_t NetworkManager_Init(void)
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to init WiFi: 0x%X!", Error);
 
-        esp_netif_destroy(_Network_Manager_State.AP_NetIF);
-        esp_netif_destroy(_Network_Manager_State.STA_NetIF);
-        vEventGroupDelete(_Network_Manager_State.EventGroup);
+        esp_netif_destroy(_NetworkManagerState.AP_NetIF);
+        esp_netif_destroy(_NetworkManagerState.STA_NetIF);
+        vEventGroupDelete(_NetworkManagerState.EventGroup);
 
-        _Network_Manager_State.AP_NetIF = NULL;
-        _Network_Manager_State.STA_NetIF = NULL;
-        _Network_Manager_State.EventGroup = NULL;
+        _NetworkManagerState.AP_NetIF = NULL;
+        _NetworkManagerState.STA_NetIF = NULL;
+        _NetworkManagerState.EventGroup = NULL;
 
         return Error;
     }
@@ -368,8 +398,8 @@ esp_err_t NetworkManager_Init(void)
                                                         NULL));
 
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
-    _Network_Manager_State.isInitialized = true;
-    _Network_Manager_State.State = NETWORK_STATE_IDLE;
+    _NetworkManagerState.IsInitialized = true;
+    _NetworkManagerState.State = NETWORK_STATE_IDLE;
 
     ESP_LOGD(TAG, "Network Manager initialized");
 
@@ -378,7 +408,7 @@ esp_err_t NetworkManager_Init(void)
 
 void NetworkManager_Deinit(void)
 {
-    if (_Network_Manager_State.isInitialized == false) {
+    if (_NetworkManagerState.IsInitialized == false) {
         return;
     }
 
@@ -387,23 +417,23 @@ void NetworkManager_Deinit(void)
     NetworkManager_Stop();
     esp_wifi_deinit();
 
-    if (_Network_Manager_State.STA_NetIF) {
-        esp_netif_destroy(_Network_Manager_State.STA_NetIF);
-        _Network_Manager_State.STA_NetIF = NULL;
+    if (_NetworkManagerState.STA_NetIF) {
+        esp_netif_destroy(_NetworkManagerState.STA_NetIF);
+        _NetworkManagerState.STA_NetIF = NULL;
     }
 
-    if (_Network_Manager_State.AP_NetIF) {
-        esp_netif_destroy(_Network_Manager_State.AP_NetIF);
-        _Network_Manager_State.AP_NetIF = NULL;
+    if (_NetworkManagerState.AP_NetIF) {
+        esp_netif_destroy(_NetworkManagerState.AP_NetIF);
+        _NetworkManagerState.AP_NetIF = NULL;
     }
 
-    if (_Network_Manager_State.EventGroup) {
-        vEventGroupDelete(_Network_Manager_State.EventGroup);
-        _Network_Manager_State.EventGroup = NULL;
+    if (_NetworkManagerState.EventGroup) {
+        vEventGroupDelete(_NetworkManagerState.EventGroup);
+        _NetworkManagerState.EventGroup = NULL;
     }
 
-    _Network_Manager_State.isInitialized = false;
-    _Network_Manager_State.State = NETWORK_STATE_IDLE;
+    _NetworkManagerState.IsInitialized = false;
+    _NetworkManagerState.State = NETWORK_STATE_IDLE;
 }
 
 esp_err_t NetworkManager_StartSTA(void)
@@ -412,13 +442,13 @@ esp_err_t NetworkManager_StartSTA(void)
     wifi_config_t WifiConfig;
     Settings_WiFi_t WiFiSettings;
 
-    if (_Network_Manager_State.isInitialized == false) {
+    if (_NetworkManagerState.IsInitialized == false) {
         return NETWORK_ERR_NOT_INITIALIZED;
     }
 
-    _Network_Manager_State.RetryCount = 0;
+    _NetworkManagerState.RetryCount = 0;
 
-    xEventGroupClearBits(_Network_Manager_State.EventGroup, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT);
+    xEventGroupClearBits(_NetworkManagerState.EventGroup, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT);
 
     SettingsManager_GetWiFi(&WiFiSettings);
 
@@ -465,7 +495,7 @@ esp_err_t NetworkManager_StartSTA(void)
         ESP_LOGW(TAG, "esp_wifi_connect returned: 0x%X!", Error);
     }
 
-    _Network_Manager_State.State = NETWORK_STATE_CONNECTING;
+    _NetworkManagerState.State = NETWORK_STATE_CONNECTING;
 
     ESP_LOGI(TAG, "WiFi connection initiated");
 
@@ -495,7 +525,7 @@ esp_err_t NetworkManager_StartServer(void)
 
 esp_err_t NetworkManager_Stop(void)
 {
-    if (_Network_Manager_State.isInitialized == false) {
+    if (_NetworkManagerState.IsInitialized == false) {
         return NETWORK_ERR_NOT_INITIALIZED;
     }
 
@@ -503,14 +533,14 @@ esp_err_t NetworkManager_Stop(void)
 
     esp_wifi_stop();
 
-    _Network_Manager_State.State = NETWORK_STATE_IDLE;
+    _NetworkManagerState.State = NETWORK_STATE_IDLE;
 
     return ESP_OK;
 }
 
 esp_err_t NetworkManager_DisconnectWiFi(void)
 {
-    if (_Network_Manager_State.isInitialized == false) {
+    if (_NetworkManagerState.IsInitialized == false) {
         return NETWORK_ERR_NOT_INITIALIZED;
     }
 
@@ -521,12 +551,12 @@ esp_err_t NetworkManager_DisconnectWiFi(void)
 
 bool NetworkManager_isConnected(void)
 {
-    return _Network_Manager_State.State == NETWORK_STATE_CONNECTED;
+    return _NetworkManagerState.State == NETWORK_STATE_CONNECTED;
 }
 
 Network_State_t NetworkManager_GetState(void)
 {
-    return _Network_Manager_State.State;
+    return _NetworkManagerState.State;
 }
 
 esp_err_t NetworkManager_GetIP(esp_netif_ip_info_t *p_IP)
@@ -535,7 +565,7 @@ esp_err_t NetworkManager_GetIP(esp_netif_ip_info_t *p_IP)
         return ESP_ERR_INVALID_ARG;
     }
 
-    memcpy(p_IP, &_Network_Manager_State.IP_Info, sizeof(esp_netif_ip_info_t));
+    memcpy(p_IP, &_NetworkManagerState.IP_Info, sizeof(esp_netif_ip_info_t));
 
     return ESP_OK;
 }

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * tmp117.cpp
  *
  *  Copyright (C) Daniel Kampert, 2026
@@ -201,7 +201,7 @@ esp_err_t TMP117_Init(i2c_master_bus_handle_t *p_Bus_Handle, TMP117_Dev_t *p_Dev
         return Error;
     }
 
-    p_Device->isInitialized = true;
+    p_Device->IsInitialized = true;
 
     return ESP_OK;
 }
@@ -223,7 +223,7 @@ esp_err_t TMP117_Deinit(TMP117_Dev_t *p_Device)
 
     ESP_LOGD(TAG, "TMP117 deinitialized");
 
-    p_Device->isInitialized = false;
+    p_Device->IsInitialized = false;
     p_Device->Handle = NULL;
 
     return ESP_OK;
@@ -273,7 +273,7 @@ esp_err_t TMP117_ReadTemperature(TMP117_Dev_t *p_Device, float *p_Temp)
 
     if ((p_Device == NULL) || (p_Temp == NULL)) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -303,7 +303,7 @@ esp_err_t TMP117_TriggerOneShot(TMP117_Dev_t *p_Device)
 
     if (p_Device == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -345,7 +345,7 @@ esp_err_t TMP117_IsDataReady(TMP117_Dev_t *p_Device, bool *p_Ready)
 
     if ((p_Device == NULL) || (p_Ready == NULL)) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 

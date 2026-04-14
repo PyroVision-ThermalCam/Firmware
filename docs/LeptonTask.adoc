@@ -291,12 +291,13 @@ ROIs are configured via Settings Manager:
 [source,c]
 ----
 Settings_ROI_t ROI = {
-    .X = 70,          // X position (pixels)
-    .Y = 50,          // Y position (pixels)
-    .Width = 20,      // Width (pixels)
-    .Height = 20      // Height (pixels)
+    .Type = ROI_TYPE_SPOTMETER,
+    .x = 70,          // X position (display pixels)
+    .y = 50,          // Y position (display pixels)
+    .w = 20,          // Width (display pixels)
+    .h = 20           // Height (display pixels)
 };
-SettingsManager_UpdateROI(ROI_SPOTMETER, &ROI);
+esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_ROI, &ROI, sizeof(Settings_ROI_t), pdMS_TO_TICKS(100));
 ----
 
 **Constraints:**

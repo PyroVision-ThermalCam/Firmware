@@ -133,23 +133,23 @@ static void SettingsManager_LoadWiFi(Settings_Manager_State_t *p_State, const cJ
 
     wifi = cJSON_GetObjectItem(p_JSON, "wifi");
     if (wifi != NULL) {
-        cJSON *maxRetries = cJSON_GetObjectItem(wifi, "maxRetries");
-        if (cJSON_IsNumber(maxRetries)) {
-            p_State->Settings.WiFi.MaxRetries = static_cast<uint8_t>(maxRetries->valueint);
+        cJSON *MaxRetries = cJSON_GetObjectItem(wifi, "MaxRetries");
+        if (cJSON_IsNumber(MaxRetries)) {
+            p_State->Settings.WiFi.MaxRetries = static_cast<uint8_t>(MaxRetries->valueint);
         } else {
             p_State->Settings.WiFi.MaxRetries = SETTINGS_WIFI_DEFAULT_MAX_RETRIES;
         }
 
-        cJSON *retryInterval = cJSON_GetObjectItem(wifi, "retryInterval");
-        if (cJSON_IsNumber(retryInterval)) {
-            p_State->Settings.WiFi.RetryInterval = static_cast<uint32_t>(retryInterval->valueint);
+        cJSON *RetryInterval = cJSON_GetObjectItem(wifi, "RetryInterval");
+        if (cJSON_IsNumber(RetryInterval)) {
+            p_State->Settings.WiFi.RetryInterval = static_cast<uint32_t>(RetryInterval->valueint);
         } else {
             p_State->Settings.WiFi.RetryInterval = SETTINGS_WIFI_DEFAULT_RETRY_INTERVAL;
         }
 
-        cJSON *autoConnect = cJSON_GetObjectItem(wifi, "autoConnect");
-        if (cJSON_IsBool(autoConnect)) {
-            p_State->Settings.WiFi.AutoConnect = cJSON_IsTrue(autoConnect);
+        cJSON *AutoConnect = cJSON_GetObjectItem(wifi, "AutoConnect");
+        if (cJSON_IsBool(AutoConnect)) {
+            p_State->Settings.WiFi.AutoConnect = cJSON_IsTrue(AutoConnect);
         } else {
             p_State->Settings.WiFi.AutoConnect = SETTINGS_WIFI_DEFAULT_AUTOCONNECT;
         }
@@ -226,15 +226,15 @@ static void SettingsManager_LoadSystem(Settings_Manager_State_t *p_State, const 
                     sizeof(p_State->Settings.System.DeviceName));
         }
 
-        cJSON *imageFormat = cJSON_GetObjectItem(system, "imageFormat");
-        if (cJSON_IsString(imageFormat)) {
-            if (strcmp(imageFormat->valuestring, "PNG") == 0) {
+        cJSON *ImageFormat = cJSON_GetObjectItem(system, "ImageFormat");
+        if (cJSON_IsString(ImageFormat)) {
+            if (strcmp(ImageFormat->valuestring, "PNG") == 0) {
                 p_State->Settings.System.ImageFormat = IMAGE_FORMAT_PNG;
-            } else if (strcmp(imageFormat->valuestring, "RAW") == 0) {
+            } else if (strcmp(ImageFormat->valuestring, "RAW") == 0) {
                 p_State->Settings.System.ImageFormat = IMAGE_FORMAT_RAW;
-            } else if (strcmp(imageFormat->valuestring, "JPEG") == 0) {
+            } else if (strcmp(ImageFormat->valuestring, "JPEG") == 0) {
                 p_State->Settings.System.ImageFormat = IMAGE_FORMAT_JPEG;
-            } else if (strcmp(imageFormat->valuestring, "BITMAP") == 0 || strcmp(imageFormat->valuestring, "BMP") == 0) {
+            } else if (strcmp(ImageFormat->valuestring, "BITMAP") == 0 || strcmp(ImageFormat->valuestring, "BMP") == 0) {
                 p_State->Settings.System.ImageFormat = IMAGE_FORMAT_BITMAP;
             } else {
                 p_State->Settings.System.ImageFormat = IMAGE_FORMAT_JPEG;  /* Default to JPEG */
@@ -243,9 +243,9 @@ static void SettingsManager_LoadSystem(Settings_Manager_State_t *p_State, const 
             p_State->Settings.System.ImageFormat = IMAGE_FORMAT_JPEG;  /* Default to JPEG */
         }
 
-        cJSON *jpegQuality = cJSON_GetObjectItem(system, "jpegQuality");
-        if (cJSON_IsNumber(jpegQuality)) {
-            p_State->Settings.System.JpegQuality = static_cast<uint8_t>(jpegQuality->valueint);
+        cJSON *JpegQuality = cJSON_GetObjectItem(system, "JpegQuality");
+        if (cJSON_IsNumber(JpegQuality)) {
+            p_State->Settings.System.JpegQuality = static_cast<uint8_t>(JpegQuality->valueint);
             /* Clamp to valid range 1-100 */
             if (p_State->Settings.System.JpegQuality < 1) {
                 p_State->Settings.System.JpegQuality = 1;
@@ -277,30 +277,30 @@ static void SettingsManager_LoadHTTPServer(Settings_Manager_State_t *p_State, co
             p_State->Settings.HTTPServer.Port = SETTINGS_DEFAULT_HTTP_PORT;
         }
 
-        cJSON *wsPingIntervalSec = cJSON_GetObjectItem(http_server, "wsPingIntervalSec");
-        if (cJSON_IsNumber(wsPingIntervalSec)) {
-            p_State->Settings.HTTPServer.WSPingIntervalSec = static_cast<uint16_t>(wsPingIntervalSec->valueint);
+        cJSON *WsPingIntervalSec = cJSON_GetObjectItem(http_server, "WsPingIntervalSec");
+        if (cJSON_IsNumber(WsPingIntervalSec)) {
+            p_State->Settings.HTTPServer.WSPingIntervalSec = static_cast<uint16_t>(WsPingIntervalSec->valueint);
         } else {
             p_State->Settings.HTTPServer.WSPingIntervalSec = SETTINGS_DEFAULT_WS_PING_INTERVAL;
         }
 
-        cJSON *maxClients = cJSON_GetObjectItem(http_server, "maxClients");
-        if (cJSON_IsNumber(maxClients)) {
-            p_State->Settings.HTTPServer.MaxClients = static_cast<uint8_t>(maxClients->valueint);
+        cJSON *MaxClients = cJSON_GetObjectItem(http_server, "MaxClients");
+        if (cJSON_IsNumber(MaxClients)) {
+            p_State->Settings.HTTPServer.MaxClients = static_cast<uint8_t>(MaxClients->valueint);
         } else {
             p_State->Settings.HTTPServer.MaxClients = SETTINGS_DEFAULT_HTTP_MAX_CLIENTS;
         }
 
-        cJSON *useCORS = cJSON_GetObjectItem(http_server, "enable-cors");
-        if (cJSON_IsBool(useCORS)) {
-            p_State->Settings.HTTPServer.useCORS = cJSON_IsTrue(useCORS);
+        cJSON *UseCORS = cJSON_GetObjectItem(http_server, "enable-cors");
+        if (cJSON_IsBool(UseCORS)) {
+            p_State->Settings.HTTPServer.UseCORS = cJSON_IsTrue(UseCORS);
         } else {
-            p_State->Settings.HTTPServer.useCORS = SETTINGS_DEFAULT_HTTP_ENABLE_CORS;
+            p_State->Settings.HTTPServer.UseCORS = SETTINGS_DEFAULT_HTTP_ENABLE_CORS;
         }
 
-        cJSON *apiKey = cJSON_GetObjectItem(http_server, "api-key");
-        if (cJSON_IsString(apiKey)) {
-            strncpy(p_State->Settings.HTTPServer.APIKey, apiKey->valuestring, sizeof(p_State->Settings.HTTPServer.APIKey));
+        cJSON *ApiKey = cJSON_GetObjectItem(http_server, "api-key");
+        if (cJSON_IsString(ApiKey)) {
+            strncpy(p_State->Settings.HTTPServer.APIKey, ApiKey->valuestring, sizeof(p_State->Settings.HTTPServer.APIKey));
         } else {
             strncpy(p_State->Settings.HTTPServer.APIKey, SETTINGS_DEFAULT_HTTP_API_KEY,
                     sizeof(p_State->Settings.HTTPServer.APIKey));

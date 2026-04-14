@@ -1,16 +1,16 @@
 /*******************************************************************************
  * Size: 16 px
  * Bpp: 1
- * Opts: --bpp 1 --size 16 --font C:/Users/konta/Desktop/ThermalCam/firmware/ui/assets/Font-Awesome/otfs/Font Awesome 7 Free-Solid-900.otf -o C:/Users/konta/Desktop/ThermalCam/firmware/ui/assets/Font-Awesome/otfs\ui_font_fa.c --format lvgl -r 0x20-0xFFFF --no-compress --no-prefilter
+ * Opts: --bpp 1 --size 16 --font C:/Users/konta/Desktop/ThermalCam/firmware/ui/assets/Font-Awesome/otfs/Font Awesome 7 Free-Solid-900.otf -o C:/Users/konta/Desktop/ThermalCam/firmware/ui/assets/Font-Awesome/otfs\ui_font_fa16.c --format lvgl -r 0x20-0xFFFF --no-compress --no-prefilter
  ******************************************************************************/
 
 #include "../ui.h"
 
-#ifndef UI_FONT_FA
-#define UI_FONT_FA 1
+#ifndef UI_FONT_FA16
+#define UI_FONT_FA16 1
 #endif
 
-#if UI_FONT_FA
+#if UI_FONT_FA16
 
 /*-----------------
  *    BITMAPS
@@ -17260,9 +17260,9 @@ static lv_font_fmt_txt_dsc_t font_dsc = {
 
 /*Initialize a public general font descriptor*/
 #if LVGL_VERSION_MAJOR >= 8
-const lv_font_t ui_font_fa = {
+const lv_font_t ui_font_fa16 = {
 #else
-lv_font_t ui_font_fa = {
+lv_font_t ui_font_fa16 = {
 #endif
     .get_glyph_dsc = lv_font_get_glyph_dsc_fmt_txt,    /*Function pointer to get glyph's data*/
     .get_glyph_bitmap = lv_font_get_bitmap_fmt_txt,    /*Function pointer to get glyph's bitmap*/
@@ -17284,5 +17284,5 @@ lv_font_t ui_font_fa = {
 
 
 
-#endif /*#if UI_FONT_FA*/
+#endif /*#if UI_FONT_FA16*/
 

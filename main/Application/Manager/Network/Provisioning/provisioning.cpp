@@ -38,14 +38,14 @@
 #include "Settings/settingsManager.h"
 
 typedef struct {
-    bool isInitialized;
-    bool isActive;
-    bool usePortal;
+    bool IsInitialized;
+    bool IsActive;
+    bool UsePortal;
     char Name[32];
     uint32_t TimeOut;
     esp_timer_handle_t TimeoutTimer;
     wifi_sta_config_t WiFi_STA_Config;
-    bool hasCredentials;
+    bool HasCredentials;
 } Provisioning_State_t;
 
 static Provisioning_State_t _Provisioning_State;
@@ -82,7 +82,7 @@ static void on_Prov_Event(void *p_Arg, esp_event_base_t EventBase, int32_t Event
                 memcpy(&_Provisioning_State.WiFi_STA_Config.ssid, wifi_cfg->ssid, sizeof(wifi_cfg->ssid));
                 memcpy(&_Provisioning_State.WiFi_STA_Config.password, wifi_cfg->password, sizeof(wifi_cfg->password));
 
-                _Provisioning_State.hasCredentials = true;
+                _Provisioning_State.HasCredentials = true;
 
                 ESP_LOGD(TAG, "Received WiFi credentials - SSID: %s", _Provisioning_State.WiFi_STA_Config.ssid);
             } else {
@@ -108,7 +108,7 @@ static void on_Prov_Event(void *p_Arg, esp_event_base_t EventBase, int32_t Event
             }
 
             /* Copy SSID and password from saved configuration */
-            if (_Provisioning_State.hasCredentials) {
+            if (_Provisioning_State.HasCredentials) {
                 SettingsManager_GetWiFi(&WiFiSettings);
 
                 strncpy(WiFiSettings.SSID, (const char *)_Provisioning_State.WiFi_STA_Config.ssid, sizeof(WiFiSettings.SSID) - 1);
@@ -127,7 +127,7 @@ static void on_Prov_Event(void *p_Arg, esp_event_base_t EventBase, int32_t Event
 
             wifi_prov_mgr_deinit();
 
-            _Provisioning_State.isActive = false;
+            _Provisioning_State.IsActive = false;
 
             break;
         }
@@ -141,7 +141,7 @@ esp_err_t Provisioning_Init(void)
 {
     Settings_Provisioning_t ProvisioningSettings;
 
-    if (_Provisioning_State.isInitialized) {
+    if (_Provisioning_State.IsInitialized) {
         ESP_LOGW(TAG, "Already initialized");
 
         return ESP_OK;
@@ -153,7 +153,7 @@ esp_err_t Provisioning_Init(void)
     strncpy(_Provisioning_State.Name, ProvisioningSettings.Name,
             sizeof(_Provisioning_State.Name) - 1);
     _Provisioning_State.TimeOut = ProvisioningSettings.Timeout;
-    _Provisioning_State.usePortal = true;
+    _Provisioning_State.UsePortal = true;
 
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_PROV_EVENT, ESP_EVENT_ANY_ID, &on_Prov_Event, NULL));
 
@@ -166,7 +166,7 @@ esp_err_t Provisioning_Init(void)
     };
     ESP_ERROR_CHECK(esp_timer_create(&timer_args, &_Provisioning_State.TimeoutTimer));
 
-    _Provisioning_State.isInitialized = true;
+    _Provisioning_State.IsInitialized = true;
 
     ESP_LOGD(TAG, "Provisioning initialized");
 
@@ -175,7 +175,7 @@ esp_err_t Provisioning_Init(void)
 
 void Provisioning_Deinit(void)
 {
-    if (_Provisioning_State.isInitialized == false) {
+    if (_Provisioning_State.IsInitialized == false) {
         return;
     }
 
@@ -192,7 +192,7 @@ void Provisioning_Deinit(void)
 
     esp_event_handler_unregister(WIFI_PROV_EVENT, ESP_EVENT_ANY_ID, &on_Prov_Event);
 
-    _Provisioning_State.isInitialized = false;
+    _Provisioning_State.IsInitialized = false;
 }
 
 esp_err_t Provisioning_Start(void)
@@ -203,9 +203,9 @@ esp_err_t Provisioning_Start(void)
     Network_HTTP_Server_Config_t ServerConfig;
     esp_netif_t *NetIf;
 
-    if (_Provisioning_State.isInitialized == false) {
+    if (_Provisioning_State.IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
-    } else if (_Provisioning_State.isActive) {
+    } else if (_Provisioning_State.IsActive) {
         ESP_LOGW(TAG, "Provisioning already active");
 
         return ESP_OK;
@@ -282,7 +282,7 @@ esp_err_t Provisioning_Start(void)
         /* Continue anyway, DNS is not critical */
     }
 
-    _Provisioning_State.isActive = true;
+    _Provisioning_State.IsActive = true;
     esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_PROV_STARTED, NULL, 0, portMAX_DELAY);
 
     /* Start timeout timer */
@@ -308,15 +308,15 @@ esp_err_t Provisioning_Start(void)
 
 esp_err_t Provisioning_Stop(void)
 {
-    if (_Provisioning_State.isActive == false) {
+    if (_Provisioning_State.IsActive == false) {
         return ESP_OK;
     }
 
     ESP_LOGD(TAG, "Stopping Provisioning");
 
-    _Provisioning_State.isActive = false;
+    _Provisioning_State.IsActive = false;
 
-    if (_Provisioning_State.usePortal) {
+    if (_Provisioning_State.UsePortal) {
         ESP_LOGD(TAG, "Stopping DNS server");
         DNS_Server_Stop();
 
@@ -347,7 +347,7 @@ esp_err_t Provisioning_Stop(void)
 
 bool Provisioning_isProvisioned(void)
 {
-    bool isProvisioned;
+    bool IsProvisioned;
     wifi_prov_mgr_config_t Config;
 
     memset(&Config, 0, sizeof(wifi_prov_mgr_config_t));
@@ -356,13 +356,13 @@ bool Provisioning_isProvisioned(void)
     Config.scheme_event_handler = WIFI_PROV_EVENT_HANDLER_NONE;
 
     if (wifi_prov_mgr_init(Config) == ESP_OK) {
-        wifi_prov_mgr_is_provisioned(&isProvisioned);
+        wifi_prov_mgr_is_provisioned(&IsProvisioned);
         wifi_prov_mgr_deinit();
     }
 
-    ESP_LOGD(TAG, "Provisioned: %s", isProvisioned ? "true" : "false");
+    ESP_LOGD(TAG, "Provisioned: %s", IsProvisioned ? "true" : "false");
 
-    return isProvisioned;
+    return IsProvisioned;
 }
 
 esp_err_t Provisioning_Reset(void)
@@ -376,5 +376,5 @@ esp_err_t Provisioning_Reset(void)
 
 bool Provisioning_IsActive(void)
 {
-    return _Provisioning_State.isActive;
+    return _Provisioning_State.IsActive;
 }

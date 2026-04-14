@@ -33,8 +33,8 @@
 /** @brief Port number for port expander pins.
  */
 typedef enum {
-    PCAL6416_PORT_0 = 0x00,     /**< Port 0 (P0.0 â€“ P0.7). */
-    PCAL6416_PORT_1 = 0x01,     /**< Port 1 (P1.0 â€“ P1.7). */
+    PCAL6416_PORT_0 = 0x00,     /**< Port 0 (P0.0 – P0.7). */
+    PCAL6416_PORT_1 = 0x01,     /**< Port 1 (P1.0 – P1.7). */
 } PCAL6416_Port_t;
 
 /** @brief I/O direction for a port expander pin.
@@ -59,10 +59,10 @@ typedef struct {
     uint8_t Pin;                /**< Pin number within the port (0-7). */
     PCAL6416_Dir_t Direction;   /**< Input or output. */
     PCAL6416_Pull_t Pull;       /**< Pull-up, pull-down, or none. */
-    bool isInverted;            /**< Active-low signal indicator.
+    bool IsInverted;            /**< Active-low signal indicator.
                                     Inputs: polarity inversion register is set (hardware).
                                     Outputs: the API caller must negate the logic level. */
-    bool isLatched;             /**< Input latch enable.
+    bool IsLatched;             /**< Input latch enable.
                                     When true the input value is captured at the interrupt edge
                                     and held until the INPUT register is read (PCAL6416AHF_ReadIntStatus).
                                     Use for mechanically bouncing signals such as card-detect
@@ -72,7 +72,7 @@ typedef struct {
 /** @brief Port expander device instance.
  */
 typedef struct {
-    bool isInitialized;             /**< True after successful initialization. */
+    bool IsInitialized;             /**< True after successful initialization. */
     i2c_master_dev_handle_t Handle; /**< I2C device handle. */
 } PCAL6416AHF_Dev_t;
 

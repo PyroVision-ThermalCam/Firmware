@@ -45,9 +45,16 @@ extern "C" void app_main(void)
 
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    _App_Context.Lepton_FrameEventQueue = xQueueCreate(1, sizeof(App_Lepton_FrameReady_t));
-    if (_App_Context.Lepton_FrameEventQueue == NULL) {
+    _App_Context.Lepton_FrameQueue = xQueueCreate(1, sizeof(App_Lepton_Frame_t));
+    if (_App_Context.Lepton_FrameQueue == NULL) {
         ESP_LOGE(TAG, "Failed to create frame queue!");
+
+        return;
+    }
+
+    _App_Context.Camera_FrameQueue = xQueueCreate(1, sizeof(App_Camera_Frame_t));
+    if (_App_Context.Camera_FrameQueue == NULL) {
+        ESP_LOGE(TAG, "Failed to create camera frame queue!");
 
         return;
     }
@@ -90,7 +97,7 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(GUI_Task_Start(&_App_Context));
     ESP_ERROR_CHECK(Lepton_Task_Start(&_App_Context));
     ESP_ERROR_CHECK(Camera_Task_Start(&_App_Context));
-    //ESP_ERROR_CHECK(Network_Task_Start());
+    ESP_ERROR_CHECK(Network_Task_Start());
     ESP_LOGI(TAG, "Tasks started");
 
     /* Main task can now be deleted - no need to remove from watchdog as it was never added */

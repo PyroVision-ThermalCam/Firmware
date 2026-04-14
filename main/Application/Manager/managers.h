@@ -32,6 +32,6 @@
 #include "USB/usbManager.h"
 
 #include "appErrors.h"
-#include "appDiag.h"
+#include "AppDiag/appDiag.h"
 
 #endif /* MANAGERS_H_ */

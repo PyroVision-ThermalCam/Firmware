@@ -30,7 +30,24 @@ The project uses **Artistic Style (AStyle)** with a K&R-based configuration (`sc
 - **Conditionals**: Always use braces, even for single-line blocks
 - **Array Initializers**: Always include a space after `{` and before `}`: `uint8_t Buf[2] = { 0x00, 0x01 };`
 - **Boolean Negation**: Always use explicit comparison with `== false` or `== NULL` instead of `!` operator
-- **Switch**: Indent case statements
+- **Switch**: Indent case statements. Every `case` and `default` label **must** wrap its body in curly braces `{ }`, even if the body is a single statement. Intentional fallthrough (one case label immediately followed by another with no body) is the only exception.
+
+**Switch Example:**
+```cpp
+switch (Value) {
+    case FOO: {
+        DoSomething();
+        break;
+    }
+    case BAR: {
+        DoSomethingElse();
+        break;
+    }
+    default: {
+        break;
+    }
+}
+```
 
 **Example:**
 ```cpp
@@ -51,7 +68,7 @@ esp_err_t MyFunction(uint8_t *p_Buffer, size_t Size)
 **Boolean Negation Examples:**
 ```cpp
 // ✅ CORRECT: Explicit comparison
-if (isInitialized == false) {
+if (IsInitialized == false) {
     return ESP_ERR_INVALID_STATE;
 }
 
@@ -60,7 +77,7 @@ if (p_Buffer == NULL) {
 }
 
 // ❌ INCORRECT: Negation operator
-if (!isInitialized) {
+if (!IsInitialized) {
     return ESP_ERR_INVALID_STATE;
 }
 
@@ -78,9 +95,10 @@ if (!p_Buffer) {
   - Examples: `on_WiFi_Event()`, `run_astyle()`
 
 #### Variables
-- **Local variables**: `PascalCase` for important variables, `lowercase` for simple counters
-  - Examples: `RetryCount`, `EventGroup`, `Error`, `i`, `x`
-- **Pointers**: Prefix with `p` (e.g., `p_Settings`, `p_Buffer`, `p_Data`)
+- **Local variables**: `PascalCase` — **all** local variables, including booleans and loop-adjacent variables
+  - Examples: `RetryCount`, `EventGroup`, `Error`, `IsInitialized`, `IsRunning`
+  - Simple single-letter loop counters (`i`, `x`, `y`) are the only exception
+- **Pointers**: Prefix with `p_` (e.g., `p_Settings`, `p_Buffer`, `p_Data`)
 - **Global/Static module state**: Prefix with underscore: `_State`, `_Network_Manager_State`, `_App_Context`
 
 #### Constants and Macros
@@ -436,15 +454,51 @@ Never use decorative ASCII-art dividers (`/* === ... === */`) as section separat
 
 ### Structure Documentation
 
-Document struct members inline:
+#### Struct `@brief` Comment
+
+Every `typedef struct` **MUST** be preceded by a `/** @brief ... */` comment that describes the purpose of the structure:
 
 ```cpp
+/** @brief Internal runtime state of the Foo module.
+ *         Holds all resources (task handle, event group, mutex) as well as
+ *         the current configuration snapshot used by the task loop.
+ */
 typedef struct {
-    uint16_t Port;              /**< HTTP server port. */
-    uint16_t WSPingIntervalSec; /**< WebSocket ping interval in seconds. */
-    uint8_t MaxClients;         /**< Maximum number of simultaneous clients. */
-} Settings_HTTP_Server_t;
+    ...
+} Foo_State_t;
 ```
+
+The `@brief` description follows the same rules as for functions:
+- Short summary on the `@brief` line itself
+- Multi-line detail on continuation lines (indented with 19 spaces: ` *  ` + 15 spaces)
+- No blank lines between `@brief` and the continuation text
+
+#### Struct Member Inline Documentation
+
+Document every member with an inline `/**< ... */` comment. Align all `/**<` markers to a **consistent column** within the struct (choose the column that accommodates the longest type + name + spacing, aligned to the nearest 4-space boundary):
+
+```cpp
+/** @brief Internal runtime state of the Foo module.
+ */
+typedef struct {
+    bool IsInitialized;          /**< true after Foo_Init() has been called successfully. */
+    bool IsRunning;              /**< true while the FreeRTOS task is executing. */
+    TaskHandle_t TaskHandle;     /**< FreeRTOS task handle; NULL before Foo_Task_Start(). */
+    EventGroupHandle_t EventGroup; /**< Event group used for task synchronisation. */
+    SemaphoreHandle_t Mutex;     /**< Mutex protecting shared fields in this struct. */
+    uint8_t *p_Buffer;           /**< Heap-allocated working buffer; freed in Foo_Deinit(). */
+} Foo_State_t;
+```
+
+**Rules:**
+- Every member (without exception) has an inline `/**< ... */` comment
+- Field names are written at natural indent (4 spaces + type + name) — **no extra padding to align type names**
+- The `/**<` comment of **all members within the same struct or enum** starts at the **same column**
+- That column must be a **multiple of 4** and must be at least 1 space after the longest `;` (or `,` for enums) in the type
+- Comments are sentence-capitalised and end with a period
+- Comments describe the **purpose** of the field, not just its type
+- For handles and pointers also state **when they are valid** (e.g. "NULL before init")
+- For boolean flags, state **what `true` means** (e.g. `/**< true while streaming. */`)
 
 ### Enum Documentation
 
@@ -504,6 +558,27 @@ static const char *TAG = "module_name";
 - Declare in headers: `ESP_EVENT_DECLARE_BASE(MODULE_EVENTS);`
 - Use descriptive event IDs in enums
 - Always include documentation about event data payload
+- **Register only the specific event IDs a handler actually processes.** Use a concrete event ID (e.g. `MY_EVENT_SPECIFIC`) instead of `ESP_EVENT_ANY_ID` whenever the handler only reacts to a subset of events from an event base. If exactly one event is handled, use one registration with that specific ID. If two events are handled, register the handler twice — once per specific ID. Only use `ESP_EVENT_ANY_ID` when all or nearly all events from that base require processing. When changing a registration from `ESP_EVENT_ANY_ID` to a specific ID (or splitting it into multiple registrations), **always update the corresponding `esp_event_handler_unregister` call(s) to match exactly**, otherwise the handler will not be removed on cleanup.
+
+**Event Registration Examples:**
+```cpp
+// ✅ CORRECT: handler only processes SD_DETECT — register with specific ID
+esp_event_handler_register(DEVICES_EVENTS, DEVICES_EVENT_SD_DETECT, on_Devices_Event_Handler, NULL);
+esp_event_handler_unregister(DEVICES_EVENTS, DEVICES_EVENT_SD_DETECT, on_Devices_Event_Handler);
+
+// ✅ CORRECT: handler processes two events — two separate registrations
+esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVED, on_GUI_Task_Event_Handler, NULL);
+esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED, on_GUI_Task_Event_Handler, NULL);
+esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVED, on_GUI_Task_Event_Handler);
+esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED, on_GUI_Task_Event_Handler);
+
+// ✅ CORRECT: handler processes many events from this base — ANY_ID is justified
+esp_event_handler_register(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler, NULL);
+esp_event_handler_unregister(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler);
+
+// ❌ INCORRECT: handler only uses SD_DETECT but registers for ALL device events
+esp_event_handler_register(DEVICES_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Event_Handler, NULL);
+```
 
 ### FreeRTOS
 
@@ -587,7 +662,7 @@ When updating module state:
 ```cpp
 esp_err_t Module_Update(Config_t *p_Config)
 {
-    if (_State.isInitialized == false) {
+    if (_State.IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
     
@@ -633,7 +708,7 @@ esp_err_t Module_GetData(Data_t *p_Data)
         return MODULE_ERR_INVALID_ARG;
     }
 
-    if (_State.isInitialized == false) {
+    if (_State.IsInitialized == false) {
         return MODULE_ERR_INVALID_STATE;
     }
 
@@ -647,7 +722,7 @@ esp_err_t Module_GetData(Data_t *p_Data)
         return ESP_ERR_INVALID_ARG;   // ❌ — must use MODULE_ERR_INVALID_ARG
     }
 
-    if (_State.isInitialized == false) {
+    if (_State.IsInitialized == false) {
         return ESP_ERR_INVALID_STATE; // ❌ — must use MODULE_ERR_INVALID_STATE
     }
 }

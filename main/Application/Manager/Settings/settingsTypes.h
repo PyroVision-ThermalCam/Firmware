@@ -228,7 +228,7 @@ typedef struct {
     uint16_t Port;                              /**< HTTP server port. */
     uint16_t WSPingIntervalSec;                 /**< WebSocket ping interval in seconds. */
     uint8_t MaxClients;                         /**< Maximum number of simultaneous clients. */
-    bool useCORS;                               /**< Whether to enable CORS headers. */
+    bool UseCORS;                               /**< Whether to enable CORS headers. */
     char APIKey[64];                            /**< API key for authentication (null-terminated). */
 } __attribute__((packed)) Settings_HTTP_Server_t;
 

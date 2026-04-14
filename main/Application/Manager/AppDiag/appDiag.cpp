@@ -1,4 +1,4 @@
-/*
+﻿/*
  * appDiag.cpp
  *
  *  Copyright (C) Daniel Kampert, 2026
@@ -33,7 +33,8 @@
 
 static const char *TAG = "AppDiag";
 
-/** @brief Names of the diagnostic source identifiers, indexed by AppDiag_Source_t. */
+/** @brief Names of the diagnostic source identifiers, indexed by AppDiag_Source_t.
+ */
 static const char *const _Source_Names[APP_DIAG_SOURCE_COUNT] = {
     "Devices",
     "Memory",
@@ -42,23 +43,28 @@ static const char *const _Source_Names[APP_DIAG_SOURCE_COUNT] = {
     "Time",
     "USB",
     "Application",
+    "LeptonTask",
+    "NetworkTask",
+    "DevicesTask",
+    "GUITask",
+    "CameraTask",
 };
 
-/** @brief Internal state of the diagnostics ring buffer. */
+/** @brief Internal state of the diagnostics ring buffer.
+ */
 typedef struct {
-    AppDiag_Entry_t     Entries[APP_DIAG_MAX_ENTRIES]; /**< Ring buffer storage. */
-    uint32_t            Head;                          /**< Index of the next write slot (wraps at APP_DIAG_MAX_ENTRIES). */
-    uint32_t
-    Count;                         /**< Number of valid entries currently stored (max APP_DIAG_MAX_ENTRIES). */
-    SemaphoreHandle_t   Mutex;                         /**< FreeRTOS mutex; NULL before AppDiag_Init(). */
-    bool                isInitialized;                 /**< true after AppDiag_Init() has succeeded. */
+    AppDiag_Entry_t Entries[APP_DIAG_MAX_ENTRIES];  /**< Ring buffer storage. */
+    uint32_t Head;                                  /**< Index of the next write slot (wraps at APP_DIAG_MAX_ENTRIES). */
+    uint32_t Count;                                 /**< Number of valid entries currently stored (max APP_DIAG_MAX_ENTRIES). */
+    SemaphoreHandle_t Mutex;                        /**< FreeRTOS mutex; NULL before AppDiag_Init(). */
+    bool IsInitialized;                             /**< true after AppDiag_Init() has succeeded. */
 } AppDiag_State_t;
 
 static AppDiag_State_t _AppDiag_State;
 
 esp_err_t AppDiag_Init(void)
 {
-    if (_AppDiag_State.isInitialized) {
+    if (_AppDiag_State.IsInitialized) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -69,7 +75,7 @@ esp_err_t AppDiag_Init(void)
         return ESP_ERR_NO_MEM;
     }
 
-    _AppDiag_State.isInitialized = true;
+    _AppDiag_State.IsInitialized = true;
 
     ESP_LOGD(TAG, "Diagnostics module initialised (ring buffer: %u entries)", APP_DIAG_MAX_ENTRIES);
 
@@ -79,7 +85,7 @@ esp_err_t AppDiag_Init(void)
 void AppDiag_RecordError(AppDiag_Source_t Source, esp_err_t ErrorCode, const char *p_Context)
 {
     AppDiag_Entry_t *p_Entry;
-    bool TakeMutex = (_AppDiag_State.isInitialized && (_AppDiag_State.Mutex != NULL));
+    bool TakeMutex = (_AppDiag_State.IsInitialized && (_AppDiag_State.Mutex != NULL));
 
     if (TakeMutex) {
         xSemaphoreTake(_AppDiag_State.Mutex, portMAX_DELAY);

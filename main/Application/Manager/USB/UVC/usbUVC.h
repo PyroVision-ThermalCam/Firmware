@@ -34,7 +34,7 @@
 typedef struct {
     uint8_t *p_Buffer;                      /**< Pointer to frame data. */
     size_t Size;                            /**< Size of frame data in bytes. */
-    bool isReady;                           /**< Buffer contains valid frame data. */
+    bool IsReady;                           /**< Buffer contains valid frame data. */
 } USB_UVC_FrameBuffer_t;
 
 /** @brief UVC configuration structure.

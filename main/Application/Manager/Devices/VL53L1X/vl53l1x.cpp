@@ -1,4 +1,4 @@
-/*
+﻿/*
  * vl53l1x.cpp
  *
  *  Copyright (C) Daniel Kampert, 2026
@@ -180,18 +180,24 @@ static const char *TAG = "VL53L1X";
 static VL53L1X_RangeStatus_t VL53L1X_Map_Range_Status(uint8_t RawStatus)
 {
     switch (RawStatus) {
-        case 9:
+        case 9: {
             return VL53L1X_RANGE_VALID;
-        case 6:
+        }
+        case 6: {
             return VL53L1X_RANGE_SIGMA_FAIL;
-        case 4:
+        }
+        case 4: {
             return VL53L1X_RANGE_SIGNAL_FAIL;
-        case 8:
+        }
+        case 8: {
             return VL53L1X_RANGE_OUT_OF_BOUNDS;
-        case 7:
+        }
+        case 7: {
             return VL53L1X_RANGE_WRAP_FAIL;
-        default:
+        }
+        default: {
             return VL53L1X_RANGE_INVALID;
+        }
     }
 }
 
@@ -200,22 +206,30 @@ static VL53L1X_RangeStatus_t VL53L1X_Map_Range_Status(uint8_t RawStatus)
 static int VL53L1X_TimingBudget_ToIndex(VL53L1X_TimingBudget_t Budget)
 {
     switch (Budget) {
-        case VL53L1X_TIMING_15MS:
+        case VL53L1X_TIMING_15MS: {
             return 0;
-        case VL53L1X_TIMING_20MS:
+        }
+        case VL53L1X_TIMING_20MS: {
             return 1;
-        case VL53L1X_TIMING_33MS:
+        }
+        case VL53L1X_TIMING_33MS: {
             return 2;
-        case VL53L1X_TIMING_50MS:
+        }
+        case VL53L1X_TIMING_50MS: {
             return 3;
-        case VL53L1X_TIMING_100MS:
+        }
+        case VL53L1X_TIMING_100MS: {
             return 4;
-        case VL53L1X_TIMING_200MS:
+        }
+        case VL53L1X_TIMING_200MS: {
             return 5;
-        case VL53L1X_TIMING_500MS:
+        }
+        case VL53L1X_TIMING_500MS: {
             return 6;
-        default:
+        }
+        default: {
             return -1;
+        }
     }
 }
 
@@ -544,7 +558,7 @@ esp_err_t VL53L1X_Init(i2c_master_bus_handle_t *p_Bus_Handle, VL53L1X_Dev_t *p_D
     ESP_LOGD(TAG, "Fast oscillator frequency: %u (4.12 fixed-point)", FastOscFrequency);
     ESP_LOGD(TAG, "Oscillator calibration value: 0x%04X", p_Device->OscCalibrateVal);
 
-    p_Device->isInitialized = true;
+    p_Device->IsInitialized = true;
 
     return ESP_OK;
 }
@@ -573,7 +587,7 @@ esp_err_t VL53L1X_Deinit(VL53L1X_Dev_t *p_Device)
 
     ESP_LOGD(TAG, "VL53L1X deinitialized");
 
-    p_Device->isInitialized = false;
+    p_Device->IsInitialized = false;
     p_Device->Handle = NULL;
 
     return ESP_OK;
@@ -717,7 +731,7 @@ esp_err_t VL53L1X_StartContinuous(VL53L1X_Dev_t *p_Device, uint32_t PeriodMs)
 
     if (p_Device == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -754,7 +768,7 @@ esp_err_t VL53L1X_StopContinuous(VL53L1X_Dev_t *p_Device)
 
     if (p_Device == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -791,7 +805,7 @@ esp_err_t VL53L1X_IsDataReady(VL53L1X_Dev_t *p_Device, bool *p_Ready)
 
     if ((p_Device == NULL) || (p_Ready == NULL)) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -824,7 +838,7 @@ esp_err_t VL53L1X_GetResult(VL53L1X_Dev_t *p_Device, VL53L1X_Result_t *p_Result)
 
     if ((p_Device == NULL) || (p_Result == NULL)) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -877,7 +891,7 @@ esp_err_t VL53L1X_ClearInterrupt(VL53L1X_Dev_t *p_Device)
 {
     if (p_Device == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 

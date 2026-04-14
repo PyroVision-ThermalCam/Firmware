@@ -103,16 +103,9 @@ These are allocated once at module initialization and released only on `Deinit()
 | PSRAM
 | `leptonTask.cpp:677` – `160 * 120 * 3`
 
-| JPEG Compression Buffer +
-  Output buffer for JPEG encoder (used for UVC transmission). +
-  Allocated only when `USBUVC_Init()` path is active.
-| 57,600
-| PSRAM
-| `leptonTask.cpp:719` – `160 * 120 * 3`
-
 |===
 
-*Lepton Task PSRAM subtotal (permanent): 172,800 bytes (≈ 169 KB)*
+*Lepton Task PSRAM subtotal (permanent): 115,200 bytes (≈ 113 KB)*
 
 === USB UVC Module (`usbUVC.cpp`)
 
@@ -430,12 +423,12 @@ Approximate per-object overhead: `SemaphoreHandle_t` ≈ 88 bytes,
 | 1
 | `usbManager.cpp:259`
 
-| `App_Context` Lepton frame queue (1 item × `sizeof(App_Lepton_FrameReady_t)`)
+| `App_Context` Lepton frame queue (1 item × `sizeof(App_Lepton_Frame_t)`)
 | Queue
 | 1
 | `main.cpp:46`
 
-| `GUI` image save queue (1 item × `sizeof(App_Lepton_FrameReady_t)`)
+| `GUI` image save queue (1 item × `sizeof(App_Lepton_Frame_t)`)
 | Queue
 | 1
 | `guiTask.cpp:1166`
@@ -509,8 +502,8 @@ Approximate per-object overhead: `SemaphoreHandle_t` ≈ 88 bytes,
 | Category | Bytes | Notes
 
 | PSRAM – permanent allocations (no UVC)
-| 457,440
-| ≈ 446 KB
+| 399,840
+| ≈ 391 KB
 
 | PSRAM – additional when UVC active
 | 115,200

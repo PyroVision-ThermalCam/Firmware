@@ -38,7 +38,7 @@
 #include "MSC/usbMSC.h"
 #include "UVC/usbUVC.h"
 #include "CDC/usbCDC.h"
-#include "../appDiag.h"
+#include "../AppDiag/appDiag.h"
 #include "Descriptors/descriptors.h"
 #include "../Memory/memoryManager.h"
 
@@ -62,14 +62,14 @@ typedef struct {
 /** @brief USB Manager internal state.
  */
 typedef struct {
-    bool isInitialized;                     /**< TinyUSB driver installed and CDC active. */
-    bool isCableConnected;                  /**< USB cable connected and enumerated by host. */
+    bool IsInitialized;                     /**< TinyUSB driver installed and CDC active. */
+    bool IsCableConnected;                  /**< USB cable connected and enumerated by host. */
     QueueHandle_t CommandQueue;             /**< Queue for MSC/UVC enable/disable commands. */
     TaskHandle_t MonitoringTask;            /**< Handle for the USB monitoring/command task. */
     const char *StringDescriptors[4];       /**< String descriptor pointers (LangID, Manufacturer, Product, Serial). */
 } USB_Manager_State_t;
 
-static USB_Manager_State_t _USB_Manager_State;
+static USB_Manager_State_t _USBManagerState;
 
 static const char *TAG = "USB-Manager";
 
@@ -91,16 +91,16 @@ static void USB_Monitoring_Task(void *p_Arg)
     ESP_LOGD(TAG, "USB monitoring task started");
 
     while (true) {
-        if ((tud_connected() == true) && (_USB_Manager_State.isCableConnected == false)) {
+        if ((tud_connected() == true) && (_USBManagerState.IsCableConnected == false)) {
             ESP_LOGD(TAG, "USB cable connected (host enumeration complete)");
 
-            _USB_Manager_State.isCableConnected = true;
+            _USBManagerState.IsCableConnected = true;
 
             esp_event_post(USB_EVENTS, USB_EVENT_CABLE_CONNECTED, NULL, 0, portMAX_DELAY);
-        } else if ((tud_connected() == false) && (_USB_Manager_State.isCableConnected == true)) {
+        } else if ((tud_connected() == false) && (_USBManagerState.IsCableConnected == true)) {
             ESP_LOGD(TAG, "USB cable disconnected");
 
-            _USB_Manager_State.isCableConnected = false;
+            _USBManagerState.IsCableConnected = false;
 
             if (USBMSC_IsInitialized()) {
                 ESP_LOGD(TAG, "Force-deinit MSC on cable disconnect");
@@ -115,7 +115,7 @@ static void USB_Monitoring_Task(void *p_Arg)
             esp_event_post(USB_EVENTS, USB_EVENT_CABLE_DISCONNECTED, NULL, 0, portMAX_DELAY);
         }
 
-        if (xQueueReceive(_USB_Manager_State.CommandQueue, &Cmd, 0) == pdTRUE) {
+        if (xQueueReceive(_USBManagerState.CommandQueue, &Cmd, 0) == pdTRUE) {
             esp_err_t Error;
 
             switch (Cmd.ID) {
@@ -215,7 +215,7 @@ esp_err_t USBManager_Init(void)
         .Reserved = 0,
     };
 
-    if (_USB_Manager_State.isInitialized) {
+    if (_USBManagerState.IsInitialized) {
         ESP_LOGW(TAG, "USB Manager already initialized!");
 
         return USB_ERR_ALREADY_INITIALIZED;
@@ -223,22 +223,22 @@ esp_err_t USBManager_Init(void)
 
     ESP_LOGD(TAG, "Initializing USB Manager...");
 
-    memset(&_USB_Manager_State, 0, sizeof(USB_Manager_State_t));
+    memset(&_USBManagerState, 0, sizeof(USB_Manager_State_t));
 
-    _USB_Manager_State.StringDescriptors[0] = USB_LangID;
-    _USB_Manager_State.StringDescriptors[1] = CONFIG_DEVICE_MANUFACTURER;
-    _USB_Manager_State.StringDescriptors[2] = CONFIG_DEVICE_NAME;
-    _USB_Manager_State.StringDescriptors[3] = NULL;
+    _USBManagerState.StringDescriptors[0] = USB_LangID;
+    _USBManagerState.StringDescriptors[1] = CONFIG_DEVICE_MANUFACTURER;
+    _USBManagerState.StringDescriptors[2] = CONFIG_DEVICE_NAME;
+    _USBManagerState.StringDescriptors[3] = NULL;
 
     ESP_LOGD(TAG, "USB Descriptors: VID:PID = 0x%04X:0x%04X",
              get_Desc_Device()->idVendor,
              get_Desc_Device()->idProduct);
     ESP_LOGD(TAG, "  Manufacturer: %s, Product: %s",
-             _USB_Manager_State.StringDescriptors[1], _USB_Manager_State.StringDescriptors[2]);
+             _USBManagerState.StringDescriptors[1], _USBManagerState.StringDescriptors[2]);
 
     USB_Config.descriptor.device = get_Desc_Device();
     USB_Config.descriptor.full_speed_config = get_Desc_Config();
-    USB_Config.descriptor.string = _USB_Manager_State.StringDescriptors;
+    USB_Config.descriptor.string = _USBManagerState.StringDescriptors;
     USB_Config.descriptor.string_count = 3;
 
     ESP_LOGD(TAG, "Installing TinyUSB driver...");
@@ -262,8 +262,8 @@ esp_err_t USBManager_Init(void)
         return USB_ERR_CDC_INIT;
     }
 
-    _USB_Manager_State.CommandQueue = xQueueCreate(8, sizeof(USB_Manager_Cmd_t));
-    if (_USB_Manager_State.CommandQueue == NULL) {
+    _USBManagerState.CommandQueue = xQueueCreate(8, sizeof(USB_Manager_Cmd_t));
+    if (_USBManagerState.CommandQueue == NULL) {
         ESP_LOGE(TAG, "Failed to create USB command queue!");
 
         USBCDC_Deinit();
@@ -274,12 +274,12 @@ esp_err_t USBManager_Init(void)
         return USB_ERR_QUEUE_CREATE;
     }
 
-    Error = xTaskCreate(USB_Monitoring_Task, "USBMonTask", 4096, NULL, 5, &_USB_Manager_State.MonitoringTask);
+    Error = xTaskCreate(USB_Monitoring_Task, "USBMonTask", 4096, NULL, 5, &_USBManagerState.MonitoringTask);
     if (Error != pdPASS) {
         ESP_LOGE(TAG, "Failed to create USB monitoring task: 0x%X!", Error);
 
-        vQueueDelete(_USB_Manager_State.CommandQueue);
-        _USB_Manager_State.CommandQueue = NULL;
+        vQueueDelete(_USBManagerState.CommandQueue);
+        _USBManagerState.CommandQueue = NULL;
 
         USBCDC_Deinit();
         tinyusb_driver_uninstall();
@@ -291,7 +291,7 @@ esp_err_t USBManager_Init(void)
 
     tud_connect();
 
-    _USB_Manager_State.isInitialized = true;
+    _USBManagerState.IsInitialized = true;
 
     esp_event_post(USB_EVENTS, USB_EVENT_INITIALIZED, NULL, 0, portMAX_DELAY);
 
@@ -304,7 +304,7 @@ esp_err_t USBManager_Deinit(void)
 {
     esp_err_t Error;
 
-    if (_USB_Manager_State.isInitialized == false) {
+    if (_USBManagerState.IsInitialized == false) {
         ESP_LOGW(TAG, "USB Manager not initialized");
 
         return USB_ERR_NOT_INITIALIZED;
@@ -312,18 +312,18 @@ esp_err_t USBManager_Deinit(void)
 
     ESP_LOGD(TAG, "Deinitializing USB Manager...");
 
-    if (_USB_Manager_State.MonitoringTask != NULL) {
-        vTaskDelete(_USB_Manager_State.MonitoringTask);
-        _USB_Manager_State.MonitoringTask = NULL;
+    if (_USBManagerState.MonitoringTask != NULL) {
+        vTaskDelete(_USBManagerState.MonitoringTask);
+        _USBManagerState.MonitoringTask = NULL;
     }
 
-    if (_USB_Manager_State.CommandQueue != NULL) {
-        vQueueDelete(_USB_Manager_State.CommandQueue);
-        _USB_Manager_State.CommandQueue = NULL;
+    if (_USBManagerState.CommandQueue != NULL) {
+        vQueueDelete(_USBManagerState.CommandQueue);
+        _USBManagerState.CommandQueue = NULL;
     }
 
-    _USB_Manager_State.isInitialized = false;
-    _USB_Manager_State.isCableConnected = false;
+    _USBManagerState.IsInitialized = false;
+    _USBManagerState.IsCableConnected = false;
 
     ESP_LOGD(TAG, "Disconnecting from USB bus...");
     if (tud_disconnect() == false) {
@@ -377,11 +377,11 @@ esp_err_t USBManager_EnableMSC(bool Enable)
         .ID = Enable ? USB_CMD_ENABLE_MSC : USB_CMD_DISABLE_MSC,
     };
 
-    if (_USB_Manager_State.isInitialized == false) {
+    if (_USBManagerState.IsInitialized == false) {
         return USB_ERR_NOT_INITIALIZED;
     }
 
-    if (xQueueSend(_USB_Manager_State.CommandQueue, &Cmd, 0) != pdTRUE) {
+    if (xQueueSend(_USBManagerState.CommandQueue, &Cmd, 0) != pdTRUE) {
         ESP_LOGW(TAG, "USB command queue full, EnableMSC command dropped!");
 
         return USB_ERR_QUEUE_FULL;
@@ -396,11 +396,11 @@ esp_err_t USBManager_EnableUVC(bool Enable)
         .ID = Enable ? USB_CMD_ENABLE_UVC : USB_CMD_DISABLE_UVC,
     };
 
-    if (_USB_Manager_State.isInitialized == false) {
+    if (_USBManagerState.IsInitialized == false) {
         return USB_ERR_NOT_INITIALIZED;
     }
 
-    if (xQueueSend(_USB_Manager_State.CommandQueue, &Cmd, 0) != pdTRUE) {
+    if (xQueueSend(_USBManagerState.CommandQueue, &Cmd, 0) != pdTRUE) {
         ESP_LOGW(TAG, "USB command queue full, EnableUVC command dropped!");
 
         return USB_ERR_QUEUE_FULL;
@@ -411,10 +411,10 @@ esp_err_t USBManager_EnableUVC(bool Enable)
 
 bool USBManager_IsInitialized(void)
 {
-    return _USB_Manager_State.isInitialized;
+    return _USBManagerState.IsInitialized;
 }
 
 bool USBManager_IsCableConnected(void)
 {
-    return _USB_Manager_State.isCableConnected;
+    return _USBManagerState.IsCableConnected;
 }

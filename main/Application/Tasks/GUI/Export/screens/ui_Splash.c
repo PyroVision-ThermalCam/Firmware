@@ -5,19 +5,19 @@
 
 #include "../ui.h"
 
-lv_obj_t *ui_Splash = NULL;
-lv_obj_t *ui_SplashScreen_Logo = NULL;
-lv_obj_t *ui_SplashScreen_LogoText = NULL;
-lv_obj_t *ui_SplashScreen_Subtext = NULL;
-lv_obj_t *ui_SplashScreen_LoadingBar = NULL;
-lv_obj_t *ui_SplashScreen_StatusText = NULL;
-lv_obj_t *ui_SplashScreen_FirmwareVersion = NULL;
+lv_obj_t * ui_Splash = NULL;
+lv_obj_t * ui_SplashScreen_Logo = NULL;
+lv_obj_t * ui_SplashScreen_LogoText = NULL;
+lv_obj_t * ui_SplashScreen_Subtext = NULL;
+lv_obj_t * ui_SplashScreen_LoadingBar = NULL;
+lv_obj_t * ui_SplashScreen_StatusText = NULL;
+lv_obj_t * ui_SplashScreen_FirmwareVersion = NULL;
 // event funtions
 void ui_event_Splash(lv_event_t * e)
 {
     lv_event_code_t event_code = lv_event_get_code(e);
 
-    if (event_code == LV_EVENT_SCREEN_LOADED) {
+    if(event_code == LV_EVENT_SCREEN_LOADED) {
         ScreenSplashLoaded(e);
     }
 }
@@ -85,9 +85,9 @@ void ui_Splash_screen_init(void)
     lv_obj_set_style_bg_opa(ui_SplashScreen_LoadingBar, 255, LV_PART_INDICATOR | LV_STATE_DEFAULT);
 
     //Compensating for LVGL9.1 draw crash with bar/slider max value when top-padding is nonzero and right-padding is 0
-    if (lv_obj_get_style_pad_top(ui_SplashScreen_LoadingBar,
-                                 LV_PART_MAIN) > 0) lv_obj_set_style_pad_right(ui_SplashScreen_LoadingBar,
-                                                                                   lv_obj_get_style_pad_right(ui_SplashScreen_LoadingBar, LV_PART_MAIN) + 1, LV_PART_MAIN);
+    if(lv_obj_get_style_pad_top(ui_SplashScreen_LoadingBar,
+                                LV_PART_MAIN) > 0) lv_obj_set_style_pad_right(ui_SplashScreen_LoadingBar,
+                                                                                  lv_obj_get_style_pad_right(ui_SplashScreen_LoadingBar, LV_PART_MAIN) + 1, LV_PART_MAIN);
     ui_SplashScreen_StatusText = lv_label_create(ui_Splash);
     lv_obj_set_width(ui_SplashScreen_StatusText, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_SplashScreen_StatusText, LV_SIZE_CONTENT);    /// 1
@@ -123,9 +123,7 @@ void ui_Splash_screen_init(void)
 
 void ui_Splash_screen_destroy(void)
 {
-    if (ui_Splash) {
-        lv_obj_del(ui_Splash);
-    }
+    if(ui_Splash) lv_obj_del(ui_Splash);
 
     // NULL screen variables
     ui_Splash = NULL;

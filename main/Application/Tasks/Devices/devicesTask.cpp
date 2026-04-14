@@ -37,36 +37,31 @@
 #include "devicesTask.h"
 #include "Application/application.h"
 #include "Application/Manager/Devices/devicesManager.h"
+#include "AppDiag/appDiag.h"
 
 #define DEVICES_TASK_STOP_REQUEST           BIT0
 #define DEVICES_TASK_TIME_SYNCED            BIT1
 #define DEVICES_TASK_UPDATE_BRIGHTNESS      BIT2
+#define DEVICES_TASK_CALIBRATION_CHANGED    BIT3
 
 ESP_EVENT_DEFINE_BASE(DEVICES_TASK_EVENTS);
 
+/** @brief Internal runtime state of the devices task.
+ *         Holds FreeRTOS primitives, the latest room temperature reading, and a staging area
+ *         for incoming settings-change notifications processed inside the task loop.
+ */
 typedef struct {
-    bool isInitialized;
-    bool isRunning;
-    TaskHandle_t TaskHandle;
-    EventGroupHandle_t EventGroup;
-    SettingsManager_ChangeNotification_t NewSetting;
-    int16_t RoomTemperature;
+    bool IsInitialized;                                 /**< true after Devices_Task_Init() has completed successfully. */
+    bool IsRunning;                                     /**< true while the FreeRTOS task is executing. */
+    TaskHandle_t TaskHandle;                            /**< FreeRTOS task handle; NULL before Devices_Task_Start(). */
+    EventGroupHandle_t EventGroup;                      /**< Event group used for intra-task synchronisation. */
+    SettingsManager_ChangeNotification_t NewSetting;    /**< Staging area for incoming settings-change notifications. */
+    int16_t RoomTemperature;                            /**< Latest room temperature in tenths of a degree Celsius. */
 } Devices_Task_State_t;
 
-static Devices_Task_State_t _Devices_Task_State;
+static Devices_Task_State_t _DevicesTaskState;
 
 static const char *TAG = "Devices-Task";
-
-/** @brief                  GUI task event handler.
- *  @param p_HandlerArgs    Handler argument
- *  @param Base             Event base
- *  @param ID               Event ID
- *  @param p_Data           Event-specific data
- */
-static void on_GUI_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
-{
-    ESP_LOGD(TAG, "GUI task event received: ID=%d", ID);
-}
 
 /** @brief                  Event handler for the Settings task to receive updates when settings are changed.
  *  @param p_HandlerArgs    Handler argument
@@ -80,13 +75,13 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
 
     switch (ID) {
         case SETTINGS_EVENT_DISPLAY_CHANGED: {
-            memcpy(&_Devices_Task_State.NewSetting, p_Data, sizeof(SettingsManager_ChangeNotification_t));
+            memcpy(&_DevicesTaskState.NewSetting, p_Data, sizeof(SettingsManager_ChangeNotification_t));
 
-            ESP_LOGD(TAG, "Display settings changed: ID=%d", _Devices_Task_State.NewSetting.ID);
-            ESP_LOGD(TAG, "Display settings changed: Value=%d", _Devices_Task_State.NewSetting.Value);
+            ESP_LOGD(TAG, "Display settings changed: ID=%d", _DevicesTaskState.NewSetting.ID);
+            ESP_LOGD(TAG, "Display settings changed: Value=%d", _DevicesTaskState.NewSetting.Value);
 
-            if (_Devices_Task_State.NewSetting.ID == SETTINGS_ID_DISPLAY_BRIGHTNESS) {
-                xEventGroupSetBits(_Devices_Task_State.EventGroup, DEVICES_TASK_UPDATE_BRIGHTNESS);
+            if (_DevicesTaskState.NewSetting.ID == SETTINGS_ID_DISPLAY_BRIGHTNESS) {
+                xEventGroupSetBits(_DevicesTaskState.EventGroup, DEVICES_TASK_UPDATE_BRIGHTNESS);
             }
 
             break;
@@ -98,14 +93,19 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
                 break;
             }
 
-            memcpy(&_Devices_Task_State.NewSetting, p_Data, sizeof(SettingsManager_ChangeNotification_t));
+            memcpy(&_DevicesTaskState.NewSetting, p_Data, sizeof(SettingsManager_ChangeNotification_t));
 
-            ESP_LOGD(TAG, "Calibration settings changed: ID=%d", _Devices_Task_State.NewSetting.ID);
-            ESP_LOGD(TAG, "Calibration settings changed: Value=%d", _Devices_Task_State.NewSetting.Value);
+            ESP_LOGD(TAG, "Calibration settings changed: ID=%d", _DevicesTaskState.NewSetting.ID);
+            ESP_LOGD(TAG, "Calibration settings changed: Value=%d", _DevicesTaskState.NewSetting.Value);
 
-            if (_Devices_Task_State.NewSetting.ID == SETTINGS_ID_CALIBRATION_ROOM_TEMP) {
-                _Devices_Task_State.RoomTemperature = static_cast<int16_t>(_Devices_Task_State.NewSetting.Value);
+            if (_DevicesTaskState.NewSetting.ID == SETTINGS_ID_CALIBRATION_ROOM_TEMP) {
+                _DevicesTaskState.RoomTemperature = static_cast<int16_t>(_DevicesTaskState.NewSetting.Value);
             }
+
+            break;
+        }
+        default: {
+            ESP_LOGW(TAG, "Unhandled settings event ID: 0x%X", ID);
 
             break;
         }
@@ -160,20 +160,20 @@ static void Task_Devices(void *p_Parameters)
                        &NewBatteryInfo, sizeof(App_Devices_Battery_t), pdMS_TO_TICKS(100));
     }
 
-    while (_Devices_Task_State.isRunning) {
+    while (_DevicesTaskState.IsRunning) {
         EventBits_t EventBits;
 
         esp_task_wdt_reset();
 
         DevicesManager_HandleExpanderInterrupt();
 
-        EventBits = xEventGroupGetBits(_Devices_Task_State.EventGroup);
+        EventBits = xEventGroupGetBits(_DevicesTaskState.EventGroup);
         if (EventBits & DEVICES_TASK_STOP_REQUEST) {
             ESP_LOGD(TAG, "Stop request received");
 
-            _Devices_Task_State.isRunning = false;
+            _DevicesTaskState.IsRunning = false;
 
-            xEventGroupClearBits(_Devices_Task_State.EventGroup, DEVICES_TASK_STOP_REQUEST);
+            xEventGroupClearBits(_DevicesTaskState.EventGroup, DEVICES_TASK_STOP_REQUEST);
 
             break;
         }
@@ -181,9 +181,31 @@ static void Task_Devices(void *p_Parameters)
         if (EventBits & DEVICES_TASK_UPDATE_BRIGHTNESS) {
             ESP_LOGI(TAG, "Updating display brightness due to settings change");
 
-            DevicesManager_SetBrightness(BACKLIGHT_DISPLAY, _Devices_Task_State.NewSetting.Value);
+            DevicesManager_SetBrightness(BACKLIGHT_DISPLAY, _DevicesTaskState.NewSetting.Value);
 
-            xEventGroupClearBits(_Devices_Task_State.EventGroup, DEVICES_TASK_UPDATE_BRIGHTNESS);
+            xEventGroupClearBits(_DevicesTaskState.EventGroup, DEVICES_TASK_UPDATE_BRIGHTNESS);
+        }
+
+        if (EventBits & DEVICES_TASK_CALIBRATION_CHANGED) {
+            float SensorTemp;
+            Settings_Calibration_t Calibration;
+
+            SettingsManager_GetCalibration(&Calibration);
+
+            /* Record the sensor reading at the moment of calibration.
+             * From this point on: offset = RoomTemperature - SensorAtCalibration.
+             */
+            if (DevicesManager_GetTemperature(&SensorTemp) == ESP_OK) {
+                Calibration.SensorAtCalibration = SensorTemp;
+                SettingsManager_UpdateCalibration(&Calibration, NULL);
+
+                ESP_LOGI(TAG, "Calibration snapshot: room=%d\xC2\xB0""C, sensor=%.2f\xC2\xB0""C, offset=%.2f\xC2\xB0""C",
+                        static_cast<int>(Calibration.RoomTemperature),
+                        Calibration.SensorAtCalibration,
+                        static_cast<float>(Calibration.RoomTemperature) - Calibration.SensorAtCalibration);
+            }
+
+            xEventGroupClearBits(_DevicesTaskState.EventGroup, DEVICES_TASK_CALIBRATION_CHANGED);
         }
 
         if ((xTaskGetTickCount() - LastBatteryPoll) >= pdMS_TO_TICKS(CONFIG_DEVICES_TASK_BATTERY_POLL_INTERVAL_S * 1000)) {
@@ -208,8 +230,35 @@ static void Task_Devices(void *p_Parameters)
             LastTemperaturePoll = xTaskGetTickCount();
 
             if (DevicesManager_GetTemperature(&Temperature) == ESP_OK) {
-                App_Devices_Temperature_t NewTemperatureInfo = {
-                    .Temperature = Temperature,
+                Settings_Calibration_t Calibration;
+                App_Devices_Temperature_t NewTemperatureInfo;
+
+                SettingsManager_GetCalibration(&Calibration);
+
+                /* Auto-initialize SensorAtCalibration on the first temperature reading.
+                * SensorAtCalibration == 0.0f is the "never calibrated" sentinel.
+                * On first reading: store the current sensor value so the persistent offset
+                * reflects the factory/power-on deviation from the configured room temperature.
+                * offset = RoomTemperature - SensorAtCalibration
+                * estimated_ambient = sensor_current + offset
+                * Example: room=20, sensor_cal=24.3 -> offset=-4.3
+                *          sensor_now=24.5           -> ambient=24.5+(-4.3)=20.2 */
+                if (Calibration.SensorAtCalibration == 0.0f) {
+                    Calibration.SensorAtCalibration = Temperature;
+                    SettingsManager_UpdateCalibration(&Calibration, NULL);
+
+                    ESP_LOGI(TAG,
+                            "Calibration baseline auto-initialized: sensor = %.2f\xC2\xB0""C, room = %d\xC2\xB0""C, offset = %.2f\xC2\xB0""C",
+                            Calibration.SensorAtCalibration,
+                            static_cast<int>(Calibration.RoomTemperature),
+                            static_cast<float>(Calibration.RoomTemperature) - Calibration.SensorAtCalibration);
+
+                    /* Save the updated calibration to persistent storage. */
+                    SettingsManager_Save();
+                }
+
+                NewTemperatureInfo = {
+                    .TempSensor = Temperature,
                 };
 
                 esp_event_post(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE,
@@ -219,7 +268,7 @@ static void Task_Devices(void *p_Parameters)
 
         if (DevicesManager_HandleDisplayboardExpanderInterrupt(&InputState) == ESP_OK) {
             if (memcmp(&InputState, &PendingInputState, sizeof(Devices_InputState_t)) != 0) {
-                /* New raw state from INT# — restart debounce timer */
+                /* New raw state from INT# � restart debounce timer */
                 memcpy(&PendingInputState, &InputState, sizeof(Devices_InputState_t));
                 PendingChangeTime = xTaskGetTickCount();
                 HasPendingInput = true;
@@ -253,7 +302,7 @@ static void Task_Devices(void *p_Parameters)
 
     DevicesManager_Deinit();
 
-    _Devices_Task_State.TaskHandle = NULL;
+    _DevicesTaskState.TaskHandle = NULL;
 
     esp_task_wdt_delete(NULL);
     vTaskDelete(NULL);
@@ -263,15 +312,16 @@ esp_err_t Devices_Task_Init(void)
 {
     esp_err_t Error;
 
-    if (_Devices_Task_State.isInitialized) {
+    if (_DevicesTaskState.IsInitialized) {
         ESP_LOGW(TAG, "Already initialized");
 
         return ESP_OK;
     }
 
-    _Devices_Task_State.EventGroup = xEventGroupCreate();
-    if (_Devices_Task_State.EventGroup == NULL) {
+    _DevicesTaskState.EventGroup = xEventGroupCreate();
+    if (_DevicesTaskState.EventGroup == NULL) {
         ESP_LOGE(TAG, "Failed to create event group!");
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_DEVICES, ESP_ERR_NO_MEM);
 
         return ESP_ERR_NO_MEM;
     }
@@ -279,30 +329,31 @@ esp_err_t Devices_Task_Init(void)
     Error = DevicesManager_Init();
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize Devices Manager: 0x%x!", Error);
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_DEVICES, Error);
 
         return Error;
     }
 
-    esp_event_handler_register(GUI_TASK_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Task_Event_Handler, NULL);
-    esp_event_handler_register(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler, NULL);
+    esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_DISPLAY_CHANGED, on_Settings_Event_Handler, NULL);
+    esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_CALIBRATION_CHANGED, on_Settings_Event_Handler, NULL);
 
-    _Devices_Task_State.isInitialized = true;
+    _DevicesTaskState.IsInitialized = true;
 
     return ESP_OK;
 }
 
 void Devices_Task_Deinit(void)
 {
-    if (_Devices_Task_State.isInitialized == false) {
+    if (_DevicesTaskState.IsInitialized == false) {
         return;
     }
 
-    esp_event_handler_unregister(GUI_TASK_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Task_Event_Handler);
-    esp_event_handler_unregister(SETTINGS_EVENTS, ESP_EVENT_ANY_ID, on_Settings_Event_Handler);
+    esp_event_handler_unregister(SETTINGS_EVENTS, SETTINGS_EVENT_DISPLAY_CHANGED, on_Settings_Event_Handler);
+    esp_event_handler_unregister(SETTINGS_EVENTS, SETTINGS_EVENT_CALIBRATION_CHANGED, on_Settings_Event_Handler);
 
     DevicesManager_Deinit();
 
-    _Devices_Task_State.isInitialized = false;
+    _DevicesTaskState.IsInitialized = false;
 
     return;
 }
@@ -313,24 +364,25 @@ esp_err_t Devices_Task_Start(App_Context_t *p_AppContext)
 
     if (p_AppContext == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (_Devices_Task_State.isInitialized == false) {
+    } else if (_DevicesTaskState.IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
-    } else if (_Devices_Task_State.isRunning) {
+    } else if (_DevicesTaskState.IsRunning) {
         ESP_LOGW(TAG, "Task already running");
 
         return ESP_OK;
     }
 
-    _Devices_Task_State.isRunning = true;
+    _DevicesTaskState.IsRunning = true;
 
     ESP_LOGD(TAG, "Starting Devices Task");
 
     Error = xTaskCreatePinnedToCore(Task_Devices, "Task_Devices", CONFIG_DEVICES_TASK_STACKSIZE, p_AppContext,
-                                    CONFIG_DEVICES_TASK_PRIO, &_Devices_Task_State.TaskHandle, CONFIG_DEVICES_TASK_CORE);
+                                    CONFIG_DEVICES_TASK_PRIO, &_DevicesTaskState.TaskHandle, CONFIG_DEVICES_TASK_CORE);
     if (Error != pdPASS) {
         ESP_LOGE(TAG, "Failed to create Devices Task: 0x%X!", Error);
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_DEVICES, ESP_ERR_NO_MEM);
 
-        _Devices_Task_State.isRunning = false;
+        _DevicesTaskState.IsRunning = false;
 
         return ESP_ERR_NO_MEM;
     }
@@ -340,18 +392,18 @@ esp_err_t Devices_Task_Start(App_Context_t *p_AppContext)
 
 esp_err_t Devices_Task_Stop(void)
 {
-    if (_Devices_Task_State.isRunning == false) {
+    if (_DevicesTaskState.IsRunning == false) {
         return ESP_OK;
     }
 
     ESP_LOGD(TAG, "Stopping Devices Task");
 
-    xEventGroupSetBits(_Devices_Task_State.EventGroup, DEVICES_TASK_STOP_REQUEST);
+    xEventGroupSetBits(_DevicesTaskState.EventGroup, DEVICES_TASK_STOP_REQUEST);
 
     return ESP_OK;
 }
 
 bool Devices_Task_IsRunning(void)
 {
-    return _Devices_Task_State.isRunning;
+    return _DevicesTaskState.IsRunning;
 }

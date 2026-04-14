@@ -34,6 +34,7 @@
 ESP_EVENT_DECLARE_BASE(LEPTON_TASK_EVENTS);
 ESP_EVENT_DECLARE_BASE(GUI_TASK_EVENTS);
 ESP_EVENT_DECLARE_BASE(DEVICES_TASK_EVENTS);
+ESP_EVENT_DECLARE_BASE(CAMERA_TASK_EVENTS);
 
 /** @brief Lepton task event identifiers.
  */
@@ -78,6 +79,14 @@ enum {
                                                      Data is transmitted in a App_Devices_Temperature_t structure. */
 };
 
+/** @brief Camera task event identifiers.
+ */
+enum {
+    CAMERA_TASK_EVENT_REQUEST_FOCUS,            /**< Request to trigger autofocus. */
+    CAMERA_TASK_EVENT_REQUEST_UPDATE_QUALITY,   /**< Request to update camera quality settings.
+                                                     Data is transmitted in as an uint8_t. */
+};
+
 /** @brief Structure representing a screen position.
  */
 typedef struct {
@@ -105,7 +114,7 @@ typedef struct {
 /** @brief Structure representing a temperature measurement.
  */
 typedef struct {
-    float Temperature;                          /**< Measured temperature in degrees Celsius. */
+    float TempSensor;                           /**< Measured temperature from the internal temperature sensor in degrees Celsius. */
 } App_Devices_Temperature_t;
 
 /** @brief Structure representing a ready frame from the Lepton camera.
@@ -117,7 +126,7 @@ typedef struct {
     uint32_t Channels;                          /**< Number of color channels (e.g., 3 for RGB). */
     int16_t Min;                                /**< Minimum value in the frame. */
     int16_t Max;                                /**< Maximum value in the frame. */
-} App_Lepton_FrameReady_t;
+} App_Lepton_Frame_t;
 
 /** @brief Structure representing FPA and AUX temperature from the Lepton camera.
  */
@@ -148,10 +157,19 @@ typedef struct {
     };
 } App_Lepton_ROI_Result_t;
 
+/** @brief Structure representing a ready frame from the visible-light camera.
+ */
+typedef struct {
+    uint8_t *Buffer;                            /**< Pointer to the RGB565 frame buffer (Width * Height * 2 bytes). */
+    uint32_t Width;                             /**< Frame width in pixels. */
+    uint32_t Height;                            /**< Frame height in pixels. */
+} App_Camera_Frame_t;
+
 /** @brief Application context aggregating shared resources.
  */
 typedef struct {
-    QueueHandle_t Lepton_FrameEventQueue;       /**< Queue for Lepton frame ready events. */
+    QueueHandle_t Lepton_FrameQueue;            /**< Queue for Lepton frame ready events. */
+    QueueHandle_t Camera_FrameQueue;            /**< Queue (depth 1) for visible-light camera frame ready events. */
     SemaphoreHandle_t InputMutex;               /**< Protects InputState against concurrent access. */
     Devices_InputState_t InputState;            /**< Debounced displayboard input state, written by
                                                      Devices Task and read by the LVGL keypad indev. */

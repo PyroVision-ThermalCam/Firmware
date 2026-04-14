@@ -91,7 +91,7 @@ esp_err_t Provision_Handler_Logo(httpd_req_t *p_Request)
 
 esp_err_t Provision_Handler_CaptivePortal(httpd_req_t *p_Request)
 {
-    char address[26] = { 0 };
+    char Address[26] = { 0 };
     esp_netif_t *ap_netif;
 
     ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
@@ -99,19 +99,19 @@ esp_err_t Provision_Handler_CaptivePortal(httpd_req_t *p_Request)
         esp_netif_ip_info_t ip_info;
 
         if (esp_netif_get_ip_info(ap_netif, &ip_info) == ESP_OK) {
-            snprintf(address, sizeof(address) - 1, "http://" IPSTR, IP2STR(&ip_info.ip));
+            snprintf(Address, sizeof(Address) - 1, "http://" IPSTR, IP2STR(&ip_info.ip));
         } else {
-            strncpy(address, "http://192.168.4.1", sizeof(address) - 1);
+            strncpy(Address, "http://192.168.4.1", sizeof(Address) - 1);
         }
     } else {
-        strncpy(address, "http://192.168.4.1", sizeof(address) - 1);
+        strncpy(Address, "http://192.168.4.1", sizeof(Address) - 1);
     }
 
-    ESP_LOGD(TAG, "Captive portal redirect to %s", address);
+    ESP_LOGD(TAG, "Captive portal redirect to %s", Address);
 
     /* Redirect captive portal detection to main page */
     httpd_resp_set_status(p_Request, "302 Found");
-    httpd_resp_set_hdr(p_Request, "Location", address);
+    httpd_resp_set_hdr(p_Request, "Location", Address);
     httpd_resp_send(p_Request, NULL, 0);
 
     return ESP_OK;

@@ -33,27 +33,46 @@
 
 #include "Application/application.h"
 
-/** @brief  Initializes the devices task.
- *  @return ESP_OK on success, error code otherwise
+/** @brief          Initialize the devices task.
+ *                  Creates the FreeRTOS task, event group, and registers event handlers
+ *                  for settings and time-synchronisation events.
+ *  @note           Call this before Devices_Task_Start().
+ *  @return         ESP_OK on success
+ *                  ESP_ERR_NO_MEM if event group or task creation fails
+ *                  ESP_FAIL if DevicesManager_Init() fails
  */
 esp_err_t Devices_Task_Init(void);
 
-/** @brief Deinitializes the devices task.
+/** @brief  Deinitialize the devices task.
+ *          Stops the task, deletes the event group, and unregisters all event handlers.
+ *  @note   Task must be stopped before calling this.
  */
 void Devices_Task_Deinit(void);
 
-/** @brief  Starts the devices task.
- *  @return ESP_OK on success, error code otherwise
+/** @brief              Start the devices task.
+ *                      Resumes the FreeRTOS task to begin processing device events and
+ *                      periodic I2C sensor reads.
+ *  @note               Call this after Devices_Task_Init().
+ *  @param p_AppContext Pointer to the application context.
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_ARG if p_AppContext is NULL
+ *                      ESP_ERR_INVALID_STATE if not initialized
+ *                      ESP_ERR_NO_MEM if task creation fails
  */
 esp_err_t Devices_Task_Start(App_Context_t *p_AppContext);
 
-/** @brief  Stops the devices task.
- *  @return ESP_OK on success, error code otherwise
+/** @brief          Stop the devices task.
+ *                  Suspends device event processing. Peripheral hardware remains
+ *                  powered and can be resumed with Devices_Task_Start().
+ *  @return         ESP_OK on success
+ *                  ESP_ERR_INVALID_STATE if not running
  */
 esp_err_t Devices_Task_Stop(void);
 
-/** @brief  Checks if the devices task is running.
- *  @return false if the task is not running, true if it is running
+/** @brief          Check if the devices task is running.
+ *  @note           Thread-safe.
+ *  @return         true  if the task is executing
+ *                  false if the task is stopped or not initialized
  */
 bool Devices_Task_IsRunning(void);
 

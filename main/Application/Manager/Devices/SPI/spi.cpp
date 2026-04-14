@@ -1,4 +1,4 @@
-/*
+﻿/*
  * spi.cpp
  *
  *  Copyright (C) Daniel Kampert, 2026
@@ -32,7 +32,7 @@
 #include <sdkconfig.h>
 
 typedef struct {
-    bool isInitialized;
+    bool IsInitialized;
     SemaphoreHandle_t Mutex;
     uint32_t DeviceCount;
 } SPI_Bus_State_t;
@@ -56,7 +56,7 @@ esp_err_t SPIM_Init(const spi_bus_config_t *p_Config, spi_host_device_t Host, in
     }
 
     /* Check if already initialized */
-    if (_SPI_State[Host].isInitialized) {
+    if (_SPI_State[Host].IsInitialized) {
         ESP_LOGW(TAG, "SPI%d already initialized", Host + 1);
 
         return ESP_ERR_INVALID_STATE;
@@ -81,7 +81,7 @@ esp_err_t SPIM_Init(const spi_bus_config_t *p_Config, spi_host_device_t Host, in
         return Error;
     }
 
-    _SPI_State[Host].isInitialized = true;
+    _SPI_State[Host].IsInitialized = true;
     _SPI_State[Host].DeviceCount = 0;
 
     ESP_LOGD(TAG, "SPI%d bus initialized successfully", Host + 1);
@@ -99,7 +99,7 @@ esp_err_t SPIM_Deinit(spi_host_device_t Host)
 
     if (Host >= SOC_SPI_PERIPH_NUM) {
         return ESP_ERR_INVALID_ARG;
-    } else if (_SPI_State[Host].isInitialized == false) {
+    } else if (_SPI_State[Host].IsInitialized == false) {
         return ESP_OK;
     } else if (_SPI_State[Host].DeviceCount > 0) {
         ESP_LOGW(TAG, "SPI%d still has %d devices attached", Host + 1, _SPI_State[Host].DeviceCount);
@@ -119,7 +119,7 @@ esp_err_t SPIM_Deinit(spi_host_device_t Host)
         _SPI_State[Host].Mutex = NULL;
     }
 
-    _SPI_State[Host].isInitialized = false;
+    _SPI_State[Host].IsInitialized = false;
     _SPI_State[Host].DeviceCount = 0;
 
     ESP_LOGD(TAG, "SPI%d bus deinitialized", Host + 1);
@@ -138,7 +138,7 @@ esp_err_t SPIM_AddDevice(spi_host_device_t Host, const spi_device_interface_conf
         ESP_LOGE(TAG, "Invalid SPI host: 0x%X", Host);
 
         return ESP_ERR_INVALID_ARG;
-    } else if (_SPI_State[Host].isInitialized == false) {
+    } else if (_SPI_State[Host].IsInitialized == false) {
         ESP_LOGE(TAG, "SPI%d bus not initialized!", Host + 1);
 
         return ESP_ERR_INVALID_STATE;
@@ -197,7 +197,7 @@ bool SPIM_IsInitialized(spi_host_device_t Host)
         return false;
     }
 
-    return _SPI_State[Host].isInitialized;
+    return _SPI_State[Host].IsInitialized;
 }
 
 esp_err_t SPIM_Transmit(spi_host_device_t Host, spi_device_handle_t Handle, uint8_t *p_Tx_Data, uint8_t *p_Rx_Data,

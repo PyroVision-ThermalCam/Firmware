@@ -38,11 +38,11 @@ static const char *TAG = "USB-CDC";
 /** @brief CDC module internal state.
  */
 typedef struct {
-    bool isInitialized;                 /**< Module initialization state. */
-    bool isConnected;                   /**< Host terminal is connected (DTR+RTS active). */
-} USB_CDC_State_t;
+    bool IsInitialized;                 /**< Module initialization state. */
+    bool IsConnected;                   /**< Host terminal is connected (DTR+RTS active). */
+} USB_CDCState_t;
 
-static USB_CDC_State_t _CDC_State;
+static USB_CDCState_t _CDCState;
 
 /** @brief              Callback for CDC line state changes (connect / disconnect events).
  *  @param itf          Interface number
@@ -53,11 +53,11 @@ static void on_CDC_LineStateChanged(int itf, cdcacm_event_t *p_Event)
     esp_err_t Error;
     bool Connected = p_Event->line_state_changed_data.dtr && p_Event->line_state_changed_data.rts;
 
-    if (Connected == _CDC_State.isConnected) {
+    if (Connected == _CDCState.IsConnected) {
         return;
     }
 
-    _CDC_State.isConnected = Connected;
+    _CDCState.IsConnected = Connected;
 
     if (Connected) {
         ESP_LOGD(TAG, "CDC host terminal connected on interface %d", itf);
@@ -84,13 +84,13 @@ esp_err_t USBCDC_Init(const USB_CDC_Config_t *p_Config)
         ESP_LOGE(TAG, "Invalid configuration pointer!");
 
         return ESP_ERR_INVALID_ARG;
-    } else if (_CDC_State.isInitialized) {
+    } else if (_CDCState.IsInitialized) {
         ESP_LOGW(TAG, "CDC already initialized!");
 
         return ESP_ERR_INVALID_STATE;
     }
 
-    memset(&_CDC_State, 0, sizeof(USB_CDC_State_t));
+    memset(&_CDCState, 0, sizeof(USB_CDCState_t));
 
     tinyusb_config_cdcacm_t CDC_Config = {
         .cdc_port = TINYUSB_CDC_ACM_0,
@@ -107,7 +107,7 @@ esp_err_t USBCDC_Init(const USB_CDC_Config_t *p_Config)
         return Error;
     }
 
-    _CDC_State.isInitialized = true;
+    _CDCState.IsInitialized = true;
 
     ESP_LOGD(TAG, "CDC-ACM initialized");
 
@@ -118,7 +118,7 @@ esp_err_t USBCDC_Deinit(void)
 {
     esp_err_t Error;
 
-    if (_CDC_State.isInitialized == false) {
+    if (_CDCState.IsInitialized == false) {
         ESP_LOGW(TAG, "CDC not initialized!");
 
         return ESP_ERR_INVALID_STATE;
@@ -129,7 +129,7 @@ esp_err_t USBCDC_Deinit(void)
         ESP_LOGW(TAG, "Failed to deinitialize TinyUSB CDC-ACM: 0x%X!", Error);
     }
 
-    memset(&_CDC_State, 0, sizeof(USB_CDC_State_t));
+    memset(&_CDCState, 0, sizeof(USB_CDCState_t));
 
     ESP_LOGD(TAG, "CDC-ACM deinitialized");
 
@@ -144,9 +144,9 @@ esp_err_t USBCDC_Write(const uint8_t *p_Data, size_t Size)
         return ESP_ERR_INVALID_ARG;
     } else if (Size == 0) {
         return ESP_ERR_INVALID_ARG;
-    } else if (_CDC_State.isInitialized == false) {
+    } else if (_CDCState.IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
-    } else if (_CDC_State.isConnected == false) {
+    } else if (_CDCState.IsConnected == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -167,10 +167,10 @@ esp_err_t USBCDC_Write(const uint8_t *p_Data, size_t Size)
 
 bool USBCDC_IsInitialized(void)
 {
-    return _CDC_State.isInitialized;
+    return _CDCState.IsInitialized;
 }
 
 bool USBCDC_IsConnected(void)
 {
-    return _CDC_State.isInitialized && _CDC_State.isConnected;
+    return _CDCState.IsInitialized && _CDCState.IsConnected;
 }

@@ -81,12 +81,12 @@ static esp_err_t PCAL6416AHF_Apply_PinConfig(i2c_master_dev_handle_t *p_Dev_Hand
         /* Input latch: when enabled the input value is captured at the interrupt edge
          * and held until the INPUT register is read, preventing metastable reads on
          * mechanically bouncing signals (e.g. card-detect switches). */
-        if ((p_Config[i].isLatched) && (p_Config[i].Direction == PCAL6416_DIR_INPUT)) {
+        if ((p_Config[i].IsLatched) && (p_Config[i].Direction == PCAL6416_DIR_INPUT)) {
             Latch[static_cast<uint8_t>(p_Config[i].Port)] |= Bit;
         }
 
         /* Polarity inversion register only affects input pins on PCAL6416AHF */
-        if ((p_Config[i].isInverted) && (p_Config[i].Direction == PCAL6416_DIR_INPUT)) {
+        if ((p_Config[i].IsInverted) && (p_Config[i].Direction == PCAL6416_DIR_INPUT)) {
             Pol[static_cast<uint8_t>(p_Config[i].Port)] |= Bit;
         }
 
@@ -203,7 +203,7 @@ esp_err_t PCAL6416AHF_Init(i2c_master_bus_handle_t *p_Bus_Handle, uint8_t Addres
         return Error;
     }
 
-    p_Device->isInitialized = true;
+    p_Device->IsInitialized = true;
 
     return ESP_OK;
 }
@@ -225,7 +225,7 @@ esp_err_t PCAL6416AHF_Deinit(PCAL6416AHF_Dev_t *p_Device)
 
     ESP_LOGD(TAG, "PCAL6416AHF deinitialized");
 
-    p_Device->isInitialized = false;
+    p_Device->IsInitialized = false;
     p_Device->Handle = NULL;
 
     return ESP_OK;
@@ -239,7 +239,7 @@ esp_err_t PCAL6416AHF_ReadPin(PCAL6416AHF_Dev_t *p_Device, PCAL6416_Port_t Port,
 
     if ((p_Device == NULL) || (p_Level == NULL)) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -268,7 +268,7 @@ esp_err_t PCAL6416AHF_WritePin(PCAL6416AHF_Dev_t *p_Device, PCAL6416_Port_t Port
 
     if (p_Device == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -285,7 +285,7 @@ esp_err_t PCAL6416AHF_ReadInputs(PCAL6416AHF_Dev_t *p_Device, uint8_t *p_Input0,
 
     if ((p_Device == NULL) || (p_Input0 == NULL) || (p_Input1 == NULL)) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -316,7 +316,7 @@ esp_err_t PCAL6416AHF_ReadIntStatus(PCAL6416AHF_Dev_t *p_Device,
     if ((p_Device == NULL) || (p_Status0 == NULL) || (p_Status1 == NULL) ||
         (p_Input0 == NULL) || (p_Input1 == NULL)) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 

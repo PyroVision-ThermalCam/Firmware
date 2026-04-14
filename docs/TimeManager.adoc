@@ -63,18 +63,17 @@ The manager maintains its state in the `TimeManager_State_t` structure:
 [source,cpp]
 ----
 typedef struct {
-    bool isInitialized;                 // Initialization status
-    bool hasRTC;                        // RTC hardware available
-    bool hasNetwork;                    // Network connected
-    bool timeSynchronized;              // Time has been synchronized
-    i2c_master_dev_handle_t RTC_Handle; // RTC device handle
-    TimeManager_Source_t activeSource;  // Current active time source
-    time_t lastSNTP_Sync;               // Last SNTP sync timestamp
-    time_t lastRTC_Sync;                // Last RTC read timestamp
-    time_t lastRTC_Backup;              // Last RTC backup timestamp
-    uint32_t sntpSyncCount;             // SNTP sync counter
-    uint32_t rtcSyncCount;              // RTC read counter
-    esp_timer_handle_t syncTimer;       // Periodic sync timer
+    bool IsInitialized;                 // Initialization status
+    bool HasRTC;                        // RTC hardware available
+    bool HasNetwork;                    // Network connected
+    bool TimeSynchronized;              // Time has been synchronized
+    TimeManager_Source_t ActiveSource;  // Current active time source
+    time_t LastSNTPSync;                // Last SNTP sync timestamp
+    time_t LastRTCSync;                 // Last RTC read timestamp
+    time_t LastRTCBackup;              // Last RTC backup timestamp
+    uint32_t SNTPSyncCount;             // SNTP sync counter
+    uint32_t RTCSyncCount;              // RTC read counter
+    esp_timer_handle_t SyncTimer;       // Periodic sync timer
 } TimeManager_State_t;
 ----
 

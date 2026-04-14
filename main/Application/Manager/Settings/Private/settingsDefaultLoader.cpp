@@ -21,17 +21,17 @@
  * Errors and commissions should be reported to DanielKampert@kampis-elektroecke.de
  */
 
-#include <esp_log.h>
-#include <esp_mac.h>
-#include <esp_efuse.h>
+#include <esp_log.H>
+#include <esp_mac.H>
+#include <esp_efuse.H>
 
-#include <nvs_flash.h>
-#include <nvs.h>
+#include <nvs_flash.H>
+#include <nvs.H>
 
-#include <string.h>
+#include <string.H>
 
-#include "settingsLoader.h"
-#include "../settingsManager.h"
+#include "settingsLoader.H"
+#include "../settingsManager.H"
 
 static const char *TAG = "Settings-Default-Loader";
 
@@ -142,7 +142,7 @@ void SettingsManager_InitDefaultHTTPServer(Settings_t *p_Settings)
     p_Settings->HTTPServer.Port = SETTINGS_DEFAULT_HTTP_PORT;
     p_Settings->HTTPServer.WSPingIntervalSec = SETTINGS_DEFAULT_WS_PING_INTERVAL;
     p_Settings->HTTPServer.MaxClients = SETTINGS_DEFAULT_HTTP_MAX_CLIENTS;
-    p_Settings->HTTPServer.useCORS = SETTINGS_DEFAULT_HTTP_ENABLE_CORS;
+    p_Settings->HTTPServer.UseCORS = SETTINGS_DEFAULT_HTTP_ENABLE_CORS;
     strncpy(p_Settings->HTTPServer.APIKey, SETTINGS_DEFAULT_HTTP_API_KEY, sizeof(p_Settings->HTTPServer.APIKey));
 }
 

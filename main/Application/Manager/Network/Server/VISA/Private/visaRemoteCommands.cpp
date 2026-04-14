@@ -369,17 +369,21 @@ int VISA_Cmd_GetImageFormat(char *p_Response, size_t MaxLen)
     }
 
     switch (Format) {
-        case IMAGE_FORMAT_PNG:
+        case IMAGE_FORMAT_PNG: {
             FormatStr = "PNG";
             break;
-        case IMAGE_FORMAT_RAW:
+        }
+        case IMAGE_FORMAT_RAW: {
             FormatStr = "RAW";
             break;
-        case IMAGE_FORMAT_JPEG:
+        }
+        case IMAGE_FORMAT_JPEG: {
             FormatStr = "JPEG";
             break;
-        default:
+        }
+        default: {
             return SCPI_ERROR_HARDWARE_ERROR;
+        }
     }
 
     Response = std::string(FormatStr) + "\n";

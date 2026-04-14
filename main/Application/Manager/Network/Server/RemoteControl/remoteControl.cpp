@@ -34,8 +34,8 @@ static const char *TAG = "RemoteControl";
 
 typedef struct {
     SemaphoreHandle_t Mutex;
-    bool isValid;
-    bool isLocked;
+    bool IsValid;
+    bool IsLocked;
 } RemoteControl_State_t;
 
 static RemoteControl_State_t _RemoteControl_State;
@@ -248,7 +248,7 @@ esp_err_t RemoteControl_UpdateSpotmeter(float Min, float Max, float Mean)
         //_RemoteControl_State.Spotmeter.Min = Min;
         //_RemoteControl_State.Spotmeter.Max = Max;
         //_RemoteControl_State.Spotmeter.Mean = Mean;
-        //_RemoteControl_State.isValid = true;
+        //_RemoteControl_State.IsValid = true;
         xSemaphoreGive(_RemoteControl_State.Mutex);
 
         //ESP_LOGD(TAG, "Spotmeter data updated: Min=%.2f°C, Max=%.2f°C, Avg=%.2f°C",
@@ -266,7 +266,7 @@ esp_err_t RemoteControl_GetLeptonSpotmeter(cJSON *p_JSON)
 {
     if (p_JSON == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (_RemoteControl_State.isValid == false) {
+    } else if (_RemoteControl_State.IsValid == false) {
         ESP_LOGW(TAG, "No spotmeter data available yet");
 
         return ESP_ERR_NOT_FOUND;
@@ -453,14 +453,14 @@ esp_err_t RemoteControl_GetLockState(bool *p_Locked)
         return ESP_ERR_INVALID_ARG;
     }
 
-    *p_Locked = _RemoteControl_State.isLocked;
+    *p_Locked = _RemoteControl_State.IsLocked;
 
     return ESP_OK;
 }
 
 esp_err_t RemoteControl_SetLockState(bool Locked)
 {
-    _RemoteControl_State.isLocked = Locked;
+    _RemoteControl_State.IsLocked = Locked;
 
     return esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_REMOTE_LOCK_SET, &Locked, sizeof(Locked), portMAX_DELAY);
 }

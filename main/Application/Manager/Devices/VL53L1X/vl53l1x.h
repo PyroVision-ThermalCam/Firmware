@@ -1,4 +1,4 @@
-/*
+﻿/*
  * vl53l1x.h
  *
  *  Copyright (C) Daniel Kampert, 2026
@@ -89,7 +89,7 @@ typedef struct {
  *         Managed by the DevicesManager; must not be modified directly by the application.
  */
 typedef struct {
-    bool isInitialized;                     /**< True after successful initialization. */
+    bool IsInitialized;                     /**< True after successful initialization. */
     i2c_master_dev_handle_t Handle;         /**< I2C device handle. */
     VL53L1X_DistanceMode_t DistanceMode;    /**< Current distance mode (used by SetTimingBudget). */
     uint16_t OscCalibrateVal;               /**< Oscillator calibration value (read at init). */

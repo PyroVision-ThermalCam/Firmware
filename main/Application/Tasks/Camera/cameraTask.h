@@ -31,7 +31,7 @@
 
 #include "Application/application.h"
 
-ESP_EVENT_DECLARE_BASE(CAMERA_EVENTS);
+ESP_EVENT_DECLARE_BASE(CAMERA_TASK_EVENTS);
 
 /** @brief Camera task event identifiers posted to the default event loop.
  */
@@ -40,27 +40,44 @@ enum {
     CAMERA_EVENT_INIT_FAILED,   /**< Camera hardware initialisation failed. Event data: esp_err_t (4 bytes). */
 };
 
-/** @brief  Initializes the camera task.
- *  @return ESP_OK on success, error code otherwise
+/** @brief          Initialize the camera task.
+ *                  Creates the FreeRTOS event group and prepares internal state.
+ *  @note           Call this before Camera_Task_Start().
+ *  @return         ESP_OK on success
+ *                  ESP_ERR_NO_MEM if event group creation fails
  */
 esp_err_t Camera_Task_Init(void);
 
-/** @brief Deinitializes the camera task.
+/** @brief  Deinitialize the camera task.
+ *          Stops the task, deletes the event group, and releases all resources.
+ *  @note   Task must be stopped before calling this.
  */
 void Camera_Task_Deinit(void);
 
-/** @brief  Starts the camera task.
- *  @return ESP_OK on success, error code otherwise
+/** @brief              Start the camera task.
+ *                      Creates and pins the FreeRTOS task that initialises the camera
+ *                      hardware and posts CAMERA_EVENT_INIT_COMPLETE or
+ *                      CAMERA_EVENT_INIT_FAILED to the default event loop.
+ *  @note               Call this after Camera_Task_Init().
+ *  @param p_AppContext Pointer to the application context.
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_ARG if p_AppContext is NULL
+ *                      ESP_ERR_INVALID_STATE if not initialized
+ *                      ESP_ERR_NO_MEM if task creation fails
  */
 esp_err_t Camera_Task_Start(App_Context_t *p_AppContext);
 
-/** @brief  Stops the camera task.
- *  @return ESP_OK on success, error code otherwise
+/** @brief          Stop the camera task.
+ *                  Suspends camera capture. The sensor remains powered.
+ *  @return         ESP_OK on success
+ *                  ESP_ERR_INVALID_STATE if not running
  */
 esp_err_t Camera_Task_Stop(void);
 
-/** @brief  Checks if the camera task is running.
- *  @return false if the task is not running, true if it is running
+/** @brief          Check if the camera task is running.
+ *  @note           Thread-safe.
+ *  @return         true  if the task is executing
+ *                  false if the task is stopped or not initialized
  */
 bool Camera_Task_IsRunning(void);
 

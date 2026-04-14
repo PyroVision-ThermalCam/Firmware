@@ -1,4 +1,4 @@
-/*
+﻿/*
  * max17048.cpp
  *
  *  Copyright (C) Daniel Kampert, 2026
@@ -183,7 +183,7 @@ esp_err_t MAX17048_Init(i2c_master_bus_handle_t *p_Bus_Handle, MAX17048_Dev_t *p
 
     ESP_LOGD(TAG, "MAX17048 initialized (version: 0x%04X)", Version);
 
-    p_Device->isInitialized = true;
+    p_Device->IsInitialized = true;
 
     return ESP_OK;
 }
@@ -205,7 +205,7 @@ esp_err_t MAX17048_Deinit(MAX17048_Dev_t *p_Device)
 
     ESP_LOGD(TAG, "MAX17048 deinitialized");
 
-    p_Device->isInitialized = false;
+    p_Device->IsInitialized = false;
     p_Device->Handle = NULL;
 
     return ESP_OK;
@@ -218,7 +218,7 @@ esp_err_t MAX17048_GetVoltage(MAX17048_Dev_t *p_Device, float *p_Voltage)
 
     if ((p_Device == NULL) || (p_Voltage == NULL)) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -245,7 +245,7 @@ esp_err_t MAX17048_GetSOC(MAX17048_Dev_t *p_Device, float *p_SOC)
 
     if ((p_Device == NULL) || (p_SOC == NULL)) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -280,7 +280,7 @@ esp_err_t MAX17048_GetChargeRate(MAX17048_Dev_t *p_Device, float *p_Rate)
 
     if ((p_Device == NULL) || (p_Rate == NULL)) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -324,7 +324,7 @@ esp_err_t MAX17048_GetAlertFlags(MAX17048_Dev_t *p_Device, uint8_t *p_Flags)
 
     if ((p_Device == NULL) || (p_Flags == NULL)) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -376,7 +376,7 @@ esp_err_t MAX17048_QuickStart(MAX17048_Dev_t *p_Device)
 
     if (p_Device == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (p_Device->isInitialized == false) {
+    } else if (p_Device->IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 

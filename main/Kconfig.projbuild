@@ -376,11 +376,6 @@ menu "PyroVision"
                     int "Reset GPIO"
                     range -1 48
                     default 3
-
-                config LCD_BL
-                    int "Backlight GPIO"
-                    range -1 48
-                    default -1
             endmenu
         endmenu
 

@@ -13,12 +13,91 @@
 #include "../UI/ui_settings.h"
 #include "../UI/ui_messagebox.h"
 
-static const char *TAG = "ui_events";
+/** @brief LV_EVENT_KEY handler registered on the focused group object of the Main screen.
+ *         Translates GUI_KEYPAD_BTN2/3/4 into button click events.
+ */
+static void on_main_screen_key(lv_event_t *e)
+{
+    switch (lv_event_get_key(e)) {
+        case GUI_KEYPAD_BTN1: {
+            lv_obj_send_event(ui_Button_Main_Menu, LV_EVENT_CLICKED, NULL);
+            break;
+        }
+        case GUI_KEYPAD_BTN2: {
+            lv_obj_send_event(ui_Button_Main_ROI, LV_EVENT_CLICKED, NULL);
+            break;
+        }
+        case GUI_KEYPAD_BTN3: {
+            lv_obj_send_event(ui_Button_Main_Info, LV_EVENT_CLICKED, NULL);
+            break;
+        }
+        case GUI_KEYPAD_BTN4: {
+            lv_obj_send_event(ui_Button_Main_Save, LV_EVENT_CLICKED, NULL);
+            break;
+        }
+        default: {
+            break;
+        }
+    }
+}
+
+/** @brief LV_EVENT_KEY handler registered on the focused group object of the Menu screen.
+ *         Translates GUI_KEYPAD_BTN4 into the Save button click.
+ */
+static void on_menu_screen_key(lv_event_t *e)
+{
+    switch (lv_event_get_key(e)) {
+        case GUI_KEYPAD_BTN1: {
+            lv_obj_send_event(ui_Button_Menu_Back, LV_EVENT_CLICKED, NULL);
+            break;
+        }
+        case GUI_KEYPAD_BTN4: {
+            lv_obj_send_event(ui_Button_Menu_Save, LV_EVENT_CLICKED, NULL);
+            break;
+        }
+        default: {
+            break;
+        }
+    }
+}
+
+/** @brief LV_EVENT_KEY handler registered on the focused group object of the Info screen.
+ *         Translates GUI_KEYPAD_BTN1 into the Back button click.
+ */
+static void on_info_screen_key(lv_event_t *e)
+{
+    if (lv_event_get_key(e) == GUI_KEYPAD_BTN1) {
+        lv_obj_send_event(ui_Button_Info_Back, LV_EVENT_CLICKED, NULL);
+    }
+}
+
+/** @brief Remove the keypad group that was bound to this screen and delete it.
+ */
+static void on_screen_keypad_group_cleanup(lv_event_t *e)
+{
+    (void)e;
+
+    lv_indev_t *p_Keypad = GUI_Task_GetKeypadIndev();
+
+    if (p_Keypad == NULL) {
+        return;
+    }
+
+    lv_group_t *p_Group = lv_indev_get_group(p_Keypad);
+
+    lv_indev_set_group(p_Keypad, NULL);
+
+    if (p_Group != NULL) {
+        lv_group_delete(p_Group);
+    }
+}
 
 void ScreenMainLoaded(lv_event_t *e)
 {
     char Buf[128];
     Settings_Info_t Info;
+    lv_indev_t *p_Keypad;
+    lv_group_t *p_Group;
 
     SettingsManager_GetInfo(&Info);
 
@@ -36,15 +115,65 @@ void ScreenMainLoaded(lv_event_t *e)
     lv_label_set_text(ui_Label_Main_Thermal_Crosshair, "\uF05B");
     lv_label_set_text(ui_Label_Menu_Back, "\uF060");
     lv_label_set_text(ui_Label_Info_Back, "\uF060");
+    lv_label_set_text(ui_Label_Main_Statusbar_Temperatur_Icon, "\uF2C7");
+
+    p_Keypad = GUI_Task_GetKeypadIndev();
+    if (p_Keypad != NULL) {
+        p_Group = lv_group_create();
+        lv_group_add_obj(p_Group, ui_Button_Main_Menu);
+        lv_indev_set_group(p_Keypad, p_Group);
+    }
+
+    /* Suppress the LVGL focus outline on the group anchor object */
+    lv_obj_set_style_outline_width(ui_Button_Main_Menu, 0, static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUSED));
+    lv_obj_set_style_outline_width(ui_Button_Main_Menu, 0, static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUS_KEY));
+
+    lv_obj_add_event_cb(ui_Button_Main_Menu, on_main_screen_key, LV_EVENT_KEY, NULL);
+    lv_obj_add_event_cb(ui_Main, on_screen_keypad_group_cleanup, LV_EVENT_SCREEN_UNLOAD_START, NULL);
 
     /* Force full screen repaint to clear any artifacts from previous screen */
     lv_obj_invalidate(lv_screen_active());
+}
+
+void ScreenMenuLoaded(lv_event_t *e)
+{
+    (void)e;
+
+    lv_indev_t *p_Keypad = GUI_Task_GetKeypadIndev();
+
+    if (p_Keypad != NULL) {
+        lv_group_t *p_Group = lv_group_create();
+        lv_group_add_obj(p_Group, ui_Button_Menu_Back);
+        lv_indev_set_group(p_Keypad, p_Group);
+    }
+
+    /* Suppress the LVGL focus outline on the group anchor object */
+    lv_obj_set_style_outline_width(ui_Button_Menu_Back, 0, static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUSED));
+    lv_obj_set_style_outline_width(ui_Button_Menu_Back, 0, static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUS_KEY));
+
+    lv_obj_add_event_cb(ui_Button_Menu_Back, on_menu_screen_key, LV_EVENT_KEY, NULL);
+    lv_obj_add_event_cb(ui_Menu, on_screen_keypad_group_cleanup, LV_EVENT_SCREEN_UNLOAD_START, NULL);
 }
 
 void ScreenInfoLoaded(lv_event_t *e)
 {
     esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_UPTIME, NULL, 0, 0);
     esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FPA_AUX_TEMP, NULL, 0, 0);
+
+    lv_indev_t *p_Keypad = GUI_Task_GetKeypadIndev();
+
+    if (p_Keypad != NULL) {
+        lv_group_t *p_Group = lv_group_create();
+        lv_group_add_obj(p_Group, ui_Button_Info_Back);
+        lv_indev_set_group(p_Keypad, p_Group);
+    }
+
+    /* Suppress the LVGL focus outline on the group anchor object */
+    lv_obj_set_style_outline_width(ui_Button_Info_Back, 0, static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUSED));
+    lv_obj_set_style_outline_width(ui_Button_Info_Back, 0, static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUS_KEY));
+
+    lv_obj_add_event_cb(ui_Button_Info_Back, on_info_screen_key, LV_EVENT_KEY, NULL);
+    lv_obj_add_event_cb(ui_Info, on_screen_keypad_group_cleanup, LV_EVENT_SCREEN_UNLOAD_START, NULL);
 
     /* Force full screen repaint to clear any artifacts from previous screen */
     lv_obj_invalidate(lv_screen_active());

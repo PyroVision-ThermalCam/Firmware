@@ -42,7 +42,7 @@
 
 #include "devicesManager.h"
 #include "Settings/settingsManager.h"
-#include "../appDiag.h"
+#include "../AppDiag/appDiag.h"
 
 #define ADDR_PCAL6416AHF_MAINBOARD          0x20
 #define ADDR_PCAL6416AHF_DISPLAYBOARD       0x21
@@ -172,25 +172,25 @@ static const gpio_config_t _Devices_Manager_DisplayboardExpander_IntConf = {
  */
 static const PCAL6416_IO_Conf_t _PCAL6416AHF_Mainboard_PinConfig[] = {
     /* Battery alert:  active low, pull-up; HW polarity inversion                               */
-    { .Port = PCAL6416_PORT_0, .Pin = 0, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_UP,   .isInverted = true,  .isLatched = false },
+    { .Port = PCAL6416_PORT_0, .Pin = 0, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_UP,   .IsInverted = true,  .IsLatched = false },
     /* Battery charge: active high                                                              */
-    { .Port = PCAL6416_PORT_0, .Pin = 1, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
+    { .Port = PCAL6416_PORT_0, .Pin = 1, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_NONE, .IsInverted = false, .IsLatched = false },
     /* Lepton power: active high output                                                         */
-    { .Port = PCAL6416_PORT_0, .Pin = 3, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
+    { .Port = PCAL6416_PORT_0, .Pin = 3, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .IsInverted = false, .IsLatched = false },
     /* RTC interrupt:  active low, pull-up                                                      */
-    { .Port = PCAL6416_PORT_0, .Pin = 5, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_UP,   .isInverted = false, .isLatched = false },
+    { .Port = PCAL6416_PORT_0, .Pin = 5, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_UP,   .IsInverted = false, .IsLatched = false },
     /* Temp interrupt: active low, pull-up                                                      */
-    { .Port = PCAL6416_PORT_0, .Pin = 7, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_UP,   .isInverted = false, .isLatched = false },
+    { .Port = PCAL6416_PORT_0, .Pin = 7, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_UP,   .IsInverted = false, .IsLatched = false },
     /* Range interrupt: active low, pull-up                                                     */
-    { .Port = PCAL6416_PORT_1, .Pin = 0, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_UP,   .isInverted = false, .isLatched = false },
+    { .Port = PCAL6416_PORT_1, .Pin = 0, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_UP,   .IsInverted = false, .IsLatched = false },
     /* SD card detect: active low, pull-up, latched (debounce)                                  */
-    { .Port = PCAL6416_PORT_1, .Pin = 4, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_UP,   .isInverted = false, .isLatched = true  },
+    { .Port = PCAL6416_PORT_1, .Pin = 4, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_UP,   .IsInverted = false, .IsLatched = true  },
     /* Lepton reset: active low output (caller negates)                                         */
-    { .Port = PCAL6416_PORT_1, .Pin = 5, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
+    { .Port = PCAL6416_PORT_1, .Pin = 5, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .IsInverted = false, .IsLatched = false },
     /* Camera reset: active low output (caller negates)                                         */
-    { .Port = PCAL6416_PORT_1, .Pin = 6, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
+    { .Port = PCAL6416_PORT_1, .Pin = 6, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .IsInverted = false, .IsLatched = false },
     /* Camera power: active high output                                                         */
-    { .Port = PCAL6416_PORT_1, .Pin = 7, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
+    { .Port = PCAL6416_PORT_1, .Pin = 7, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .IsInverted = false, .IsLatched = false },
 };
 
 /** @brief Pin configuration for the displayboard PCAL6416AHF (address 0x21).
@@ -204,47 +204,47 @@ static const PCAL6416_IO_Conf_t _PCAL6416AHF_Mainboard_PinConfig[] = {
  */
 static const PCAL6416_IO_Conf_t _PCAL6416AHF_Displayboard_PinConfig[] = {
     /* LED red: active low output (caller negates)                                              */
-    { .Port = PCAL6416_PORT_0, .Pin = 0, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
+    { .Port = PCAL6416_PORT_0, .Pin = 0, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .IsInverted = false, .IsLatched = false },
     /* LED green: active low output (caller negates)                                            */
-    { .Port = PCAL6416_PORT_0, .Pin = 1, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
+    { .Port = PCAL6416_PORT_0, .Pin = 1, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .IsInverted = false, .IsLatched = false },
     /* LED blue: active low output (caller negates)                                             */
-    { .Port = PCAL6416_PORT_0, .Pin = 2, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .isInverted = false, .isLatched = false },
+    { .Port = PCAL6416_PORT_0, .Pin = 2, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .IsInverted = false, .IsLatched = false },
     /* Joystick up: active high, pull-down input                                                */
-    { .Port = PCAL6416_PORT_0, .Pin = 3, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
+    { .Port = PCAL6416_PORT_0, .Pin = 3, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .IsInverted = false, .IsLatched = false },
     /* Joystick down: active high, pull-down input                                              */
-    { .Port = PCAL6416_PORT_0, .Pin = 4, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
+    { .Port = PCAL6416_PORT_0, .Pin = 4, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .IsInverted = false, .IsLatched = false },
     /* Joystick left: active high, pull-down input                                              */
-    { .Port = PCAL6416_PORT_0, .Pin = 5, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
+    { .Port = PCAL6416_PORT_0, .Pin = 5, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .IsInverted = false, .IsLatched = false },
     /* Joystick right: active high, pull-down input                                             */
-    { .Port = PCAL6416_PORT_0, .Pin = 6, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
+    { .Port = PCAL6416_PORT_0, .Pin = 6, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .IsInverted = false, .IsLatched = false },
     /* Joystick center: active high, pull-down input                                            */
-    { .Port = PCAL6416_PORT_0, .Pin = 7, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
+    { .Port = PCAL6416_PORT_0, .Pin = 7, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .IsInverted = false, .IsLatched = false },
     /* Button 1: active high, pull-down input                                                   */
-    { .Port = PCAL6416_PORT_1, .Pin = 0, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
+    { .Port = PCAL6416_PORT_1, .Pin = 0, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .IsInverted = false, .IsLatched = false },
     /* Button 2: active high, pull-down input                                                   */
-    { .Port = PCAL6416_PORT_1, .Pin = 1, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
+    { .Port = PCAL6416_PORT_1, .Pin = 1, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .IsInverted = false, .IsLatched = false },
     /* Button 3: active high, pull-down input                                                   */
-    { .Port = PCAL6416_PORT_1, .Pin = 2, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
+    { .Port = PCAL6416_PORT_1, .Pin = 2, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .IsInverted = false, .IsLatched = false },
     /* Button 4: active high, pull-down input                                                   */
-    { .Port = PCAL6416_PORT_1, .Pin = 3, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .isInverted = false, .isLatched = false },
+    { .Port = PCAL6416_PORT_1, .Pin = 3, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .IsInverted = false, .IsLatched = false },
 };
 
 typedef struct {
-    bool initialized;
-    bool isDisplayboardPresent;
+    bool Initialized;
+    bool IsDisplayboardPresent;
     RV8263C8_Dev_t RTC;
     TMP117_Dev_t TMP117;
-    PCAL6416AHF_Dev_t Expander_Mainboard;
-    PCAL6416AHF_Dev_t Expander_Displayboard;
+    PCAL6416AHF_Dev_t ExpanderMainboard;
+    PCAL6416AHF_Dev_t ExpanderDisplayboard;
     MAX17048_Dev_t MAX17048;
     VL53L1X_Dev_t VL53L1X;
     i2c_master_bus_handle_t I2C_Bus_Handle;
     i2c_master_bus_handle_t Touch_I2C_Bus_Handle;
     PCA9633DP1_Dev_t PCA9633DP1;
-    SemaphoreHandle_t I2C_Bus_Mutex;
+    SemaphoreHandle_t Mutex;
 } Devices_Manager_State_t;
 
-static Devices_Manager_State_t _Devices_Manager_State;
+static Devices_Manager_State_t _DevicesManagerState;
 
 static const char *TAG = "Devices-Manager";
 
@@ -253,7 +253,7 @@ esp_err_t DevicesManager_Init(void)
     uint8_t Brightness;
     Settings_Display_t DisplaySettings;
 
-    if (_Devices_Manager_State.initialized) {
+    if (_DevicesManagerState.Initialized) {
         ESP_LOGW(TAG, "Already initialized");
 
         return ESP_OK;
@@ -261,17 +261,17 @@ esp_err_t DevicesManager_Init(void)
 
     ESP_LOGD(TAG, "Initializing Devices Manager...");
 
-    memset(&_Devices_Manager_State, 0, sizeof(Devices_Manager_State_t));
+    memset(&_DevicesManagerState, 0, sizeof(Devices_Manager_State_t));
 
-    _Devices_Manager_State.I2C_Bus_Mutex = xSemaphoreCreateRecursiveMutex();
-    if (_Devices_Manager_State.I2C_Bus_Mutex == NULL) {
+    _DevicesManagerState.Mutex = xSemaphoreCreateRecursiveMutex();
+    if (_DevicesManagerState.Mutex == NULL) {
         ESP_LOGE(TAG, "Failed to create I2C bus mutex!");
 
         return ESP_ERR_NO_MEM;
     }
 
 #if (CONFIG_DEVICES_I2C_SDA != CONFIG_TOUCH_SDA) || (CONFIG_DEVICES_I2C_SCL != CONFIG_TOUCH_SCL)
-    if (I2CM_Init(&_Devices_Manager_Touch_I2CM_Config, &_Devices_Manager_State.Touch_I2C_Bus_Handle) != ESP_OK) {
+    if (I2CM_Init(&_Devices_Manager_Touch_I2CM_Config, &_DevicesManagerState.Touch_I2C_Bus_Handle) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize Touch I2C!");
 
         APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_I2C_TOUCH_BUS_INIT);
@@ -292,7 +292,7 @@ esp_err_t DevicesManager_Init(void)
     gpio_set_level(static_cast<gpio_num_t>(CONFIG_TOUCH_RST), 1);
 #endif
 
-    if (I2CM_Init(&_Devices_Manager_Devices_I2CM_Config, &_Devices_Manager_State.I2C_Bus_Handle) != ESP_OK) {
+    if (I2CM_Init(&_Devices_Manager_Devices_I2CM_Config, &_DevicesManagerState.I2C_Bus_Handle) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize Peripheral I2C!");
 
         APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_I2C_BUS_INIT);
@@ -308,11 +308,11 @@ esp_err_t DevicesManager_Init(void)
         return DEVICES_ERR_SPI_BUS_INIT;
     }
 
-    if (PCAL6416AHF_Init(&_Devices_Manager_State.I2C_Bus_Handle,
+    if (PCAL6416AHF_Init(&_DevicesManagerState.I2C_Bus_Handle,
                          ADDR_PCAL6416AHF_MAINBOARD,
                          _PCAL6416AHF_Mainboard_PinConfig,
                          sizeof(_PCAL6416AHF_Mainboard_PinConfig) / sizeof(_PCAL6416AHF_Mainboard_PinConfig[0]),
-                         &_Devices_Manager_State.Expander_Mainboard) != ESP_OK) {
+                         &_DevicesManagerState.ExpanderMainboard) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize mainboard port expander!");
 
         APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_EXPANDER_MAINBOARD);
@@ -320,28 +320,28 @@ esp_err_t DevicesManager_Init(void)
         return DEVICES_ERR_EXPANDER_MAINBOARD;
     }
 
-    if (PCAL6416AHF_Init(&_Devices_Manager_State.I2C_Bus_Handle,
+    if (PCAL6416AHF_Init(&_DevicesManagerState.I2C_Bus_Handle,
                          ADDR_PCAL6416AHF_DISPLAYBOARD,
                          _PCAL6416AHF_Displayboard_PinConfig,
                          sizeof(_PCAL6416AHF_Displayboard_PinConfig) / sizeof(_PCAL6416AHF_Displayboard_PinConfig[0]),
-                         &_Devices_Manager_State.Expander_Displayboard) != ESP_OK) {
+                         &_DevicesManagerState.ExpanderDisplayboard) != ESP_OK) {
         ESP_LOGW(TAG, "Displayboard port expander not found - running without displayboard");
 
         APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_EXPANDER_DISPLAYBOARD);
     } else {
-        _Devices_Manager_State.isDisplayboardPresent = true;
+        _DevicesManagerState.IsDisplayboardPresent = true;
     }
 
     /* OV5640 power-on sequence */
     /* Camera reset asserted (active-low: LOW = reset active) */
-    PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 6, false);
+    PCAL6416AHF_WritePin(&_DevicesManagerState.ExpanderMainboard, PCAL6416_PORT_1, 6, false);
 
     /* Camera power ON */
-    PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 7, true);
+    PCAL6416AHF_WritePin(&_DevicesManagerState.ExpanderMainboard, PCAL6416_PORT_1, 7, true);
     vTaskDelay(pdMS_TO_TICKS(10));
 
     /* Camera reset deasserted (HIGH = running) */
-    PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 6, true);
+    PCAL6416AHF_WritePin(&_DevicesManagerState.ExpanderMainboard, PCAL6416_PORT_1, 6, true);
 
     /* Lepton power-on sequence per FLIR IDD:
      *   - Assert RESET_L (LOW) before or with power
@@ -351,16 +351,16 @@ esp_err_t DevicesManager_Init(void)
      *   - Wait tBOOT (~5 s) before accessing CCI/I2C
      */
     /* Lepton reset asserted (active-low: LOW = reset active) */
-    PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 5, false);
+    PCAL6416AHF_WritePin(&_DevicesManagerState.ExpanderMainboard, PCAL6416_PORT_1, 5, false);
 
     /* Lepton power ON */
-    PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_0, 3, true);
+    PCAL6416AHF_WritePin(&_DevicesManagerState.ExpanderMainboard, PCAL6416_PORT_0, 3, true);
     vTaskDelay(pdMS_TO_TICKS(10));
 
     /* Lepton reset deasserted (HIGH = running) */
-    PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 5, true);
+    PCAL6416AHF_WritePin(&_DevicesManagerState.ExpanderMainboard, PCAL6416_PORT_1, 5, true);
 
-    I2CM_Scan(_Devices_Manager_State.I2C_Bus_Handle);
+    I2CM_Scan(_DevicesManagerState.I2C_Bus_Handle);
 
 #if (CONFIG_TOUCH_RST != -1)
     /* Hold GT911 touch controller in reset from the very start to prevent it from
@@ -370,7 +370,7 @@ esp_err_t DevicesManager_Init(void)
     gpio_set_level(static_cast<gpio_num_t>(CONFIG_TOUCH_RST), 0);
 #endif
 
-    if (RV8263C8_Init(&_Devices_Manager_State.I2C_Bus_Handle, &_Devices_Manager_State.RTC) != ESP_OK) {
+    if (RV8263C8_Init(&_DevicesManagerState.I2C_Bus_Handle, &_DevicesManagerState.RTC) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize RV8263C8!");
 
         APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_RV8263C8_NOT_FOUND);
@@ -378,7 +378,7 @@ esp_err_t DevicesManager_Init(void)
         return DEVICES_ERR_RV8263C8_NOT_FOUND;
     }
 
-    if (TMP117_Init(&_Devices_Manager_State.I2C_Bus_Handle, &_Devices_Manager_State.TMP117,
+    if (TMP117_Init(&_DevicesManagerState.I2C_Bus_Handle, &_DevicesManagerState.TMP117,
                     &_TMP117_DefaultConfig) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize TMP117!");
 
@@ -387,7 +387,7 @@ esp_err_t DevicesManager_Init(void)
         return DEVICES_ERR_TMP117_NOT_FOUND;
     }
 
-    if (MAX17048_Init(&_Devices_Manager_State.I2C_Bus_Handle, &_Devices_Manager_State.MAX17048) != ESP_OK) {
+    if (MAX17048_Init(&_DevicesManagerState.I2C_Bus_Handle, &_DevicesManagerState.MAX17048) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize MAX17048!");
 
         APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_MAX17048_NOT_FOUND);
@@ -395,8 +395,8 @@ esp_err_t DevicesManager_Init(void)
         return DEVICES_ERR_MAX17048_NOT_FOUND;
     }
 
-    if ((VL53L1X_Init(&_Devices_Manager_State.I2C_Bus_Handle, &_Devices_Manager_State.VL53L1X,
-                      &_VL53L1X_DefaultConfig) != ESP_OK) || (VL53L1X_StartContinuous(&_Devices_Manager_State.VL53L1X,
+    if ((VL53L1X_Init(&_DevicesManagerState.I2C_Bus_Handle, &_DevicesManagerState.VL53L1X,
+                      &_VL53L1X_DefaultConfig) != ESP_OK) || (VL53L1X_StartContinuous(&_DevicesManagerState.VL53L1X,
                                                                                       _VL53L1X_DefaultConfig.InterMeasurementMs) != ESP_OK)) {
         ESP_LOGE(TAG, "Failed to initialize VL53L1X!");
 
@@ -405,7 +405,7 @@ esp_err_t DevicesManager_Init(void)
         return DEVICES_ERR_VL53L1X_NOT_FOUND;
     }
 
-    if (PCA9633DP1_Init(&_Devices_Manager_State.I2C_Bus_Handle, &_Devices_Manager_State.PCA9633DP1) != ESP_OK) {
+    if (PCA9633DP1_Init(&_DevicesManagerState.I2C_Bus_Handle, &_DevicesManagerState.PCA9633DP1) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize PCA9633DP1!");
 
         APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_PCA9633_NOT_FOUND);
@@ -416,7 +416,7 @@ esp_err_t DevicesManager_Init(void)
     gpio_config(&_Devices_Manager_MainboardExpander_IntConf);
     gpio_config(&_Devices_Manager_DisplayboardExpander_IntConf);
 
-    _Devices_Manager_State.initialized = true;
+    _DevicesManagerState.Initialized = true;
 
     SettingsManager_GetDisplay(&DisplaySettings);
     Brightness = static_cast<uint8_t>(static_cast<float>(DisplaySettings.Brightness) * 2.55);
@@ -438,38 +438,38 @@ esp_err_t DevicesManager_Init(void)
 
 esp_err_t DevicesManager_Deinit(void)
 {
-    if (_Devices_Manager_State.initialized == false) {
+    if (_DevicesManagerState.Initialized == false) {
         return ESP_OK;
     }
 
-    PCA9633DP1_Deinit(&_Devices_Manager_State.PCA9633DP1);
-    VL53L1X_Deinit(&_Devices_Manager_State.VL53L1X);
-    MAX17048_Deinit(&_Devices_Manager_State.MAX17048);
-    TMP117_Deinit(&_Devices_Manager_State.TMP117);
-    RV8263C8_Deinit(&_Devices_Manager_State.RTC);
-    PCAL6416AHF_Deinit(&_Devices_Manager_State.Expander_Displayboard);
-    PCAL6416AHF_Deinit(&_Devices_Manager_State.Expander_Mainboard);
+    PCA9633DP1_Deinit(&_DevicesManagerState.PCA9633DP1);
+    VL53L1X_Deinit(&_DevicesManagerState.VL53L1X);
+    MAX17048_Deinit(&_DevicesManagerState.MAX17048);
+    TMP117_Deinit(&_DevicesManagerState.TMP117);
+    RV8263C8_Deinit(&_DevicesManagerState.RTC);
+    PCAL6416AHF_Deinit(&_DevicesManagerState.ExpanderDisplayboard);
+    PCAL6416AHF_Deinit(&_DevicesManagerState.ExpanderMainboard);
 
-    I2CM_Deinit(_Devices_Manager_State.I2C_Bus_Handle);
+    I2CM_Deinit(_DevicesManagerState.I2C_Bus_Handle);
     SPIM_Deinit(_Devices_Manager_Periph_SPI);
 
-    if (_Devices_Manager_State.I2C_Bus_Mutex != NULL) {
-        vSemaphoreDelete(_Devices_Manager_State.I2C_Bus_Mutex);
-        _Devices_Manager_State.I2C_Bus_Mutex = NULL;
+    if (_DevicesManagerState.Mutex != NULL) {
+        vSemaphoreDelete(_DevicesManagerState.Mutex);
+        _DevicesManagerState.Mutex = NULL;
     }
 
-    _Devices_Manager_State.initialized = false;
+    _DevicesManagerState.Initialized = false;
 
     return ESP_OK;
 }
 
 esp_err_t DevicesManager_AcquireI2CBus(TickType_t Timeout)
 {
-    if (_Devices_Manager_State.initialized == false) {
+    if (_DevicesManagerState.Initialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
-    if (xSemaphoreTakeRecursive(_Devices_Manager_State.I2C_Bus_Mutex, Timeout) == pdFALSE) {
+    if (xSemaphoreTakeRecursive(_DevicesManagerState.Mutex, Timeout) == pdFALSE) {
         return ESP_ERR_TIMEOUT;
     }
 
@@ -478,28 +478,28 @@ esp_err_t DevicesManager_AcquireI2CBus(TickType_t Timeout)
 
 void DevicesManager_ReleaseI2CBus(void)
 {
-    xSemaphoreGiveRecursive(_Devices_Manager_State.I2C_Bus_Mutex);
+    xSemaphoreGiveRecursive(_DevicesManagerState.Mutex);
 }
 
 i2c_master_bus_handle_t DevicesManager_GetI2CBusHandle(void)
 {
-    if (_Devices_Manager_State.initialized == false) {
+    if (_DevicesManagerState.Initialized == false) {
         return NULL;
     }
 
-    return _Devices_Manager_State.I2C_Bus_Handle;
+    return _DevicesManagerState.I2C_Bus_Handle;
 }
 
 i2c_master_bus_handle_t DevicesManager_GetTouchI2CBusHandle(void)
 {
-    if (_Devices_Manager_State.initialized == false) {
+    if (_DevicesManagerState.Initialized == false) {
         return NULL;
     }
 
 #if (CONFIG_DEVICES_I2C_SDA != CONFIG_TOUCH_SDA) || (CONFIG_DEVICES_I2C_SCL != CONFIG_TOUCH_SCL)
-    return _Devices_Manager_State.Touch_I2C_Bus_Handle;
+    return _DevicesManagerState.Touch_I2C_Bus_Handle;
 #else
-    return _Devices_Manager_State.I2C_Bus_Handle;
+    return _DevicesManagerState.I2C_Bus_Handle;
 #endif
 }
 
@@ -514,7 +514,7 @@ esp_err_t DevicesManager_GetBatteryStatus(int *p_Voltage, uint8_t *p_Percentage,
     float SOC;
     esp_err_t Error = ESP_OK;
 
-    if (_Devices_Manager_State.initialized == false) {
+    if (_DevicesManagerState.Initialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     } else if ((p_Voltage == NULL) || (p_Percentage == NULL) || (p_Charging == NULL)) {
         return ESP_ERR_INVALID_ARG;
@@ -522,12 +522,12 @@ esp_err_t DevicesManager_GetBatteryStatus(int *p_Voltage, uint8_t *p_Percentage,
 
     DevicesManager_AcquireI2CBus(portMAX_DELAY);
 
-    if ((MAX17048_GetVoltage(&_Devices_Manager_State.MAX17048, &Voltage) != ESP_OK) ||
-        (MAX17048_GetSOC(&_Devices_Manager_State.MAX17048, &SOC) != ESP_OK)) {
+    if ((MAX17048_GetVoltage(&_DevicesManagerState.MAX17048, &Voltage) != ESP_OK) ||
+        (MAX17048_GetSOC(&_DevicesManagerState.MAX17048, &SOC) != ESP_OK)) {
         APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_ADC_READ);
 
         Error = DEVICES_ERR_ADC_READ;
-    } else if (PCAL6416AHF_ReadPin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_0, 1, p_Charging) != ESP_OK) {
+    } else if (PCAL6416AHF_ReadPin(&_DevicesManagerState.ExpanderMainboard, PCAL6416_PORT_0, 1, p_Charging) != ESP_OK) {
         APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_I2C_COMM);
 
         Error = DEVICES_ERR_I2C_COMM;
@@ -545,13 +545,13 @@ esp_err_t DevicesManager_GetBatteryStatus(int *p_Voltage, uint8_t *p_Percentage,
 
 esp_err_t DevicesManager_GetRTCHandle(RV8263C8_Dev_t *p_Handle)
 {
-    if (_Devices_Manager_State.initialized == false) {
+    if (_DevicesManagerState.Initialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     } else if (p_Handle == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    *p_Handle = _Devices_Manager_State.RTC;
+    *p_Handle = _DevicesManagerState.RTC;
 
     return ESP_OK;
 }
@@ -560,14 +560,14 @@ esp_err_t DevicesManager_GetTime(struct tm *p_Time)
 {
     esp_err_t Error;
 
-    if (_Devices_Manager_State.initialized == false) {
+    if (_DevicesManagerState.Initialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     } else if (p_Time == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
 
     DevicesManager_AcquireI2CBus(portMAX_DELAY);
-    Error = RV8263C8_GetTime(&_Devices_Manager_State.RTC, p_Time);
+    Error = RV8263C8_GetTime(&_DevicesManagerState.RTC, p_Time);
     DevicesManager_ReleaseI2CBus();
 
     return Error;
@@ -577,14 +577,14 @@ esp_err_t DevicesManager_SetTime(const struct tm *p_Time)
 {
     esp_err_t Error;
 
-    if (_Devices_Manager_State.initialized == false) {
+    if (_DevicesManagerState.Initialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     } else if (p_Time == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
 
     DevicesManager_AcquireI2CBus(portMAX_DELAY);
-    Error = RV8263C8_SetTime(&_Devices_Manager_State.RTC, p_Time);
+    Error = RV8263C8_SetTime(&_DevicesManagerState.RTC, p_Time);
     DevicesManager_ReleaseI2CBus();
 
     return Error;
@@ -594,7 +594,7 @@ esp_err_t DevicesManager_GetTemperature(float *p_Temperature)
 {
     esp_err_t Error = ESP_OK;
 
-    if (_Devices_Manager_State.initialized == false) {
+    if (_DevicesManagerState.Initialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     } else if (p_Temperature == NULL) {
         return ESP_ERR_INVALID_ARG;
@@ -602,7 +602,7 @@ esp_err_t DevicesManager_GetTemperature(float *p_Temperature)
 
     DevicesManager_AcquireI2CBus(portMAX_DELAY);
 
-    if (TMP117_ReadTemperature(&_Devices_Manager_State.TMP117, p_Temperature) != ESP_OK) {
+    if (TMP117_ReadTemperature(&_DevicesManagerState.TMP117, p_Temperature) != ESP_OK) {
         APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_I2C_COMM);
 
         Error = DEVICES_ERR_I2C_COMM;
@@ -619,7 +619,7 @@ esp_err_t DevicesManager_SetBrightness(Devices_BacklightID_t ID, uint8_t Brightn
 {
     esp_err_t Error = ESP_OK;
 
-    if (_Devices_Manager_State.initialized == false) {
+    if (_DevicesManagerState.Initialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
@@ -627,20 +627,20 @@ esp_err_t DevicesManager_SetBrightness(Devices_BacklightID_t ID, uint8_t Brightn
 
     if (ID == BACKLIGHT_FLASH) {
         if (Brightness > 0) {
-            if ((PCA9633DP1_SetLEDState(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED0, PCA9633_LED_PWM) != ESP_OK) ||
-                (PCA9633DP1_SetLEDState(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED1, PCA9633_LED_PWM) != ESP_OK)) {
+            if ((PCA9633DP1_SetLEDState(&_DevicesManagerState.PCA9633DP1, PCA9633_LED0, PCA9633_LED_PWM) != ESP_OK) ||
+                (PCA9633DP1_SetLEDState(&_DevicesManagerState.PCA9633DP1, PCA9633_LED1, PCA9633_LED_PWM) != ESP_OK)) {
                 APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_I2C_COMM);
 
                 Error = DEVICES_ERR_I2C_COMM;
-            } else if ((PCA9633DP1_SetLEDBrightness(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED0, Brightness) != ESP_OK) ||
-                       (PCA9633DP1_SetLEDBrightness(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED1, Brightness) != ESP_OK)) {
+            } else if ((PCA9633DP1_SetLEDBrightness(&_DevicesManagerState.PCA9633DP1, PCA9633_LED0, Brightness) != ESP_OK) ||
+                       (PCA9633DP1_SetLEDBrightness(&_DevicesManagerState.PCA9633DP1, PCA9633_LED1, Brightness) != ESP_OK)) {
                 APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_I2C_COMM);
 
                 Error = DEVICES_ERR_I2C_COMM;
             }
         } else {
-            if ((PCA9633DP1_SetLEDState(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED0, PCA9633_LED_OFF) != ESP_OK) ||
-                (PCA9633DP1_SetLEDState(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED1, PCA9633_LED_OFF) != ESP_OK)) {
+            if ((PCA9633DP1_SetLEDState(&_DevicesManagerState.PCA9633DP1, PCA9633_LED0, PCA9633_LED_OFF) != ESP_OK) ||
+                (PCA9633DP1_SetLEDState(&_DevicesManagerState.PCA9633DP1, PCA9633_LED1, PCA9633_LED_OFF) != ESP_OK)) {
                 APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_I2C_COMM);
 
                 Error = DEVICES_ERR_I2C_COMM;
@@ -648,17 +648,17 @@ esp_err_t DevicesManager_SetBrightness(Devices_BacklightID_t ID, uint8_t Brightn
         }
     } else if (ID == BACKLIGHT_DISPLAY) {
         if (Brightness > 0) {
-            if (PCA9633DP1_SetLEDState(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED2, PCA9633_LED_PWM) != ESP_OK) {
+            if (PCA9633DP1_SetLEDState(&_DevicesManagerState.PCA9633DP1, PCA9633_LED2, PCA9633_LED_PWM) != ESP_OK) {
                 APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_I2C_COMM);
 
                 Error = DEVICES_ERR_I2C_COMM;
-            } else if (PCA9633DP1_SetLEDBrightness(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED2, Brightness) != ESP_OK) {
+            } else if (PCA9633DP1_SetLEDBrightness(&_DevicesManagerState.PCA9633DP1, PCA9633_LED2, Brightness) != ESP_OK) {
                 APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_I2C_COMM);
 
                 Error = DEVICES_ERR_I2C_COMM;
             }
         } else {
-            if (PCA9633DP1_SetLEDState(&_Devices_Manager_State.PCA9633DP1, PCA9633_LED2, PCA9633_LED_OFF) != ESP_OK) {
+            if (PCA9633DP1_SetLEDState(&_DevicesManagerState.PCA9633DP1, PCA9633_LED2, PCA9633_LED_OFF) != ESP_OK) {
                 APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_I2C_COMM);
 
                 Error = DEVICES_ERR_I2C_COMM;
@@ -677,12 +677,12 @@ esp_err_t DevicesManager_LeptonReset(bool Reset)
 {
     esp_err_t Error;
 
-    if (_Devices_Manager_State.initialized == false) {
+    if (_DevicesManagerState.Initialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
     DevicesManager_AcquireI2CBus(portMAX_DELAY);
-    Error = PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard,
+    Error = PCAL6416AHF_WritePin(&_DevicesManagerState.ExpanderMainboard,
                                  PCAL6416_PORT_1, 5, (Reset == false));
     DevicesManager_ReleaseI2CBus();
 
@@ -693,12 +693,12 @@ esp_err_t DevicesManager_SetLeptonPower(bool Enable)
 {
     esp_err_t Error;
 
-    if (_Devices_Manager_State.initialized == false) {
+    if (_DevicesManagerState.Initialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
     DevicesManager_AcquireI2CBus(portMAX_DELAY);
-    Error = PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_0, 3, Enable);
+    Error = PCAL6416AHF_WritePin(&_DevicesManagerState.ExpanderMainboard, PCAL6416_PORT_0, 3, Enable);
     DevicesManager_ReleaseI2CBus();
 
     return Error;
@@ -709,7 +709,7 @@ esp_err_t DevicesManager_HandleExpanderInterrupt(void)
     uint8_t Status0, Status1, In0, In1;
     bool Level;
 
-    if (_Devices_Manager_State.initialized == false) {
+    if (_DevicesManagerState.Initialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
@@ -720,7 +720,7 @@ esp_err_t DevicesManager_HandleExpanderInterrupt(void)
 
     DevicesManager_AcquireI2CBus(portMAX_DELAY);
 
-    if (PCAL6416AHF_ReadIntStatus(&_Devices_Manager_State.Expander_Mainboard, &Status0, &Status1, &In0, &In1) != ESP_OK) {
+    if (PCAL6416AHF_ReadIntStatus(&_DevicesManagerState.ExpanderMainboard, &Status0, &Status1, &In0, &In1) != ESP_OK) {
         APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_I2C_COMM);
 
         DevicesManager_ReleaseI2CBus();
@@ -781,9 +781,9 @@ esp_err_t DevicesManager_HandleDisplayboardExpanderInterrupt(Devices_InputState_
 
     if (p_State == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (_Devices_Manager_State.initialized == false) {
+    } else if (_DevicesManagerState.Initialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
-    } else if (_Devices_Manager_State.isDisplayboardPresent == false) {
+    } else if (_DevicesManagerState.IsDisplayboardPresent == false) {
         return ESP_ERR_NOT_SUPPORTED;
     }
 
@@ -801,7 +801,7 @@ esp_err_t DevicesManager_HandleDisplayboardExpanderInterrupt(Devices_InputState_
         return ESP_ERR_TIMEOUT;
     }
 
-    if (PCAL6416AHF_ReadIntStatus(&_Devices_Manager_State.Expander_Displayboard,
+    if (PCAL6416AHF_ReadIntStatus(&_DevicesManagerState.ExpanderDisplayboard,
                                   &Status0, &Status1, &In0, &In1) != ESP_OK) {
         APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_I2C_COMM);
 
@@ -809,7 +809,7 @@ esp_err_t DevicesManager_HandleDisplayboardExpanderInterrupt(Devices_InputState_
          * (e.g. Lepton camera during a CCI operation) left SDA or SCL held LOW
          * (ESP_ERR_INVALID_STATE = 0x103). Recover by sending nine SCL clock pulses
          * so that any stuck device releases SDA before the next transaction. */
-        i2c_master_bus_reset(_Devices_Manager_State.I2C_Bus_Handle);
+        i2c_master_bus_reset(_DevicesManagerState.I2C_Bus_Handle);
         vTaskDelay(pdMS_TO_TICKS(20));
 
         DevicesManager_ReleaseI2CBus();
@@ -839,12 +839,12 @@ esp_err_t DevicesManager_SetCameraReset(bool Reset)
 {
     esp_err_t Error;
 
-    if (_Devices_Manager_State.initialized == false) {
+    if (_DevicesManagerState.Initialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
     DevicesManager_AcquireI2CBus(portMAX_DELAY);
-    Error = PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 6, (Reset == false));
+    Error = PCAL6416AHF_WritePin(&_DevicesManagerState.ExpanderMainboard, PCAL6416_PORT_1, 6, (Reset == false));
     DevicesManager_ReleaseI2CBus();
 
     return Error;
@@ -854,12 +854,12 @@ esp_err_t DevicesManager_SetCameraPower(bool Enable)
 {
     esp_err_t Error;
 
-    if (_Devices_Manager_State.initialized == false) {
+    if (_DevicesManagerState.Initialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
     DevicesManager_AcquireI2CBus(portMAX_DELAY);
-    Error = PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 7, Enable);
+    Error = PCAL6416AHF_WritePin(&_DevicesManagerState.ExpanderMainboard, PCAL6416_PORT_1, 7, Enable);
     DevicesManager_ReleaseI2CBus();
 
     return Error;
@@ -869,12 +869,12 @@ esp_err_t DevicesManager_GetBatteryAlert(bool *p_Alert)
 {
     esp_err_t Error;
 
-    if (_Devices_Manager_State.initialized == false) {
+    if (_DevicesManagerState.Initialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
     DevicesManager_AcquireI2CBus(portMAX_DELAY);
-    Error = PCAL6416AHF_ReadPin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_0, 0, p_Alert);
+    Error = PCAL6416AHF_ReadPin(&_DevicesManagerState.ExpanderMainboard, PCAL6416_PORT_0, 0, p_Alert);
     DevicesManager_ReleaseI2CBus();
 
     return Error;
@@ -885,12 +885,12 @@ esp_err_t DevicesManager_GetRTCInterrupt(bool *p_Triggered)
     bool Level;
     esp_err_t Error;
 
-    if (_Devices_Manager_State.initialized == false) {
+    if (_DevicesManagerState.Initialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
     DevicesManager_AcquireI2CBus(portMAX_DELAY);
-    Error = PCAL6416AHF_ReadPin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_0, 5, &Level);
+    Error = PCAL6416AHF_ReadPin(&_DevicesManagerState.ExpanderMainboard, PCAL6416_PORT_0, 5, &Level);
     DevicesManager_ReleaseI2CBus();
 
     if (Error != ESP_OK) {
@@ -909,12 +909,12 @@ esp_err_t DevicesManager_GetTempInterrupt(bool *p_Triggered)
     bool Level;
     esp_err_t Error;
 
-    if (_Devices_Manager_State.initialized == false) {
+    if (_DevicesManagerState.Initialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
     DevicesManager_AcquireI2CBus(portMAX_DELAY);
-    Error = PCAL6416AHF_ReadPin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_0, 7, &Level);
+    Error = PCAL6416AHF_ReadPin(&_DevicesManagerState.ExpanderMainboard, PCAL6416_PORT_0, 7, &Level);
     DevicesManager_ReleaseI2CBus();
 
     if (Error != ESP_OK) {
@@ -933,12 +933,12 @@ esp_err_t DevicesManager_GetRangeInterrupt(bool *p_Triggered)
     bool Level;
     esp_err_t Error;
 
-    if (_Devices_Manager_State.initialized == false) {
+    if (_DevicesManagerState.Initialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
     DevicesManager_AcquireI2CBus(portMAX_DELAY);
-    Error = PCAL6416AHF_ReadPin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 0, &Level);
+    Error = PCAL6416AHF_ReadPin(&_DevicesManagerState.ExpanderMainboard, PCAL6416_PORT_1, 0, &Level);
     DevicesManager_ReleaseI2CBus();
 
     if (Error != ESP_OK) {
@@ -957,12 +957,12 @@ esp_err_t DevicesManager_GetSDDetect(bool *p_Inserted)
     bool Level;
     esp_err_t Error;
 
-    if (_Devices_Manager_State.initialized == false) {
+    if (_DevicesManagerState.Initialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
     DevicesManager_AcquireI2CBus(portMAX_DELAY);
-    Error = PCAL6416AHF_ReadPin(&_Devices_Manager_State.Expander_Mainboard, PCAL6416_PORT_1, 4, &Level);
+    Error = PCAL6416AHF_ReadPin(&_DevicesManagerState.ExpanderMainboard, PCAL6416_PORT_1, 4, &Level);
     DevicesManager_ReleaseI2CBus();
 
     if (Error != ESP_OK) {
@@ -984,7 +984,7 @@ esp_err_t DevicesManager_GetDistance(uint16_t *p_Distance_mm, bool *p_IsValid)
 
     if ((p_Distance_mm == NULL) || (p_IsValid == NULL)) {
         return ESP_ERR_INVALID_ARG;
-    } else if (_Devices_Manager_State.initialized == false) {
+    } else if (_DevicesManagerState.Initialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
@@ -999,7 +999,7 @@ esp_err_t DevicesManager_GetDistance(uint16_t *p_Distance_mm, bool *p_IsValid)
         vTaskDelay(pdMS_TO_TICKS(10));
 
         DevicesManager_AcquireI2CBus(portMAX_DELAY);
-        Error = VL53L1X_IsDataReady(&_Devices_Manager_State.VL53L1X, &Ready);
+        Error = VL53L1X_IsDataReady(&_DevicesManagerState.VL53L1X, &Ready);
         DevicesManager_ReleaseI2CBus();
 
         if (Error != ESP_OK) {
@@ -1015,7 +1015,7 @@ esp_err_t DevicesManager_GetDistance(uint16_t *p_Distance_mm, bool *p_IsValid)
 
     if (Ready == false) {
         DevicesManager_AcquireI2CBus(portMAX_DELAY);
-        Error = VL53L1X_ClearInterrupt(&_Devices_Manager_State.VL53L1X);
+        Error = VL53L1X_ClearInterrupt(&_DevicesManagerState.VL53L1X);
         DevicesManager_ReleaseI2CBus();
 
         if (Error != ESP_OK) {
@@ -1029,8 +1029,8 @@ esp_err_t DevicesManager_GetDistance(uint16_t *p_Distance_mm, bool *p_IsValid)
 
     DevicesManager_AcquireI2CBus(portMAX_DELAY);
 
-    if ((VL53L1X_GetResult(&_Devices_Manager_State.VL53L1X, &Result) != ESP_OK) ||
-        (VL53L1X_ClearInterrupt(&_Devices_Manager_State.VL53L1X) != ESP_OK)) {
+    if ((VL53L1X_GetResult(&_DevicesManagerState.VL53L1X, &Result) != ESP_OK) ||
+        (VL53L1X_ClearInterrupt(&_DevicesManagerState.VL53L1X) != ESP_OK)) {
         APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_I2C_COMM);
 
         DevicesManager_ReleaseI2CBus();
@@ -1054,17 +1054,17 @@ esp_err_t DevicesManager_GetDisplayboardInputs(Devices_InputState_t *p_State)
     uint8_t In0;
     uint8_t In1;
 
-    if (_Devices_Manager_State.initialized == false) {
+    if (_DevicesManagerState.Initialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     } else if (p_State == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (_Devices_Manager_State.isDisplayboardPresent == false) {
+    } else if (_DevicesManagerState.IsDisplayboardPresent == false) {
         return ESP_ERR_NOT_SUPPORTED;
     }
 
     DevicesManager_AcquireI2CBus(portMAX_DELAY);
 
-    if (PCAL6416AHF_ReadInputs(&_Devices_Manager_State.Expander_Displayboard, &In0, &In1) != ESP_OK) {
+    if (PCAL6416AHF_ReadInputs(&_DevicesManagerState.ExpanderDisplayboard, &In0, &In1) != ESP_OK) {
         APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_I2C_COMM);
 
         DevicesManager_ReleaseI2CBus();
@@ -1091,26 +1091,26 @@ esp_err_t DevicesManager_SetLED(bool R, bool G, bool B)
 {
     esp_err_t Error = ESP_OK;
 
-    if (_Devices_Manager_State.initialized == false) {
+    if (_DevicesManagerState.Initialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
-    if (_Devices_Manager_State.isDisplayboardPresent == false) {
+    if (_DevicesManagerState.IsDisplayboardPresent == false) {
         return ESP_OK;
     }
 
     DevicesManager_AcquireI2CBus(portMAX_DELAY);
 
     /* Port 0 bit layout: [0]=LED_Blue, [1]=LED_Green, [2]=LED_Red (all active-low outputs) */
-    Error = PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Displayboard,
+    Error = PCAL6416AHF_WritePin(&_DevicesManagerState.ExpanderDisplayboard,
                                  PCAL6416_PORT_0, 0, (B == false));
     if (Error == ESP_OK) {
-        Error = PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Displayboard,
+        Error = PCAL6416AHF_WritePin(&_DevicesManagerState.ExpanderDisplayboard,
                                      PCAL6416_PORT_0, 1, (G == false));
     }
 
     if (Error == ESP_OK) {
-        Error = PCAL6416AHF_WritePin(&_Devices_Manager_State.Expander_Displayboard,
+        Error = PCAL6416AHF_WritePin(&_DevicesManagerState.ExpanderDisplayboard,
                                      PCAL6416_PORT_0, 2, (R == false));
     }
 
