@@ -81,6 +81,7 @@ void Task_ImageSave(void *p_Param)
         if (PNGFile == NULL) {
             ESP_LOGE(TAG, "Failed to open file for writing: %s", FilePath);
 
+            xSemaphoreGive(_GUITaskState.SpiMutex);
             esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, pdMS_TO_TICKS(100));
 
             continue;

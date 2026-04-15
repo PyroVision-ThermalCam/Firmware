@@ -53,6 +53,7 @@ ESP_EVENT_DEFINE_BASE(DEVICES_TASK_EVENTS);
 typedef struct {
     bool IsInitialized;                                 /**< true after Devices_Task_Init() has completed successfully. */
     bool IsRunning;                                     /**< true while the FreeRTOS task is executing. */
+    bool RunCalibration;                                /**< true if a calibration run is requested. */
     TaskHandle_t TaskHandle;                            /**< FreeRTOS task handle; NULL before Devices_Task_Start(). */
     EventGroupHandle_t EventGroup;                      /**< Event group used for intra-task synchronisation. */
     SettingsManager_ChangeNotification_t NewSetting;    /**< Staging area for incoming settings-change notifications. */
@@ -243,7 +244,7 @@ static void Task_Devices(void *p_Parameters)
                 * estimated_ambient = sensor_current + offset
                 * Example: room=20, sensor_cal=24.3 -> offset=-4.3
                 *          sensor_now=24.5           -> ambient=24.5+(-4.3)=20.2 */
-                if (Calibration.SensorAtCalibration == 0.0f) {
+                if ((Calibration.SensorAtCalibration == 0.0f) || _DevicesTaskState.RunCalibration) {
                     Calibration.SensorAtCalibration = Temperature;
                     SettingsManager_UpdateCalibration(&Calibration, NULL);
 
@@ -255,6 +256,8 @@ static void Task_Devices(void *p_Parameters)
 
                     /* Save the updated calibration to persistent storage. */
                     SettingsManager_Save();
+
+                    _DevicesTaskState.RunCalibration = false;
                 }
 
                 NewTemperatureInfo = {
@@ -320,6 +323,7 @@ esp_err_t Devices_Task_Init(void)
     _DevicesTaskState.EventGroup = xEventGroupCreate();
     if (_DevicesTaskState.EventGroup == NULL) {
         ESP_LOGE(TAG, "Failed to create event group!");
+
         APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_DEVICES, ESP_ERR_NO_MEM);
 
         return ESP_ERR_NO_MEM;
@@ -328,6 +332,7 @@ esp_err_t Devices_Task_Init(void)
     Error = DevicesManager_Init();
     if (Error != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize Devices Manager: 0x%x!", Error);
+
         APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_DEVICES, Error);
 
         return Error;
@@ -336,6 +341,7 @@ esp_err_t Devices_Task_Init(void)
     esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_DISPLAY_CHANGED, on_Settings_Event_Handler, NULL);
     esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_CALIBRATION_CHANGED, on_Settings_Event_Handler, NULL);
 
+    _DevicesTaskState.RunCalibration = true;
     _DevicesTaskState.IsInitialized = true;
 
     return ESP_OK;

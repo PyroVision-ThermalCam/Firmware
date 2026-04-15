@@ -289,7 +289,7 @@ esp_err_t DevicesManager_Init(void)
         .intr_type = GPIO_INTR_DISABLE,
     };
     ESP_ERROR_CHECK(gpio_config(&Touch_RST_IO_Conf));
-    gpio_set_level(static_cast<gpio_num_t>(CONFIG_TOUCH_RST), 1);
+    gpio_set_level(static_cast<gpio_num_t>(CONFIG_TOUCH_RST), true);
 #endif
 
     if (I2CM_Init(&_Devices_Manager_Devices_I2CM_Config, &_DevicesManagerState.I2C_Bus_Handle) != ESP_OK) {
@@ -367,7 +367,7 @@ esp_err_t DevicesManager_Init(void)
      * interfering with the I2C bus during device initialization.
      * The GT911 will be properly released and initialized in GUI_Helper_Init.
      */
-    gpio_set_level(static_cast<gpio_num_t>(CONFIG_TOUCH_RST), 0);
+    gpio_set_level(static_cast<gpio_num_t>(CONFIG_TOUCH_RST), false);
 #endif
 
     if (RV8263C8_Init(&_DevicesManagerState.I2C_Bus_Handle, &_DevicesManagerState.RTC) != ESP_OK) {
@@ -510,8 +510,8 @@ spi_host_device_t DevicesManager_GetSPIHost(void)
 
 esp_err_t DevicesManager_GetBatteryStatus(int *p_Voltage, uint8_t *p_Percentage, bool *p_Charging)
 {
-    float Voltage;
     float SOC;
+    float Voltage;
     esp_err_t Error = ESP_OK;
 
     if (_DevicesManagerState.Initialized == false) {

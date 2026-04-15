@@ -51,6 +51,7 @@
 
 #define UI_IMAGE_CANVAS_WIDTH                   240
 #define UI_IMAGE_CANVAS_HEIGHT                  180
+#define UI_GRADIENT_CANVAS_WIDTH                20
 
 #define CROSSHAIR_STEP_PX                       8
 #define CROSSHAIR_AUTOREPEAT_DELAY_MS           400
@@ -433,48 +434,25 @@ static void GUI_Update_ROI(Settings_ROI_t ROI)
     int32_t DispW = (ROI.w * DisplayWidth) / 160;
     int32_t DispH = (ROI.h * DisplayHeight) / 120;
 
-    switch (ROI.Type) {
-        case ROI_TYPE_SPOTMETER: {
-            if (ui_Image_Main_Thermal_Spotmeter_ROI != NULL) {
-                lv_obj_set_align(ui_Image_Main_Thermal_Spotmeter_ROI, LV_ALIGN_TOP_LEFT);
-                lv_obj_set_pos(ui_Image_Main_Thermal_Spotmeter_ROI, DispX, DispY);
-                lv_obj_set_size(ui_Image_Main_Thermal_Spotmeter_ROI, DispW, DispH);
-            }
+    /* Map ROI type to its LVGL overlay widget and apply the computed position/size. */
+    lv_obj_t * const ROI_WIDGETS[] = {
+        ui_Image_Main_Thermal_Spotmeter_ROI,
+        ui_Image_Main_Thermal_Scene_ROI,
+        ui_Image_Main_Thermal_AGC_ROI,
+        ui_Image_Main_Thermal_Video_Focus_ROI,
+    };
 
-            break;
-        }
-        case ROI_TYPE_SCENE: {
-            if (ui_Image_Main_Thermal_Scene_ROI != NULL) {
-                lv_obj_set_align(ui_Image_Main_Thermal_Scene_ROI, LV_ALIGN_TOP_LEFT);
-                lv_obj_set_pos(ui_Image_Main_Thermal_Scene_ROI, DispX, DispY);
-                lv_obj_set_size(ui_Image_Main_Thermal_Scene_ROI, DispW, DispH);
-            }
+    if (static_cast<size_t>(ROI.Type) >= (sizeof(ROI_WIDGETS) / sizeof(ROI_WIDGETS[0]))) {
+        ESP_LOGW(TAG, "Invalid GUI ROI type: 0x%X", ROI.Type);
 
-            break;
-        }
-        case ROI_TYPE_AGC: {
-            if (ui_Image_Main_Thermal_AGC_ROI != NULL) {
-                lv_obj_set_align(ui_Image_Main_Thermal_AGC_ROI, LV_ALIGN_TOP_LEFT);
-                lv_obj_set_pos(ui_Image_Main_Thermal_AGC_ROI, DispX, DispY);
-                lv_obj_set_size(ui_Image_Main_Thermal_AGC_ROI, DispW, DispH);
-            }
+        return;
+    }
 
-            break;
-        }
-        case ROI_TYPE_VIDEO_FOCUS: {
-            if (ui_Image_Main_Thermal_Video_Focus_ROI != NULL) {
-                lv_obj_set_align(ui_Image_Main_Thermal_Video_Focus_ROI, LV_ALIGN_TOP_LEFT);
-                lv_obj_set_pos(ui_Image_Main_Thermal_Video_Focus_ROI, DispX, DispY);
-                lv_obj_set_size(ui_Image_Main_Thermal_Video_Focus_ROI, DispW, DispH);
-            }
-
-            break;
-        }
-        default: {
-            ESP_LOGW(TAG, "Invalid GUI ROI type: 0x%X", ROI.Type);
-
-            return;
-        }
+    lv_obj_t *p_Widget = ROI_WIDGETS[ROI.Type];
+    if (p_Widget != NULL) {
+        lv_obj_set_align(p_Widget, LV_ALIGN_TOP_LEFT);
+        lv_obj_set_pos(p_Widget, DispX, DispY);
+        lv_obj_set_size(p_Widget, DispW, DispH);
     }
 
     SettingsManager_GetLepton(&SettingsLepton);
@@ -698,20 +676,25 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
             if (_GUITaskState.CrosshairVisible) {
                 ESP_LOGD(TAG, "Crosshair enabled");
 
-                /* Switch to absolute (top-left) anchoring and position at image centre. */
-                lv_obj_set_align(ui_Label_Main_Thermal_Crosshair, LV_ALIGN_TOP_LEFT);
-                lv_obj_set_pos(ui_Label_Main_Thermal_Crosshair,
-                               (UI_IMAGE_CANVAS_WIDTH  - lv_obj_get_width(ui_Label_Main_Thermal_Crosshair)) / 2,
-                               (UI_IMAGE_CANVAS_HEIGHT - lv_obj_get_height(ui_Label_Main_Thermal_Crosshair)) / 2);
-                lv_obj_remove_flag(ui_Label_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
+                /* Centre the crosshair.  Position is stored in our own state to avoid
+                 * reading back from LVGL's coordinate cache (obj->coords is only updated
+                 * after the next layout pass, causing jumps when set_pos and get_x are
+                 * called within the same or adjacent indev ticks). */
+                _GUITaskState.CrosshairX = (static_cast<int32_t>(UI_IMAGE_CANVAS_WIDTH)  - lv_obj_get_width(ui_Container_Main_Thermal_Crosshair)) / 2;
+                _GUITaskState.CrosshairY = (static_cast<int32_t>(UI_IMAGE_CANVAS_HEIGHT) - lv_obj_get_height(ui_Container_Main_Thermal_Crosshair)) / 2;
+                lv_obj_set_align(ui_Container_Main_Thermal_Crosshair, LV_ALIGN_TOP_LEFT);
+                lv_obj_set_pos(ui_Container_Main_Thermal_Crosshair,
+                               _GUITaskState.CrosshairX,
+                               _GUITaskState.CrosshairY);
+                lv_obj_remove_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
             } else {
                 ESP_LOGD(TAG, "Crosshair disabled");
 
-                lv_obj_add_flag(ui_Label_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
             }
         }
 
-        /* JoyCenter: falling edge → autofocus (only when no long-press fired) */
+        /* JoyCenter: falling edge -> autofocus (only when no long-press fired) */
         if ((State.JoyCenter == false) && (_GUITaskState.PrevJoyCenter == true)) {
             if (_GUITaskState.JoyCenterLongFired == false) {
                 ESP_LOGD(TAG, "Autofocus triggered by joystick center");
@@ -749,10 +732,15 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
             }
 
             if (ShouldMove) {
-                int32_t Cx = lv_obj_get_x(ui_Label_Main_Thermal_Crosshair);
-                int32_t Cy = lv_obj_get_y(ui_Label_Main_Thermal_Crosshair);
-                int32_t MaxX = static_cast<int32_t>(UI_IMAGE_CANVAS_WIDTH) - lv_obj_get_width(ui_Label_Main_Thermal_Crosshair);
-                int32_t MaxY = static_cast<int32_t>(UI_IMAGE_CANVAS_HEIGHT) - lv_obj_get_height(ui_Label_Main_Thermal_Crosshair);
+                /* Move the crosshair container.  Read position from our own state
+                 * (_GUITaskState.CrosshairX/Y) rather than from lv_obj_get_x/y():
+                 * LVGL's obj->coords are only updated after the next layout pass, so
+                 * reading back the just-set position within adjacent indev ticks would
+                 * yield stale values and cause visible jumps. */
+                int32_t Cx = _GUITaskState.CrosshairX;
+                int32_t Cy = _GUITaskState.CrosshairY;
+                int32_t MaxX = static_cast<int32_t>(UI_IMAGE_CANVAS_WIDTH) - lv_obj_get_width(ui_Container_Main_Thermal_Crosshair);
+                int32_t MaxY = static_cast<int32_t>(UI_IMAGE_CANVAS_HEIGHT) - lv_obj_get_height(ui_Container_Main_Thermal_Crosshair);
 
                 if (State.JoyUp)    {
                     Cy -= static_cast<int32_t>(CROSSHAIR_STEP_PX);
@@ -786,9 +774,11 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
                     Cy = MaxY;
                 }
 
-                lv_obj_set_pos(ui_Label_Main_Thermal_Crosshair, Cx, Cy);
+                _GUITaskState.CrosshairX = Cx;
+                _GUITaskState.CrosshairY = Cy;
+                lv_obj_set_pos(ui_Container_Main_Thermal_Crosshair, Cx, Cy);
 
-                ESP_LOGD(TAG, "Crosshair moved to (%d, %d)", Cx, Cy);
+                ESP_LOGD(TAG, "Crosshair container moved to (%d, %d)", Cx, Cy);
             }
         }
     }
@@ -853,105 +843,40 @@ void Task_GUI(void *p_Parameters)
     _GUITaskState.AppContext = App_Context;
     ESP_LOGD(TAG, "GUI Task started on core %d", xPortGetCoreID());
 
-    /* Show splash screen first and wait for all components to become ready before starting the application.
-     *
-     * Sequencing:
-     *   - Camera init runs as a background task (Camera_Task_InitAsync).
-     *     On receipt, the bar snaps to 50 % ("Camera ready") if not yet past that value.
-     *   - The Lepton requires ~5 s to boot. During the boot window the bar is animated
-     *     at 2 %/100 ms so it naturally reaches ~99 % just as the LEPTON_READY event
-     *     arrives and snaps the bar to 100 % -> app starts.
-     *
-     * Status text milestones (time-based):
-     *    0 %  -> "Starting camera..."
-     *   55 %  -> "Starting Lepton..."
-     *   80 %  -> "Almost ready..."
-     * Camera event -> "Camera ready" (only if bar < 50 %)
-     */
-    static const struct {
-        int32_t Threshold;
-        const char *Text;
-    } SPLASH_MILESTONES[] = {
-        {  0, "Starting camera..."  },
-        { 55, "Starting Lepton..."  },
-        { 80, "Almost ready..."     },
-    };
-
     Timeout = 0;
+    lv_label_set_text(ui_SplashScreen_StatusText, "Booting...");
     do {
         EventBits_t EventBits;
-        int32_t CurrentBarValue;
 
         esp_task_wdt_reset();
-
-        CurrentBarValue = lv_bar_get_value(ui_SplashScreen_LoadingBar);
-
-        /* Advance bar by 2 % per 100 ms iteration (fills 0 -> 99 in ~5 s, matching Lepton boot time).
-         * Do not auto-advance past 99 % � wait for the LEPTON_READY event to set it to 100 %.
-         */
-        if (CurrentBarValue < 99) {
-            int32_t NextValue = CurrentBarValue + 2;
-
-            if (NextValue > 99) {
-                NextValue = 99;
-            }
-
-            lv_bar_set_value(ui_SplashScreen_LoadingBar, NextValue, LV_ANIM_OFF);
-
-            /* Update status text when crossing a milestone threshold */
-            for (int i = static_cast<int>(sizeof(SPLASH_MILESTONES) / sizeof(SPLASH_MILESTONES[0])) - 1; i >= 0; i--) {
-                if (NextValue >= SPLASH_MILESTONES[i].Threshold && CurrentBarValue < SPLASH_MILESTONES[i].Threshold) {
-                    lv_label_set_text(ui_SplashScreen_StatusText, SPLASH_MILESTONES[i].Text);
-
-                    break;
-                }
-            }
-
-            CurrentBarValue = NextValue;
-        }
 
         EventBits = xEventGroupGetBits(_GUITaskState.EventGroup);
         if (EventBits & GUI_TASK_CAMERA_READY) {
-            /* Camera async init completed. Snap bar to 50 % milestone if not already past it. */
-            if (CurrentBarValue < 50) {
-                lv_bar_set_value(ui_SplashScreen_LoadingBar, 50, LV_ANIM_OFF);
-                lv_label_set_text(ui_SplashScreen_StatusText, "Camera ready");
-            }
+            lv_label_set_text(ui_SplashScreen_StatusText, "Camera ready");
+            lv_bar_set_value(ui_SplashScreen_LoadingBar, lv_bar_get_value(ui_SplashScreen_LoadingBar) + 50, LV_ANIM_ON);
 
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_READY);
-        }
+        } else if (EventBits & GUI_TASK_LEPTON_READY) {
+            lv_label_set_text(ui_SplashScreen_StatusText, "Lepton ready");
+            lv_bar_set_value(ui_SplashScreen_LoadingBar, lv_bar_get_value(ui_SplashScreen_LoadingBar) + 50, LV_ANIM_ON);
 
-        if (EventBits & GUI_TASK_LEPTON_READY) {
-            lv_bar_set_value(ui_SplashScreen_LoadingBar, 100, LV_ANIM_OFF);
-
-            /* Lepton has finished booting. Initialize GT911 now - GT911 was intentionally
-             * kept in hardware reset until this point to avoid I2C bus interference
-             * during CCI_WaitForBoot.
-             */
             GUI_Helper_InitTouch(&_GUITaskState, Touch_LVGL_ReadCallback);
 
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_READY);
-        }
-
-        if (EventBits & GUI_TASK_LEPTON_ERROR) {
+        } else if (EventBits & GUI_TASK_LEPTON_ERROR) {
             lv_label_set_text(ui_SplashScreen_StatusText, "Lepton Error");
+            lv_bar_set_value(ui_SplashScreen_LoadingBar, 99, LV_ANIM_ON);
 
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_ERROR);
-        }
-
-        if (EventBits & GUI_TASK_CAMERA_ERROR) {
+        } else if (EventBits & GUI_TASK_CAMERA_ERROR) {
             lv_label_set_text(ui_SplashScreen_StatusText, "Camera Error");
-
+            lv_bar_set_value(ui_SplashScreen_LoadingBar, 99, LV_ANIM_ON);
+    
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_ERROR);
-        }
-
-        if (Timeout >= 30000) {
-            esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_INIT_ERROR, NULL, 0, pdMS_TO_TICKS(500));
-
+        } else if (Timeout >= 30000) {
             break;
         }
 
-        esp_task_wdt_reset();
         lv_timer_handler();
         vTaskDelay(pdMS_TO_TICKS(100));
         Timeout += 100;
@@ -962,7 +887,7 @@ void Task_GUI(void *p_Parameters)
     /* Process layout changes after loading new screen. */
     lv_timer_handler();
 
-    /* Set the initial ROI FIRST to give it a size. */
+    /* Set the initial ROI first to give it a size. */
     SettingsManager_GetLepton(&LeptonSettings);
     GUI_Update_ROI(LeptonSettings.ROI[ROI_TYPE_SPOTMETER]);
     GUI_Update_ROI(LeptonSettings.ROI[ROI_TYPE_SCENE]);
@@ -971,8 +896,7 @@ void Task_GUI(void *p_Parameters)
 
     GUI_Update_Info();
 
-    /* Crosshair is hidden by default; it is enabled by a long-press of the joystick centre. */
-    lv_obj_add_flag(ui_Label_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
+    _GUITaskState.CrosshairVisible = true;
 
     /* Initialize SD card icon based on current storage state. */
     if (MemoryManager_HasSDCard()) {
@@ -983,7 +907,7 @@ void Task_GUI(void *p_Parameters)
 
     /* Variables for Illuminance values for the scene label.
      * Fetch all these values at the beginning to not waste CPU performance because these
-     * functions aren�t simple get functions
+     * functions are not simple get functions
      *      0 = Max label
      *      1 = Min label
      *      2 = Mean label
@@ -1000,17 +924,20 @@ void Task_GUI(void *p_Parameters)
     int32_t SceneStatsContainerX = lv_obj_get_x(ui_Container_Main_Thermal_Scene_Statistics);
     int32_t SceneStatsContainerY = lv_obj_get_y(ui_Container_Main_Thermal_Scene_Statistics);
 
+    /* Indices [0..2]: fixed positions relative to ui_Image_Main_Thermal (Scene Statistics labels).
+     * Indices [3..4]: crosshair / pixel-temperature labels – their parent container moves, so the
+     *                 image-relative position is updated every frame inside the while-loop below. */
     int32_t SceneLabelX0[5] = { SceneStatsContainerX + lv_obj_get_x(ui_Label_Main_Thermal_Scene_Max),
                                 SceneStatsContainerX + lv_obj_get_x(ui_Label_Main_Thermal_Scene_Min),
                                 SceneStatsContainerX + lv_obj_get_x(ui_Label_Main_Thermal_Scene_Mean),
-                                lv_obj_get_x(ui_Label_Main_Thermal_Crosshair),
-                                lv_obj_get_x(ui_Label_Main_Thermal_PixelTemperature)
+                                0,  /* Updated per-frame: container_x + label_x */
+                                0   /* Updated per-frame: container_x + label_x */
                               };
     int32_t SceneLabelY0[5] = { SceneStatsContainerY + lv_obj_get_y(ui_Label_Main_Thermal_Scene_Max),
                                 SceneStatsContainerY + lv_obj_get_y(ui_Label_Main_Thermal_Scene_Min),
                                 SceneStatsContainerY + lv_obj_get_y(ui_Label_Main_Thermal_Scene_Mean),
-                                lv_obj_get_y(ui_Label_Main_Thermal_Crosshair),
-                                lv_obj_get_y(ui_Label_Main_Thermal_PixelTemperature)
+                                0,  /* Updated per-frame: container_y + label_y */
+                                0   /* Updated per-frame: container_y + label_y */
                               };
     int32_t SceneLabelW[5] = { lv_obj_get_width(ui_Label_Main_Thermal_Scene_Max),
                                lv_obj_get_width(ui_Label_Main_Thermal_Scene_Min),
@@ -1057,6 +984,21 @@ void Task_GUI(void *p_Parameters)
                     ESP_LOGW(TAG, "Image widget not ready yet (size: %ux%u), skipping frame", ImageWidth, ImageHeight);
 
                     continue;
+                }
+
+                /* Update crosshair overlay label positions every frame.
+                 * ui_Label_Main_Thermal_Crosshair and ui_Label_Main_Thermal_PixelTemperature are
+                 * children of ui_Container_Main_Thermal_Crosshair (100×50), not direct children
+                 * of ui_Image_Main_Thermal. The container position changes with every joystick move,
+                 * so the image-relative coordinates must be recomputed here. */
+                {
+                    int32_t ContainerX = lv_obj_get_x(ui_Container_Main_Thermal_Crosshair);
+                    int32_t ContainerY = lv_obj_get_y(ui_Container_Main_Thermal_Crosshair);
+
+                    SceneLabelX0[3] = ContainerX + lv_obj_get_x(ui_Label_Main_Thermal_Crosshair);
+                    SceneLabelY0[3] = ContainerY + lv_obj_get_y(ui_Label_Main_Thermal_Crosshair);
+                    SceneLabelX0[4] = ContainerX + lv_obj_get_x(ui_Label_Main_Thermal_PixelTemperature);
+                    SceneLabelY0[4] = ContainerY + lv_obj_get_y(ui_Label_Main_Thermal_PixelTemperature);
                 }
 
                 for (uint32_t x = 0; x < ImageWidth; x++) {
@@ -1128,50 +1070,16 @@ void Task_GUI(void *p_Parameters)
                         uint32_t XRot = ImageWidth - 1 - x;
                         uint32_t YRot = ImageHeight - 1 - y;
 
-                        /* Max label */
-                        if ((XRot >= SceneLabelX0[0]) &&
-                            (XRot < (SceneLabelX0[0] + SceneLabelW[0])) &&
-                            (YRot >= SceneLabelY0[0]) &&
-                            (YRot < (SceneLabelY0[0] + SceneLabelH[0]))) {
-                            /* BT.601 luma in integer: (77*R + 150*G + 29*B) >> 8 (coefficients sum to 256) */
-                            SceneLabelIlluminance[0] += ((77u * R) + (150u * G) + (29u * B)) >> 8u;
-                            SceneLabelCount[0]++;
-                        }
-
-                        /* Min label */
-                        if ((XRot >= SceneLabelX0[1]) &&
-                            (XRot < (SceneLabelX0[1] + SceneLabelW[1])) &&
-                            (YRot >= SceneLabelY0[1]) &&
-                            (YRot < (SceneLabelY0[1] + SceneLabelH[1]))) {
-                            SceneLabelIlluminance[1] += ((77u * R) + (150u * G) + (29u * B)) >> 8u;
-                            SceneLabelCount[1]++;
-                        }
-
-                        /* Mean label */
-                        if ((XRot >= SceneLabelX0[2]) &&
-                            (XRot < (SceneLabelX0[2] + SceneLabelW[2])) &&
-                            (YRot >= SceneLabelY0[2]) &&
-                            (YRot < (SceneLabelY0[2] + SceneLabelH[2]))) {
-                            SceneLabelIlluminance[2] += ((77u * R) + (150u * G) + (29u * B)) >> 8u;
-                            SceneLabelCount[2]++;
-                        }
-
-                        /* Crosshair label */
-                        if ((XRot >= SceneLabelX0[3]) &&
-                            (XRot < (SceneLabelX0[3] + SceneLabelW[3])) &&
-                            (YRot >= SceneLabelY0[3]) &&
-                            (YRot < (SceneLabelY0[3] + SceneLabelH[3]))) {
-                            SceneLabelIlluminance[3] += ((77u * R) + (150u * G) + (29u * B)) >> 8u;
-                            SceneLabelCount[3]++;
-                        }
-
-                        /* Pixel temperature label */
-                        if ((XRot >= SceneLabelX0[4]) &&
-                            (XRot < (SceneLabelX0[4] + SceneLabelW[4])) &&
-                            (YRot >= SceneLabelY0[4]) &&
-                            (YRot < (SceneLabelY0[4] + SceneLabelH[4]))) {
-                            SceneLabelIlluminance[4] += ((77u * R) + (150u * G) + (29u * B)) >> 8u;
-                            SceneLabelCount[4]++;
+                        /* Accumulate BT.601 luma (77*R + 150*G + 29*B) >> 8 under each overlay label.
+                         * Coefficients sum to 256 so the final shift is lossless for 8-bit values. */
+                        for (size_t Lbl = 0; Lbl < (sizeof(SceneLabelX0) / sizeof(SceneLabelX0[0])); Lbl++) {
+                            if ((XRot >= static_cast<uint32_t>(SceneLabelX0[Lbl])) &&
+                                (XRot < static_cast<uint32_t>(SceneLabelX0[Lbl] + SceneLabelW[Lbl])) &&
+                                (YRot >= static_cast<uint32_t>(SceneLabelY0[Lbl])) &&
+                                (YRot < static_cast<uint32_t>(SceneLabelY0[Lbl] + SceneLabelH[Lbl]))) {
+                                SceneLabelIlluminance[Lbl] += ((77u * R) + (150u * G) + (29u * B)) >> 8u;
+                                SceneLabelCount[Lbl]++;
+                            }
                         }
 
                         uint32_t DstIdx = (y * ImageWidth) + x;
@@ -1196,16 +1104,20 @@ void Task_GUI(void *p_Parameters)
                     }
                 }
 
-                lv_obj_set_style_text_color(ui_Label_Main_Thermal_Scene_Max,
-                                            (SceneLabelAverageLuminance[0] > 128) ? lv_color_black() : lv_color_white(), LV_PART_MAIN);
-                lv_obj_set_style_text_color(ui_Label_Main_Thermal_Scene_Min,
-                                            (SceneLabelAverageLuminance[1] > 128) ? lv_color_black() : lv_color_white(), LV_PART_MAIN);
-                lv_obj_set_style_text_color(ui_Label_Main_Thermal_Scene_Mean,
-                                            (SceneLabelAverageLuminance[2] > 128) ? lv_color_black() : lv_color_white(), LV_PART_MAIN);
-                lv_obj_set_style_text_color(ui_Label_Main_Thermal_Crosshair,
-                                            (SceneLabelAverageLuminance[3] > 128) ? lv_color_black() : lv_color_white(), LV_PART_MAIN);
-                lv_obj_set_style_text_color(ui_Label_Main_Thermal_PixelTemperature,
-                                            (SceneLabelAverageLuminance[4] > 128) ? lv_color_black() : lv_color_white(), LV_PART_MAIN);
+                /* Update text colour of each overlay label based on background luminance. */
+                lv_obj_t * const SceneLabels[] = {
+                    ui_Label_Main_Thermal_Scene_Max,
+                    ui_Label_Main_Thermal_Scene_Min,
+                    ui_Label_Main_Thermal_Scene_Mean,
+                    ui_Label_Main_Thermal_Crosshair,
+                    ui_Label_Main_Thermal_PixelTemperature,
+                };
+
+                for (size_t i = 0; i < (sizeof(SceneLabels) / sizeof(SceneLabels[0])); i++) {
+                    lv_obj_set_style_text_color(SceneLabels[i],
+                                                (SceneLabelAverageLuminance[i] > 128) ? lv_color_black() : lv_color_white(),
+                                                LV_PART_MAIN);
+                }
 
                 /* Reset watchdog after image processing */
                 esp_task_wdt_reset();
@@ -1323,26 +1235,36 @@ void Task_GUI(void *p_Parameters)
         if (EventBits & GUI_TASK_BATTERY_STATUS_CHANGED) {
             char Buffer[16];
 
-            snprintf(Buffer, sizeof(Buffer), "%d%%", _GUITaskState.BatteryInfo.Percentage);
+            /* Select battery icon and background tint based on charge level. */
+            static const struct {
+                uint8_t Threshold;
+                const char *Icon;
+                uint32_t Color;
+            } BATTERY_TABLE[] = {
+                { 100, LV_SYMBOL_BATTERY_FULL,  0x00FF00U },
+                {  75, LV_SYMBOL_BATTERY_3,     0x00FF00U },
+                {  50, LV_SYMBOL_BATTERY_2,     0xFFFF00U },
+                {  25, LV_SYMBOL_BATTERY_1,     0xFFFF00U },
+                {   0, LV_SYMBOL_BATTERY_EMPTY, 0xFF0000U },
+            };
 
-            if (_GUITaskState.BatteryInfo.Percentage == 100) {
-                lv_label_set_text(ui_Label_Main_Battery_Remaining_Icon, LV_SYMBOL_BATTERY_FULL);
-                lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining_Icon, lv_color_hex(0x00FF00), 0);
-            } else if (_GUITaskState.BatteryInfo.Percentage >= 75) {
-                lv_label_set_text(ui_Label_Main_Battery_Remaining_Icon, LV_SYMBOL_BATTERY_3);
-                lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining_Icon, lv_color_hex(0x00FF00), 0);
-            } else if (_GUITaskState.BatteryInfo.Percentage >= 50) {
-                lv_label_set_text(ui_Label_Main_Battery_Remaining_Icon, LV_SYMBOL_BATTERY_2);
-                lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining_Icon, lv_color_hex(0xFFFF00), 0);
-            } else if (_GUITaskState.BatteryInfo.Percentage >= 25) {
-                lv_label_set_text(ui_Label_Main_Battery_Remaining_Icon, LV_SYMBOL_BATTERY_1);
-                lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining_Icon, lv_color_hex(0xFFFF00), 0);
-            } else {
-                lv_label_set_text(ui_Label_Main_Battery_Remaining_Icon, LV_SYMBOL_BATTERY_EMPTY);
-                lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining_Icon, lv_color_hex(0xFF0000), 0);
+            const char *Icon = BATTERY_TABLE[4].Icon;
+            uint32_t Color = BATTERY_TABLE[4].Color;
+
+            for (size_t i = 0; i < (sizeof(BATTERY_TABLE) / sizeof(BATTERY_TABLE[0])); i++) {
+                if (_GUITaskState.BatteryInfo.Percentage >= BATTERY_TABLE[i].Threshold) {
+                    Icon = BATTERY_TABLE[i].Icon;
+                    Color = BATTERY_TABLE[i].Color;
+
+                    break;
+                }
             }
 
+            lv_label_set_text(ui_Label_Main_Battery_Remaining_Icon, Icon);
+            lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining_Icon, lv_color_hex(Color), 0);
             lv_bar_set_value(ui_Info_Battery_Bar, _GUITaskState.BatteryInfo.Percentage, LV_ANIM_OFF);
+
+            snprintf(Buffer, sizeof(Buffer), "%d%%", _GUITaskState.BatteryInfo.Percentage);
             lv_label_set_text(ui_Label_Main_Battery_Remaining_Value, Buffer);
 
             if (_GUITaskState.BatteryInfo.Charging) {
@@ -1363,7 +1285,6 @@ void Task_GUI(void *p_Parameters)
             if (_GUITaskState.WiFiConnected) {
                 char Buffer[32];
 
-                memset(Buffer, 0, sizeof(Buffer));
                 snprintf(Buffer, sizeof(Buffer), "IP: %lu.%lu.%lu.%lu",
                          (_GUITaskState.IP_Info.IP >> 0) & 0xFF,
                          (_GUITaskState.IP_Info.IP >> 8) & 0xFF,
@@ -1552,7 +1473,7 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_add_flag(ui_Label_Main_TempScaleMax, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_add_flag(ui_Label_Main_TempScaleMin, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Label_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_add_flag(ui_Image_Main_Gradient, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_add_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_add_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
@@ -1568,7 +1489,7 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_remove_flag(ui_Label_Main_TempScaleMin, LV_OBJ_FLAG_HIDDEN);
 
                 if (_GUITaskState.CrosshairVisible) {
-                    lv_obj_remove_flag(ui_Label_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
+                    lv_obj_remove_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
                 }
 
                 lv_obj_remove_flag(ui_Image_Main_Gradient, LV_OBJ_FLAG_HIDDEN);
@@ -1640,8 +1561,8 @@ esp_err_t GUI_Task_Init(void)
 
     _GUITaskState.ThermalCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(UI_IMAGE_CANVAS_WIDTH *
                                                                                 UI_IMAGE_CANVAS_HEIGHT * 2, MALLOC_CAP_SPIRAM));
-    _GUITaskState.GradientCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(20 * 180 * 2, MALLOC_CAP_SPIRAM));
-    _GUITaskState.NetworkRGBBuffer = static_cast<uint8_t *>(heap_caps_malloc(240 * 180 * 3, MALLOC_CAP_SPIRAM));
+    _GUITaskState.GradientCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(UI_GRADIENT_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2, MALLOC_CAP_SPIRAM));
+    _GUITaskState.NetworkRGBBuffer = static_cast<uint8_t *>(heap_caps_malloc(UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 3, MALLOC_CAP_SPIRAM));
     _GUITaskState.SaveCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT
                                                                              * 2, MALLOC_CAP_SPIRAM));
 
@@ -1719,20 +1640,20 @@ esp_err_t GUI_Task_Init(void)
 
     /* Initialize buffers with black pixels (RGB565 = 0x0000) */
     memset(_GUITaskState.ThermalCanvasBuffer, 0x00, UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2);
-    memset(_GUITaskState.GradientCanvasBuffer, 0x00, 20 * 180 * 2);
+    memset(_GUITaskState.GradientCanvasBuffer, 0x00, UI_GRADIENT_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2);
 
     /* Now configure the image descriptors with allocated buffers */
     _GUITaskState.ThermalImageDescriptor.header.cf = LV_COLOR_FORMAT_RGB565;
-    _GUITaskState.ThermalImageDescriptor.header.w = 240;
-    _GUITaskState.ThermalImageDescriptor.header.h = 180;
+    _GUITaskState.ThermalImageDescriptor.header.w = UI_IMAGE_CANVAS_WIDTH;
+    _GUITaskState.ThermalImageDescriptor.header.h = UI_IMAGE_CANVAS_HEIGHT;
     _GUITaskState.ThermalImageDescriptor.data = _GUITaskState.ThermalCanvasBuffer;
-    _GUITaskState.ThermalImageDescriptor.data_size = 240 * 180 * 2;
+    _GUITaskState.ThermalImageDescriptor.data_size = UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2;
 
     _GUITaskState.GradientImageDescriptor.header.cf = LV_COLOR_FORMAT_RGB565;
-    _GUITaskState.GradientImageDescriptor.header.w = 20;
-    _GUITaskState.GradientImageDescriptor.header.h = 180;
+    _GUITaskState.GradientImageDescriptor.header.w = UI_GRADIENT_CANVAS_WIDTH;
+    _GUITaskState.GradientImageDescriptor.header.h = UI_IMAGE_CANVAS_HEIGHT;
     _GUITaskState.GradientImageDescriptor.data = _GUITaskState.GradientCanvasBuffer;
-    _GUITaskState.GradientImageDescriptor.data_size = 20 * 180 * 2;
+    _GUITaskState.GradientImageDescriptor.data_size = UI_GRADIENT_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2;
 
     UI_Canvas_AddTempGradient();
 
@@ -1791,7 +1712,7 @@ esp_err_t GUI_Task_Init(void)
 
     _GUITaskState.SaveNextFrameRequested = false;
     _GUITaskState.ShowCameraView = false;
-    _GUITaskState.CrosshairVisible = true;
+    _GUITaskState.CrosshairVisible = false;
     _GUITaskState.IsInitialized = true;
 
     return ESP_OK;

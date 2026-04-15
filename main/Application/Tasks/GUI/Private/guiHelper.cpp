@@ -125,7 +125,7 @@ static const esp_lcd_panel_io_i2c_config_t _GUI_Touch_IO_Config = {
         .dc_low_on_data = 0,
         .disable_control_phase = 1,
     },
-    .scl_speed_hz = 400000,
+    .scl_speed_hz = CONFIG_TOUCH_CLOCK,
 };
 
 static esp_lcd_touch_io_gt911_config_t _GUI_Touch_GT911_Config = {
@@ -427,11 +427,16 @@ void GUI_Helper_Timer_SpotUpdate(lv_timer_t *p_Timer)
         return;
     }
 
-    /* Get crosshair position relative to its parent (ui_Image_Thermal) */
-    ScreenPosition.x = lv_obj_get_x(ui_Label_Main_Thermal_Crosshair) + lv_obj_get_width(
-                           ui_Label_Main_Thermal_Crosshair) / 2;
-    ScreenPosition.y = lv_obj_get_y(ui_Label_Main_Thermal_Crosshair) + lv_obj_get_height(
-                           ui_Label_Main_Thermal_Crosshair) / 2;
+    /* Get crosshair center relative to ui_Image_Main_Thermal.
+     * The crosshair label is a child of ui_Container_Main_Thermal_Crosshair which is a
+     * direct child of ui_Image_Main_Thermal - use the container centre as the spot position.
+     * lv_obj_get_x_aligned() reads the style property directly (always up-to-date); using
+     * lv_obj_get_x() would read obj->coords which is only refreshed after the next layout pass
+     * and could therefore return a stale value when the timer fires shortly after a move. */
+    ScreenPosition.x = lv_obj_get_x_aligned(ui_Container_Main_Thermal_Crosshair) + lv_obj_get_width(
+                           ui_Container_Main_Thermal_Crosshair) / 2;
+    ScreenPosition.y = lv_obj_get_y_aligned(ui_Container_Main_Thermal_Crosshair) + lv_obj_get_height(
+                           ui_Container_Main_Thermal_Crosshair) / 2;
     ScreenPosition.Width = lv_obj_get_width(ui_Image_Main_Thermal);
     ScreenPosition.Height = lv_obj_get_height(ui_Image_Main_Thermal);
 

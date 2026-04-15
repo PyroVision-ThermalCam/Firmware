@@ -77,6 +77,8 @@ typedef struct {
     bool PrevJoyLeft;                                       /**< Previous joystick left state; used for crosshair movement rising-edge detection. */
     bool PrevJoyRight;                                      /**< Previous joystick right state; used for crosshair movement rising-edge detection. */
     bool CrosshairVisible;                                  /**< true when the crosshair overlay is currently active in the live-view. */
+    int32_t CrosshairX;                                     /**< Current x position of ui_Container_Main_Thermal_Crosshair relative to ui_Image_Main_Thermal (top-left origin). Owned by the GUI task; never read back from LVGL to avoid stale-coord issues. */
+    int32_t CrosshairY;                                     /**< Current y position of ui_Container_Main_Thermal_Crosshair relative to ui_Image_Main_Thermal (top-left origin). Owned by the GUI task; never read back from LVGL to avoid stale-coord issues. */
     bool JoyCenterLongFired;                                /**< true after the long-press crosshair toggle has already fired for the current hold; prevents repeated toggling. */
     TickType_t JoyCenterHeldSince;                          /**< Tick at which JoyCenter went high; 0 when not pressed. */
     TickType_t

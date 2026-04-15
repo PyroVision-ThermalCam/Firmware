@@ -62,7 +62,7 @@ static camera_config_t _CameraConfig = {
     .pin_vsync = CONFIG_CAMERA_PIN_VSYNC,
     .pin_href = CONFIG_CAMERA_PIN_HREF,
     .pin_pclk = CONFIG_CAMERA_PIN_PCLK,
-    .xclk_freq_hz = 25000000,
+    .xclk_freq_hz = CONFIG_CAMERA_XCLK_FREQ,
     .ledc_timer = LEDC_TIMER_0,
     .ledc_channel = LEDC_CHANNEL_0,
     .pixel_format = PIXFORMAT_RGB565,
@@ -258,7 +258,7 @@ esp_err_t Camera_Task_Init(void)
 
     _CameraTaskState.Sensor = esp_camera_sensor_get();
 
-    esp_event_handler_register(CAMERA_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Camera_Task_Event_Handler, NULL);
+    esp_event_handler_register(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_REQUEST_FOCUS, on_Camera_Task_Event_Handler, NULL);
 
     return ESP_OK;
 }
@@ -276,7 +276,7 @@ void Camera_Task_Deinit(void)
         _CameraTaskState.EventGroup = NULL;
     }
 
-    esp_event_handler_unregister(CAMERA_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Camera_Task_Event_Handler);
+    esp_event_handler_unregister(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_REQUEST_FOCUS, on_Camera_Task_Event_Handler);
 
     if (_CameraTaskState.p_FrameBuffer != NULL) {
         heap_caps_free(_CameraTaskState.p_FrameBuffer);
