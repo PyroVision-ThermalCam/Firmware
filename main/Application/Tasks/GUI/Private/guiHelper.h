@@ -70,6 +70,7 @@ typedef struct {
     bool SaveNextFrameRequested;                            /**< true when the next rendered frame should be saved as PNG. */
     bool IsUVCStreaming;                                    /**< true while a UVC host is actively receiving frames. */
     bool ShowCameraView;                                    /**< true while the visible-light camera image is shown in place of the thermal image. */
+    bool PrevJoyCenter;                                     /**< Previous state of the joystick center button for edge detection. */
     TaskHandle_t TaskHandle;                                /**< FreeRTOS handle of the main GUI task; NULL before start. */
     TaskHandle_t ImageSaveTaskHandle;                       /**< FreeRTOS handle of the background image-save task; NULL before init. */
     void *DisplayBuffer1;                                   /**< First PSRAM display frame buffer used by the LCD driver. */
@@ -100,6 +101,7 @@ typedef struct {
     uint8_t *NetworkRGBBuffer;                              /**< PSRAM RGB buffer transmitted to connected WebSocket clients. */
     uint8_t *SaveCanvasBuffer;                              /**< PSRAM snapshot buffer holding a copy of ThermalCanvasBuffer at save-request time; prevents data races with Task_ImageSave. */
     uint32_t LeptonUptime;                                  /**< Lepton camera uptime in seconds, updated on each frame event. */
+    uint32_t PrevBtnKey;                                    /**< Previous button key state for edge detection. */
     float SpotTemperature;                                  /**< Current spotmeter temperature in degrees Celsius. */
     QueueHandle_t ImageSaveQueue;                           /**< Queue carrying image-save requests to the background save task. */
     Network_IP_Info_t IP_Info;                              /**< Current device IP address information (STA or AP mode). */

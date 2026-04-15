@@ -196,7 +196,7 @@ static const PCAL6416_IO_Conf_t _PCAL6416AHF_Mainboard_PinConfig[] = {
 /** @brief Pin configuration for the displayboard PCAL6416AHF (address 0x21).
  *         Register layout summary:
  *
- *         Port 0: [7]=JoyCenter [6]=JoyRight [5]=JoyLeft [4]=JoyDown [3]=JoyUp
+ *         Port 0: [7]=JoyCenter [6]=JoyRight [5]=JoyLeft [4]=JoyUp [3]=JoyDown
  *                 [2]=LED_Red  [1]=LED_Green [0]=LED_Blue
  *         Port 1: [3]=Btn4 [2]=Btn3 [1]=Btn2 [0]=Btn1
  *
@@ -211,13 +211,13 @@ static const PCAL6416_IO_Conf_t _PCAL6416AHF_Displayboard_PinConfig[] = {
     { .Port = PCAL6416_PORT_0, .Pin = 2, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .IsInverted = false, .IsLatched = false },
     /* Joystick up: active high, pull-down input                                                */
     { .Port = PCAL6416_PORT_0, .Pin = 3, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .IsInverted = false, .IsLatched = false },
-    /* Joystick down: active high, pull-down input                                              */
+    /* Joystick center: active high, pull-down input                                              */
     { .Port = PCAL6416_PORT_0, .Pin = 4, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .IsInverted = false, .IsLatched = false },
     /* Joystick left: active high, pull-down input                                              */
     { .Port = PCAL6416_PORT_0, .Pin = 5, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .IsInverted = false, .IsLatched = false },
     /* Joystick right: active high, pull-down input                                             */
     { .Port = PCAL6416_PORT_0, .Pin = 6, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .IsInverted = false, .IsLatched = false },
-    /* Joystick center: active high, pull-down input                                            */
+    /* Joystick down: active high, pull-down input                                            */
     { .Port = PCAL6416_PORT_0, .Pin = 7, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .IsInverted = false, .IsLatched = false },
     /* Button 1: active high, pull-down input                                                   */
     { .Port = PCAL6416_PORT_1, .Pin = 0, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .IsInverted = false, .IsLatched = false },
@@ -823,10 +823,10 @@ esp_err_t DevicesManager_HandleDisplayboardExpanderInterrupt(Devices_Input_State
              Status0, Status1, In0, In1);
 
     p_State->JoyUp = ((In0 & (1 << 3)) != 0);
-    p_State->JoyDown = ((In0 & (1 << 4)) != 0);
+    p_State->JoyDown = ((In0 & (1 << 7)) != 0);
     p_State->JoyLeft = ((In0 & (1 << 5)) != 0);
     p_State->JoyRight = ((In0 & (1 << 6)) != 0);
-    p_State->JoyCenter = ((In0 & (1 << 7)) != 0);
+    p_State->JoyCenter = ((In0 & (1 << 4)) != 0);
     p_State->Button4 = ((In1 & (1 << 0)) != 0);
     p_State->Button3 = ((In1 & (1 << 1)) != 0);
     p_State->Button2 = ((In1 & (1 << 2)) != 0);

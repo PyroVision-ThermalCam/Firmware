@@ -268,7 +268,6 @@ static void Task_Devices(void *p_Parameters)
 
         if (DevicesManager_HandleDisplayboardExpanderInterrupt(&InputState) == ESP_OK) {
             if (memcmp(&InputState, &PendingInputState, sizeof(Devices_Input_State_t)) != 0) {
-                /* New raw state from INT# � restart debounce timer */
                 memcpy(&PendingInputState, &InputState, sizeof(Devices_Input_State_t));
                 PendingChangeTime = xTaskGetTickCount();
                 HasPendingInput = true;

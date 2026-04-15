@@ -186,30 +186,28 @@ static void Task_Camera(void *p_Parameters)
             break;
         }
 
-        if (EventBits & CAMERA_TASK_EVENT_REQUEST_FOCUS) {
+        if (EventBits & CAMERA_TASK_FOCUS_REQUEST) {
             ESP_LOGD(TAG, "Focus request received");
 
             esp_camera_af_trigger(_CameraTaskState.Sensor);
 
-            xEventGroupClearBits(_CameraTaskState.EventGroup, CAMERA_TASK_EVENT_REQUEST_FOCUS);
+            xEventGroupClearBits(_CameraTaskState.EventGroup, CAMERA_TASK_FOCUS_REQUEST);
         }
 
         camera_fb_t *Pic = esp_camera_fb_get();
         if (Pic != NULL) {
-            uint32_t Width  = Pic->width;
-            uint32_t Height = Pic->height;
-
             /* Copy frame to PSRAM buffer and immediately release the DMA buffer back to the driver. */
             memcpy(_CameraTaskState.p_FrameBuffer, Pic->buf, Pic->len);
-            esp_camera_fb_return(Pic);
 
             App_Camera_Frame_t Frame = {
                 .Buffer = _CameraTaskState.p_FrameBuffer,
-                .Width  = Width,
-                .Height = Height
+                .Width  = Pic->width,
+                .Height = Pic->height
             };
 
-            xQueueOverwrite(((App_Context_t *)p_Parameters)->Camera_FrameQueue, &Frame);
+            esp_camera_fb_return(Pic);
+
+            xQueueOverwrite(static_cast<App_Context_t *>(p_Parameters)->Camera_FrameQueue, &Frame);
         } else {
             ESP_LOGW(TAG, "Failed to get camera frame buffer");
         }
