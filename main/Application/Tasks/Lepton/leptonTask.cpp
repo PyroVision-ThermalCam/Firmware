@@ -131,8 +131,8 @@ static int32_t Lepton_CCI_Read(i2c_master_dev_handle_t *p_Dev, uint8_t *p_Data, 
  *  @return             esp_err_t result code from the I2CM_WriteRead operation
  */
 static int32_t Lepton_CCI_WriteRead(i2c_master_dev_handle_t *p_Dev,
-                                        const uint8_t *p_WriteData, uint32_t WriteLength,
-                                        uint8_t *p_ReadData, uint32_t ReadLength)
+                                    const uint8_t *p_WriteData, uint32_t WriteLength,
+                                    uint8_t *p_ReadData, uint32_t ReadLength)
 {
     int32_t Result;
 
@@ -485,7 +485,7 @@ static void Task_Lepton(void *p_Parameters)
                                                              &JpegSize);
                     if (JpegError == ESP_OK) {
                         esp_err_t UVCError;
-                        
+
                         UVCError = USBUVC_SubmitFrame(p_JpegData, JpegSize);
                         if (UVCError == ESP_ERR_INVALID_STATE) {
                             /* Streaming was stopped - immediately stop submitting.
@@ -768,7 +768,8 @@ esp_err_t Lepton_Task_Init(void)
     }
 
     _LeptonTaskState.LeptonConf = LEPTON_DEFAULT_CONF;
-    LEPTON_ASSIGN_I2C_FUNC(_LeptonTaskState.LeptonConf, NULL, NULL, Lepton_CCI_Write, Lepton_CCI_Read, Lepton_CCI_WriteRead);
+    LEPTON_ASSIGN_I2C_FUNC(_LeptonTaskState.LeptonConf, NULL, NULL, Lepton_CCI_Write, Lepton_CCI_Read,
+                           Lepton_CCI_WriteRead);
     LEPTON_ASSIGN_I2C_HANDLE(_LeptonTaskState.LeptonConf, DevicesManager_GetI2CBusHandle());
     LEPTON_ASSIGN_GPIO_FUNC(_LeptonTaskState.LeptonConf, Lepton_Reset, Lepton_PowerDown);
 
@@ -778,8 +779,10 @@ esp_err_t Lepton_Task_Init(void)
      */
     BufferSize = 160 * 120 * 3;
 
-    _LeptonTaskState.RGB_Buffer[0] = static_cast<uint8_t *>(heap_caps_malloc(BufferSize, MALLOC_CAP_SIMD | MALLOC_CAP_SPIRAM));
-    _LeptonTaskState.RGB_Buffer[1] = static_cast<uint8_t *>(heap_caps_malloc(BufferSize, MALLOC_CAP_SIMD | MALLOC_CAP_SPIRAM));
+    _LeptonTaskState.RGB_Buffer[0] = static_cast<uint8_t *>(heap_caps_malloc(BufferSize,
+                                                                             MALLOC_CAP_SIMD | MALLOC_CAP_SPIRAM));
+    _LeptonTaskState.RGB_Buffer[1] = static_cast<uint8_t *>(heap_caps_malloc(BufferSize,
+                                                                             MALLOC_CAP_SIMD | MALLOC_CAP_SPIRAM));
 
     if ((_LeptonTaskState.RGB_Buffer[0] == NULL) || (_LeptonTaskState.RGB_Buffer[1] == NULL)) {
         ESP_LOGE(TAG, "Can not allocate RGB buffers!");
@@ -817,8 +820,15 @@ esp_err_t Lepton_Task_Init(void)
         return ESP_ERR_NO_MEM;
     }
 
-    esp_event_handler_register(GUI_TASK_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Task_Event_Handler, NULL);
-    esp_event_handler_register(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE, on_Devices_Task_Event_Handler, NULL);
+    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_APP_STARTED, on_GUI_Task_Event_Handler, NULL);
+    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_ROI, on_GUI_Task_Event_Handler, NULL);
+    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FPA_AUX_TEMP, on_GUI_Task_Event_Handler, NULL);
+    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_UPTIME, on_GUI_Task_Event_Handler, NULL);
+    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_PIXEL_TEMPERATURE, on_GUI_Task_Event_Handler, NULL);
+    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_SCENE_STATISTICS, on_GUI_Task_Event_Handler,
+                               NULL);
+    esp_event_handler_register(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE, on_Devices_Task_Event_Handler,
+                               NULL);
     esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_LEPTON_CHANGED, on_Settings_Event_Handler, NULL);
     esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_CALIBRATION_CHANGED, on_Settings_Event_Handler, NULL);
     esp_event_handler_register(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler, NULL);
@@ -849,8 +859,14 @@ void Lepton_Task_Deinit(void)
         _LeptonTaskState.EventGroup = NULL;
     }
 
-    esp_event_handler_unregister(GUI_TASK_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Task_Event_Handler);
-    esp_event_handler_unregister(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE, on_Devices_Task_Event_Handler);
+    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_APP_STARTED, on_GUI_Task_Event_Handler);
+    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_ROI, on_GUI_Task_Event_Handler);
+    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FPA_AUX_TEMP, on_GUI_Task_Event_Handler);
+    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_UPTIME, on_GUI_Task_Event_Handler);
+    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_PIXEL_TEMPERATURE, on_GUI_Task_Event_Handler);
+    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_SCENE_STATISTICS, on_GUI_Task_Event_Handler);
+    esp_event_handler_unregister(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE,
+                                 on_Devices_Task_Event_Handler);
     esp_event_handler_unregister(SETTINGS_EVENTS, SETTINGS_EVENT_LEPTON_CHANGED, on_Settings_Event_Handler);
     esp_event_handler_unregister(SETTINGS_EVENTS, SETTINGS_EVENT_CALIBRATION_CHANGED, on_Settings_Event_Handler);
     esp_event_handler_unregister(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler);

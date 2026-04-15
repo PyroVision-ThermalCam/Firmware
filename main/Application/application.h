@@ -75,7 +75,7 @@ enum {
 enum {
     DEVICES_TASK_EVENT_RESPONSE_BATTERY,        /**< Battery status has been updated.
                                                      Data is transmitted in a App_Devices_Battery_t structure. */
-    DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE,   /**< Temperature has been updated.
+    DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE,    /**< Temperature has been updated.
                                                      Data is transmitted in a App_Devices_Temperature_t structure. */
 };
 
@@ -83,6 +83,8 @@ enum {
  */
 enum {
     CAMERA_TASK_EVENT_REQUEST_FOCUS,            /**< Request to trigger autofocus. */
+    CAMERA_TASK_EVENT_INIT_COMPLETE,            /**< Camera hardware (and AF, if supported) initialised successfully. No event data. */
+    CAMERA_TASK_EVENT_INIT_FAILED,              /**< Camera hardware initialisation failed. Event data: esp_err_t (4 bytes). */
 };
 
 /** @brief Structure representing a screen position.
@@ -126,6 +128,14 @@ typedef struct {
     int16_t Max;                                /**< Maximum value in the frame. */
 } App_Lepton_Frame_t;
 
+/** @brief Structure representing a ready frame from the visible-light camera.
+ */
+typedef struct {
+    uint8_t *Buffer;                            /**< Pointer to the RGB565 frame buffer (Width * Height * 2 bytes). */
+    uint32_t Width;                             /**< Frame width in pixels. */
+    uint32_t Height;                            /**< Frame height in pixels. */
+} App_Camera_Frame_t;
+
 /** @brief Structure representing FPA and AUX temperature from the Lepton camera.
  */
 typedef struct {
@@ -154,14 +164,6 @@ typedef struct {
         float Mean;                             /**< Mean value within the specified ROI. */
     };
 } App_Lepton_ROI_Result_t;
-
-/** @brief Structure representing a ready frame from the visible-light camera.
- */
-typedef struct {
-    uint8_t *Buffer;                            /**< Pointer to the RGB565 frame buffer (Width * Height * 2 bytes). */
-    uint32_t Width;                             /**< Frame width in pixels. */
-    uint32_t Height;                            /**< Frame height in pixels. */
-} App_Camera_Frame_t;
 
 /** @brief Application context aggregating shared resources.
  */

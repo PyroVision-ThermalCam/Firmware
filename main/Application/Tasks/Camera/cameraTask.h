@@ -33,13 +33,6 @@
 
 ESP_EVENT_DECLARE_BASE(CAMERA_TASK_EVENTS);
 
-/** @brief Camera task event identifiers posted to the default event loop.
- */
-enum {
-    CAMERA_EVENT_INIT_COMPLETE, /**< Camera hardware (and AF, if supported) initialised successfully. No event data. */
-    CAMERA_EVENT_INIT_FAILED,   /**< Camera hardware initialisation failed. Event data: esp_err_t (4 bytes). */
-};
-
 /** @brief          Initialize the camera task.
  *                  Creates the FreeRTOS event group and prepares internal state.
  *  @note           Call this before Camera_Task_Start().
@@ -55,9 +48,6 @@ esp_err_t Camera_Task_Init(void);
 void Camera_Task_Deinit(void);
 
 /** @brief              Start the camera task.
- *                      Creates and pins the FreeRTOS task that initialises the camera
- *                      hardware and posts CAMERA_EVENT_INIT_COMPLETE or
- *                      CAMERA_EVENT_INIT_FAILED to the default event loop.
  *  @note               Call this after Camera_Task_Init().
  *  @param p_AppContext Pointer to the application context.
  *  @return             ESP_OK on success

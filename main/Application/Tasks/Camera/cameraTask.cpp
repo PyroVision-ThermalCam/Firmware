@@ -124,9 +124,7 @@ static void on_Camera_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t B
     }
 }
 
-/** @brief              Camera task main loop. Performs hardware initialisation on entry,
- *                      then posts CAMERA_EVENT_INIT_COMPLETE or CAMERA_EVENT_INIT_FAILED
- *                      to the default event loop before entering the main loop.
+/** @brief              Camera task main loop.
  *  @param p_Parameters Pointer to App_Context_t structure
  */
 static void Task_Camera(void *p_Parameters)
@@ -160,12 +158,12 @@ static void Task_Camera(void *p_Parameters)
 
         ESP_LOGI(TAG, "Camera initialized");
 
-        esp_event_post(CAMERA_TASK_EVENTS, CAMERA_EVENT_INIT_COMPLETE, NULL, 0, portMAX_DELAY);
+        esp_event_post(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_INIT_COMPLETE, NULL, 0, portMAX_DELAY);
     } else {
         ESP_LOGE(TAG, "Camera init failed: 0x%x", Error);
         APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_CAMERA, Error);
 
-        esp_event_post(CAMERA_TASK_EVENTS, CAMERA_EVENT_INIT_FAILED, &Error, sizeof(Error), portMAX_DELAY);
+        esp_event_post(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_INIT_FAILED, &Error, sizeof(Error), portMAX_DELAY);
     }
 
     esp_task_wdt_add(NULL);
@@ -177,7 +175,7 @@ static void Task_Camera(void *p_Parameters)
 
         EventBits = xEventGroupGetBits(_CameraTaskState.EventGroup);
         if (EventBits & CAMERA_TASK_STOP_REQUEST) {
-            ESP_LOGI(TAG, "Stop request received");
+            ESP_LOGD(TAG, "Stop request received");
 
             _CameraTaskState.IsRunning = false;
 

@@ -55,6 +55,7 @@
 #define GUI_TASK_CAMERA_READY                       BIT16
 #define GUI_TASK_TEMPERATURE_SENSOR_READY           BIT17
 #define GUI_TASK_CAMERA_VIEW_CHANGED                BIT18
+#define GUI_TASK_SCREEN_REFRESH_REQUIRED            BIT19
 
 /** @brief Internal runtime state of the GUI task.
  *         Aggregates all LVGL handles, display and touch panel handles, FreeRTOS primitives,
@@ -71,31 +72,55 @@ typedef struct {
     bool IsUVCStreaming;                                    /**< true while a UVC host is actively receiving frames. */
     bool ShowCameraView;                                    /**< true while the visible-light camera image is shown in place of the thermal image. */
     bool PrevJoyCenter;                                     /**< Previous state of the joystick center button for edge detection. */
+    bool PrevJoyUp;                                         /**< Previous joystick up state; used for crosshair movement rising-edge detection. */
+    bool PrevJoyDown;                                       /**< Previous joystick down state; used for crosshair movement rising-edge detection. */
+    bool PrevJoyLeft;                                       /**< Previous joystick left state; used for crosshair movement rising-edge detection. */
+    bool PrevJoyRight;                                      /**< Previous joystick right state; used for crosshair movement rising-edge detection. */
+    bool CrosshairVisible;                                  /**< true when the crosshair overlay is currently active in the live-view. */
+    bool JoyCenterLongFired;                                /**< true after the long-press crosshair toggle has already fired for the current hold; prevents repeated toggling. */
+    TickType_t JoyCenterHeldSince;                          /**< Tick at which JoyCenter went high; 0 when not pressed. */
+    TickType_t
+    JoyDirHeldSince;                             /**< Tick when any joystick direction first went active; 0 when released. */
+    TickType_t
+    JoyDirLastMoveTick;                          /**< Tick of the most recent crosshair move step; 0 when no direction held. */
     TaskHandle_t TaskHandle;                                /**< FreeRTOS handle of the main GUI task; NULL before start. */
-    TaskHandle_t ImageSaveTaskHandle;                       /**< FreeRTOS handle of the background image-save task; NULL before init. */
+    TaskHandle_t
+    ImageSaveTaskHandle;                       /**< FreeRTOS handle of the background image-save task; NULL before init. */
     void *DisplayBuffer1;                                   /**< First PSRAM display frame buffer used by the LCD driver. */
     void *DisplayBuffer2;                                   /**< Second PSRAM display frame buffer used by the LCD driver. */
-    i2c_master_bus_handle_t Touch_Bus_Handle;               /**< I2C master bus handle shared with the GT911 touch controller. */
+    i2c_master_bus_handle_t
+    Touch_Bus_Handle;               /**< I2C master bus handle shared with the GT911 touch controller. */
     esp_timer_handle_t LVGL_TickTimer;                      /**< ESP timer calling lv_tick_inc() at 1 ms intervals. */
     esp_lcd_panel_handle_t PanelHandle;                     /**< Handle of the ILI9341 LCD panel; NULL before init. */
     esp_lcd_touch_handle_t TouchHandle;                     /**< Handle of the GT911 touch controller; NULL before init. */
     esp_lcd_panel_io_handle_t Panel_IO_Handle;              /**< Panel I/O (SPI) handle used to command the ILI9341. */
-    esp_lcd_panel_io_handle_t Touch_IO_Handle;              /**< Panel I/O (I2C) handle used to communicate with the GT911. */
+    esp_lcd_panel_io_handle_t
+    Touch_IO_Handle;              /**< Panel I/O (I2C) handle used to communicate with the GT911. */
     lv_obj_t *UVCOverlayLabel;                              /**< LVGL label object shown as UVC-active overlay; NULL when hidden. */
-    lv_display_t *Display;                                  /**< LVGL display handle bound to the ILI9341; NULL before init. */
-    lv_indev_t *Touch;                                      /**< LVGL input device handle for the GT911 touch screen; NULL before init. */
-    lv_indev_t *Keypad;                                     /**< LVGL input device handle for the physical keypad; NULL before init. */
-    lv_img_dsc_t ThermalImageDescriptor;                    /**< LVGL image descriptor pointing to the latest thermal RGB canvas. */
-    lv_img_dsc_t GradientImageDescriptor;                   /**< LVGL image descriptor pointing to the colour-gradient bar canvas. */
-    lv_timer_t *UpdateTimer[6];                             /**< Array of periodic LVGL timers driving UI element updates. */
+    lv_display_t
+    *Display;                                  /**< LVGL display handle bound to the ILI9341; NULL before init. */
+    lv_indev_t
+    *Touch;                                      /**< LVGL input device handle for the GT911 touch screen; NULL before init. */
+    lv_indev_t
+    *Keypad;                                     /**< LVGL input device handle for the physical keypad; NULL before init. */
+    lv_img_dsc_t
+    ThermalImageDescriptor;                    /**< LVGL image descriptor pointing to the latest thermal RGB canvas. */
+    lv_img_dsc_t
+    GradientImageDescriptor;                   /**< LVGL image descriptor pointing to the colour-gradient bar canvas. */
+    lv_timer_t
+    *UpdateTimer[5];                             /**< Array of periodic LVGL timers driving UI element updates. */
     _lock_t LVGL_API_Lock;                                  /**< Lock serialising LVGL API calls from multiple FreeRTOS tasks. */
     App_Devices_Battery_t BatteryInfo;                      /**< Latest battery voltage, percentage and charging state. */
-    App_Devices_Temperature_t TemperatureInfo;              /**< Latest ambient/housing temperature readings from the devices task. */
+    App_Devices_Temperature_t
+    TemperatureInfo;              /**< Latest ambient/housing temperature readings from the devices task. */
     App_Lepton_ROI_Result_t ROIResult;                      /**< Latest Lepton ROI statistics (min/max/avg temperatures). */
     App_Lepton_Device_t LeptonDeviceInfo;                   /**< Lepton model, firmware version, and capability flags. */
-    App_Lepton_Temperatures_t LeptonTemperatures;           /**< Lepton scene temperature statistics used by the thermal overlay. */
-    App_Context_t *AppContext;                              /**< Pointer to the shared application context; valid after Task_Start(). */
-    EventGroupHandle_t EventGroup;                          /**< Event group used for intra-task and inter-task synchronisation. */
+    App_Lepton_Temperatures_t
+    LeptonTemperatures;           /**< Lepton scene temperature statistics used by the thermal overlay. */
+    App_Context_t
+    *AppContext;                              /**< Pointer to the shared application context; valid after Task_Start(). */
+    EventGroupHandle_t
+    EventGroup;                          /**< Event group used for intra-task and inter-task synchronisation. */
     uint8_t *ThermalCanvasBuffer;                           /**< PSRAM canvas buffer for the scaled thermal RGB image. */
     uint8_t *GradientCanvasBuffer;                          /**< PSRAM canvas buffer for the colour-gradient bar image. */
     uint8_t *NetworkRGBBuffer;                              /**< PSRAM RGB buffer transmitted to connected WebSocket clients. */
@@ -103,9 +128,13 @@ typedef struct {
     uint32_t LeptonUptime;                                  /**< Lepton camera uptime in seconds, updated on each frame event. */
     uint32_t PrevBtnKey;                                    /**< Previous button key state for edge detection. */
     float SpotTemperature;                                  /**< Current spotmeter temperature in degrees Celsius. */
-    QueueHandle_t ImageSaveQueue;                           /**< Queue carrying image-save requests to the background save task. */
+    QueueHandle_t
+    ImageSaveQueue;                           /**< Queue carrying image-save requests to the background save task. */
+    SemaphoreHandle_t
+    SpiMutex;                           /**< Mutex serialising SPI3 bus access between the LCD flush path and SD card writes in Task_ImageSave. */
     Network_IP_Info_t IP_Info;                              /**< Current device IP address information (STA or AP mode). */
-    Network_Thermal_Frame_t NetworkFrame;                   /**< Staging buffer for the thermal frame payload sent over WebSocket. */
+    Network_Thermal_Frame_t
+    NetworkFrame;                   /**< Staging buffer for the thermal frame payload sent over WebSocket. */
 } GUI_Task_State_t;
 
 /** @brief                      Initialize the GUI helper functions.
@@ -118,12 +147,14 @@ typedef struct {
  *                              GUI_Helper_InitTouch() once the Lepton camera has booted.
  *  @param p_GUITaskState       Pointer to the GUI task state structure.
  *  @param Touch_Read_Callback  LVGL touch read callback function.
+ *  @param Display_Flush_CB     LVGL display flush callback function.
  *  @return                     ESP_OK on success
  *                              ESP_ERR_INVALID_ARG if p_GUITaskState is NULL
  *                              ESP_ERR_NO_MEM if display buffer allocation fails
  *                              ESP_FAIL if LCD panel or LVGL initialization fails
  */
-esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUITaskState, lv_indev_read_cb_t Touch_Read_Callback);
+esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUITaskState, lv_indev_read_cb_t Touch_Read_Callback,
+                          lv_display_flush_cb_t Display_Flush_CB);
 
 /** @brief                      Initialize the GT911 touch controller and register the LVGL input device.
  *                              Must be called AFTER the Lepton camera has booted (LEPTON_CAMERA_READY event)

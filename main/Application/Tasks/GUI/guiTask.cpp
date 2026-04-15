@@ -46,12 +46,16 @@
 #include "Private/guiImageSave.h"
 #include "UI/ui_messagebox.h"
 #include "UI/ui_settings.h"
-#include "Application/Tasks/Camera/cameraTask.h"
 
 #include "lepton.h"
 
 #define UI_IMAGE_CANVAS_WIDTH                   240
 #define UI_IMAGE_CANVAS_HEIGHT                  180
+
+#define CROSSHAIR_STEP_PX                       8
+#define CROSSHAIR_AUTOREPEAT_DELAY_MS           400
+#define CROSSHAIR_AUTOREPEAT_PERIOD_MS          150
+#define JOYCENTER_LONGPRESS_MS                  600
 
 ESP_EVENT_DEFINE_BASE(GUI_TASK_EVENTS);
 
@@ -128,17 +132,19 @@ static void on_Lepton_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t B
 static void on_Camera_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
 {
     switch (ID) {
-        case CAMERA_EVENT_INIT_COMPLETE: {
+        case CAMERA_TASK_EVENT_INIT_COMPLETE: {
             xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_READY);
 
             break;
         }
-        case CAMERA_EVENT_INIT_FAILED: {
+        case CAMERA_TASK_EVENT_INIT_FAILED: {
             xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_ERROR);
 
             break;
         }
         default: {
+            ESP_LOGW(TAG, "Unhandled Camera event ID: 0x%X", ID);
+
             break;
         }
     }
@@ -158,11 +164,16 @@ static void on_GUI_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
         case GUI_TASK_EVENT_THERMAL_IMAGE_SAVED: {
             ESP_LOGD(TAG, "Thermal image saved successfully");
 
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_SCREEN_REFRESH_REQUIRED);
+
             break;
         }
         case GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED: {
             ESP_LOGE(TAG, "Thermal image save failed");
+
             APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_FAIL);
+
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_SCREEN_REFRESH_REQUIRED);
 
             break;
         }
@@ -235,9 +246,6 @@ static void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base,
     ESP_LOGD(TAG, "Network event received: ID=%d", ID);
 
     switch (ID) {
-        case NETWORK_EVENT_WIFI_CONNECTED: {
-            break;
-        }
         case NETWORK_EVENT_WIFI_GOT_IP: {
             memcpy(&_GUITaskState.IP_Info, p_Data, sizeof(Network_IP_Info_t));
             _GUITaskState.WiFiConnected = true;
@@ -289,15 +297,8 @@ static void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base,
         case NETWORK_EVENT_SERVER_STARTED: {
             ESP_LOGD(TAG, "Network frame registered with server");
 
-            /* Register thermal frame with server (called after server is started) */
             Server_SetThermalFrame(&_GUITaskState.NetworkFrame);
 
-            break;
-        }
-        case NETWORK_EVENT_AP_STA_CONNECTED: {
-            break;
-        }
-        case NETWORK_EVENT_AP_STA_DISCONNECTED: {
             break;
         }
     }
@@ -341,6 +342,38 @@ static void on_USB_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
             break;
         }
     }
+}
+
+/** @brief          LVGL display flush callback.
+ *                  Writes the LVGL render buffer to the ILI9341 LCD via SPI.
+ *                  Uses a non-blocking try-lock on the SPI bus mutex: when Task_ImageSave
+ *                  holds the bus for SD card writes, the flush is skipped and LVGL is
+ *                  notified immediately to prevent blocking Task_GUI and triggering the WDT.
+ *  @param p_Disp   LVGL display handle
+ *  @param p_Area   Dirty rectangle to update
+ *  @param p_PxMap  Pixel data to flush
+ */
+static void GUI_LCD_Flush_CB(lv_display_t *p_Disp, const lv_area_t *p_Area, uint8_t *p_PxMap)
+{
+    int OffsetX1 = p_Area->x1;
+    int OffsetX2 = p_Area->x2;
+    int OffsetY1 = p_Area->y1;
+    int OffsetY2 = p_Area->y2;
+
+    /* If Task_ImageSave currently holds the SPI bus for SD writes,
+     * skip this LCD update and signal LVGL immediately so Task_GUI never blocks and can
+     * continue resetting the task watchdog. The display simply shows the previous frame
+     * until the save completes.
+     */
+    if (xSemaphoreTake(_GUITaskState.SpiMutex, 0) == pdFALSE) {
+        lv_display_flush_ready(p_Disp);
+
+        return;
+    }
+
+    esp_lcd_panel_draw_bitmap(static_cast<esp_lcd_panel_handle_t>(lv_display_get_user_data(p_Disp)), OffsetX1, OffsetY1,
+                              OffsetX2 + 1, OffsetY2 + 1, p_PxMap);
+    xSemaphoreGive(_GUITaskState.SpiMutex);
 }
 
 /** @brief Update the information screen labels.
@@ -646,14 +679,125 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
     PrevKey = Key;
 
     if (lv_display_get_screen_active(lv_display_get_default()) == ui_Main) {
-        /* Trigger autofocus on JoyCenter rising edge. */
+        TickType_t NowTick = xTaskGetTickCount();
+
+        /* JoyCenter: rising edge starts hold timer */
         if ((State.JoyCenter == true) && (_GUITaskState.PrevJoyCenter == false)) {
-            ESP_LOGI(TAG, "Autofocus triggered by joystick center");
-            esp_event_post(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_REQUEST_FOCUS, NULL, 0, pdMS_TO_TICKS(100));
+            _GUITaskState.JoyCenterHeldSince = NowTick;
+            _GUITaskState.JoyCenterLongFired = false;
+        }
+
+        /* JoyCenter: long-press toggles crosshair (fires once per hold) */
+        if ((State.JoyCenter == true) &&
+            (_GUITaskState.JoyCenterLongFired == false) &&
+            (_GUITaskState.JoyCenterHeldSince != 0) &&
+            ((NowTick - _GUITaskState.JoyCenterHeldSince) >= pdMS_TO_TICKS(JOYCENTER_LONGPRESS_MS))) {
+            _GUITaskState.JoyCenterLongFired  = true;
+            _GUITaskState.CrosshairVisible = !_GUITaskState.CrosshairVisible;
+
+            if (_GUITaskState.CrosshairVisible) {
+                ESP_LOGD(TAG, "Crosshair enabled");
+
+                /* Switch to absolute (top-left) anchoring and position at image centre. */
+                lv_obj_set_align(ui_Label_Main_Thermal_Crosshair, LV_ALIGN_TOP_LEFT);
+                lv_obj_set_pos(ui_Label_Main_Thermal_Crosshair,
+                               (UI_IMAGE_CANVAS_WIDTH  - lv_obj_get_width(ui_Label_Main_Thermal_Crosshair)) / 2,
+                               (UI_IMAGE_CANVAS_HEIGHT - lv_obj_get_height(ui_Label_Main_Thermal_Crosshair)) / 2);
+                lv_obj_remove_flag(ui_Label_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
+            } else {
+                ESP_LOGD(TAG, "Crosshair disabled");
+
+                lv_obj_add_flag(ui_Label_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
+            }
+        }
+
+        /* JoyCenter: falling edge → autofocus (only when no long-press fired) */
+        if ((State.JoyCenter == false) && (_GUITaskState.PrevJoyCenter == true)) {
+            if (_GUITaskState.JoyCenterLongFired == false) {
+                ESP_LOGD(TAG, "Autofocus triggered by joystick center");
+
+                esp_event_post(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_REQUEST_FOCUS, NULL, 0, pdMS_TO_TICKS(100));
+            }
+
+            _GUITaskState.JoyCenterHeldSince = 0;
+        }
+
+        /* Crosshair movement with joystick directions */
+        if (_GUITaskState.CrosshairVisible) {
+            bool AnyDirNow = State.JoyUp || State.JoyDown || State.JoyLeft || State.JoyRight;
+            bool AnyDirPrev = _GUITaskState.PrevJoyUp || _GUITaskState.PrevJoyDown ||
+                              _GUITaskState.PrevJoyLeft || _GUITaskState.PrevJoyRight;
+            bool ShouldMove = false;
+
+            if (AnyDirNow && (AnyDirPrev == false)) {
+                /* Rising edge: move immediately and start auto-repeat timer. */
+                _GUITaskState.JoyDirHeldSince = NowTick;
+                _GUITaskState.JoyDirLastMoveTick = NowTick;
+                ShouldMove = true;
+            } else if (AnyDirNow && AnyDirPrev &&
+                       (_GUITaskState.JoyDirHeldSince != 0) &&
+                       ((NowTick - _GUITaskState.JoyDirHeldSince) >= pdMS_TO_TICKS(CROSSHAIR_AUTOREPEAT_DELAY_MS)) &&
+                       ((NowTick - _GUITaskState.JoyDirLastMoveTick) >= pdMS_TO_TICKS(CROSSHAIR_AUTOREPEAT_PERIOD_MS))) {
+                /* Auto-repeat after initial hold delay. */
+                _GUITaskState.JoyDirLastMoveTick = NowTick;
+                ShouldMove = true;
+            }
+
+            if (AnyDirNow == false) {
+                _GUITaskState.JoyDirHeldSince = 0;
+                _GUITaskState.JoyDirLastMoveTick = 0;
+            }
+
+            if (ShouldMove) {
+                int32_t Cx = lv_obj_get_x(ui_Label_Main_Thermal_Crosshair);
+                int32_t Cy = lv_obj_get_y(ui_Label_Main_Thermal_Crosshair);
+                int32_t MaxX = static_cast<int32_t>(UI_IMAGE_CANVAS_WIDTH) - lv_obj_get_width(ui_Label_Main_Thermal_Crosshair);
+                int32_t MaxY = static_cast<int32_t>(UI_IMAGE_CANVAS_HEIGHT) - lv_obj_get_height(ui_Label_Main_Thermal_Crosshair);
+
+                if (State.JoyUp)    {
+                    Cy -= static_cast<int32_t>(CROSSHAIR_STEP_PX);
+                }
+
+                if (State.JoyDown)  {
+                    Cy += static_cast<int32_t>(CROSSHAIR_STEP_PX);
+                }
+
+                if (State.JoyLeft)  {
+                    Cx -= static_cast<int32_t>(CROSSHAIR_STEP_PX);
+                }
+
+                if (State.JoyRight) {
+                    Cx += static_cast<int32_t>(CROSSHAIR_STEP_PX);
+                }
+
+                if (Cx < 0)    {
+                    Cx = 0;
+                }
+
+                if (Cx > MaxX) {
+                    Cx = MaxX;
+                }
+
+                if (Cy < 0)    {
+                    Cy = 0;
+                }
+
+                if (Cy > MaxY) {
+                    Cy = MaxY;
+                }
+
+                lv_obj_set_pos(ui_Label_Main_Thermal_Crosshair, Cx, Cy);
+
+                ESP_LOGD(TAG, "Crosshair moved to (%d, %d)", Cx, Cy);
+            }
         }
     }
 
     _GUITaskState.PrevJoyCenter = State.JoyCenter;
+    _GUITaskState.PrevJoyUp     = State.JoyUp;
+    _GUITaskState.PrevJoyDown   = State.JoyDown;
+    _GUITaskState.PrevJoyLeft   = State.JoyLeft;
+    _GUITaskState.PrevJoyRight  = State.JoyRight;
 }
 
 /** @brief          LVGL touch read callback.
@@ -712,8 +856,7 @@ void Task_GUI(void *p_Parameters)
     /* Show splash screen first and wait for all components to become ready before starting the application.
      *
      * Sequencing:
-     *   - Camera init runs as a background task (Camera_Task_InitAsync) and posts
-     *     CAMERA_EVENT_INIT_COMPLETE / CAMERA_EVENT_INIT_FAILED when done (~0�2 s).
+     *   - Camera init runs as a background task (Camera_Task_InitAsync).
      *     On receipt, the bar snaps to 50 % ("Camera ready") if not yet past that value.
      *   - The Lepton requires ~5 s to boot. During the boot window the bar is animated
      *     at 2 %/100 ms so it naturally reaches ~99 % just as the LEPTON_READY event
@@ -828,6 +971,9 @@ void Task_GUI(void *p_Parameters)
 
     GUI_Update_Info();
 
+    /* Crosshair is hidden by default; it is enabled by a long-press of the joystick centre. */
+    lv_obj_add_flag(ui_Label_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
+
     /* Initialize SD card icon based on current storage state. */
     if (MemoryManager_HasSDCard()) {
         lv_obj_set_style_text_color(ui_Image_Main_SDCard, lv_color_hex(0x00FF00), LV_PART_MAIN);
@@ -855,29 +1001,29 @@ void Task_GUI(void *p_Parameters)
     int32_t SceneStatsContainerY = lv_obj_get_y(ui_Container_Main_Thermal_Scene_Statistics);
 
     int32_t SceneLabelX0[5] = { SceneStatsContainerX + lv_obj_get_x(ui_Label_Main_Thermal_Scene_Max),
-                                 SceneStatsContainerX + lv_obj_get_x(ui_Label_Main_Thermal_Scene_Min),
-                                 SceneStatsContainerX + lv_obj_get_x(ui_Label_Main_Thermal_Scene_Mean),
-                                 lv_obj_get_x(ui_Label_Main_Thermal_Crosshair),
-                                 lv_obj_get_x(ui_Label_Main_Thermal_PixelTemperature)
-                               };
+                                SceneStatsContainerX + lv_obj_get_x(ui_Label_Main_Thermal_Scene_Min),
+                                SceneStatsContainerX + lv_obj_get_x(ui_Label_Main_Thermal_Scene_Mean),
+                                lv_obj_get_x(ui_Label_Main_Thermal_Crosshair),
+                                lv_obj_get_x(ui_Label_Main_Thermal_PixelTemperature)
+                              };
     int32_t SceneLabelY0[5] = { SceneStatsContainerY + lv_obj_get_y(ui_Label_Main_Thermal_Scene_Max),
-                                 SceneStatsContainerY + lv_obj_get_y(ui_Label_Main_Thermal_Scene_Min),
-                                 SceneStatsContainerY + lv_obj_get_y(ui_Label_Main_Thermal_Scene_Mean),
-                                 lv_obj_get_y(ui_Label_Main_Thermal_Crosshair),
-                                 lv_obj_get_y(ui_Label_Main_Thermal_PixelTemperature)
-                               };
+                                SceneStatsContainerY + lv_obj_get_y(ui_Label_Main_Thermal_Scene_Min),
+                                SceneStatsContainerY + lv_obj_get_y(ui_Label_Main_Thermal_Scene_Mean),
+                                lv_obj_get_y(ui_Label_Main_Thermal_Crosshair),
+                                lv_obj_get_y(ui_Label_Main_Thermal_PixelTemperature)
+                              };
     int32_t SceneLabelW[5] = { lv_obj_get_width(ui_Label_Main_Thermal_Scene_Max),
-                                lv_obj_get_width(ui_Label_Main_Thermal_Scene_Min),
-                                lv_obj_get_width(ui_Label_Main_Thermal_Scene_Mean),
-                                lv_obj_get_width(ui_Label_Main_Thermal_Crosshair),
-                                lv_obj_get_width(ui_Label_Main_Thermal_PixelTemperature)
-                              };
+                               lv_obj_get_width(ui_Label_Main_Thermal_Scene_Min),
+                               lv_obj_get_width(ui_Label_Main_Thermal_Scene_Mean),
+                               lv_obj_get_width(ui_Label_Main_Thermal_Crosshair),
+                               lv_obj_get_width(ui_Label_Main_Thermal_PixelTemperature)
+                             };
     int32_t SceneLabelH[5] = { lv_obj_get_height(ui_Label_Main_Thermal_Scene_Max),
-                                lv_obj_get_height(ui_Label_Main_Thermal_Scene_Min),
-                                lv_obj_get_height(ui_Label_Main_Thermal_Scene_Mean),
-                                lv_obj_get_height(ui_Label_Main_Thermal_Crosshair),
-                                lv_obj_get_height(ui_Label_Main_Thermal_PixelTemperature)
-                              };
+                               lv_obj_get_height(ui_Label_Main_Thermal_Scene_Min),
+                               lv_obj_get_height(ui_Label_Main_Thermal_Scene_Mean),
+                               lv_obj_get_height(ui_Label_Main_Thermal_Crosshair),
+                               lv_obj_get_height(ui_Label_Main_Thermal_PixelTemperature)
+                             };
 
     while (_GUITaskState.IsRunning) {
         EventBits_t EventBits;
@@ -1127,7 +1273,7 @@ void Task_GUI(void *p_Parameters)
                 if (_GUITaskState.ShowCameraView) {
                     /* Scale camera frame down and render in the thermal canvas */
                     UI_Scale_Camera(CameraFrame.Buffer, CameraFrame.Width, CameraFrame.Height,
-                                            _GUITaskState.ThermalCanvasBuffer, UI_IMAGE_CANVAS_WIDTH, UI_IMAGE_CANVAS_HEIGHT);
+                                    _GUITaskState.ThermalCanvasBuffer, UI_IMAGE_CANVAS_WIDTH, UI_IMAGE_CANVAS_HEIGHT);
                     lv_obj_invalidate(ui_Image_Main_Thermal);
                 }
             }
@@ -1197,8 +1343,6 @@ void Task_GUI(void *p_Parameters)
             }
 
             lv_bar_set_value(ui_Info_Battery_Bar, _GUITaskState.BatteryInfo.Percentage, LV_ANIM_OFF);
-            snprintf(Buffer, sizeof(Buffer), "%d%%", _GUITaskState.BatteryInfo.Percentage);
-            lv_label_set_text(ui_Label_Main_Battery_Remaining_Value, Buffer);
             lv_label_set_text(ui_Label_Main_Battery_Remaining_Value, Buffer);
 
             if (_GUITaskState.BatteryInfo.Charging) {
@@ -1422,7 +1566,11 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_remove_flag(ui_Label_Main_TempScaleMax, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_remove_flag(ui_Label_Main_TempScaleMin, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Label_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
+
+                if (_GUITaskState.CrosshairVisible) {
+                    lv_obj_remove_flag(ui_Label_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
+                }
+
                 lv_obj_remove_flag(ui_Image_Main_Gradient, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_remove_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_remove_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
@@ -1446,6 +1594,18 @@ void Task_GUI(void *p_Parameters)
             lv_label_set_text(ui_Label_Main_Statusbar_Temperatur_Value, Buffer);
 
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_TEMPERATURE_SENSOR_READY);
+        }
+
+        if (EventBits & GUI_TASK_SCREEN_REFRESH_REQUIRED) {
+            /* Re-render the LVGL overlay layer after PNG save. During the write,
+             * LCD flushes are skipped to avoid SPI bus contention. After the save
+             * completes, invalidate lv_layer_top() so that any LVGL changes that
+             * happened during the write (e.g. message box closing) are properly
+             * flushed to the display on the next lv_timer_handler() call.
+             */
+            lv_obj_invalidate(lv_layer_top());
+
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_SCREEN_REFRESH_REQUIRED);
         }
 
         _lock_acquire(&_GUITaskState.LVGL_API_Lock);
@@ -1473,15 +1633,17 @@ esp_err_t GUI_Task_Init(void)
         return ESP_OK;
     }
 
-    ESP_ERROR_CHECK(GUI_Helper_Init(&_GUITaskState, Touch_LVGL_ReadCallback));
+    ESP_ERROR_CHECK(GUI_Helper_Init(&_GUITaskState, Touch_LVGL_ReadCallback, GUI_LCD_Flush_CB));
     ESP_ERROR_CHECK(GUI_Helper_InitKeypad(&_GUITaskState, Keypad_LVGL_ReadCallback));
 
     ui_init();
 
-    _GUITaskState.ThermalCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2, MALLOC_CAP_SPIRAM));
+    _GUITaskState.ThermalCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(UI_IMAGE_CANVAS_WIDTH *
+                                                                                UI_IMAGE_CANVAS_HEIGHT * 2, MALLOC_CAP_SPIRAM));
     _GUITaskState.GradientCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(20 * 180 * 2, MALLOC_CAP_SPIRAM));
     _GUITaskState.NetworkRGBBuffer = static_cast<uint8_t *>(heap_caps_malloc(240 * 180 * 3, MALLOC_CAP_SPIRAM));
-    _GUITaskState.SaveCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2, MALLOC_CAP_SPIRAM));
+    _GUITaskState.SaveCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT
+                                                                             * 2, MALLOC_CAP_SPIRAM));
 
     if (_GUITaskState.ThermalCanvasBuffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate thermal canvas buffer!");
@@ -1600,19 +1762,36 @@ esp_err_t GUI_Task_Init(void)
         return ESP_ERR_NO_MEM;
     }
 
+    _GUITaskState.SpiMutex = xSemaphoreCreateMutex();
+    if (_GUITaskState.SpiMutex == NULL) {
+        ESP_LOGE(TAG, "Failed to create SPI bus gate mutex!");
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
+
+        vSemaphoreDelete(_GUITaskState.NetworkFrame.Mutex);
+        heap_caps_free(_GUITaskState.ThermalCanvasBuffer);
+        heap_caps_free(_GUITaskState.GradientCanvasBuffer);
+        heap_caps_free(_GUITaskState.NetworkRGBBuffer);
+        heap_caps_free(_GUITaskState.SaveCanvasBuffer);
+
+        return ESP_ERR_NO_MEM;
+    }
+
     esp_event_handler_register(DEVICES_EVENTS, DEVICES_EVENT_SD_DETECT, on_Devices_Event_Handler, NULL);
     esp_event_handler_register(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler, NULL);
     esp_event_handler_register(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler, NULL);
-    esp_event_handler_register(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_BATTERY, on_Devices_Task_Event_Handler, NULL);
-    esp_event_handler_register(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE, on_Devices_Task_Event_Handler, NULL);
+    esp_event_handler_register(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_BATTERY, on_Devices_Task_Event_Handler,
+                               NULL);
+    esp_event_handler_register(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE, on_Devices_Task_Event_Handler,
+                               NULL);
     esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVED, on_GUI_Task_Event_Handler, NULL);
     esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED, on_GUI_Task_Event_Handler, NULL);
     esp_event_handler_register(LEPTON_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Task_Event_Handler, NULL);
-    esp_event_handler_register(CAMERA_TASK_EVENTS, CAMERA_EVENT_INIT_COMPLETE, on_Camera_Task_Event_Handler, NULL);
-    esp_event_handler_register(CAMERA_TASK_EVENTS, CAMERA_EVENT_INIT_FAILED, on_Camera_Task_Event_Handler, NULL);
+    esp_event_handler_register(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_INIT_COMPLETE, on_Camera_Task_Event_Handler, NULL);
+    esp_event_handler_register(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_INIT_FAILED, on_Camera_Task_Event_Handler, NULL);
 
     _GUITaskState.SaveNextFrameRequested = false;
     _GUITaskState.ShowCameraView = false;
+    _GUITaskState.CrosshairVisible = true;
     _GUITaskState.IsInitialized = true;
 
     return ESP_OK;
@@ -1624,13 +1803,17 @@ void GUI_Task_Deinit(void)
         return;
     }
 
-    esp_event_handler_unregister(DEVICES_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Event_Handler);
+    esp_event_handler_unregister(DEVICES_EVENTS, DEVICES_EVENT_SD_DETECT, on_Devices_Event_Handler);
     esp_event_handler_unregister(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler);
     esp_event_handler_unregister(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler);
-    esp_event_handler_unregister(DEVICES_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Devices_Task_Event_Handler);
-    esp_event_handler_unregister(GUI_TASK_EVENTS, ESP_EVENT_ANY_ID, on_GUI_Task_Event_Handler);
+    esp_event_handler_unregister(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_BATTERY, on_Devices_Task_Event_Handler);
+    esp_event_handler_unregister(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE,
+                                 on_Devices_Task_Event_Handler);
+    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVED, on_GUI_Task_Event_Handler);
+    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED, on_GUI_Task_Event_Handler);
     esp_event_handler_unregister(LEPTON_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Task_Event_Handler);
-    esp_event_handler_unregister(CAMERA_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Camera_Task_Event_Handler);
+    esp_event_handler_unregister(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_INIT_COMPLETE, on_Camera_Task_Event_Handler);
+    esp_event_handler_unregister(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_INIT_FAILED, on_Camera_Task_Event_Handler);
 
     ui_destroy();
 
@@ -1639,6 +1822,11 @@ void GUI_Task_Deinit(void)
     if (_GUITaskState.NetworkFrame.Mutex != NULL) {
         vSemaphoreDelete(_GUITaskState.NetworkFrame.Mutex);
         _GUITaskState.NetworkFrame.Mutex = NULL;
+    }
+
+    if (_GUITaskState.SpiMutex != NULL) {
+        vSemaphoreDelete(_GUITaskState.SpiMutex);
+        _GUITaskState.SpiMutex = NULL;
     }
 
     _GUITaskState.Display = NULL;

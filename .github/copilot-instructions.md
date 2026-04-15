@@ -133,7 +133,6 @@ main/
 │   │   ├── Time/              # Time management
 │   │   └── SD/                # SD card management
 │   └── Tasks/                 # FreeRTOS tasks
-│       ├── tasks.h            # Task declarations
 │       ├── GUI/               # GUI task
 │       ├── Lepton/            # Camera task
 │       └── Network/           # Network task

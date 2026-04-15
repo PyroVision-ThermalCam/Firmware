@@ -148,8 +148,10 @@ void ScreenMainLoaded(lv_event_t *e)
     }
 
     /* Suppress the LVGL focus outline on the group anchor object */
-    lv_obj_set_style_outline_width(ui_Button_Main_Menu, 0, static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUSED));
-    lv_obj_set_style_outline_width(ui_Button_Main_Menu, 0, static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUS_KEY));
+    lv_obj_set_style_outline_width(ui_Button_Main_Menu, 0,
+                                   static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUSED));
+    lv_obj_set_style_outline_width(ui_Button_Main_Menu, 0,
+                                   static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUS_KEY));
 
     lv_obj_remove_event_cb(ui_Button_Main_Menu, on_main_screen_key);
     lv_obj_add_event_cb(ui_Button_Main_Menu, on_main_screen_key, LV_EVENT_KEY, NULL);
@@ -173,8 +175,10 @@ void ScreenMenuLoaded(lv_event_t *e)
     }
 
     /* Suppress the LVGL focus outline on the group anchor object */
-    lv_obj_set_style_outline_width(ui_Button_Menu_Back, 0, static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUSED));
-    lv_obj_set_style_outline_width(ui_Button_Menu_Back, 0, static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUS_KEY));
+    lv_obj_set_style_outline_width(ui_Button_Menu_Back, 0,
+                                   static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUSED));
+    lv_obj_set_style_outline_width(ui_Button_Menu_Back, 0,
+                                   static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUS_KEY));
 
     lv_obj_remove_event_cb(ui_Button_Menu_Back, on_menu_screen_key);
     lv_obj_add_event_cb(ui_Button_Menu_Back, on_menu_screen_key, LV_EVENT_KEY, NULL);
@@ -196,8 +200,10 @@ void ScreenInfoLoaded(lv_event_t *e)
     }
 
     /* Suppress the LVGL focus outline on the group anchor object */
-    lv_obj_set_style_outline_width(ui_Button_Info_Back, 0, static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUSED));
-    lv_obj_set_style_outline_width(ui_Button_Info_Back, 0, static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUS_KEY));
+    lv_obj_set_style_outline_width(ui_Button_Info_Back, 0,
+                                   static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUSED));
+    lv_obj_set_style_outline_width(ui_Button_Info_Back, 0,
+                                   static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUS_KEY));
 
     lv_obj_remove_event_cb(ui_Button_Info_Back, on_info_screen_key);
     lv_obj_add_event_cb(ui_Button_Info_Back, on_info_screen_key, LV_EVENT_KEY, NULL);

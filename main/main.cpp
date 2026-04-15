@@ -26,8 +26,12 @@
 #include <string.h>
 
 #include "managers.h"
-#include "Application/Tasks/tasks.h"
 #include "Application/application.h"
+#include "Application/Tasks/GUI/guiTask.h"
+#include "Application/Tasks/Camera/cameraTask.h"
+#include "Application/Tasks/Lepton/leptonTask.h"
+#include "Application/Tasks/Network/networkTask.h"
+#include "Application/Tasks/Devices/devicesTask.h"
 
 static App_Context_t _AppContext;
 

@@ -157,28 +157,14 @@ static const char *TAG = "GUI-Helper";
 /** @brief          LVGL tick timer callback for GUI task.
  *  @param p_Arg    User data (pointer to GUI_Task_State_t)
  */
-inline void GUI_LVGL_TickTimer_CB(void *p_Arg)
+static void GUI_LVGL_TickTimer_CB(void *p_Arg)
 {
+    (void)p_Arg;
     lv_tick_inc(CONFIG_GUI_LVGL_TICK_PERIOD_MS);
 }
 
-/** @brief          Initialize the GUI helper functions.
- *  @param p_Disp   Display handle
- *  @param p_Area   Area to update
- *  @param p_PxMap  Pixel data to flush
- */
-static void GUI_LCD_Flush_CB(lv_display_t *p_Disp, const lv_area_t *p_Area, uint8_t *p_PxMap)
-{
-    int OffsetX1 = p_Area->x1;
-    int OffsetX2 = p_Area->x2;
-    int OffsetY1 = p_Area->y1;
-    int OffsetY2 = p_Area->y2;
-
-    esp_lcd_panel_draw_bitmap(static_cast<esp_lcd_panel_handle_t>(lv_display_get_user_data(p_Disp)), OffsetX1, OffsetY1,
-                              OffsetX2 + 1, OffsetY2 + 1, p_PxMap);
-}
-
-esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUITaskState, lv_indev_read_cb_t Touch_Read_Callback)
+esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUITaskState, lv_indev_read_cb_t Touch_Read_Callback,
+                          lv_display_flush_cb_t Display_Flush_CB)
 {
     uint32_t Caps;
 
@@ -228,7 +214,7 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUITaskState, lv_indev_read_cb_t T
     vTaskDelay(pdMS_TO_TICKS(100));
     ESP_LOGD(TAG, " Panel display turned ON");
 
-    lv_display_set_flush_cb(p_GUITaskState->Display, GUI_LCD_Flush_CB);
+    lv_display_set_flush_cb(p_GUITaskState->Display, Display_Flush_CB);
     lv_display_set_user_data(p_GUITaskState->Display, p_GUITaskState->PanelHandle);
 
 #ifdef CONFIG_SPIRAM
@@ -473,9 +459,11 @@ void GUI_Helper_Timer_RAMUpdate(lv_timer_t *p_Timer)
         return;
     }
 
-    snprintf(Buffer, sizeof(Buffer), "%u KB / %u KB", heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024, heap_caps_get_total_size(MALLOC_CAP_SPIRAM) / 1024);
+    snprintf(Buffer, sizeof(Buffer), "%u KB / %u KB", heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024,
+             heap_caps_get_total_size(MALLOC_CAP_SPIRAM) / 1024);
     lv_label_set_text(ui_Label_Info_PSRAM_Free, Buffer);
-    snprintf(Buffer, sizeof(Buffer), "%u KB / %u KB", heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024, heap_caps_get_total_size(MALLOC_CAP_INTERNAL) / 1024);
+    snprintf(Buffer, sizeof(Buffer), "%u KB / %u KB", heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024,
+             heap_caps_get_total_size(MALLOC_CAP_INTERNAL) / 1024);
     lv_label_set_text(ui_Label_Info_RAM_Free, Buffer);
 }
 

@@ -45,8 +45,6 @@ void Task_ImageSave(void *p_Param)
     ESP_LOGD(TAG, "Image save task started");
 
     while (true) {
-        uint32_t Caps;
-
         if (xQueueReceive(_GUITaskState.ImageSaveQueue, &Frame, portMAX_DELAY) != pdTRUE) {
             continue;
         }
@@ -77,6 +75,8 @@ void Task_ImageSave(void *p_Param)
         ESP_LOGD(TAG, "Saving PNG: %s (%dx%d)", FilePath, Frame.Width, Frame.Height);
 
         /* Open file for writing PNG */
+        xSemaphoreTake(_GUITaskState.SpiMutex, portMAX_DELAY);
+
         FILE *PNGFile = fopen(FilePath, "wb");
         if (PNGFile == NULL) {
             ESP_LOGE(TAG, "Failed to open file for writing: %s", FilePath);
@@ -92,6 +92,7 @@ void Task_ImageSave(void *p_Param)
             ESP_LOGE(TAG, "Failed to create PNG write struct!");
 
             fclose(PNGFile);
+            xSemaphoreGive(_GUITaskState.SpiMutex);
             esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, pdMS_TO_TICKS(100));
 
             continue;
@@ -103,24 +104,20 @@ void Task_ImageSave(void *p_Param)
 
             png_destroy_write_struct(&png_ptr, NULL);
             fclose(PNGFile);
+            xSemaphoreGive(_GUITaskState.SpiMutex);
             esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, pdMS_TO_TICKS(100));
 
             continue;
         }
 
-#ifdef CONFIG_SPIRAM
-        Caps = MALLOC_CAP_SPIRAM ;
-#else
-        Caps = 0;
-#endif
-
         /* Allocate line buffer before setjmp (to avoid crossing initialization) */
-        uint8_t *LineBuffer = static_cast<uint8_t *>(heap_caps_malloc(Frame.Width * 3, Caps));
+        uint8_t *LineBuffer = static_cast<uint8_t *>(heap_caps_malloc(Frame.Width * 3, MALLOC_CAP_SPIRAM));
         if (LineBuffer == NULL) {
             ESP_LOGE(TAG, "Failed to allocate line buffer!");
 
             png_destroy_write_struct(&png_ptr, &info_ptr);
             fclose(PNGFile);
+            xSemaphoreGive(_GUITaskState.SpiMutex);
             esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, pdMS_TO_TICKS(100));
 
             continue;
@@ -133,6 +130,7 @@ void Task_ImageSave(void *p_Param)
             heap_caps_free(LineBuffer);
             png_destroy_write_struct(&png_ptr, &info_ptr);
             fclose(PNGFile);
+            xSemaphoreGive(_GUITaskState.SpiMutex);
             esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, pdMS_TO_TICKS(100));
 
             continue;
@@ -175,6 +173,7 @@ void Task_ImageSave(void *p_Param)
         heap_caps_free(LineBuffer);
         png_destroy_write_struct(&png_ptr, &info_ptr);
         fclose(PNGFile);
+        xSemaphoreGive(_GUITaskState.SpiMutex);
 
         /* Get file size for logging */
         struct stat FileStat;

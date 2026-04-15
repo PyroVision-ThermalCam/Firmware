@@ -200,9 +200,9 @@ static void Task_Devices(void *p_Parameters)
                 SettingsManager_UpdateCalibration(&Calibration, NULL);
 
                 ESP_LOGI(TAG, "Calibration snapshot: room=%d\xC2\xB0""C, sensor=%.2f\xC2\xB0""C, offset=%.2f\xC2\xB0""C",
-                        static_cast<int>(Calibration.RoomTemperature),
-                        Calibration.SensorAtCalibration,
-                        static_cast<float>(Calibration.RoomTemperature) - Calibration.SensorAtCalibration);
+                         static_cast<int>(Calibration.RoomTemperature),
+                         Calibration.SensorAtCalibration,
+                         static_cast<float>(Calibration.RoomTemperature) - Calibration.SensorAtCalibration);
             }
 
             xEventGroupClearBits(_DevicesTaskState.EventGroup, DEVICES_TASK_CALIBRATION_CHANGED);
@@ -248,10 +248,10 @@ static void Task_Devices(void *p_Parameters)
                     SettingsManager_UpdateCalibration(&Calibration, NULL);
 
                     ESP_LOGI(TAG,
-                            "Calibration baseline auto-initialized: sensor = %.2f\xC2\xB0""C, room = %d\xC2\xB0""C, offset = %.2f\xC2\xB0""C",
-                            Calibration.SensorAtCalibration,
-                            static_cast<int>(Calibration.RoomTemperature),
-                            static_cast<float>(Calibration.RoomTemperature) - Calibration.SensorAtCalibration);
+                             "Calibration baseline auto-initialized: sensor = %.2f\xC2\xB0""C, room = %d\xC2\xB0""C, offset = %.2f\xC2\xB0""C",
+                             Calibration.SensorAtCalibration,
+                             static_cast<int>(Calibration.RoomTemperature),
+                             static_cast<float>(Calibration.RoomTemperature) - Calibration.SensorAtCalibration);
 
                     /* Save the updated calibration to persistent storage. */
                     SettingsManager_Save();
