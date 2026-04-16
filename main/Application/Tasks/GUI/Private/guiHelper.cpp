@@ -423,24 +423,39 @@ void GUI_Helper_Timer_SpotUpdate(lv_timer_t *p_Timer)
     (void)p_Timer;
     App_GUI_Screenposition_t ScreenPosition;
 
-    if ((lv_obj_get_width(ui_Image_Main_Thermal) == 0) || (lv_obj_get_height(ui_Image_Main_Thermal) == 0)) {
+    int32_t ImageW = static_cast<int32_t>(lv_obj_get_width(ui_Image_Main_Thermal));
+    int32_t ImageH = static_cast<int32_t>(lv_obj_get_height(ui_Image_Main_Thermal));
+
+    if ((ImageW == 0) || (ImageH == 0)) {
         return;
     }
 
-    /* Get crosshair center relative to ui_Image_Main_Thermal.
-     * The crosshair label is a child of ui_Container_Main_Thermal_Crosshair which is a
-     * direct child of ui_Image_Main_Thermal - use the container centre as the spot position.
-     * lv_obj_get_x_aligned() reads the style property directly (always up-to-date); using
-     * lv_obj_get_x() would read obj->coords which is only refreshed after the next layout pass
-     * and could therefore return a stale value when the timer fires shortly after a move. */
-    ScreenPosition.x = lv_obj_get_x_aligned(ui_Container_Main_Thermal_Crosshair) + lv_obj_get_width(
-                           ui_Container_Main_Thermal_Crosshair) / 2;
-    ScreenPosition.y = lv_obj_get_y_aligned(ui_Container_Main_Thermal_Crosshair) + lv_obj_get_height(
-                           ui_Container_Main_Thermal_Crosshair) / 2;
-    ScreenPosition.Width = lv_obj_get_width(ui_Image_Main_Thermal);
-    ScreenPosition.Height = lv_obj_get_height(ui_Image_Main_Thermal);
+    /* The thermal canvas is rendered by LVGL with lv_image_set_rotation(1800).
+     * LVGL does NOT apply this transform to child objects, so the crosshair
+     * container stays at its logical (unrotated) position (LogicalCX, LogicalCY)
+     * while the canvas content that is actually visible at that screen location is
+     * stored at canvas pixel (ImageW-1-LogicalCX, ImageH-1-LogicalCY).
+     *
+     * We therefore flip both coordinates before sending the ScreenPosition to the
+     * Lepton task, so Lepton_GetPixelTemperature reads the raw pixel that is truly
+     * visible under the crosshair rather than the 180°-mirrored counterpart.
+     *
+     * The same flip is already implicitly used by the luminance overlay code in
+     * guiTask.cpp, which maps canvas pixel (x,y) to visual position (W-1-x, H-1-y)
+     * via XRot/YRot before comparing against label bounds. */
+    int32_t LogicalCX = lv_obj_get_x_aligned(ui_Container_Main_Thermal_Crosshair) + lv_obj_get_width(
+                            ui_Container_Main_Thermal_Crosshair) / 2;
+    int32_t LogicalCY = lv_obj_get_y_aligned(ui_Container_Main_Thermal_Crosshair) + lv_obj_get_height(
+                            ui_Container_Main_Thermal_Crosshair) / 2;
 
-    ESP_LOGD(TAG, "Crosshair center in thermal canvas: (%d,%d), size (%d,%d)", ScreenPosition.x, ScreenPosition.y,
+    ScreenPosition.x      = (ImageW - 1) - LogicalCX;
+    ScreenPosition.y      = (ImageH - 1) - LogicalCY;
+    ScreenPosition.Width  = static_cast<int32_t>(ImageW);
+    ScreenPosition.Height = static_cast<int32_t>(ImageH);
+
+    ESP_LOGD(TAG, "Crosshair: logical (%d,%d) -> canvas (%d,%d), image size (%d,%d)",
+             LogicalCX, LogicalCY,
+             ScreenPosition.x, ScreenPosition.y,
              ScreenPosition.Width, ScreenPosition.Height);
 
     esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_PIXEL_TEMPERATURE, &ScreenPosition, sizeof(ScreenPosition),

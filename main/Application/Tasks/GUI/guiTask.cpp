@@ -673,9 +673,9 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
             _GUITaskState.LongPressHandled = true;
 
             if (_GUITaskState.ShowCameraView == false) {
-                _GUITaskState.CrosshairVisible = !_GUITaskState.CrosshairVisible;
+                _GUITaskState.ShowCrosshair = !_GUITaskState.ShowCrosshair;
 
-                if (_GUITaskState.CrosshairVisible) {
+                if (_GUITaskState.ShowCrosshair) {
                     ESP_LOGD(TAG, "Crosshair enabled");
 
                     /* Centre the crosshair.  Position is stored in our own state to avoid
@@ -709,7 +709,7 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
         }
 
         /* Crosshair movement with joystick directions */
-        if (_GUITaskState.CrosshairVisible) {
+        if (_GUITaskState.ShowCrosshair) {
             bool AnyDirNow = State.JoyUp || State.JoyDown || State.JoyLeft || State.JoyRight;
             bool AnyDirPrev = _GUITaskState.PrevJoyUp || _GUITaskState.PrevJoyDown ||
                               _GUITaskState.PrevJoyLeft || _GUITaskState.PrevJoyRight;
@@ -918,7 +918,7 @@ void Task_GUI(void *p_Parameters)
      * and left/up movement would appear to do nothing. */
     _GUITaskState.CrosshairX = (static_cast<int32_t>(UI_IMAGE_CANVAS_WIDTH)  - CROSSHAIR_CONTAINER_W) / 2;
     _GUITaskState.CrosshairY = (static_cast<int32_t>(UI_IMAGE_CANVAS_HEIGHT) - CROSSHAIR_CONTAINER_H) / 2;
-    _GUITaskState.CrosshairVisible = true;
+    _GUITaskState.ShowCrosshair = true;
     lv_obj_set_align(ui_Container_Main_Thermal_Crosshair, LV_ALIGN_TOP_LEFT);
     lv_obj_set_pos(ui_Container_Main_Thermal_Crosshair, _GUITaskState.CrosshairX, _GUITaskState.CrosshairY);
     lv_obj_remove_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
@@ -1243,7 +1243,6 @@ void Task_GUI(void *p_Parameters)
             }
         }
 
-        /* Process the recieved system events */
         EventBits = xEventGroupGetBits(_GUITaskState.EventGroup);
         if (EventBits & GUI_TASK_STOP_REQUEST) {
             ESP_LOGD(TAG, "Stop request received");
@@ -1511,7 +1510,7 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_remove_flag(ui_Label_Main_TempScaleMax, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_remove_flag(ui_Label_Main_TempScaleMin, LV_OBJ_FLAG_HIDDEN);
 
-                if (_GUITaskState.CrosshairVisible) {
+                if (_GUITaskState.ShowCrosshair) {
                     lv_obj_remove_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
                 }
 
@@ -1523,6 +1522,22 @@ void Task_GUI(void *p_Parameters)
             }
 
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_VIEW_CHANGED);
+        }
+
+        if (EventBits & GUI_TASK_THERMAL_ROI_CHANGED) {
+            if (_GUITaskState.ShowROI) {
+                lv_obj_remove_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
+            } else {
+                lv_obj_add_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
+            }
+
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_THERMAL_ROI_CHANGED);
         }
 
         if (EventBits & GUI_TASK_TEMPERATURE_SENSOR_READY) {
@@ -1751,7 +1766,8 @@ esp_err_t GUI_Task_Init(void)
 
     _GUITaskState.SaveNextFrameRequested = false;
     _GUITaskState.ShowCameraView = false;
-    _GUITaskState.CrosshairVisible = false;
+    _GUITaskState.ShowCrosshair = false;
+    _GUITaskState.ShowROI = false;
     _GUITaskState.LongPressHandled = false;
     _GUITaskState.PrevJoyCenterLongPress = false;
     _GUITaskState.IsInitialized = true;
@@ -1872,4 +1888,10 @@ void GUI_Task_ToggleCameraView(void)
 {
     _GUITaskState.ShowCameraView = !_GUITaskState.ShowCameraView;
     xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_VIEW_CHANGED);
+}
+
+void GUI_Task_ToggleROI(void)
+{
+    _GUITaskState.ShowROI = !_GUITaskState.ShowROI;
+    xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_THERMAL_ROI_CHANGED);
 }

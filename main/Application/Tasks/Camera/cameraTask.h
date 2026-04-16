@@ -33,17 +33,17 @@
 
 ESP_EVENT_DECLARE_BASE(CAMERA_TASK_EVENTS);
 
-/** @brief          Initialize the camera task.
- *                  Creates the FreeRTOS event group and prepares internal state.
- *  @note           Call this before Camera_Task_Start().
- *  @return         ESP_OK on success
- *                  ESP_ERR_NO_MEM if event group creation fails
+/** @brief              Initialize the camera task.
+ *                      Creates the FreeRTOS event group and prepares internal state.
+ *  @note               Call this before Camera_Task_Start().
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_NO_MEM if event group creation fails
  */
 esp_err_t Camera_Task_Init(void);
 
-/** @brief  Deinitialize the camera task.
- *          Stops the task, deletes the event group, and releases all resources.
- *  @note   Task must be stopped before calling this.
+/** @brief              Deinitialize the camera task.
+ *                      Stops the task, deletes the event group, and releases all resources.
+ *  @note               Task must be stopped before calling this.
  */
 void Camera_Task_Deinit(void);
 
@@ -57,17 +57,17 @@ void Camera_Task_Deinit(void);
  */
 esp_err_t Camera_Task_Start(App_Context_t *p_AppContext);
 
-/** @brief          Stop the camera task.
- *                  Suspends camera capture. The sensor remains powered.
- *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_STATE if not running
+/** @brief              Stop the camera task.
+ *                      Suspends camera capture. The sensor remains powered.
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_STATE if not running
  */
 esp_err_t Camera_Task_Stop(void);
 
-/** @brief          Check if the camera task is running.
- *  @note           Thread-safe.
- *  @return         true  if the task is executing
- *                  false if the task is stopped or not initialized
+/** @brief              Check if the camera task is running.
+ *  @note               Thread-safe.
+ *  @return             true  if the task is executing
+ *                      false if the task is stopped or not initialized
  */
 bool Camera_Task_IsRunning(void);
 

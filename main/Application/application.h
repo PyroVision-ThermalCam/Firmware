@@ -48,7 +48,7 @@ enum {
                                                      Data is transmitted as a uint32_t representing uptime in milliseconds. */
     LEPTON_TASK_EVENT_RESPONSE_PIXEL_TEMP,      /**< Pixel temperature data is ready.
                                                      Data is transmitted as a float. */
-    LEPTON_TASK_EVENT_RESPONSE_SCENE_STATISTICS, /**< Scene statistics data is ready.
+    LEPTON_TASK_EVENT_RESPONSE_SCENE_STATISTICS,/**< Scene statistics data is ready.
                                                      Data is transmitted in a App_Lepton_ROI_Result_t structure. */
 };
 
@@ -170,7 +170,7 @@ typedef struct {
     QueueHandle_t Lepton_FrameQueue;            /**< Queue for Lepton frame ready events. */
     QueueHandle_t Camera_FrameQueue;            /**< Queue (depth 1) for visible-light camera frame ready events. */
     SemaphoreHandle_t InputMutex;               /**< Protects InputState against concurrent access. */
-    Devices_Input_State_t InputState;            /**< Debounced displayboard input state, written by
+    Devices_Input_State_t InputState;           /**< Debounced displayboard input state, written by
                                                      Devices Task and read by the LVGL keypad indev. */
 } App_Context_t;
 

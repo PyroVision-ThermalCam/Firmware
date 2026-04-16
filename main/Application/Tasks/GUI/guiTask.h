@@ -54,9 +54,9 @@
  */
 esp_err_t GUI_Task_Init(void);
 
-/** @brief  Deinitialize the GUI task.
- *          Stops the task, frees all LVGL resources, and releases display/canvas buffers.
- *  @note   Task must be stopped before calling this.
+/** @brief              Deinitialize the GUI task.
+ *                      Stops the task, frees all LVGL resources, and releases display/canvas buffers.
+ *  @note               Task must be stopped before calling this.
  */
 void GUI_Task_Deinit(void);
 
@@ -87,12 +87,6 @@ esp_err_t GUI_Task_Stop(void);
  */
 bool GUI_Task_IsRunning(void);
 
-/** @brief Toggle ROI (Region of Interest) edit mode.
- *         When enabled, shows a draggable rectangle overlay on the thermal image
- *         that can be moved by touch to adjust the spotmeter region.
- */
-void GUI_Toggle_ROI_EditMode(void);
-
 /** @brief          Request to save the next image to storage as PNG file.
  *  @note           Sets a flag that triggers image save on the next frame update.
  *                  The actual save happens in background task (non-blocking).
@@ -118,10 +112,14 @@ void GUI_Task_SetCameraView(bool Enable);
  */
 void GUI_Task_ToggleCameraView(void);
 
-/** @brief  Return the LVGL keypad input device handle.
- *  @note   Required to bind an lv_group_t to the physical keypad.
- *          Returns NULL if the GUI has not been initialised yet.
- *  @return lv_indev_t* keypad handle, or NULL
+/** @brief          Toggle the ROI (Region of Interest) edit mode.
+ */
+void GUI_Task_ToggleROI(void);
+
+/** @brief          Return the LVGL keypad input device handle.
+ *  @note           Required to bind an lv_group_t to the physical keypad.
+ *                  Returns NULL if the GUI has not been initialised yet.
+ *  @return         lv_indev_t* keypad handle, or NULL
  */
 lv_indev_t *GUI_Task_GetKeypadIndev(void);
 

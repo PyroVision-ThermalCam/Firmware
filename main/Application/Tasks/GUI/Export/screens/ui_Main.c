@@ -260,8 +260,10 @@ void ui_Main_screen_init(void)
     lv_obj_set_width(ui_Image_Main_Thermal_Scene_ROI, 240);
     lv_obj_set_height(ui_Image_Main_Thermal_Scene_ROI, 180);
     lv_obj_set_align(ui_Image_Main_Thermal_Scene_ROI, LV_ALIGN_CENTER);
+    lv_obj_add_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);     /// Flags
     lv_obj_remove_flag(ui_Image_Main_Thermal_Scene_ROI,
-                       LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_SCROLL_ELASTIC | LV_OBJ_FLAG_SCROLL_MOMENTUM |
+                       LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
+                       LV_OBJ_FLAG_SNAPPABLE | LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_SCROLL_ELASTIC | LV_OBJ_FLAG_SCROLL_MOMENTUM |
                        LV_OBJ_FLAG_SCROLL_CHAIN);     /// Flags
     lv_obj_set_scrollbar_mode(ui_Image_Main_Thermal_Scene_ROI, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_bg_color(ui_Image_Main_Thermal_Scene_ROI, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -276,8 +278,10 @@ void ui_Main_screen_init(void)
     lv_obj_set_x(ui_Image_Main_Thermal_Spotmeter_ROI, -1);
     lv_obj_set_y(ui_Image_Main_Thermal_Spotmeter_ROI, -1);
     lv_obj_set_align(ui_Image_Main_Thermal_Spotmeter_ROI, LV_ALIGN_CENTER);
+    lv_obj_add_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);     /// Flags
     lv_obj_remove_flag(ui_Image_Main_Thermal_Spotmeter_ROI,
-                       LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_SCROLL_ELASTIC | LV_OBJ_FLAG_SCROLL_MOMENTUM |
+                       LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
+                       LV_OBJ_FLAG_SNAPPABLE | LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_SCROLL_ELASTIC | LV_OBJ_FLAG_SCROLL_MOMENTUM |
                        LV_OBJ_FLAG_SCROLL_CHAIN);     /// Flags
     lv_obj_set_scrollbar_mode(ui_Image_Main_Thermal_Spotmeter_ROI, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_bg_color(ui_Image_Main_Thermal_Spotmeter_ROI, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -291,8 +295,10 @@ void ui_Main_screen_init(void)
     lv_obj_set_width(ui_Image_Main_Thermal_Video_Focus_ROI, 238);
     lv_obj_set_height(ui_Image_Main_Thermal_Video_Focus_ROI, 178);
     lv_obj_set_align(ui_Image_Main_Thermal_Video_Focus_ROI, LV_ALIGN_CENTER);
+    lv_obj_add_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);     /// Flags
     lv_obj_remove_flag(ui_Image_Main_Thermal_Video_Focus_ROI,
-                       LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_SCROLL_ELASTIC | LV_OBJ_FLAG_SCROLL_MOMENTUM |
+                       LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
+                       LV_OBJ_FLAG_SNAPPABLE | LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_SCROLL_ELASTIC | LV_OBJ_FLAG_SCROLL_MOMENTUM |
                        LV_OBJ_FLAG_SCROLL_CHAIN);     /// Flags
     lv_obj_set_scrollbar_mode(ui_Image_Main_Thermal_Video_Focus_ROI, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_bg_color(ui_Image_Main_Thermal_Video_Focus_ROI, lv_color_hex(0x000000),
@@ -307,8 +313,10 @@ void ui_Main_screen_init(void)
     lv_obj_set_width(ui_Image_Main_Thermal_AGC_ROI, 240);
     lv_obj_set_height(ui_Image_Main_Thermal_AGC_ROI, 180);
     lv_obj_set_align(ui_Image_Main_Thermal_AGC_ROI, LV_ALIGN_CENTER);
+    lv_obj_add_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);     /// Flags
     lv_obj_remove_flag(ui_Image_Main_Thermal_AGC_ROI,
-                       LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_SCROLL_ELASTIC | LV_OBJ_FLAG_SCROLL_MOMENTUM |
+                       LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
+                       LV_OBJ_FLAG_SNAPPABLE | LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_SCROLL_ELASTIC | LV_OBJ_FLAG_SCROLL_MOMENTUM |
                        LV_OBJ_FLAG_SCROLL_CHAIN);     /// Flags
     lv_obj_set_scrollbar_mode(ui_Image_Main_Thermal_AGC_ROI, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_bg_color(ui_Image_Main_Thermal_AGC_ROI, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);

@@ -58,11 +58,9 @@
 #define GUI_TASK_SCREEN_REFRESH_REQUIRED            BIT19
 #define GUI_TASK_IMAGE_SAVE_COMPLETED               BIT20
 #define GUI_TASK_IMAGE_SAVE_FAILED_BIT              BIT21
+#define GUI_TASK_THERMAL_ROI_CHANGED                BIT22
 
 /** @brief Internal runtime state of the GUI task.
- *         Aggregates all LVGL handles, display and touch panel handles, FreeRTOS primitives,
- *         canvas/network frame buffers, and the latest sensor/thermal data snapshots used by
- *         the GUI task loop and its associated helper functions.
  */
 typedef struct {
     bool IsInitialized;                                     /**< true after GUI_Task_Init() has completed successfully. */
@@ -73,16 +71,17 @@ typedef struct {
     bool SaveNextFrameRequested;                            /**< true when the next rendered frame should be saved as PNG. */
     bool IsUVCStreaming;                                    /**< true while a UVC host is actively receiving frames. */
     bool ShowCameraView;                                    /**< true while the visible-light camera image is shown in place of the thermal image. */
+    bool ShowROI;                                           /**< true when the ROI (Region of Interest) rectangle overlay is visible on the thermal image. */
+    bool ShowCrosshair;                                     /**< true when the crosshair overlay is currently active in the live-view. */
     bool PrevJoyCenter;                                     /**< Previous state of the joystick center button for edge detection. */
     bool PrevJoyUp;                                         /**< Previous joystick up state; used for crosshair movement rising-edge detection. */
     bool PrevJoyDown;                                       /**< Previous joystick down state; used for crosshair movement rising-edge detection. */
     bool PrevJoyLeft;                                       /**< Previous joystick left state; used for crosshair movement rising-edge detection. */
     bool PrevJoyRight;                                      /**< Previous joystick right state; used for crosshair movement rising-edge detection. */
-    bool CrosshairVisible;                                  /**< true when the crosshair overlay is currently active in the live-view. */
-    int32_t CrosshairX;                                     /**< Current x position of ui_Container_Main_Thermal_Crosshair relative to ui_Image_Main_Thermal (top-left origin). Owned by the GUI task; never read back from LVGL to avoid stale-coord issues. */
-    int32_t CrosshairY;                                     /**< Current y position of ui_Container_Main_Thermal_Crosshair relative to ui_Image_Main_Thermal (top-left origin). Owned by the GUI task; never read back from LVGL to avoid stale-coord issues. */
     bool LongPressHandled;                                  /**< true once the rising edge of JoyCenterLongPress has been processed; cleared on JoyCenter release to suppress autofocus. */
     bool PrevJoyCenterLongPress;                            /**< Previous JoyCenterLongPress state; used to detect the rising edge of the long-press signal from the Devices task. */
+    int32_t CrosshairX;                                     /**< Current x position of ui_Container_Main_Thermal_Crosshair relative to ui_Image_Main_Thermal (top-left origin). Owned by the GUI task; never read back from LVGL to avoid stale-coord issues. */
+    int32_t CrosshairY;                                     /**< Current y position of ui_Container_Main_Thermal_Crosshair relative to ui_Image_Main_Thermal (top-left origin). Owned by the GUI task; never read back from LVGL to avoid stale-coord issues. */
     TickType_t
     JoyDirHeldSince;                             /**< Tick when any joystick direction first went active; 0 when released. */
     TickType_t

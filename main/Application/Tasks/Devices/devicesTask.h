@@ -33,19 +33,19 @@
 
 #include "Application/application.h"
 
-/** @brief          Initialize the devices task.
- *                  Creates the FreeRTOS task, event group, and registers event handlers
- *                  for settings and time-synchronisation events.
- *  @note           Call this before Devices_Task_Start().
- *  @return         ESP_OK on success
- *                  ESP_ERR_NO_MEM if event group or task creation fails
- *                  ESP_FAIL if DevicesManager_Init() fails
+/** @brief              Initialize the devices task.
+ *                      Creates the FreeRTOS task, event group, and registers event handlers
+ *                      for settings and time-synchronisation events.
+ *  @note               Call this before Devices_Task_Start().
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_NO_MEM if event group or task creation fails
+ *                      ESP_FAIL if DevicesManager_Init() fails
  */
 esp_err_t Devices_Task_Init(void);
 
-/** @brief  Deinitialize the devices task.
- *          Stops the task, deletes the event group, and unregisters all event handlers.
- *  @note   Task must be stopped before calling this.
+/** @brief              Deinitialize the devices task.
+ *                      Stops the task, deletes the event group, and unregisters all event handlers.
+ *  @note               Task must be stopped before calling this.
  */
 void Devices_Task_Deinit(void);
 
@@ -61,18 +61,18 @@ void Devices_Task_Deinit(void);
  */
 esp_err_t Devices_Task_Start(App_Context_t *p_AppContext);
 
-/** @brief          Stop the devices task.
- *                  Suspends device event processing. Peripheral hardware remains
- *                  powered and can be resumed with Devices_Task_Start().
- *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_STATE if not running
+/** @brief              Stop the devices task.
+ *                      Suspends device event processing. Peripheral hardware remains
+ *                      powered and can be resumed with Devices_Task_Start().
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_STATE if not running
  */
 esp_err_t Devices_Task_Stop(void);
 
-/** @brief          Check if the devices task is running.
- *  @note           Thread-safe.
- *  @return         true  if the task is executing
- *                  false if the task is stopped or not initialized
+/** @brief              Check if the devices task is running.
+ *  @note               Thread-safe.
+ *  @return             true  if the task is executing
+ *                      false if the task is stopped or not initialized
  */
 bool Devices_Task_IsRunning(void);
 

@@ -243,5 +243,5 @@ void ButtonMainSwitchClicked(lv_event_t * e)
 
 void ButtonMainROIClicked(lv_event_t * e)
 {
-	// Your code here
+	GUI_Task_ToggleROI();
 }
