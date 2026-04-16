@@ -154,7 +154,7 @@ static void VISA_HandleClient(int ClientSocket)
     close(ClientSocket);
     ESP_LOGI(TAG, "Client connection closed");
 
-    esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_VISA_CLIENT_DISCONNECTED, NULL, 0, portMAX_DELAY);
+    esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_VISA_CLIENT_DISCONNECTED, NULL, 0, pdMS_TO_TICKS(100));
 }
 
 /** @brief          VISA server task.
@@ -227,7 +227,7 @@ static void Task_VisaServer(void *p_Args)
         Address.resize(strlen(Address.c_str()));
         ESP_LOGI(TAG, "Client connected from %s:%d", Address.c_str(), ntohs(Source.sin_port));
 
-        esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_VISA_CLIENT_CONNECTED, NULL, 0, portMAX_DELAY);
+        esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_VISA_CLIENT_CONNECTED, NULL, 0, pdMS_TO_TICKS(100));
 
         VISA_HandleClient(Socket);
     }

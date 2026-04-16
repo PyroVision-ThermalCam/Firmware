@@ -444,7 +444,8 @@ esp_err_t RemoteControl_DisplayMessageBox(const char *p_Message)
     memcpy(Message.Message, p_Message, sizeof(Message.Message) - 1);
     Message.Message[sizeof(Message.Message) - 1] = '\0';
 
-    return esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_REMOTE_DISPLAY_MESSAGE, &Message, sizeof(Message), portMAX_DELAY);
+    return esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_REMOTE_DISPLAY_MESSAGE, &Message, sizeof(Message),
+                          pdMS_TO_TICKS(100));
 }
 
 esp_err_t RemoteControl_GetLockState(bool *p_Locked)
@@ -462,5 +463,5 @@ esp_err_t RemoteControl_SetLockState(bool Locked)
 {
     _RemoteControl_State.IsLocked = Locked;
 
-    return esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_REMOTE_LOCK_SET, &Locked, sizeof(Locked), portMAX_DELAY);
+    return esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_REMOTE_LOCK_SET, &Locked, sizeof(Locked), pdMS_TO_TICKS(100));
 }

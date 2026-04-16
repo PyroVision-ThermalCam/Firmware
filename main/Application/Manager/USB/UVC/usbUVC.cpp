@@ -68,11 +68,12 @@ static USB_UVCState_t _UVCState;
 static void on_UVC_StreamingStart(int itf, uvc_event_t *p_Event)
 {
     if (p_Event->type == UVC_EVENT_STREAMING_START) {
+        esp_err_t Error;
         ESP_LOGD(TAG, "UVC streaming started on interface %d", itf);
 
         _UVCState.IsStreaming = true;
 
-        esp_err_t Error = esp_event_post(USB_EVENTS, USB_EVENT_UVC_STREAMING_START, NULL, 0, 0);
+        Error = esp_event_post(USB_EVENTS, USB_EVENT_UVC_STREAMING_START, NULL, 0, pdMS_TO_TICKS(100));
         if (Error != ESP_OK) {
             ESP_LOGW(TAG, "Failed to post streaming start event: 0x%X", Error);
         }
@@ -88,11 +89,12 @@ static void on_UVC_StreamingStart(int itf, uvc_event_t *p_Event)
 static void on_UVC_StreamingStop(int itf, uvc_event_t *p_Event)
 {
     if (p_Event->type == UVC_EVENT_STREAMING_STOP) {
+        esp_err_t Error;
         ESP_LOGI(TAG, "UVC streaming stopped on interface %d", itf);
 
         _UVCState.IsStreaming = false;
 
-        esp_err_t Error = esp_event_post(USB_EVENTS, USB_EVENT_UVC_STREAMING_STOP, NULL, 0, 0);
+        Error = esp_event_post(USB_EVENTS, USB_EVENT_UVC_STREAMING_STOP, NULL, 0, pdMS_TO_TICKS(100));
         if (Error != ESP_OK) {
             ESP_LOGW(TAG, "Failed to post streaming stop event: 0x%X", Error);
         }
@@ -279,7 +281,7 @@ esp_err_t USBUVC_Deinit(void)
 
     /* If we were streaming, post STOP event so tasks can clean up */
     if (WasStreaming) {
-        esp_event_post(USB_EVENTS, USB_EVENT_UVC_STREAMING_STOP, NULL, 0, 0);
+        esp_event_post(USB_EVENTS, USB_EVENT_UVC_STREAMING_STOP, NULL, 0, pdMS_TO_TICKS(100));
     }
 
     ESP_LOGI(TAG, "UVC deinitialized");

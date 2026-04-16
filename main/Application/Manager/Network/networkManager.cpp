@@ -85,7 +85,7 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
             ESP_LOGD(TAG, "Connected to AP");
 
             _NetworkManagerState.RetryCount = 0;
-            esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_WIFI_CONNECTED, NULL, 0, portMAX_DELAY);
+            esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_WIFI_CONNECTED, NULL, 0, pdMS_TO_TICKS(100));
 
             break;
         }
@@ -223,7 +223,7 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
 
             _NetworkManagerState.State = NETWORK_STATE_DISCONNECTED;
             esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_WIFI_DISCONNECTED, p_Data, sizeof(wifi_event_sta_disconnected_t),
-                           portMAX_DELAY);
+                           pdMS_TO_TICKS(100));
 
             if (_NetworkManagerState.RetryCount < WiFiSettings.MaxRetries) {
                 ESP_LOGD(TAG, "Retry %d/%d", _NetworkManagerState.RetryCount++, WiFiSettings.MaxRetries);
@@ -244,14 +244,14 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
             ESP_LOGD(TAG, "WiFi AP started");
 
             _NetworkManagerState.State = NETWORK_STATE_AP_STARTED;
-            esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_AP_STARTED, NULL, 0, portMAX_DELAY);
+            esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_AP_STARTED, NULL, 0, pdMS_TO_TICKS(100));
 
             break;
         }
         case WIFI_EVENT_AP_STOP: {
             ESP_LOGD(TAG, "WiFi AP stopped");
 
-            esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_AP_STOPPED, NULL, 0, portMAX_DELAY);
+            esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_AP_STOPPED, NULL, 0, pdMS_TO_TICKS(100));
 
             break;
         }
@@ -260,8 +260,9 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
             Network_Event_STA_Info_t StaInfo;
 
             ESP_LOGD(TAG, "Station " MACSTR " joined, AID=%d", MAC2STR(Event->mac), Event->aid);
+
             memcpy(StaInfo.MAC, Event->mac, 6);
-            esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_AP_STA_CONNECTED, &StaInfo, sizeof(StaInfo), portMAX_DELAY);
+            esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_AP_STA_CONNECTED, &StaInfo, sizeof(StaInfo), pdMS_TO_TICKS(100));
 
             break;
         }
@@ -271,7 +272,7 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
 
             ESP_LOGD(TAG, "Station " MACSTR " left, AID=%d", MAC2STR(Event->mac), Event->aid);
             memcpy(StaInfo.MAC, Event->mac, 6);
-            esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_AP_STA_DISCONNECTED, &StaInfo, sizeof(StaInfo), portMAX_DELAY);
+            esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_AP_STA_DISCONNECTED, &StaInfo, sizeof(StaInfo), pdMS_TO_TICKS(100));
 
             break;
         }
@@ -302,7 +303,7 @@ static void on_IP_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, 
             IP_Data.IP = Event->ip_info.ip.addr;
             IP_Data.Netmask = Event->ip_info.netmask.addr;
             IP_Data.Gateway = Event->ip_info.gw.addr;
-            esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_WIFI_GOT_IP, &IP_Data, sizeof(IP_Data), portMAX_DELAY);
+            esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_WIFI_GOT_IP, &IP_Data, sizeof(IP_Data), pdMS_TO_TICKS(100));
 
             xEventGroupSetBits(_NetworkManagerState.EventGroup, WIFI_CONNECTED_BIT);
 

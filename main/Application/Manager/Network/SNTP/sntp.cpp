@@ -39,7 +39,7 @@ static void on_SNTP_Time_Sync(struct timeval *p_tv)
 {
     ESP_LOGD(TAG, "Time synchronized via SNTP");
 
-    esp_event_post(SNTP_EVENTS, SNTP_EVENT_SNTP_SYNCED, p_tv, sizeof(struct timeval), portMAX_DELAY);
+    esp_event_post(SNTP_EVENTS, SNTP_EVENT_SNTP_SYNCED, p_tv, sizeof(struct timeval), pdMS_TO_TICKS(100));
 }
 
 esp_err_t SNTP_Init(const char *p_Timezone, const char *p_Server, uint32_t SyncInterval)

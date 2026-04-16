@@ -83,6 +83,7 @@ typedef struct {
     uint8_t LED_CyclesRemaining;                        /**< Number of on/off flash cycles still to execute. */
     uint32_t LED_OnTime_ms;                             /**< Duration of the LED-on phase in milliseconds. */
     uint32_t LED_OffTime_ms;                            /**< Duration of the LED-off phase between flashes in milliseconds. */
+    uint32_t CalibrationInterval_s;                     /**< User-configured calibration interval in seconds. */
     TickType_t LED_PhaseStart;                          /**< Tick at which the current blink phase started; 0 when idle. */
     TickType_t JoyCenterHeldSince;                      /**< Tick at which JoyCenter went high; 0 when not pressed. */
     Devices_LED_Blink_State_t LED_BlinkState;           /**< Current phase of the LED blink state machine. */
@@ -106,19 +107,16 @@ static void on_GUI_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
         case GUI_TASK_EVENT_APP_STARTED: {
             _DevicesTaskState.RunTemperatureRead = true;
 
-            /* Green, single long flash to signal that the application has started. */
             xEventGroupSetBits(_DevicesTaskState.EventGroup, DEVICES_TASK_LED_COLOR_G | DEVICES_TASK_LED_PATTERN_LONG);
 
             break;
         }
         case GUI_TASK_EVENT_IMAGE_SAVED: {
-            /* Green, single short flash to confirm successful image save. */
             xEventGroupSetBits(_DevicesTaskState.EventGroup, DEVICES_TASK_LED_COLOR_G | DEVICES_TASK_LED_PATTERN_1x);
 
             break;
         }
         case GUI_TASK_EVENT_IMAGE_SAVE_FAILED: {
-            /* Red, triple flash to signal a failed image save. */
             xEventGroupSetBits(_DevicesTaskState.EventGroup, DEVICES_TASK_LED_COLOR_R | DEVICES_TASK_LED_PATTERN_3x);
 
             break;
@@ -163,6 +161,8 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
 
             if (_DevicesTaskState.NewSetting.ID == SETTINGS_ID_CALIBRATION_ROOM_TEMP) {
                 _DevicesTaskState.RoomTemperature = static_cast<int16_t>(_DevicesTaskState.NewSetting.Value);
+            } else if (_DevicesTaskState.NewSetting.ID == SETTINGS_ID_CALIBRATION_INTERVAL) {
+                _DevicesTaskState.CalibrationInterval_s = static_cast<uint32_t>(_DevicesTaskState.NewSetting.Value);
             }
 
             break;
@@ -185,6 +185,7 @@ static void Task_Devices(void *p_Parameters)
     TickType_t PendingChangeTime;
     TickType_t LastBatteryPoll;
     TickType_t LastTemperaturePoll;
+    TickType_t LastCalibration;
     int Voltage;
     uint8_t Percentage;
     bool Charging;
@@ -205,6 +206,7 @@ static void Task_Devices(void *p_Parameters)
     HasPendingInput = false;
     LastBatteryPoll = xTaskGetTickCount();
     LastTemperaturePoll = xTaskGetTickCount();
+    LastCalibration = xTaskGetTickCount();
 
     /* Report the initial SD-card detect state once at startup. */
     if (DevicesManager_GetSDDetect(&SDInserted) == ESP_OK) {
@@ -243,7 +245,7 @@ static void Task_Devices(void *p_Parameters)
         }
 
         if (EventBits & DEVICES_TASK_UPDATE_BRIGHTNESS) {
-            ESP_LOGI(TAG, "Updating display brightness due to settings change");
+            ESP_LOGD(TAG, "Updating display brightness due to settings change");
 
             DevicesManager_SetBrightness(BACKLIGHT_DISPLAY, _DevicesTaskState.NewSetting.Value);
 
@@ -330,6 +332,14 @@ static void Task_Devices(void *p_Parameters)
                 _DevicesTaskState.LED_BlinkState = DEVICES_LED_BLINK_STATE_ON;
                 _DevicesTaskState.LED_PhaseStart = xTaskGetTickCount();
             }
+        }
+
+        if ((xTaskGetTickCount() - LastCalibration) >= pdMS_TO_TICKS(_DevicesTaskState.CalibrationInterval_s * 1000)) {
+            LastCalibration = xTaskGetTickCount();
+
+            ESP_LOGD(TAG, "Performing periodic temperature calibration");
+
+            xEventGroupSetBits(_DevicesTaskState.EventGroup, DEVICES_TASK_TEMP_CALIBRATION);
         }
 
         if ((xTaskGetTickCount() - LastBatteryPoll) >= pdMS_TO_TICKS(CONFIG_DEVICES_TASK_BATTERY_POLL_INTERVAL_S * 1000)) {
@@ -472,6 +482,7 @@ static void Task_Devices(void *p_Parameters)
 esp_err_t Devices_Task_Init(void)
 {
     esp_err_t Error;
+    Settings_Calibration_t Calibration;
 
     if (_DevicesTaskState.IsInitialized) {
         ESP_LOGW(TAG, "Already initialized");
@@ -502,6 +513,9 @@ esp_err_t Devices_Task_Init(void)
     esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_IMAGE_SAVE_FAILED, on_GUI_Task_Event_Handler, NULL);
     esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_DISPLAY_CHANGED, on_Settings_Event_Handler, NULL);
     esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_CALIBRATION_CHANGED, on_Settings_Event_Handler, NULL);
+
+    SettingsManager_GetCalibration(&Calibration);
+    _DevicesTaskState.CalibrationInterval_s = Calibration.Interval;
 
     _DevicesTaskState.IsInitialized = true;
 

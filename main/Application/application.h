@@ -42,11 +42,11 @@ enum {
     LEPTON_TASK_EVENT_CAMERA_READY,             /**< Lepton camera is ready.
                                                      Data is transmitted in a App_Lepton_Device_t structure. */
     LEPTON_TASK_EVENT_CAMERA_ERROR,             /**< Lepton camera error occurred. */
-    LEPTON_TASK_EVENT_RESPONSE_FPA_AUX_TEMP,   /**< FPA and AUX temperatures are ready.
+    LEPTON_TASK_EVENT_RESPONSE_FPA_AUX_TEMP,    /**< FPA and AUX temperatures are ready.
                                                      Data is transmitted in a App_Lepton_Temperatures_t structure. */
     LEPTON_TASK_EVENT_RESPONSE_UPTIME,          /**< Uptime data is ready.
                                                      Data is transmitted as a uint32_t representing uptime in milliseconds. */
-    LEPTON_TASK_EVENT_RESPONSE_PIXEL_TEMPERATURE, /**< Pixel temperature data is ready.
+    LEPTON_TASK_EVENT_RESPONSE_PIXEL_TEMP,      /**< Pixel temperature data is ready.
                                                      Data is transmitted as a float. */
     LEPTON_TASK_EVENT_RESPONSE_SCENE_STATISTICS, /**< Scene statistics data is ready.
                                                      Data is transmitted in a App_Lepton_ROI_Result_t structure. */

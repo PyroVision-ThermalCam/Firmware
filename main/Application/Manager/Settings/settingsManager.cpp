@@ -68,7 +68,7 @@ static esp_err_t SettingsManager_Update(void *p_Src, void *p_Dst, size_t Size, i
 
     /* Only include event data if p_ChangedSetting is valid */
     esp_event_post(SETTINGS_EVENTS, EventID, p_ChangedSetting,
-                   p_ChangedSetting ? sizeof(SettingsManager_ChangeNotification_t) : 0, portMAX_DELAY);
+                   p_ChangedSetting ? sizeof(SettingsManager_ChangeNotification_t) : 0, pdMS_TO_TICKS(100));
 
     return ESP_OK;
 }
@@ -213,7 +213,7 @@ esp_err_t SettingsManager_Init(void)
     ESP_LOGI(TAG, "Settings Manager initialized");
 
     esp_event_post(SETTINGS_EVENTS, SETTINGS_EVENT_LOADED, &_SettingsManagerState.Settings, sizeof(Settings_t),
-                   portMAX_DELAY);
+                   pdMS_TO_TICKS(100));
 
     return ESP_OK;
 }
@@ -361,7 +361,7 @@ esp_err_t SettingsManager_Save(void)
 
     ESP_LOGI(TAG, "Settings saved to NVS (version %u)", _SettingsManagerState.Settings.Version);
 
-    esp_event_post(SETTINGS_EVENTS, SETTINGS_EVENT_SAVED, NULL, 0, portMAX_DELAY);
+    esp_event_post(SETTINGS_EVENTS, SETTINGS_EVENT_SAVED, NULL, 0, pdMS_TO_TICKS(100));
 
     return ESP_OK;
 

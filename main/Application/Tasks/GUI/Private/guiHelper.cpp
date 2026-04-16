@@ -443,7 +443,8 @@ void GUI_Helper_Timer_SpotUpdate(lv_timer_t *p_Timer)
     ESP_LOGD(TAG, "Crosshair center in thermal canvas: (%d,%d), size (%d,%d)", ScreenPosition.x, ScreenPosition.y,
              ScreenPosition.Width, ScreenPosition.Height);
 
-    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_PIXEL_TEMPERATURE, &ScreenPosition, sizeof(ScreenPosition), 0);
+    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_PIXEL_TEMPERATURE, &ScreenPosition, sizeof(ScreenPosition),
+                   pdMS_TO_TICKS(100));
 }
 
 void GUI_Helper_Timer_SceneStatisticsUpdate(lv_timer_t *p_Timer)
@@ -452,7 +453,7 @@ void GUI_Helper_Timer_SceneStatisticsUpdate(lv_timer_t *p_Timer)
 
     ESP_LOGD(TAG, "Requesting scene statistics update...");
 
-    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_SCENE_STATISTICS, NULL, 0, 0);
+    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_SCENE_STATISTICS, NULL, 0, pdMS_TO_TICKS(100));
 }
 
 void GUI_Helper_Timer_RAMUpdate(lv_timer_t *p_Timer)

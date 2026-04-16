@@ -96,7 +96,7 @@ static void USB_Monitoring_Task(void *p_Arg)
 
             _USBManagerState.IsCableConnected = true;
 
-            esp_event_post(USB_EVENTS, USB_EVENT_CABLE_CONNECTED, NULL, 0, portMAX_DELAY);
+            esp_event_post(USB_EVENTS, USB_EVENT_CABLE_CONNECTED, NULL, 0, pdMS_TO_TICKS(100));
         } else if ((tud_connected() == false) && (_USBManagerState.IsCableConnected == true)) {
             ESP_LOGD(TAG, "USB cable disconnected");
 
@@ -112,7 +112,7 @@ static void USB_Monitoring_Task(void *p_Arg)
                 USBUVC_Deinit();
             }
 
-            esp_event_post(USB_EVENTS, USB_EVENT_CABLE_DISCONNECTED, NULL, 0, portMAX_DELAY);
+            esp_event_post(USB_EVENTS, USB_EVENT_CABLE_DISCONNECTED, NULL, 0, pdMS_TO_TICKS(100));
         }
 
         if (xQueueReceive(_USBManagerState.CommandQueue, &Cmd, 0) == pdTRUE) {
@@ -293,7 +293,7 @@ esp_err_t USBManager_Init(void)
 
     _USBManagerState.IsInitialized = true;
 
-    esp_event_post(USB_EVENTS, USB_EVENT_INITIALIZED, NULL, 0, portMAX_DELAY);
+    esp_event_post(USB_EVENTS, USB_EVENT_INITIALIZED, NULL, 0, pdMS_TO_TICKS(100));
 
     ESP_LOGD(TAG, "USB Manager initialized successfully");
 
@@ -364,7 +364,7 @@ esp_err_t USBManager_Deinit(void)
 
     vTaskDelay(pdMS_TO_TICKS(1000));
 
-    esp_event_post(USB_EVENTS, USB_EVENT_UNINITIALIZED, NULL, 0, portMAX_DELAY);
+    esp_event_post(USB_EVENTS, USB_EVENT_UNINITIALIZED, NULL, 0, pdMS_TO_TICKS(100));
 
     ESP_LOGD(TAG, "USB Manager deinitialized successfully");
 

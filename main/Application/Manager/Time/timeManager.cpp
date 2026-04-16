@@ -76,7 +76,7 @@ static void TimeManager_SNTP_Sync_Callback(struct timeval *tv)
     _TimeManagerState.SNTPSyncCount++;
 
     /* Post time synchronized event */
-    esp_event_post(TIME_EVENTS, TIME_EVENT_SYNCHRONIZED, &Timeinfo, sizeof(struct tm), portMAX_DELAY);
+    esp_event_post(TIME_EVENTS, TIME_EVENT_SYNCHRONIZED, &Timeinfo, sizeof(struct tm), pdMS_TO_TICKS(100));
 
     /* Backup time to RTC if available */
     if (_TimeManagerState.HasRTC) {
@@ -278,7 +278,7 @@ esp_err_t TimeManager_OnNetworkDisconnected(void)
         if (OldSource != TIME_SOURCE_RTC) {
             esp_event_post(TIME_EVENTS, TIME_EVENT_SOURCE_CHANGED,
                            &_TimeManagerState.ActiveSource,
-                           sizeof(TimeManager_Source_t), portMAX_DELAY);
+                           sizeof(TimeManager_Source_t), pdMS_TO_TICKS(100));
         }
 
         ESP_LOGD(TAG, "Now using RTC as time source");

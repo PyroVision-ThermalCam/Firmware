@@ -133,7 +133,7 @@ static esp_err_t MemoryManager_Mount_Internal_Storage(void)
         ESP_LOGE(TAG, "Failed to mount FAT filesystem: 0x%X", Error);
 
         APP_DIAG_RECORD(APP_DIAG_SOURCE_MEMORY, MEMORY_ERR_FLASH_MOUNT);
-        esp_event_post(MEMORY_EVENTS, MEMORY_EVENT_FLASH_MOUNT_ERROR, NULL, 0, portMAX_DELAY);
+        esp_event_post(MEMORY_EVENTS, MEMORY_EVENT_FLASH_MOUNT_ERROR, NULL, 0, pdMS_TO_TICKS(100));
 
         return MEMORY_ERR_FLASH_MOUNT;
     }
@@ -182,7 +182,7 @@ static esp_err_t MemoryManager_Mount_SD_Card(void)
         }
 
         APP_DIAG_RECORD(APP_DIAG_SOURCE_MEMORY, MEMORY_ERR_SD_MOUNT);
-        esp_event_post(MEMORY_EVENTS, MEMORY_EVENT_SD_CARD_MOUNT_ERROR, NULL, 0, portMAX_DELAY);
+        esp_event_post(MEMORY_EVENTS, MEMORY_EVENT_SD_CARD_MOUNT_ERROR, NULL, 0, pdMS_TO_TICKS(100));
 
         return MEMORY_ERR_SD_MOUNT;
     }
@@ -213,7 +213,7 @@ esp_err_t MemoryManager_Init(void)
         _MemoryManagerState.HasSDCard = true;
         _MemoryManagerState.StorageLocation = MEMORY_LOCATION_SD_CARD;
 
-        esp_event_post(MEMORY_EVENTS, MEMORY_EVENT_SD_CARD_MOUNTED, NULL, 0, portMAX_DELAY);
+        esp_event_post(MEMORY_EVENTS, MEMORY_EVENT_SD_CARD_MOUNTED, NULL, 0, pdMS_TO_TICKS(100));
     } else {
         ESP_LOGD(TAG, "SD card not available, using internal flash");
 
@@ -227,7 +227,7 @@ esp_err_t MemoryManager_Init(void)
 
         _MemoryManagerState.HasSDCard = false;
         _MemoryManagerState.StorageLocation = MEMORY_LOCATION_INTERNAL;
-        esp_event_post(MEMORY_EVENTS, MEMORY_EVENT_FLASH_MOUNTED, NULL, 0, portMAX_DELAY);
+        esp_event_post(MEMORY_EVENTS, MEMORY_EVENT_FLASH_MOUNTED, NULL, 0, pdMS_TO_TICKS(100));
     }
 
     _MemoryManagerState.IsInitialized = true;
@@ -884,7 +884,7 @@ esp_err_t MemoryManager_SwitchToSDCard(void)
 
     ESP_LOGD(TAG, "Storage switched to SD card");
 
-    esp_event_post(MEMORY_EVENTS, MEMORY_EVENT_SD_CARD_MOUNTED, NULL, 0, portMAX_DELAY);
+    esp_event_post(MEMORY_EVENTS, MEMORY_EVENT_SD_CARD_MOUNTED, NULL, 0, pdMS_TO_TICKS(100));
 
     return ESP_OK;
 }
@@ -925,7 +925,7 @@ esp_err_t MemoryManager_SwitchToInternal(void)
 
     ESP_LOGD(TAG, "Storage switched back to internal flash");
 
-    esp_event_post(MEMORY_EVENTS, MEMORY_EVENT_SD_CARD_UNMOUNTED, NULL, 0, portMAX_DELAY);
+    esp_event_post(MEMORY_EVENTS, MEMORY_EVENT_SD_CARD_UNMOUNTED, NULL, 0, pdMS_TO_TICKS(100));
 
     return ESP_OK;
 }

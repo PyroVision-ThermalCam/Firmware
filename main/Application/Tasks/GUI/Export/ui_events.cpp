@@ -188,8 +188,8 @@ void ScreenMenuLoaded(lv_event_t *e)
 
 void ScreenInfoLoaded(lv_event_t *e)
 {
-    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_UPTIME, NULL, 0, 0);
-    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FPA_AUX_TEMP, NULL, 0, 0);
+    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_UPTIME, NULL, 0, pdMS_TO_TICKS(100));
+    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FPA_AUX_TEMP, NULL, 0, pdMS_TO_TICKS(100));
 
     lv_indev_t *p_Keypad = GUI_Task_GetKeypadIndev();
 

@@ -283,7 +283,7 @@ esp_err_t Provisioning_Start(void)
     }
 
     _Provisioning_State.IsActive = true;
-    esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_PROV_STARTED, NULL, 0, portMAX_DELAY);
+    esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_PROV_STARTED, NULL, 0, pdMS_TO_TICKS(100));
 
     /* Start timeout timer */
     if (_Provisioning_State.TimeoutTimer != NULL) {
@@ -340,7 +340,7 @@ esp_err_t Provisioning_Stop(void)
         wifi_prov_mgr_stop_provisioning();
     }
 
-    esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_PROV_STOPPED, NULL, 0, portMAX_DELAY);
+    esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_PROV_STOPPED, NULL, 0, pdMS_TO_TICKS(100));
 
     return ESP_OK;
 }

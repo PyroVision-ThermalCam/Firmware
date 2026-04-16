@@ -127,6 +127,8 @@ enum {
                                                      Data contains uint8_t with new power value. */
     SETTINGS_ID_CALIBRATION_ROOM_TEMP,          /**< Room temperature calibration changed.
                                                      Data contains int16_t with new temperature in °C. */
+    SETTINGS_ID_CALIBRATION_INTERVAL,           /**< Calibration interval changed.
+                                                     Data contains uint32_t with new interval in seconds. */
 };
 
 /** @brief GUI ROI types.
@@ -276,6 +278,7 @@ typedef struct {
  */
 typedef struct {
     int16_t RoomTemperature;                    /**< User-entered room temperature in °C at calibration time. */
+    uint32_t Interval;                          /**< Calibration interval in seconds. */
     float SensorAtCalibration;                  /**< On-board sensor reading in °C at the time of calibration.
                                                      Used to compute the persistent offset:
                                                      offset = RoomTemperature − SensorAtCalibration

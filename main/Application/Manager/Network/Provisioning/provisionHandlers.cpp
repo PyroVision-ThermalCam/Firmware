@@ -280,7 +280,7 @@ esp_err_t Provision_Handler_Connect(httpd_req_t *p_Request)
 
         Provision_Handler_Send_JSON_Response(p_Request, Response, 200);
 
-        esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_PROV_SUCCESS, NULL, 0, portMAX_DELAY);
+        esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_PROV_SUCCESS, NULL, 0, pdMS_TO_TICKS(100));
     } else {
         ESP_LOGE(TAG, "Failed to save credentials to NVS: 0x%X!", Error);
 

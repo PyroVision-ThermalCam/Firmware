@@ -36,8 +36,8 @@
  *         Long mode offers longer range (up to ~4 m) at the cost of ambient immunity.
  */
 typedef enum {
-    VL53L1X_DISTANCE_SHORT  = 0x00,         /**< Short distance mode: up to ~1.3 m. */
-    VL53L1X_DISTANCE_LONG   = 0x01,         /**< Long distance mode: up to ~4 m. */
+    VL53L1X_DISTANCE_SHORT      = 0x00,     /**< Short distance mode: up to ~1.3 m. */
+    VL53L1X_DISTANCE_LONG       = 0x01,     /**< Long distance mode: up to ~4 m. */
 } VL53L1X_DistanceMode_t;
 
 /** @brief VL53L1X measurement timing budget in milliseconds.
@@ -45,13 +45,13 @@ typedef enum {
  *         The minimum budget in Long distance mode is 20 ms.
  */
 typedef enum {
-    VL53L1X_TIMING_15MS    = 15,            /**< 15 ms budget (Short mode only). */
-    VL53L1X_TIMING_20MS    = 20,            /**< 20 ms budget. */
-    VL53L1X_TIMING_33MS    = 33,            /**< 33 ms budget. */
-    VL53L1X_TIMING_50MS    = 50,            /**< 50 ms budget. */
-    VL53L1X_TIMING_100MS   = 100,           /**< 100 ms budget (default). */
-    VL53L1X_TIMING_200MS   = 200,           /**< 200 ms budget. */
-    VL53L1X_TIMING_500MS   = 500,           /**< 500 ms budget. */
+    VL53L1X_TIMING_15MS         = 15,       /**< 15 ms budget (Short mode only). */
+    VL53L1X_TIMING_20MS         = 20,       /**< 20 ms budget. */
+    VL53L1X_TIMING_33MS         = 33,       /**< 33 ms budget. */
+    VL53L1X_TIMING_50MS         = 50,       /**< 50 ms budget. */
+    VL53L1X_TIMING_100MS        = 100,      /**< 100 ms budget (default). */
+    VL53L1X_TIMING_200MS        = 200,      /**< 200 ms budget. */
+    VL53L1X_TIMING_500MS        = 500,      /**< 500 ms budget. */
 } VL53L1X_TimingBudget_t;
 
 /** @brief VL53L1X range status codes returned from VL53L1X_GetRangeStatus().

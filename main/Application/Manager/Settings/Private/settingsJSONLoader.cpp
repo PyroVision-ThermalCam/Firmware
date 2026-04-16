@@ -418,6 +418,13 @@ static void SettingsManager_LoadCalibration(Settings_Manager_State_t *p_State, c
             p_State->Settings.Calibration.RoomTemperature = SETTINGS_DEFAULT_CALIBRATION_ROOM_TEMP;
         }
 
+        cJSON *interval = cJSON_GetObjectItem(calibration, "interval");
+        if (cJSON_IsNumber(interval)) {
+            p_State->Settings.Calibration.Interval = static_cast<uint32_t>(interval->valuedouble);
+        } else {
+            p_State->Settings.Calibration.Interval = SETTINGS_DEFAULT_CALIBRATION_INTERVAL;
+        }
+
         /* 0.0f is the "never calibrated" sentinel: the LeptonTask will apply zero offset
         * until the user explicitly performs a calibration (which stores the actual sensor
         * reading into SensorAtCalibration). */

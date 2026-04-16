@@ -73,6 +73,7 @@
 #define SETTINGS_DISPLAY_DEFAULT_TIMEOUT        0
 
 #define SETTINGS_DEFAULT_CALIBRATION_ROOM_TEMP  20
+#define SETTINGS_DEFAULT_CALIBRATION_INTERVAL   300
 
 /** @brief Settings Manager state.
  */
@@ -83,7 +84,6 @@ typedef struct {
     Settings_Info_t Info;
     SemaphoreHandle_t Mutex;
 } Settings_Manager_State_t;
-
 
 /** @brief          Load and parse JSON settings from file into RAM settings structure.
  *                  If the file is missing or invalid, returns an error and leaves settings unchanged.

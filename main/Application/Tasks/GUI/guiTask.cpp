@@ -115,7 +115,7 @@ static void on_Lepton_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t B
 
             break;
         }
-        case LEPTON_TASK_EVENT_RESPONSE_PIXEL_TEMPERATURE: {
+        case LEPTON_TASK_EVENT_RESPONSE_PIXEL_TEMP: {
             memcpy(&_GUITaskState.SpotTemperature, p_Data, sizeof(float));
 
             xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_PIXEL_TEMPERATURE_READY);

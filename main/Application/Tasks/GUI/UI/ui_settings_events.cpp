@@ -119,7 +119,7 @@ void on_WiFi_Autoconnect_Callback(lv_event_t *e)
 
 void on_WiFi_Connect_Callback(lv_event_t *e)
 {
-    esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_OPEN_WIFI_REQUEST, NULL, 0, 0);
+    esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_OPEN_WIFI_REQUEST, NULL, 0, pdMS_TO_TICKS(100));
 }
 
 void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)

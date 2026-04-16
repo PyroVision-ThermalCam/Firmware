@@ -338,7 +338,7 @@ static void Task_Lepton(void *p_Parameters)
         ESP_LOGE(TAG, "Lepton initialization failed with error: 0x%X!", Lepton_Error);
         APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_LEPTON, static_cast<esp_err_t>(Lepton_Error));
 
-        esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_CAMERA_ERROR, NULL, 0, pdMS_TO_TICKS(500));
+        esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_CAMERA_ERROR, NULL, 0, pdMS_TO_TICKS(100));
         esp_task_wdt_delete(NULL);
 
         vTaskDelete(NULL);
@@ -371,7 +371,7 @@ static void Task_Lepton(void *p_Parameters)
     ESP_LOGI(TAG, "DSP revision: %s", DeviceInfo.SoftwareRevision.DSP_Revision);
 
     esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_CAMERA_READY, &DeviceInfo, sizeof(App_Lepton_Device_t),
-                   pdMS_TO_TICKS(500));
+                   pdMS_TO_TICKS(100));
 
     while (_LeptonTaskState.IsApplicationStarted == false) {
         esp_task_wdt_reset();
@@ -386,7 +386,7 @@ static void Task_Lepton(void *p_Parameters)
         ESP_LOGE(TAG, "Can not start image capturing!");
         APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_LEPTON, ESP_FAIL);
 
-        esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_CAMERA_ERROR, NULL, 0, pdMS_TO_TICKS(500));
+        esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_CAMERA_ERROR, NULL, 0, pdMS_TO_TICKS(100));
 
         _LeptonTaskState.IsRunning = false;
         _LeptonTaskState.TaskHandle = NULL;
@@ -594,7 +594,7 @@ static void Task_Lepton(void *p_Parameters)
             Temperatures.FPA = (static_cast<float>(FPA_Temp) * 0.01f) - 273.15f;
             Temperatures.AUX = (static_cast<float>(AUX_Temp) * 0.01f) - 273.15f;
             esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_FPA_AUX_TEMP, &Temperatures,
-                           sizeof(App_Lepton_Temperatures_t), 0);
+                           sizeof(App_Lepton_Temperatures_t), pdMS_TO_TICKS(100));
 
             xEventGroupClearBits(_LeptonTaskState.EventGroup, LEPTON_TASK_UPDATE_TEMP_REQUEST);
         }
@@ -604,7 +604,7 @@ static void Task_Lepton(void *p_Parameters)
 
             Uptime = Lepton_GetUptime(&_LeptonTaskState.Lepton);
 
-            esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_UPTIME, &Uptime, sizeof(uint32_t), 0);
+            esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_UPTIME, &Uptime, sizeof(uint32_t), pdMS_TO_TICKS(100));
 
             xEventGroupClearBits(_LeptonTaskState.EventGroup, LEPTON_TASK_UPDATE_UPTIME_REQUEST);
         }
@@ -639,7 +639,8 @@ static void Task_Lepton(void *p_Parameters)
                                                                         &Temperature);
 
                 if (LeptonError == LEPTON_ERR_OK) {
-                    esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_PIXEL_TEMPERATURE, &Temperature, sizeof(float), 0);
+                    esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_PIXEL_TEMP, &Temperature, sizeof(float),
+                                   pdMS_TO_TICKS(100));
                 } else {
                     ESP_LOGW(TAG, "Failed to get pixel temperature: 0x%X", LeptonError);
                 }
@@ -664,7 +665,7 @@ static void Task_Lepton(void *p_Parameters)
                          App_Lepton_Scene.Min, App_Lepton_Scene.Max, App_Lepton_Scene.Average);
 
                 esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_SCENE_STATISTICS, &App_Lepton_Scene,
-                               sizeof(App_Lepton_ROI_Result_t), 0);
+                               sizeof(App_Lepton_ROI_Result_t), pdMS_TO_TICKS(100));
             } else {
                 ESP_LOGW(TAG, "Failed to read scene statistics!");
             }

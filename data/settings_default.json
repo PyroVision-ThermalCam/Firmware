@@ -91,6 +91,7 @@
         "uvc-enabled" : false
     },
     "calibration": {
-        "room-temperature" : 20
+        "room-temperature" : 20,
+        "interval" : 300
     }
 }

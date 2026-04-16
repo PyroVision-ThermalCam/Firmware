@@ -178,6 +178,7 @@ void SettingsManager_InitDefaultCalibration(Settings_t *p_Settings)
     ESP_LOGW(TAG, "Loading default Calibration settings");
 
     p_Settings->Calibration.RoomTemperature = SETTINGS_DEFAULT_CALIBRATION_ROOM_TEMP;
+    p_Settings->Calibration.Interval = SETTINGS_DEFAULT_CALIBRATION_INTERVAL;
 
     /* 0.0f is the "never calibrated" sentinel: the LeptonTask will apply zero offset
      * until the user explicitly performs a calibration (which stores the actual sensor
