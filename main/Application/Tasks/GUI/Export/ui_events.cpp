@@ -240,3 +240,8 @@ void ButtonMainSwitchClicked(lv_event_t * e)
 {
     GUI_Task_ToggleCameraView();
 }
+
+void ButtonMainROIClicked(lv_event_t * e)
+{
+	// Your code here
+}

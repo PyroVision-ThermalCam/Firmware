@@ -70,3 +70,7 @@ def ButtonMainSaveClicked(event_struct):
 def ButtonMainSwitchClicked(event_struct):
     return
 
+
+def ButtonMainROIClicked(event_struct):
+    return
+

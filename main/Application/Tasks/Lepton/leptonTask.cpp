@@ -406,8 +406,8 @@ static void Task_Lepton(void *p_Parameters)
         if (xQueueReceive(_LeptonTaskState.RawFrameQueue, &_LeptonTaskState.RawFrame, pdMS_TO_TICKS(500)) == pdTRUE) {
             uint8_t WriteBufferIdx;
             uint8_t *WriteBuffer;
-            uint16_t Min = 0;
-            uint16_t Max = 0;
+            int16_t Min = 0;
+            int16_t Max = 0;
             Lepton_Telemetry_t Telemetry;
             Lepton_VideoFormat_t VideoFormat;
 
@@ -511,8 +511,8 @@ static void Task_Lepton(void *p_Parameters)
                 .Width = _LeptonTaskState.RawFrame.Width,
                 .Height = _LeptonTaskState.RawFrame.Height,
                 .Channels = 3,
-                .Min = Min,
-                .Max = Max
+                .Min = static_cast<uint16_t>(Min),
+                .Max = static_cast<uint16_t>(Max)
             };
 
             xQueueOverwrite(App_Context->Lepton_FrameQueue, &FrameEvent);

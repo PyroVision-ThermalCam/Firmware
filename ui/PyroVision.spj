@@ -5114,6 +5114,12 @@
                         "InheritedType": 1
                       },
                       {
+                        "nid": 100,
+                        "strtype": "CONTAINER/Hidden",
+                        "strval": "False",
+                        "InheritedType": 2
+                      },
+                      {
                         "nid": 110,
                         "strtype": "OBJECT/Clickable",
                         "strval": "False",
@@ -7056,6 +7062,71 @@
                     "strtype": "BUTTON/Style_main",
                     "strval": "lv.PART.MAIN, Rectangle, Pad, Text, Transform",
                     "InheritedType": 11
+                  },
+                  {
+                    "disabled": false,
+                    "nid": 1001769,
+                    "strtype": "_event/EventHandler",
+                    "strval": "CLICKED",
+                    "childs": [
+                      {
+                        "nid": 1001770,
+                        "strtype": "_event/name",
+                        "strval": "ButtonMainROIClicked",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 1001771,
+                        "strtype": "_event/condition_C",
+                        "strval": "",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 1001772,
+                        "strtype": "_event/condition_P",
+                        "strval": "",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 1001773,
+                        "strtype": "_event/action",
+                        "strval": "CALL FUNCTION",
+                        "childs": [
+                          {
+                            "nid": 1001774,
+                            "strtype": "CALL FUNCTION/Name",
+                            "strval": "CALL FUNCTION",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 1001775,
+                            "strtype": "CALL FUNCTION/Call",
+                            "strval": "<{Function_name}>( event_struct )",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 1001776,
+                            "strtype": "CALL FUNCTION/CallC",
+                            "strval": "<{Function_name}>( e );",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 1001777,
+                            "strtype": "CALL FUNCTION/Function_name",
+                            "strval": "ButtonMainROIClicked",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 1001778,
+                            "strtype": "CALL FUNCTION/Dont_export_function",
+                            "strval": "False",
+                            "InheritedType": 2
+                          }
+                        ],
+                        "InheritedType": 10
+                      }
+                    ],
+                    "InheritedType": 4
                   }
                 ],
                 "saved_objtypeKey": "BUTTON"
@@ -21050,7 +21121,7 @@
     "custom_variable_prefix": "uic",
     "separate_screen_save": false,
     "hierarchy_state_save": false,
-    "backup_cnt": 125,
+    "backup_cnt": 126,
     "autosave_cnt": 0,
     "group_color_cnt": 0,
     "imagebytearrayprefix": null,
@@ -21061,7 +21132,7 @@
     "naming": "Screen_Name",
     "naming_force_lowercase": false,
     "naming_add_subcomponent": false,
-    "nidcnt": 1001769,
+    "nidcnt": 1001779,
     "BitDepth": 16,
     "Name": "SquareLine_Project"
   }
