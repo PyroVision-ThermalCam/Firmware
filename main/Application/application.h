@@ -64,8 +64,8 @@ enum {
     GUI_TASK_EVENT_REQUEST_PIXEL_TEMPERATURE,   /**< Request update of pixel temperature.
                                                      Data is transmitted in a App_GUI_Screenposition_t structure. */
     GUI_TASK_EVENT_REQUEST_SCENE_STATISTICS,    /**< Request update of scene statistics data. */
-    GUI_TASK_EVENT_THERMAL_IMAGE_SAVED,         /**< Thermal image successfully saved to storage. */
-    GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED,   /**< Thermal image save operation failed.
+    GUI_TASK_EVENT_IMAGE_SAVED,                 /**< Image successfully saved to storage. */
+    GUI_TASK_EVENT_IMAGE_SAVE_FAILED,           /**< Image save operation failed.
                                                      Data is transmitted as an int representing the errno value. */
 };
 
@@ -123,8 +123,8 @@ typedef struct {
     uint32_t Width;                             /**< Width of the frame in pixels. */
     uint32_t Height;                            /**< Height of the frame in pixels. */
     uint32_t Channels;                          /**< Number of color channels (e.g., 3 for RGB). */
-    int16_t Min;                                /**< Minimum value in the frame. */
-    int16_t Max;                                /**< Maximum value in the frame. */
+    uint16_t Min;                               /**< Minimum raw value in the frame (centikelvin, TLinear mode). */
+    uint16_t Max;                               /**< Maximum raw value in the frame (centikelvin, TLinear mode). */
 } App_Lepton_Frame_t;
 
 /** @brief Structure representing a ready frame from the visible-light camera.

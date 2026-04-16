@@ -93,7 +93,7 @@ bool GUI_Task_IsRunning(void);
  */
 void GUI_Toggle_ROI_EditMode(void);
 
-/** @brief          Request to save the next thermal image to storage as PNG file.
+/** @brief          Request to save the next image to storage as PNG file.
  *  @note           Sets a flag that triggers image save on the next frame update.
  *                  The actual save happens in background task (non-blocking).
  *                  A message box will be displayed upon completion or error.
@@ -101,7 +101,7 @@ void GUI_Toggle_ROI_EditMode(void);
  *  @return         ESP_OK on success
  *                  ESP_ERR_INVALID_STATE if filesystem is locked (USB active)
  */
-esp_err_t GUI_SaveThermalImage(void);
+esp_err_t GUI_SaveImage(void);
 
 /** @brief          Enable or disable the visible-light camera view in the thermal canvas.
  *                  When enabled, incoming camera frames are scaled from 320x240 to 240x180 using

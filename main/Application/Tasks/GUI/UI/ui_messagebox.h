@@ -34,6 +34,17 @@
  */
 void MessageBox_Show(const char *p_Title, uint32_t AutoCloseDelay = 1);
 
+/** @brief          Show a persistent "in progress" message box without auto-close.
+ *                  The box must be dismissed by calling MessageBox_CloseProgress().
+ *  @param p_Title  Title text to display inside the box
+ */
+void MessageBox_ShowProgress(const char *p_Title);
+
+/** @brief  Close the persistent progress message box opened by MessageBox_ShowProgress().
+ *          Has no effect if no progress box is currently open.
+ */
+void MessageBox_CloseProgress(void);
+
 /** @brief          Show a message box indicating the result of a thermal image save operation.
  *  @param Error    ESP_OK if the image was saved successfully, or an error code if it failed
  */

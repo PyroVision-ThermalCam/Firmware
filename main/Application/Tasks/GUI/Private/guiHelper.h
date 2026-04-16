@@ -56,6 +56,8 @@
 #define GUI_TASK_TEMPERATURE_SENSOR_READY           BIT17
 #define GUI_TASK_CAMERA_VIEW_CHANGED                BIT18
 #define GUI_TASK_SCREEN_REFRESH_REQUIRED            BIT19
+#define GUI_TASK_IMAGE_SAVE_COMPLETED               BIT20
+#define GUI_TASK_IMAGE_SAVE_FAILED_BIT              BIT21
 
 /** @brief Internal runtime state of the GUI task.
  *         Aggregates all LVGL handles, display and touch panel handles, FreeRTOS primitives,
@@ -79,8 +81,8 @@ typedef struct {
     bool CrosshairVisible;                                  /**< true when the crosshair overlay is currently active in the live-view. */
     int32_t CrosshairX;                                     /**< Current x position of ui_Container_Main_Thermal_Crosshair relative to ui_Image_Main_Thermal (top-left origin). Owned by the GUI task; never read back from LVGL to avoid stale-coord issues. */
     int32_t CrosshairY;                                     /**< Current y position of ui_Container_Main_Thermal_Crosshair relative to ui_Image_Main_Thermal (top-left origin). Owned by the GUI task; never read back from LVGL to avoid stale-coord issues. */
-    bool JoyCenterLongFired;                                /**< true after the long-press crosshair toggle has already fired for the current hold; prevents repeated toggling. */
-    TickType_t JoyCenterHeldSince;                          /**< Tick at which JoyCenter went high; 0 when not pressed. */
+    bool LongPressHandled;                                  /**< true once the rising edge of JoyCenterLongPress has been processed; cleared on JoyCenter release to suppress autofocus. */
+    bool PrevJoyCenterLongPress;                            /**< Previous JoyCenterLongPress state; used to detect the rising edge of the long-press signal from the Devices task. */
     TickType_t
     JoyDirHeldSince;                             /**< Tick when any joystick direction first went active; 0 when released. */
     TickType_t

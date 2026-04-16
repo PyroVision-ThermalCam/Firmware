@@ -221,7 +221,13 @@ void ScreenSplashLoaded(lv_event_t *e)
 
 void ButtonMainSaveClicked(lv_event_t *e)
 {
-    MessageBox_ImageSaveError(GUI_SaveThermalImage());
+    esp_err_t Error = GUI_SaveImage();
+
+    if (Error != ESP_OK) {
+        MessageBox_ImageSaveError(Error);
+    } else {
+        MessageBox_ShowProgress("Image save in progress");
+    }
 }
 
 void ButtonMenuSaveClicked(lv_event_t *e)

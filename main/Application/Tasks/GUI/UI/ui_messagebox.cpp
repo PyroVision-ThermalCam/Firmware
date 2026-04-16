@@ -28,6 +28,8 @@
 
 static const char *TAG = "ui_messagenbox";
 
+static lv_obj_t *_p_ProgressBox = NULL;
+
 static void MessageBox_on_Close(lv_timer_t *p_Timer)
 {
     lv_obj_t *Box = static_cast<lv_obj_t *>(lv_timer_get_user_data(p_Timer));
@@ -46,15 +48,32 @@ void MessageBox_Show(const char *p_Title, uint32_t AutoCloseDelay)
     lv_timer_set_repeat_count(Timer, 1);
 }
 
+void MessageBox_ShowProgress(const char *p_Title)
+{
+    _p_ProgressBox = lv_msgbox_create(NULL);
+
+    lv_msgbox_add_title(_p_ProgressBox, p_Title);
+}
+
+void MessageBox_CloseProgress(void)
+{
+    if (_p_ProgressBox == NULL) {
+        return;
+    }
+
+    lv_msgbox_close(_p_ProgressBox);
+    _p_ProgressBox = NULL;
+}
+
 void MessageBox_ImageSaveError(esp_err_t Error)
 {
     lv_obj_t *Box = lv_msgbox_create(NULL);
 
     if (Error == ESP_OK) {
         lv_msgbox_add_title(Box, "Image Saved");
-        lv_msgbox_add_text(Box, "Thermal image saved to storage");
+        lv_msgbox_add_text(Box, "Image saved to storage");
 
-        ESP_LOGD(TAG, "Thermal image saved successfully");
+        ESP_LOGD(TAG, "Image saved successfully");
     } else if (Error == ESP_ERR_INVALID_STATE) {
         lv_msgbox_add_title(Box, "USB Active");
         lv_msgbox_add_text(Box, "Cannot save - USB mode is active!\nDisable USB first.");
@@ -62,14 +81,14 @@ void MessageBox_ImageSaveError(esp_err_t Error)
         ESP_LOGW(TAG, "Cannot save image - USB mode active");
     } else if (Error == ESP_ERR_NO_MEM) {
         lv_msgbox_add_title(Box, "No Frame");
-        lv_msgbox_add_text(Box, "No thermal frame available");
+        lv_msgbox_add_text(Box, "No image frame available");
 
-        ESP_LOGW(TAG, "No thermal frame available");
+        ESP_LOGW(TAG, "No image frame available");
     } else {
         lv_msgbox_add_title(Box, "Save Failed");
         lv_msgbox_add_text(Box, "Failed to save image");
 
-        ESP_LOGE(TAG, "Failed to save thermal image: 0x%X!", Error);
+        ESP_LOGE(TAG, "Failed to save image: 0x%X!", Error);
     }
 
     /* Auto-close message box after 2 seconds */

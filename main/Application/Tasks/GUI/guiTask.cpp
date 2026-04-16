@@ -54,9 +54,15 @@
 #define UI_GRADIENT_CANVAS_WIDTH                20
 
 #define CROSSHAIR_STEP_PX                       8
+#define CROSSHAIR_INITIAL_DELAY_MS              30
 #define CROSSHAIR_AUTOREPEAT_DELAY_MS           400
 #define CROSSHAIR_AUTOREPEAT_PERIOD_MS          150
-#define JOYCENTER_LONGPRESS_MS                  600
+
+/* Fixed container dimensions taken from the UI export (ui_Main.c).
+ * Using constants avoids calling lv_obj_get_width/height on a potentially
+ * hidden widget whose coords may not be up-to-date at indev-callback time. */
+#define CROSSHAIR_CONTAINER_W                   100
+#define CROSSHAIR_CONTAINER_H                   50
 
 ESP_EVENT_DEFINE_BASE(GUI_TASK_EVENTS);
 
@@ -162,19 +168,21 @@ static void on_GUI_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
     ESP_LOGD(TAG, "GUI task event received: ID=%d", ID);
 
     switch (ID) {
-        case GUI_TASK_EVENT_THERMAL_IMAGE_SAVED: {
-            ESP_LOGD(TAG, "Thermal image saved successfully");
+        case GUI_TASK_EVENT_IMAGE_SAVED: {
+            ESP_LOGD(TAG, "Image saved successfully");
 
-            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_SCREEN_REFRESH_REQUIRED);
+            xEventGroupSetBits(_GUITaskState.EventGroup,
+                               GUI_TASK_IMAGE_SAVE_COMPLETED | GUI_TASK_SCREEN_REFRESH_REQUIRED);
 
             break;
         }
-        case GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED: {
-            ESP_LOGE(TAG, "Thermal image save failed");
+        case GUI_TASK_EVENT_IMAGE_SAVE_FAILED: {
+            ESP_LOGE(TAG, "Image save failed");
 
             APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_FAIL);
 
-            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_SCREEN_REFRESH_REQUIRED);
+            xEventGroupSetBits(_GUITaskState.EventGroup,
+                               GUI_TASK_IMAGE_SAVE_FAILED_BIT | GUI_TASK_SCREEN_REFRESH_REQUIRED);
 
             break;
         }
@@ -435,7 +443,7 @@ static void GUI_Update_ROI(Settings_ROI_t ROI)
     int32_t DispH = (ROI.h * DisplayHeight) / 120;
 
     /* Map ROI type to its LVGL overlay widget and apply the computed position/size. */
-    lv_obj_t * const ROI_WIDGETS[] = {
+    lv_obj_t *const ROI_WIDGETS[] = {
         ui_Image_Main_Thermal_Spotmeter_ROI,
         ui_Image_Main_Thermal_Scene_ROI,
         ui_Image_Main_Thermal_AGC_ROI,
@@ -659,50 +667,45 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
     if (lv_display_get_screen_active(lv_display_get_default()) == ui_Main) {
         TickType_t NowTick = xTaskGetTickCount();
 
-        /* JoyCenter: rising edge starts hold timer */
-        if ((State.JoyCenter == true) && (_GUITaskState.PrevJoyCenter == false)) {
-            _GUITaskState.JoyCenterHeldSince = NowTick;
-            _GUITaskState.JoyCenterLongFired = false;
-        }
+        /* JoyCenter long-press: signalled by DevicesTask via JoyCenterLongPress in shared input state.
+         * Rising edge toggles the crosshair in thermal view only; camera view is unaffected. */
+        if ((State.JoyCenterLongPress == true) && (_GUITaskState.PrevJoyCenterLongPress == false)) {
+            _GUITaskState.LongPressHandled = true;
 
-        /* JoyCenter: long-press toggles crosshair (fires once per hold) */
-        if ((State.JoyCenter == true) &&
-            (_GUITaskState.JoyCenterLongFired == false) &&
-            (_GUITaskState.JoyCenterHeldSince != 0) &&
-            ((NowTick - _GUITaskState.JoyCenterHeldSince) >= pdMS_TO_TICKS(JOYCENTER_LONGPRESS_MS))) {
-            _GUITaskState.JoyCenterLongFired  = true;
-            _GUITaskState.CrosshairVisible = !_GUITaskState.CrosshairVisible;
+            if (_GUITaskState.ShowCameraView == false) {
+                _GUITaskState.CrosshairVisible = !_GUITaskState.CrosshairVisible;
 
-            if (_GUITaskState.CrosshairVisible) {
-                ESP_LOGD(TAG, "Crosshair enabled");
+                if (_GUITaskState.CrosshairVisible) {
+                    ESP_LOGD(TAG, "Crosshair enabled");
 
-                /* Centre the crosshair.  Position is stored in our own state to avoid
-                 * reading back from LVGL's coordinate cache (obj->coords is only updated
-                 * after the next layout pass, causing jumps when set_pos and get_x are
-                 * called within the same or adjacent indev ticks). */
-                _GUITaskState.CrosshairX = (static_cast<int32_t>(UI_IMAGE_CANVAS_WIDTH)  - lv_obj_get_width(ui_Container_Main_Thermal_Crosshair)) / 2;
-                _GUITaskState.CrosshairY = (static_cast<int32_t>(UI_IMAGE_CANVAS_HEIGHT) - lv_obj_get_height(ui_Container_Main_Thermal_Crosshair)) / 2;
-                lv_obj_set_align(ui_Container_Main_Thermal_Crosshair, LV_ALIGN_TOP_LEFT);
-                lv_obj_set_pos(ui_Container_Main_Thermal_Crosshair,
-                               _GUITaskState.CrosshairX,
-                               _GUITaskState.CrosshairY);
-                lv_obj_remove_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
-            } else {
-                ESP_LOGD(TAG, "Crosshair disabled");
+                    /* Centre the crosshair.  Position is stored in our own state to avoid
+                     * reading back from LVGL's coordinate cache (obj->coords is only updated
+                     * after the next layout pass, causing jumps when set_pos and get_x are
+                     * called within the same or adjacent indev ticks). */
+                    _GUITaskState.CrosshairX = (static_cast<int32_t>(UI_IMAGE_CANVAS_WIDTH)  - CROSSHAIR_CONTAINER_W) / 2;
+                    _GUITaskState.CrosshairY = (static_cast<int32_t>(UI_IMAGE_CANVAS_HEIGHT) - CROSSHAIR_CONTAINER_H) / 2;
+                    lv_obj_set_align(ui_Container_Main_Thermal_Crosshair, LV_ALIGN_TOP_LEFT);
+                    lv_obj_set_pos(ui_Container_Main_Thermal_Crosshair,
+                                   _GUITaskState.CrosshairX,
+                                   _GUITaskState.CrosshairY);
+                    lv_obj_remove_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
+                } else {
+                    ESP_LOGD(TAG, "Crosshair disabled");
 
-                lv_obj_add_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
+                    lv_obj_add_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
+                }
             }
         }
 
-        /* JoyCenter: falling edge -> autofocus (only when no long-press fired) */
+        /* JoyCenter: falling edge -> autofocus (only when no long-press was handled this hold). */
         if ((State.JoyCenter == false) && (_GUITaskState.PrevJoyCenter == true)) {
-            if (_GUITaskState.JoyCenterLongFired == false) {
+            if (_GUITaskState.LongPressHandled == false) {
                 ESP_LOGD(TAG, "Autofocus triggered by joystick center");
 
                 esp_event_post(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_REQUEST_FOCUS, NULL, 0, pdMS_TO_TICKS(100));
             }
 
-            _GUITaskState.JoyCenterHeldSince = 0;
+            _GUITaskState.LongPressHandled = false;
         }
 
         /* Crosshair movement with joystick directions */
@@ -713,17 +716,27 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
             bool ShouldMove = false;
 
             if (AnyDirNow && (AnyDirPrev == false)) {
-                /* Rising edge: move immediately and start auto-repeat timer. */
+                /* Rising edge: start hold timer. The first move is deferred by
+                 * CROSSHAIR_INITIAL_DELAY_MS to filter out joystick-bounce glitches
+                 * that would cause a single physical press to register as two steps. */
                 _GUITaskState.JoyDirHeldSince = NowTick;
-                _GUITaskState.JoyDirLastMoveTick = NowTick;
-                ShouldMove = true;
-            } else if (AnyDirNow && AnyDirPrev &&
-                       (_GUITaskState.JoyDirHeldSince != 0) &&
-                       ((NowTick - _GUITaskState.JoyDirHeldSince) >= pdMS_TO_TICKS(CROSSHAIR_AUTOREPEAT_DELAY_MS)) &&
-                       ((NowTick - _GUITaskState.JoyDirLastMoveTick) >= pdMS_TO_TICKS(CROSSHAIR_AUTOREPEAT_PERIOD_MS))) {
-                /* Auto-repeat after initial hold delay. */
-                _GUITaskState.JoyDirLastMoveTick = NowTick;
-                ShouldMove = true;
+                _GUITaskState.JoyDirLastMoveTick = 0;
+            } else if (AnyDirNow && (_GUITaskState.JoyDirHeldSince != 0)) {
+                TickType_t HeldFor = NowTick - _GUITaskState.JoyDirHeldSince;
+
+                if (_GUITaskState.JoyDirLastMoveTick == 0) {
+                    /* First move: fire once after the initial debounce delay. */
+                    if (HeldFor >= pdMS_TO_TICKS(CROSSHAIR_INITIAL_DELAY_MS)) {
+                        ShouldMove = true;
+                        _GUITaskState.JoyDirLastMoveTick = NowTick;
+                    }
+                } else if ((HeldFor >= pdMS_TO_TICKS(CROSSHAIR_AUTOREPEAT_DELAY_MS)) &&
+                           ((NowTick - _GUITaskState.JoyDirLastMoveTick) >= pdMS_TO_TICKS(CROSSHAIR_AUTOREPEAT_PERIOD_MS))) {
+                    /* Auto-repeat: fires at CROSSHAIR_AUTOREPEAT_PERIOD_MS intervals
+                     * after CROSSHAIR_AUTOREPEAT_DELAY_MS of continuous hold. */
+                    ShouldMove = true;
+                    _GUITaskState.JoyDirLastMoveTick = NowTick;
+                }
             }
 
             if (AnyDirNow == false) {
@@ -739,8 +752,8 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
                  * yield stale values and cause visible jumps. */
                 int32_t Cx = _GUITaskState.CrosshairX;
                 int32_t Cy = _GUITaskState.CrosshairY;
-                int32_t MaxX = static_cast<int32_t>(UI_IMAGE_CANVAS_WIDTH) - lv_obj_get_width(ui_Container_Main_Thermal_Crosshair);
-                int32_t MaxY = static_cast<int32_t>(UI_IMAGE_CANVAS_HEIGHT) - lv_obj_get_height(ui_Container_Main_Thermal_Crosshair);
+                int32_t MaxX = static_cast<int32_t>(UI_IMAGE_CANVAS_WIDTH)  - CROSSHAIR_CONTAINER_W;
+                int32_t MaxY = static_cast<int32_t>(UI_IMAGE_CANVAS_HEIGHT) - CROSSHAIR_CONTAINER_H;
 
                 if (State.JoyUp)    {
                     Cy -= static_cast<int32_t>(CROSSHAIR_STEP_PX);
@@ -783,11 +796,12 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
         }
     }
 
-    _GUITaskState.PrevJoyCenter = State.JoyCenter;
-    _GUITaskState.PrevJoyUp     = State.JoyUp;
-    _GUITaskState.PrevJoyDown   = State.JoyDown;
-    _GUITaskState.PrevJoyLeft   = State.JoyLeft;
-    _GUITaskState.PrevJoyRight  = State.JoyRight;
+    _GUITaskState.PrevJoyCenter          = State.JoyCenter;
+    _GUITaskState.PrevJoyCenterLongPress = State.JoyCenterLongPress;
+    _GUITaskState.PrevJoyUp              = State.JoyUp;
+    _GUITaskState.PrevJoyDown            = State.JoyDown;
+    _GUITaskState.PrevJoyLeft            = State.JoyLeft;
+    _GUITaskState.PrevJoyRight           = State.JoyRight;
 }
 
 /** @brief          LVGL touch read callback.
@@ -871,7 +885,7 @@ void Task_GUI(void *p_Parameters)
         } else if (EventBits & GUI_TASK_CAMERA_ERROR) {
             lv_label_set_text(ui_SplashScreen_StatusText, "Camera Error");
             lv_bar_set_value(ui_SplashScreen_LoadingBar, 99, LV_ANIM_ON);
-    
+
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_ERROR);
         } else if (Timeout >= 30000) {
             break;
@@ -887,6 +901,8 @@ void Task_GUI(void *p_Parameters)
     /* Process layout changes after loading new screen. */
     lv_timer_handler();
 
+    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_APP_STARTED, NULL, 0, pdMS_TO_TICKS(500));
+
     /* Set the initial ROI first to give it a size. */
     SettingsManager_GetLepton(&LeptonSettings);
     GUI_Update_ROI(LeptonSettings.ROI[ROI_TYPE_SPOTMETER]);
@@ -896,14 +912,21 @@ void Task_GUI(void *p_Parameters)
 
     GUI_Update_Info();
 
+    /* Show the crosshair at boot, centred on the canvas.
+     * LV_ALIGN_TOP_LEFT must be set here so that CrosshairX/Y are interpreted as
+     * absolute pixel offsets; without it negative offsets would be clamped to 0
+     * and left/up movement would appear to do nothing. */
+    _GUITaskState.CrosshairX = (static_cast<int32_t>(UI_IMAGE_CANVAS_WIDTH)  - CROSSHAIR_CONTAINER_W) / 2;
+    _GUITaskState.CrosshairY = (static_cast<int32_t>(UI_IMAGE_CANVAS_HEIGHT) - CROSSHAIR_CONTAINER_H) / 2;
     _GUITaskState.CrosshairVisible = true;
+    lv_obj_set_align(ui_Container_Main_Thermal_Crosshair, LV_ALIGN_TOP_LEFT);
+    lv_obj_set_pos(ui_Container_Main_Thermal_Crosshair, _GUITaskState.CrosshairX, _GUITaskState.CrosshairY);
+    lv_obj_remove_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
 
     /* Initialize SD card icon based on current storage state. */
     if (MemoryManager_HasSDCard()) {
         lv_obj_set_style_text_color(ui_Image_Main_SDCard, lv_color_hex(0x00FF00), LV_PART_MAIN);
     }
-
-    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_APP_STARTED, NULL, 0, pdMS_TO_TICKS(500));
 
     /* Variables for Illuminance values for the scene label.
      * Fetch all these values at the beginning to not waste CPU performance because these
@@ -1105,7 +1128,7 @@ void Task_GUI(void *p_Parameters)
                 }
 
                 /* Update text colour of each overlay label based on background luminance. */
-                lv_obj_t * const SceneLabels[] = {
+                lv_obj_t *const SceneLabels[] = {
                     ui_Label_Main_Thermal_Scene_Max,
                     ui_Label_Main_Thermal_Scene_Min,
                     ui_Label_Main_Thermal_Scene_Mean,
@@ -1216,7 +1239,7 @@ void Task_GUI(void *p_Parameters)
             if (xQueueSend(_GUITaskState.ImageSaveQueue, &SaveFrame, 0) != pdTRUE) {
                 ESP_LOGW(TAG, "Image save queue full, skipping save");
 
-                esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED, NULL, 0, pdMS_TO_TICKS(100));
+                esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_IMAGE_SAVE_FAILED, NULL, 0, pdMS_TO_TICKS(100));
             }
         }
 
@@ -1517,6 +1540,20 @@ void Task_GUI(void *p_Parameters)
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_TEMPERATURE_SENSOR_READY);
         }
 
+        if (EventBits & GUI_TASK_IMAGE_SAVE_COMPLETED) {
+            MessageBox_CloseProgress();
+            MessageBox_ImageSaveError(ESP_OK);
+
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_IMAGE_SAVE_COMPLETED);
+        }
+
+        if (EventBits & GUI_TASK_IMAGE_SAVE_FAILED_BIT) {
+            MessageBox_CloseProgress();
+            MessageBox_ImageSaveError(ESP_FAIL);
+
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_IMAGE_SAVE_FAILED_BIT);
+        }
+
         if (EventBits & GUI_TASK_SCREEN_REFRESH_REQUIRED) {
             /* Re-render the LVGL overlay layer after PNG save. During the write,
              * LCD flushes are skipped to avoid SPI bus contention. After the save
@@ -1561,8 +1598,10 @@ esp_err_t GUI_Task_Init(void)
 
     _GUITaskState.ThermalCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(UI_IMAGE_CANVAS_WIDTH *
                                                                                 UI_IMAGE_CANVAS_HEIGHT * 2, MALLOC_CAP_SPIRAM));
-    _GUITaskState.GradientCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(UI_GRADIENT_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2, MALLOC_CAP_SPIRAM));
-    _GUITaskState.NetworkRGBBuffer = static_cast<uint8_t *>(heap_caps_malloc(UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 3, MALLOC_CAP_SPIRAM));
+    _GUITaskState.GradientCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(UI_GRADIENT_CANVAS_WIDTH *
+                                                                                 UI_IMAGE_CANVAS_HEIGHT * 2, MALLOC_CAP_SPIRAM));
+    _GUITaskState.NetworkRGBBuffer = static_cast<uint8_t *>(heap_caps_malloc(UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT
+                                                                             * 3, MALLOC_CAP_SPIRAM));
     _GUITaskState.SaveCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT
                                                                              * 2, MALLOC_CAP_SPIRAM));
 
@@ -1704,8 +1743,8 @@ esp_err_t GUI_Task_Init(void)
                                NULL);
     esp_event_handler_register(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE, on_Devices_Task_Event_Handler,
                                NULL);
-    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVED, on_GUI_Task_Event_Handler, NULL);
-    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED, on_GUI_Task_Event_Handler, NULL);
+    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_IMAGE_SAVED, on_GUI_Task_Event_Handler, NULL);
+    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_IMAGE_SAVE_FAILED, on_GUI_Task_Event_Handler, NULL);
     esp_event_handler_register(LEPTON_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Task_Event_Handler, NULL);
     esp_event_handler_register(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_INIT_COMPLETE, on_Camera_Task_Event_Handler, NULL);
     esp_event_handler_register(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_INIT_FAILED, on_Camera_Task_Event_Handler, NULL);
@@ -1713,6 +1752,8 @@ esp_err_t GUI_Task_Init(void)
     _GUITaskState.SaveNextFrameRequested = false;
     _GUITaskState.ShowCameraView = false;
     _GUITaskState.CrosshairVisible = false;
+    _GUITaskState.LongPressHandled = false;
+    _GUITaskState.PrevJoyCenterLongPress = false;
     _GUITaskState.IsInitialized = true;
 
     return ESP_OK;
@@ -1730,8 +1771,8 @@ void GUI_Task_Deinit(void)
     esp_event_handler_unregister(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_BATTERY, on_Devices_Task_Event_Handler);
     esp_event_handler_unregister(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE,
                                  on_Devices_Task_Event_Handler);
-    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVED, on_GUI_Task_Event_Handler);
-    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_THERMAL_IMAGE_SAVE_FAILED, on_GUI_Task_Event_Handler);
+    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_IMAGE_SAVED, on_GUI_Task_Event_Handler);
+    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_IMAGE_SAVE_FAILED, on_GUI_Task_Event_Handler);
     esp_event_handler_unregister(LEPTON_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Task_Event_Handler);
     esp_event_handler_unregister(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_INIT_COMPLETE, on_Camera_Task_Event_Handler);
     esp_event_handler_unregister(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_INIT_FAILED, on_Camera_Task_Event_Handler);
@@ -1805,7 +1846,7 @@ lv_indev_t *GUI_Task_GetKeypadIndev(void)
     return _GUITaskState.Keypad;
 }
 
-esp_err_t GUI_SaveThermalImage(void)
+esp_err_t GUI_SaveImage(void)
 {
     /* Check if filesystem is locked (USB active) */
     if (MemoryManager_IsFilesystemLocked()) {

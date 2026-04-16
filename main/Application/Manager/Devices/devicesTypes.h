@@ -118,17 +118,20 @@ typedef enum {
 
 /** @brief Input state of the displayboard controls.
  *         All fields are true when the corresponding button or joystick direction is pressed.
+ *         JoyCenterLongPress is a synthetic flag set by the Devices task: true from the moment
+ *         a 600 ms long-press is detected until the center button is released.
  */
 typedef struct {
-    bool JoyUp;     /**< Joystick up (P0.3, active high). */
-    bool JoyDown;   /**< Joystick down (P0.4, active high). */
-    bool JoyLeft;   /**< Joystick left (P0.5, active high). */
-    bool JoyRight;  /**< Joystick right (P0.6, active high). */
-    bool JoyCenter; /**< Joystick center press (P0.7, active high). */
-    bool Button1;   /**< Button 1 (P1.0, active high). */
-    bool Button2;   /**< Button 2 (P1.1, active high). */
-    bool Button3;   /**< Button 3 (P1.2, active high). */
-    bool Button4;   /**< Button 4 (P1.3, active high). */
+    bool JoyUp;              /**< Joystick up (P0.3, active high). */
+    bool JoyDown;            /**< Joystick down (P0.4, active high). */
+    bool JoyLeft;            /**< Joystick left (P0.5, active high). */
+    bool JoyRight;           /**< Joystick right (P0.6, active high). */
+    bool JoyCenter;          /**< Joystick center press (P0.7, active high). */
+    bool JoyCenterLongPress; /**< Synthetic flag: true after a 600 ms hold; cleared on release. */
+    bool Button1;            /**< Button 1 (P1.0, active high). */
+    bool Button2;            /**< Button 2 (P1.1, active high). */
+    bool Button3;            /**< Button 3 (P1.2, active high). */
+    bool Button4;            /**< Button 4 (P1.3, active high). */
 } Devices_Input_State_t;
 
 #endif /* DEVICES_TYPES_H_ */

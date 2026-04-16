@@ -61,7 +61,7 @@ ESP_EVENT_DEFINE_BASE(LEPTON_TASK_EVENTS);
 typedef struct {
     bool IsInitialized;                                 /**< true after Lepton_Task_Init() has completed successfully. */
     bool IsRunning;                                     /**< true while the FreeRTOS task is executing. */
-    bool ApplicationStarted;                            /**< true once the GUI task has signalled APP_STARTED. */
+    bool IsApplicationStarted;                          /**< true once the GUI task has signalled APP_STARTED. */
     bool IsUVCStreaming;                                /**< true while a UVC host is actively receiving frames. */
     TaskHandle_t TaskHandle;                            /**< FreeRTOS task handle; NULL before Lepton_Task_Start(). */
     EventGroupHandle_t EventGroup;                      /**< Event group used for intra-task synchronisation. */
@@ -186,7 +186,7 @@ static void on_GUI_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
         case GUI_TASK_EVENT_APP_STARTED: {
             ESP_LOGD(TAG, "Application started event received");
 
-            _LeptonTaskState.ApplicationStarted = true;
+            _LeptonTaskState.IsApplicationStarted = true;
 
             break;
         }
@@ -373,7 +373,7 @@ static void Task_Lepton(void *p_Parameters)
     esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_CAMERA_READY, &DeviceInfo, sizeof(App_Lepton_Device_t),
                    pdMS_TO_TICKS(500));
 
-    while (_LeptonTaskState.ApplicationStarted == false) {
+    while (_LeptonTaskState.IsApplicationStarted == false) {
         esp_task_wdt_reset();
         vTaskDelay(pdMS_TO_TICKS(100));
     }
@@ -406,8 +406,8 @@ static void Task_Lepton(void *p_Parameters)
         if (xQueueReceive(_LeptonTaskState.RawFrameQueue, &_LeptonTaskState.RawFrame, pdMS_TO_TICKS(500)) == pdTRUE) {
             uint8_t WriteBufferIdx;
             uint8_t *WriteBuffer;
-            int16_t Min = 0;
-            int16_t Max = 0;
+            uint16_t Min = 0;
+            uint16_t Max = 0;
             Lepton_Telemetry_t Telemetry;
             Lepton_VideoFormat_t VideoFormat;
 

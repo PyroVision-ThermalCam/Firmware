@@ -197,17 +197,17 @@ static const PCAL6416_IO_Conf_t _PCAL6416AHF_Mainboard_PinConfig[] = {
  *         Register layout summary:
  *
  *         Port 0: [7]=JoyCenter [6]=JoyRight [5]=JoyLeft [4]=JoyUp [3]=JoyDown
- *                 [2]=LED_Red  [1]=LED_Green [0]=LED_Blue
+ *                 [2]=LED_Blue  [1]=LED_Green [0]=LED_Red
  *         Port 1: [3]=Btn4 [2]=Btn3 [1]=Btn2 [0]=Btn1
  *
  *         LEDs are active low outputs; buttons and joystick are active high with pull-down.
  */
 static const PCAL6416_IO_Conf_t _PCAL6416AHF_Displayboard_PinConfig[] = {
-    /* LED red: active low output (caller negates)                                              */
+    /* LED blue: active low output (caller negates)                                              */
     { .Port = PCAL6416_PORT_0, .Pin = 0, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .IsInverted = false, .IsLatched = false },
     /* LED green: active low output (caller negates)                                            */
     { .Port = PCAL6416_PORT_0, .Pin = 1, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .IsInverted = false, .IsLatched = false },
-    /* LED blue: active low output (caller negates)                                             */
+    /* LED red: active low output (caller negates)                                             */
     { .Port = PCAL6416_PORT_0, .Pin = 2, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .IsInverted = false, .IsLatched = false },
     /* Joystick up: active high, pull-down input                                                */
     { .Port = PCAL6416_PORT_0, .Pin = 3, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_DOWN, .IsInverted = false, .IsLatched = false },
@@ -230,8 +230,7 @@ static const PCAL6416_IO_Conf_t _PCAL6416AHF_Displayboard_PinConfig[] = {
 };
 
 typedef struct {
-    bool Initialized;
-    bool IsDisplayboardPresent;
+    bool IsInitialized;
     RV8263C8_Dev_t RTC;
     TMP117_Dev_t TMP117;
     PCAL6416AHF_Dev_t ExpanderMainboard;
@@ -253,7 +252,7 @@ esp_err_t DevicesManager_Init(void)
     uint8_t Brightness;
     Settings_Display_t DisplaySettings;
 
-    if (_DevicesManagerState.Initialized) {
+    if (_DevicesManagerState.IsInitialized) {
         ESP_LOGW(TAG, "Already initialized");
 
         return ESP_OK;
@@ -328,8 +327,8 @@ esp_err_t DevicesManager_Init(void)
         ESP_LOGW(TAG, "Displayboard port expander not found - running without displayboard");
 
         APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_EXPANDER_DISPLAYBOARD);
-    } else {
-        _DevicesManagerState.IsDisplayboardPresent = true;
+
+        return DEVICES_ERR_EXPANDER_DISPLAYBOARD;
     }
 
     /* OV5640 power-on sequence */
@@ -416,7 +415,7 @@ esp_err_t DevicesManager_Init(void)
     gpio_config(&_Devices_Manager_MainboardExpander_IntConf);
     gpio_config(&_Devices_Manager_DisplayboardExpander_IntConf);
 
-    _DevicesManagerState.Initialized = true;
+    _DevicesManagerState.IsInitialized = true;
 
     SettingsManager_GetDisplay(&DisplaySettings);
     Brightness = static_cast<uint8_t>(static_cast<float>(DisplaySettings.Brightness) * 2.55);
@@ -438,7 +437,7 @@ esp_err_t DevicesManager_Init(void)
 
 esp_err_t DevicesManager_Deinit(void)
 {
-    if (_DevicesManagerState.Initialized == false) {
+    if (_DevicesManagerState.IsInitialized == false) {
         return ESP_OK;
     }
 
@@ -458,14 +457,14 @@ esp_err_t DevicesManager_Deinit(void)
         _DevicesManagerState.Mutex = NULL;
     }
 
-    _DevicesManagerState.Initialized = false;
+    _DevicesManagerState.IsInitialized = false;
 
     return ESP_OK;
 }
 
 esp_err_t DevicesManager_AcquireI2CBus(TickType_t Timeout)
 {
-    if (_DevicesManagerState.Initialized == false) {
+    if (_DevicesManagerState.IsInitialized == false) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -483,7 +482,7 @@ void DevicesManager_ReleaseI2CBus(void)
 
 i2c_master_bus_handle_t DevicesManager_GetI2CBusHandle(void)
 {
-    if (_DevicesManagerState.Initialized == false) {
+    if (_DevicesManagerState.IsInitialized == false) {
         return NULL;
     }
 
@@ -492,7 +491,7 @@ i2c_master_bus_handle_t DevicesManager_GetI2CBusHandle(void)
 
 i2c_master_bus_handle_t DevicesManager_GetTouchI2CBusHandle(void)
 {
-    if (_DevicesManagerState.Initialized == false) {
+    if (_DevicesManagerState.IsInitialized == false) {
         return NULL;
     }
 
@@ -514,7 +513,7 @@ esp_err_t DevicesManager_GetBatteryStatus(int *p_Voltage, uint8_t *p_Percentage,
     float Voltage;
     esp_err_t Error = ESP_OK;
 
-    if (_DevicesManagerState.Initialized == false) {
+    if (_DevicesManagerState.IsInitialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     } else if ((p_Voltage == NULL) || (p_Percentage == NULL) || (p_Charging == NULL)) {
         return ESP_ERR_INVALID_ARG;
@@ -545,7 +544,7 @@ esp_err_t DevicesManager_GetBatteryStatus(int *p_Voltage, uint8_t *p_Percentage,
 
 esp_err_t DevicesManager_GetRTCHandle(RV8263C8_Dev_t *p_Handle)
 {
-    if (_DevicesManagerState.Initialized == false) {
+    if (_DevicesManagerState.IsInitialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     } else if (p_Handle == NULL) {
         return ESP_ERR_INVALID_ARG;
@@ -560,7 +559,7 @@ esp_err_t DevicesManager_GetTime(struct tm *p_Time)
 {
     esp_err_t Error;
 
-    if (_DevicesManagerState.Initialized == false) {
+    if (_DevicesManagerState.IsInitialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     } else if (p_Time == NULL) {
         return ESP_ERR_INVALID_ARG;
@@ -577,7 +576,7 @@ esp_err_t DevicesManager_SetTime(const struct tm *p_Time)
 {
     esp_err_t Error;
 
-    if (_DevicesManagerState.Initialized == false) {
+    if (_DevicesManagerState.IsInitialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     } else if (p_Time == NULL) {
         return ESP_ERR_INVALID_ARG;
@@ -594,7 +593,7 @@ esp_err_t DevicesManager_GetTemperature(float *p_Temperature)
 {
     esp_err_t Error = ESP_OK;
 
-    if (_DevicesManagerState.Initialized == false) {
+    if (_DevicesManagerState.IsInitialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     } else if (p_Temperature == NULL) {
         return ESP_ERR_INVALID_ARG;
@@ -619,7 +618,7 @@ esp_err_t DevicesManager_SetBrightness(Devices_BacklightID_t ID, uint8_t Brightn
 {
     esp_err_t Error = ESP_OK;
 
-    if (_DevicesManagerState.Initialized == false) {
+    if (_DevicesManagerState.IsInitialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
@@ -677,7 +676,7 @@ esp_err_t DevicesManager_LeptonReset(bool Reset)
 {
     esp_err_t Error;
 
-    if (_DevicesManagerState.Initialized == false) {
+    if (_DevicesManagerState.IsInitialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
@@ -693,7 +692,7 @@ esp_err_t DevicesManager_SetLeptonPower(bool Enable)
 {
     esp_err_t Error;
 
-    if (_DevicesManagerState.Initialized == false) {
+    if (_DevicesManagerState.IsInitialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
@@ -709,7 +708,7 @@ esp_err_t DevicesManager_HandleExpanderInterrupt(void)
     uint8_t Status0, Status1, In0, In1;
     bool Level;
 
-    if (_DevicesManagerState.Initialized == false) {
+    if (_DevicesManagerState.IsInitialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
@@ -781,10 +780,8 @@ esp_err_t DevicesManager_HandleDisplayboardExpanderInterrupt(Devices_Input_State
 
     if (p_State == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (_DevicesManagerState.Initialized == false) {
+    } else if (_DevicesManagerState.IsInitialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
-    } else if (_DevicesManagerState.IsDisplayboardPresent == false) {
-        return ESP_ERR_NOT_SUPPORTED;
     }
 
     /* INT# is active-low open-drain: level high means no pin state change */
@@ -839,7 +836,7 @@ esp_err_t DevicesManager_SetCameraReset(bool Reset)
 {
     esp_err_t Error;
 
-    if (_DevicesManagerState.Initialized == false) {
+    if (_DevicesManagerState.IsInitialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
@@ -854,7 +851,7 @@ esp_err_t DevicesManager_SetCameraPower(bool Enable)
 {
     esp_err_t Error;
 
-    if (_DevicesManagerState.Initialized == false) {
+    if (_DevicesManagerState.IsInitialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
@@ -869,7 +866,7 @@ esp_err_t DevicesManager_GetBatteryAlert(bool *p_Alert)
 {
     esp_err_t Error;
 
-    if (_DevicesManagerState.Initialized == false) {
+    if (_DevicesManagerState.IsInitialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
@@ -885,7 +882,7 @@ esp_err_t DevicesManager_GetRTCInterrupt(bool *p_Triggered)
     bool Level;
     esp_err_t Error;
 
-    if (_DevicesManagerState.Initialized == false) {
+    if (_DevicesManagerState.IsInitialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
@@ -909,7 +906,7 @@ esp_err_t DevicesManager_GetTempInterrupt(bool *p_Triggered)
     bool Level;
     esp_err_t Error;
 
-    if (_DevicesManagerState.Initialized == false) {
+    if (_DevicesManagerState.IsInitialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
@@ -933,7 +930,7 @@ esp_err_t DevicesManager_GetRangeInterrupt(bool *p_Triggered)
     bool Level;
     esp_err_t Error;
 
-    if (_DevicesManagerState.Initialized == false) {
+    if (_DevicesManagerState.IsInitialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
@@ -957,7 +954,7 @@ esp_err_t DevicesManager_GetSDDetect(bool *p_Inserted)
     bool Level;
     esp_err_t Error;
 
-    if (_DevicesManagerState.Initialized == false) {
+    if (_DevicesManagerState.IsInitialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
@@ -984,7 +981,7 @@ esp_err_t DevicesManager_GetDistance(uint16_t *p_Distance_mm, bool *p_IsValid)
 
     if ((p_Distance_mm == NULL) || (p_IsValid == NULL)) {
         return ESP_ERR_INVALID_ARG;
-    } else if (_DevicesManagerState.Initialized == false) {
+    } else if (_DevicesManagerState.IsInitialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     }
 
@@ -1054,12 +1051,10 @@ esp_err_t DevicesManager_GetDisplayboardInputs(Devices_Input_State_t *p_State)
     uint8_t In0;
     uint8_t In1;
 
-    if (_DevicesManagerState.Initialized == false) {
+    if (_DevicesManagerState.IsInitialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
     } else if (p_State == NULL) {
         return ESP_ERR_INVALID_ARG;
-    } else if (_DevicesManagerState.IsDisplayboardPresent == false) {
-        return ESP_ERR_NOT_SUPPORTED;
     }
 
     DevicesManager_AcquireI2CBus(portMAX_DELAY);
@@ -1091,19 +1086,15 @@ esp_err_t DevicesManager_SetLED(bool R, bool G, bool B)
 {
     esp_err_t Error = ESP_OK;
 
-    if (_DevicesManagerState.Initialized == false) {
+    if (_DevicesManagerState.IsInitialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
-    }
-
-    if (_DevicesManagerState.IsDisplayboardPresent == false) {
-        return ESP_OK;
     }
 
     DevicesManager_AcquireI2CBus(portMAX_DELAY);
 
-    /* Port 0 bit layout: [0]=LED_Blue, [1]=LED_Green, [2]=LED_Red (all active-low outputs) */
+    /* Port 0 bit layout: P0.0=LED_Red, P0.1=LED_Green, P0.2=LED_Blue (all active-low outputs) */
     Error = PCAL6416AHF_WritePin(&_DevicesManagerState.ExpanderDisplayboard,
-                                 PCAL6416_PORT_0, 0, (B == false));
+                                 PCAL6416_PORT_0, 0, (R == false));
     if (Error == ESP_OK) {
         Error = PCAL6416AHF_WritePin(&_DevicesManagerState.ExpanderDisplayboard,
                                      PCAL6416_PORT_0, 1, (G == false));
@@ -1111,7 +1102,7 @@ esp_err_t DevicesManager_SetLED(bool R, bool G, bool B)
 
     if (Error == ESP_OK) {
         Error = PCAL6416AHF_WritePin(&_DevicesManagerState.ExpanderDisplayboard,
-                                     PCAL6416_PORT_0, 2, (R == false));
+                                     PCAL6416_PORT_0, 2, (B == false));
     }
 
     DevicesManager_ReleaseI2CBus();
