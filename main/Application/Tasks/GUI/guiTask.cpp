@@ -530,6 +530,120 @@ static void UI_Canvas_AddTempGradient(void)
     }
 }
 
+/** @brief          Reposition ui_Label_Main_Thermal_PixelTemperature relative to the crosshair
+ *                  centre so the label text always stays within the visible thermal canvas.
+ *                  The label is given a fixed width equal to the container width so that its
+ *                  bounding box is always confined to [0, CROSSHAIR_CONTAINER_W] within the
+ *                  container — regardless of the actual text length.  Text visibility near
+ *                  the image edges is achieved by changing the text-align style rather than
+ *                  by shifting the label's x position:
+ *                    - Default:         LV_TEXT_ALIGN_CENTER, dy = –LABEL_Y_OFFSET (above).
+ *                    - Near top edge:   dy = +LABEL_Y_OFFSET (below); text-align unchanged.
+ *                    - Near left edge:  LV_TEXT_ALIGN_RIGHT (text hugs the right/visible side).
+ *                    - Near right edge: LV_TEXT_ALIGN_LEFT  (text hugs the left/visible side).
+ *  @note           Because the label bounding box never leaves the container, no dx shift or
+ *                  clamp arithmetic is needed and clipping artefacts are impossible.
+ *                  Must be called from the GUI task only (not thread-safe).
+ *                  Flip state is stored in static locals; hysteresis prevents flickering at
+ *                  the threshold positions.
+ *  @param CX       Crosshair centre X in thermal canvas pixels [0 .. UI_IMAGE_CANVAS_WIDTH-1].
+ *  @param CY       Crosshair centre Y in thermal canvas pixels [0 .. UI_IMAGE_CANVAS_HEIGHT-1].
+ */
+static void GUI_UpdateTempLabelPosition(int32_t CX, int32_t CY)
+{
+    int32_t dy;
+    int32_t TopWhenAbove;
+    lv_text_align_t TextAlign;
+    static bool Initialized = false;    /**< true once the label width has been set to a fixed value. */
+    static bool FlippedY = false;       /**< true while label is shown below the crosshair. */
+    static bool FlippedLeft = false;    /**< true while text is right-aligned (near left image edge). */
+    static bool FlippedRight = false;   /**< true while text is left-aligned (near right image edge). */
+
+    /* Nominal y offset: label centre is this many pixels above/below the crosshair centre. */
+    static const int32_t LABEL_Y_OFFSET = 15;
+    /* Hysteresis: crosshair must move this far past the flip threshold before reverting. */
+    static const int32_t HYSTERESIS = 5;
+    /* Fallback label height before LVGL has performed the first layout pass. */
+    static const int32_t LBL_H_FALLBACK = 15;
+
+    int32_t ImageW = static_cast<int32_t>(UI_IMAGE_CANVAS_WIDTH);
+    int32_t HalfContainerW = CROSSHAIR_CONTAINER_W / 2;
+
+    /* Give the label a fixed pixel width equal to the container width once.
+     * With a fixed-width label centred at dx=0, the label spans [0, CROSSHAIR_CONTAINER_W]
+     * within the container — it is always inside the container's clip region and can never
+     * be partially cut off.  All horizontal "positioning" is handled by text-align alone. */
+    if (Initialized == false) {
+        lv_obj_set_width(ui_Label_Main_Thermal_PixelTemperature, CROSSHAIR_CONTAINER_W);
+        Initialized = true;
+    }
+
+    int32_t LabelH = lv_obj_get_height(ui_Label_Main_Thermal_PixelTemperature);
+
+    if (LabelH <= 0) {
+        LabelH = LBL_H_FALLBACK;
+    }
+
+    /* Vertical flip (above <-> below crosshair). */
+    TopWhenAbove = CY - LABEL_Y_OFFSET - LabelH / 2;
+
+    if (FlippedY == false) {
+        if (TopWhenAbove < 0) {
+            FlippedY = true;
+        }
+    } else {
+        if (TopWhenAbove >= HYSTERESIS) {
+            FlippedY = false;
+        }
+    }
+
+    dy = FlippedY ? LABEL_Y_OFFSET : -LABEL_Y_OFFSET;
+
+    /* Horizontal flip via text-align.
+     * Flip threshold = HalfContainerW: when the container's left/right edge crosses the
+     * image boundary the text would otherwise be invisible — anchoring it to the near
+     * (visible) side of the label keeps all digits on screen.
+     *
+     * Near left edge  (CX < HalfContainerW):
+     *   Container left goes outside the image.  Anchor text to the right of the label
+     *   (= the portion still inside the image) with LV_TEXT_ALIGN_RIGHT.
+     *
+     * Near right edge (CX > ImageW - HalfContainerW):
+     *   Container right goes outside the image.  Anchor text to the left with
+     *   LV_TEXT_ALIGN_LEFT. */
+    if (FlippedLeft == false) {
+        if (CX < HalfContainerW) {
+            FlippedLeft = true;
+        }
+    } else {
+        if (CX >= HalfContainerW + HYSTERESIS) {
+            FlippedLeft = false;
+        }
+    }
+
+    if (FlippedRight == false) {
+        if (CX > ImageW - HalfContainerW) {
+            FlippedRight = true;
+        }
+    } else {
+        if (CX <= ImageW - HalfContainerW - HYSTERESIS) {
+            FlippedRight = false;
+        }
+    }
+
+    if (FlippedLeft == true) {
+        TextAlign = LV_TEXT_ALIGN_RIGHT;
+    } else if (FlippedRight == true) {
+        TextAlign = LV_TEXT_ALIGN_LEFT;
+    } else {
+        TextAlign = LV_TEXT_ALIGN_CENTER;
+    }
+
+    lv_obj_set_style_text_align(ui_Label_Main_Thermal_PixelTemperature, TextAlign, LV_PART_MAIN);
+    lv_obj_set_x(ui_Label_Main_Thermal_PixelTemperature, 0);
+    lv_obj_set_y(ui_Label_Main_Thermal_PixelTemperature, dy);
+}
+
 /** @brief              Scale an RGB565 source frame to a smaller RGB565 destination frame using
  *                      nearest-neighbour interpolation with a precomputed source-X LUT.
  *                      For the fixed 3/4 downscale (320×240 → 240×180) the quality is
@@ -678,17 +792,8 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
                 if (_GUITaskState.ShowCrosshair) {
                     ESP_LOGD(TAG, "Crosshair enabled");
 
-                    /* Centre the crosshair.  Position is stored in our own state to avoid
-                     * reading back from LVGL's coordinate cache (obj->coords is only updated
-                     * after the next layout pass, causing jumps when set_pos and get_x are
-                     * called within the same or adjacent indev ticks). */
-                    _GUITaskState.CrosshairX = (static_cast<int32_t>(UI_IMAGE_CANVAS_WIDTH)  - CROSSHAIR_CONTAINER_W) / 2;
-                    _GUITaskState.CrosshairY = (static_cast<int32_t>(UI_IMAGE_CANVAS_HEIGHT) - CROSSHAIR_CONTAINER_H) / 2;
-                    lv_obj_set_align(ui_Container_Main_Thermal_Crosshair, LV_ALIGN_TOP_LEFT);
-                    lv_obj_set_pos(ui_Container_Main_Thermal_Crosshair,
-                                   _GUITaskState.CrosshairX,
-                                   _GUITaskState.CrosshairY);
                     lv_obj_remove_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
+                    GUI_UpdateTempLabelPosition(_GUITaskState.CrosshairX, _GUITaskState.CrosshairY);
                 } else {
                     ESP_LOGD(TAG, "Crosshair disabled");
 
@@ -745,15 +850,14 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
             }
 
             if (ShouldMove) {
-                /* Move the crosshair container.  Read position from our own state
-                 * (_GUITaskState.CrosshairX/Y) rather than from lv_obj_get_x/y():
-                 * LVGL's obj->coords are only updated after the next layout pass, so
-                 * reading back the just-set position within adjacent indev ticks would
-                 * yield stale values and cause visible jumps. */
+                /* Move the crosshair container.  CrosshairX/Y hold the centre pixel of the
+                 * crosshair marker; the container is offset by half its size so the marker
+                 * sits exactly at that pixel.  Read position from our own state rather than
+                 * from lv_obj_get_x/y() to avoid stale coord values between layout passes. */
                 int32_t Cx = _GUITaskState.CrosshairX;
                 int32_t Cy = _GUITaskState.CrosshairY;
-                int32_t MaxX = static_cast<int32_t>(UI_IMAGE_CANVAS_WIDTH)  - CROSSHAIR_CONTAINER_W;
-                int32_t MaxY = static_cast<int32_t>(UI_IMAGE_CANVAS_HEIGHT) - CROSSHAIR_CONTAINER_H;
+                int32_t MaxX = static_cast<int32_t>(UI_IMAGE_CANVAS_WIDTH)  - 1;
+                int32_t MaxY = static_cast<int32_t>(UI_IMAGE_CANVAS_HEIGHT) - 1;
 
                 if (State.JoyUp)    {
                     Cy -= static_cast<int32_t>(CROSSHAIR_STEP_PX);
@@ -789,19 +893,22 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
 
                 _GUITaskState.CrosshairX = Cx;
                 _GUITaskState.CrosshairY = Cy;
-                lv_obj_set_pos(ui_Container_Main_Thermal_Crosshair, Cx, Cy);
+                lv_obj_set_pos(ui_Container_Main_Thermal_Crosshair,
+                               Cx - CROSSHAIR_CONTAINER_W / 2,
+                               Cy - CROSSHAIR_CONTAINER_H / 2);
+                GUI_UpdateTempLabelPosition(Cx, Cy);
 
-                ESP_LOGD(TAG, "Crosshair container moved to (%d, %d)", Cx, Cy);
+                ESP_LOGD(TAG, "Crosshair moved to (%d, %d)", Cx, Cy);
             }
         }
     }
 
-    _GUITaskState.PrevJoyCenter          = State.JoyCenter;
+    _GUITaskState.PrevJoyCenter = State.JoyCenter;
     _GUITaskState.PrevJoyCenterLongPress = State.JoyCenterLongPress;
-    _GUITaskState.PrevJoyUp              = State.JoyUp;
-    _GUITaskState.PrevJoyDown            = State.JoyDown;
-    _GUITaskState.PrevJoyLeft            = State.JoyLeft;
-    _GUITaskState.PrevJoyRight           = State.JoyRight;
+    _GUITaskState.PrevJoyUp = State.JoyUp;
+    _GUITaskState.PrevJoyDown = State.JoyDown;
+    _GUITaskState.PrevJoyLeft = State.JoyLeft;
+    _GUITaskState.PrevJoyRight = State.JoyRight;
 }
 
 /** @brief          LVGL touch read callback.
@@ -913,15 +1020,23 @@ void Task_GUI(void *p_Parameters)
     GUI_Update_Info();
 
     /* Show the crosshair at boot, centred on the canvas.
-     * LV_ALIGN_TOP_LEFT must be set here so that CrosshairX/Y are interpreted as
-     * absolute pixel offsets; without it negative offsets would be clamped to 0
-     * and left/up movement would appear to do nothing. */
-    _GUITaskState.CrosshairX = (static_cast<int32_t>(UI_IMAGE_CANVAS_WIDTH)  - CROSSHAIR_CONTAINER_W) / 2;
-    _GUITaskState.CrosshairY = (static_cast<int32_t>(UI_IMAGE_CANVAS_HEIGHT) - CROSSHAIR_CONTAINER_H) / 2;
+     * CrosshairX/Y store the centre pixel of the crosshair marker (not the container's
+     * top-left corner).  lv_obj_set_pos() is called with (CX - W/2, CY - H/2) so that
+     * the marker sits exactly at the stored position; negative values are valid and allow
+     * the crosshair to reach every edge of the image.
+     * LV_ALIGN_TOP_LEFT is required so that LVGL treats the position as an absolute offset
+     * from the parent's top-left origin; without it negative offsets are clamped to 0.
+     */
     _GUITaskState.ShowCrosshair = true;
+    _GUITaskState.CrosshairX = static_cast<int32_t>(UI_IMAGE_CANVAS_WIDTH)  / 2;
+    _GUITaskState.CrosshairY = static_cast<int32_t>(UI_IMAGE_CANVAS_HEIGHT) / 2;
     lv_obj_set_align(ui_Container_Main_Thermal_Crosshair, LV_ALIGN_TOP_LEFT);
-    lv_obj_set_pos(ui_Container_Main_Thermal_Crosshair, _GUITaskState.CrosshairX, _GUITaskState.CrosshairY);
+    lv_obj_set_pos(ui_Container_Main_Thermal_Crosshair,
+                   _GUITaskState.CrosshairX - CROSSHAIR_CONTAINER_W / 2,
+                   _GUITaskState.CrosshairY - CROSSHAIR_CONTAINER_H / 2);
+
     lv_obj_remove_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
+    GUI_UpdateTempLabelPosition(_GUITaskState.CrosshairX, _GUITaskState.CrosshairY);
 
     /* Initialize SD card icon based on current storage state. */
     if (MemoryManager_HasSDCard()) {
@@ -1081,7 +1196,7 @@ void Task_GUI(void *p_Parameters)
                                       LeptonFrame.Buffer[Idx11 + 2] * W11) >> 8;
 
                         /* Inside the image area under the label: Add the Luminance
-                         * Note: The image widget has 180� rotation applied via lv_image_set_rotation.
+                         * Note: The image widget has 180° rotation applied via lv_image_set_rotation.
                          * - XRot = Image_Width - 1 - x (X axis is inverted due to rotation)
                          * - y is used directly (Y axis matches label position directly)
                          */
@@ -1464,10 +1579,12 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_add_flag(_GUITaskState.UVCOverlayLabel, LV_OBJ_FLAG_HIDDEN);
 
                 /* Restore ROI rectangles */
-                lv_obj_remove_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
+                if (_GUITaskState.ShowROI) {
+                    lv_obj_remove_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
+                    lv_obj_remove_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
+                    lv_obj_remove_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
+                    lv_obj_remove_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
+                }
 
                 /* Restore temperature labels */
                 lv_obj_remove_flag(ui_Label_Main_Thermal_PixelTemperature, LV_OBJ_FLAG_HIDDEN);
@@ -1509,16 +1626,18 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_remove_flag(ui_Label_Main_TempScaleMax, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_remove_flag(ui_Label_Main_TempScaleMin, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Image_Main_Gradient, LV_OBJ_FLAG_HIDDEN);
 
                 if (_GUITaskState.ShowCrosshair) {
                     lv_obj_remove_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
                 }
 
-                lv_obj_remove_flag(ui_Image_Main_Gradient, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
+                if (_GUITaskState.ShowROI) {
+                    lv_obj_remove_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
+                    lv_obj_remove_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
+                    lv_obj_remove_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
+                    lv_obj_remove_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
+                }
             }
 
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_VIEW_CHANGED);
@@ -1862,7 +1981,7 @@ lv_indev_t *GUI_Task_GetKeypadIndev(void)
     return _GUITaskState.Keypad;
 }
 
-esp_err_t GUI_SaveImage(void)
+esp_err_t GUI_Task_SaveImage(void)
 {
     /* Check if filesystem is locked (USB active) */
     if (MemoryManager_IsFilesystemLocked()) {

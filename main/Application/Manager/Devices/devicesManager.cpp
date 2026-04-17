@@ -173,8 +173,8 @@ static const gpio_config_t _Devices_Manager_DisplayboardExpander_IntConf = {
 static const PCAL6416_IO_Conf_t _PCAL6416AHF_Mainboard_PinConfig[] = {
     /* Battery alert:  active low, pull-up; HW polarity inversion                               */
     { .Port = PCAL6416_PORT_0, .Pin = 0, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_UP,   .IsInverted = true,  .IsLatched = false },
-    /* Battery charge: active high                                                              */
-    { .Port = PCAL6416_PORT_0, .Pin = 1, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_NONE, .IsInverted = false, .IsLatched = false },
+    /* Battery charge: active low                                                              */
+    { .Port = PCAL6416_PORT_0, .Pin = 1, .Direction = PCAL6416_DIR_INPUT,  .Pull = PCAL6416_PULL_UP,   .IsInverted = true,  .IsLatched = false },
     /* Lepton power: active high output                                                         */
     { .Port = PCAL6416_PORT_0, .Pin = 3, .Direction = PCAL6416_DIR_OUTPUT, .Pull = PCAL6416_PULL_NONE, .IsInverted = false, .IsLatched = false },
     /* RTC interrupt:  active low, pull-up                                                      */

@@ -406,13 +406,14 @@ static void Task_Lepton(void *p_Parameters)
         if (xQueueReceive(_LeptonTaskState.RawFrameQueue, &_LeptonTaskState.RawFrame, pdMS_TO_TICKS(500)) == pdTRUE) {
             uint8_t WriteBufferIdx;
             uint8_t *WriteBuffer;
-            int16_t Min = 0;
-            int16_t Max = 0;
+            Lepton_Pixel_t Min;
+            Lepton_Pixel_t Max;
             Lepton_Telemetry_t Telemetry;
             Lepton_VideoFormat_t VideoFormat;
+            App_Lepton_Frame_t FrameEvent;
 
-            if (_LeptonTaskState.RawFrame.Telemetry_Buffer != NULL) {
-                memcpy(&Telemetry, _LeptonTaskState.RawFrame.Telemetry_Buffer, sizeof(Lepton_Telemetry_t));
+            if (_LeptonTaskState.RawFrame.TelemetryBuffer != NULL) {
+                memcpy(&Telemetry, _LeptonTaskState.RawFrame.TelemetryBuffer, sizeof(Lepton_Telemetry_t));
                 ESP_LOGD(TAG, "Telemetry - FrameCounter: %u, FPA_Temp: %uK, Housing_Temp: %uK",
                          Telemetry.FrameCounter,
                          Telemetry.FPA_Temp,
@@ -445,13 +446,13 @@ static void Task_Lepton(void *p_Parameters)
                 size_t ImageSize = _LeptonTaskState.RawFrame.Width * _LeptonTaskState.RawFrame.Height *
                                    _LeptonTaskState.RawFrame.BytesPerPixel;
 
-                memcpy(WriteBuffer, _LeptonTaskState.RawFrame.Image_Buffer, ImageSize);
+                memcpy(WriteBuffer, _LeptonTaskState.RawFrame.ImageBuffer, ImageSize);
 
                 ESP_LOGD(TAG, "Copied RGB888 frame: %ux%u (%u bytes)", _LeptonTaskState.RawFrame.Width,
                          _LeptonTaskState.RawFrame.Height, static_cast<unsigned int>(ImageSize));
             } else {
                 /* RAW14: Convert to RGB */
-                Lepton_Raw14ToRGB(&_LeptonTaskState.Lepton, _LeptonTaskState.RawFrame.Image_Buffer, WriteBuffer, &Min, &Max,
+                Lepton_Raw14ToRGB(&_LeptonTaskState.Lepton, _LeptonTaskState.RawFrame.ImageBuffer, WriteBuffer, &Min, &Max,
                                   _LeptonTaskState.RawFrame.Width,
                                   _LeptonTaskState.RawFrame.Height);
             }
@@ -472,7 +473,7 @@ static void Task_Lepton(void *p_Parameters)
                 if (USBUVC_IsStreaming() == false) {
                     _LeptonTaskState.IsUVCStreaming = false;
 
-                    ESP_LOGI(TAG, "UVC streaming ended - resuming GUI frames");
+                    ESP_LOGD(TAG, "UVC streaming ended - resuming GUI frames");
                 } else {
                     uint8_t *p_JpegData = NULL;
                     size_t JpegSize = 0;
@@ -492,7 +493,7 @@ static void Task_Lepton(void *p_Parameters)
                                Next frame iteration will route to GUI path. */
                             _LeptonTaskState.IsUVCStreaming = false;
 
-                            ESP_LOGI(TAG, "UVC stream no longer active - resuming GUI frames");
+                            ESP_LOGD(TAG, "UVC stream no longer active - resuming GUI frames");
                         } else if (UVCError != ESP_OK) {
                             ESP_LOGW(TAG, "Failed to submit frame to UVC: 0x%X", UVCError);
                         } else {
@@ -506,13 +507,17 @@ static void Task_Lepton(void *p_Parameters)
                 }
             }
 
-            App_Lepton_Frame_t FrameEvent = {
+            FrameEvent = {
                 .Buffer = WriteBuffer,
                 .Width = _LeptonTaskState.RawFrame.Width,
                 .Height = _LeptonTaskState.RawFrame.Height,
                 .Channels = 3,
-                .Min = static_cast<uint16_t>(Min),
-                .Max = static_cast<uint16_t>(Max)
+                .Min = Min.Value,
+                .Max = Max.Value,
+                .MinX = Min.x,
+                .MinY = Min.y,
+                .MaxX = Max.x,
+                .MaxY = Max.y,
             };
 
             xQueueOverwrite(App_Context->Lepton_FrameQueue, &FrameEvent);
@@ -536,10 +541,10 @@ static void Task_Lepton(void *p_Parameters)
             Lepton_ROI_t ROI;
             Lepton_Error_t Error;
 
-            ROI.Start_Col = _LeptonTaskState.ROI.x;
-            ROI.Start_Row = _LeptonTaskState.ROI.y;
-            ROI.End_Col = _LeptonTaskState.ROI.x + _LeptonTaskState.ROI.w - 1;
-            ROI.End_Row = _LeptonTaskState.ROI.y + _LeptonTaskState.ROI.h - 1;
+            ROI.StartCol = _LeptonTaskState.ROI.x;
+            ROI.StartRow = _LeptonTaskState.ROI.y;
+            ROI.EndCol = _LeptonTaskState.ROI.x + _LeptonTaskState.ROI.w - 1;
+            ROI.EndRow = _LeptonTaskState.ROI.y + _LeptonTaskState.ROI.h - 1;
 
             switch (_LeptonTaskState.ROI.Type) {
                 case ROI_TYPE_SPOTMETER: {
@@ -572,10 +577,10 @@ static void Task_Lepton(void *p_Parameters)
             if (Error == LEPTON_ERR_OK) {
                 ESP_LOGD(TAG, "New Lepton ROI (Type %d) - Start_Col: %u, Start_Row: %u, End_Col: %u, End_Row: %u",
                          _LeptonTaskState.ROI.Type,
-                         ROI.Start_Col,
-                         ROI.Start_Row,
-                         ROI.End_Col,
-                         ROI.End_Row);
+                         ROI.StartCol,
+                         ROI.StartRow,
+                         ROI.EndCol,
+                         ROI.EndRow);
             } else {
                 ESP_LOGE(TAG, "Failed to update Lepton ROI with type %d!", _LeptonTaskState.ROI.Type);
                 APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_LEPTON, static_cast<esp_err_t>(Error));
@@ -633,9 +638,9 @@ static void Task_Lepton(void *p_Parameters)
             ESP_LOGD(TAG, "Crosshair center in Lepton Frame: (%d,%d), size (%d,%d)", x, y, _LeptonTaskState.RawFrame.Width,
                      _LeptonTaskState.RawFrame.Height);
 
-            if (_LeptonTaskState.RawFrame.Image_Buffer != NULL) {
+            if (_LeptonTaskState.RawFrame.ImageBuffer != NULL) {
                 Lepton_Error_t LeptonError = Lepton_GetPixelTemperature(&_LeptonTaskState.Lepton,
-                                                                        _LeptonTaskState.RawFrame.Image_Buffer[(y * _LeptonTaskState.RawFrame.Width) + x],
+                                                                        _LeptonTaskState.RawFrame.ImageBuffer[(y * _LeptonTaskState.RawFrame.Width) + x],
                                                                         &Temperature);
 
                 if (LeptonError == LEPTON_ERR_OK) {

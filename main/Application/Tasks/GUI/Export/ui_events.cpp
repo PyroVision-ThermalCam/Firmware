@@ -221,7 +221,9 @@ void ScreenSplashLoaded(lv_event_t *e)
 
 void ButtonMainSaveClicked(lv_event_t *e)
 {
-    esp_err_t Error = GUI_SaveImage();
+    esp_err_t Error;
+
+    Error = GUI_Task_SaveImage();
 
     if (Error != ESP_OK) {
         MessageBox_ImageSaveError(Error);

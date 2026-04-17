@@ -80,8 +80,8 @@ typedef struct {
     bool PrevJoyRight;                                      /**< Previous joystick right state; used for crosshair movement rising-edge detection. */
     bool LongPressHandled;                                  /**< true once the rising edge of JoyCenterLongPress has been processed; cleared on JoyCenter release to suppress autofocus. */
     bool PrevJoyCenterLongPress;                            /**< Previous JoyCenterLongPress state; used to detect the rising edge of the long-press signal from the Devices task. */
-    int32_t CrosshairX;                                     /**< Current x position of ui_Container_Main_Thermal_Crosshair relative to ui_Image_Main_Thermal (top-left origin). Owned by the GUI task; never read back from LVGL to avoid stale-coord issues. */
-    int32_t CrosshairY;                                     /**< Current y position of ui_Container_Main_Thermal_Crosshair relative to ui_Image_Main_Thermal (top-left origin). Owned by the GUI task; never read back from LVGL to avoid stale-coord issues. */
+    int32_t CrosshairX;                                     /**< X pixel coordinate of the crosshair centre in thermal canvas space [0 .. UI_IMAGE_CANVAS_WIDTH-1]. The container is placed at (CrosshairX - W/2) so the marker sits at exactly this pixel. Owned by the GUI task; never read back from LVGL to avoid stale-coord issues. */
+    int32_t CrosshairY;                                     /**< Y pixel coordinate of the crosshair centre in thermal canvas space [0 .. UI_IMAGE_CANVAS_HEIGHT-1]. The container is placed at (CrosshairY - H/2) so the marker sits at exactly this pixel. Owned by the GUI task; never read back from LVGL to avoid stale-coord issues. */
     TickType_t
     JoyDirHeldSince;                             /**< Tick when any joystick direction first went active; 0 when released. */
     TickType_t

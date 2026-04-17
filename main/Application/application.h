@@ -123,8 +123,12 @@ typedef struct {
     uint32_t Width;                             /**< Width of the frame in pixels. */
     uint32_t Height;                            /**< Height of the frame in pixels. */
     uint32_t Channels;                          /**< Number of color channels (e.g., 3 for RGB). */
-    uint16_t Min;                               /**< Minimum raw value in the frame (centikelvin, TLinear mode). */
-    uint16_t Max;                               /**< Maximum raw value in the frame (centikelvin, TLinear mode). */
+    int32_t Min;                                /**< Minimum raw value in the frame (centikelvin, TLinear mode). */
+    int32_t Max;                                /**< Maximum raw value in the frame (centikelvin, TLinear mode). */
+    uint8_t MinX;                               /**< X coordinate of the minimum value pixel. */
+    uint8_t MinY;                               /**< Y coordinate of the minimum value pixel. */
+    uint8_t MaxX;                               /**< X coordinate of the maximum value pixel. */
+    uint8_t MaxY;                               /**< Y coordinate of the maximum value pixel. */
 } App_Lepton_Frame_t;
 
 /** @brief Structure representing a ready frame from the visible-light camera.

@@ -95,7 +95,7 @@ bool GUI_Task_IsRunning(void);
  *  @return         ESP_OK on success
  *                  ESP_ERR_INVALID_STATE if filesystem is locked (USB active)
  */
-esp_err_t GUI_SaveImage(void);
+esp_err_t GUI_Task_SaveImage(void);
 
 /** @brief          Enable or disable the visible-light camera view in the thermal canvas.
  *                  When enabled, incoming camera frames are scaled from 320x240 to 240x180 using
