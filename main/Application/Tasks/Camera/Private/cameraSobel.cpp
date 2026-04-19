@@ -32,8 +32,8 @@
 
 #include "cameraSobel.h"
 
-/* Maximum supported frame width.  Matches FRAMESIZE_QVGA (320). */
-#define SOBEL_MAX_WIDTH         320
+/* Maximum supported frame width.  Matches FRAMESIZE_HVGA (480). */
+#define SOBEL_MAX_WIDTH         480
 
 /* Number of valid inner pixels per row (1-pixel border excluded on each side). */
 #define SOBEL_INNER_W           (SOBEL_MAX_WIDTH - 2)
@@ -46,13 +46,13 @@
  * 4 int16 values per instruction and would stall on PSRAM latency.
  *
  * Memory budget (all in internal DRAM):
- *   _Gray : 3 x 320 x 2 = 1 920 bytes
- *   _Dx   : 3 x 318 x 2 = 1 908 bytes   (horizontal difference  dx[x] = g[x+1]-g[x-1])
- *   _Sx   : 3 x 318 x 2 = 1 908 bytes   (horizontal smoothed    sx[x] = g[x-1]+2g[x]+g[x+1])
- *   _Gx   :     318 x 2 =   636 bytes   (Sobel X gradient for one output row)
- *   _Gy   :     318 x 2 =   636 bytes   (Sobel Y gradient for one output row)
+ *   _Gray : 3 x 480 x 2 = 2 880 bytes
+ *   _Dx   : 3 x 478 x 2 = 2 868 bytes   (horizontal difference  dx[x] = g[x+1]-g[x-1])
+ *   _Sx   : 3 x 478 x 2 = 2 868 bytes   (horizontal smoothed    sx[x] = g[x-1]+2g[x]+g[x+1])
+ *   _Gx   :     478 x 2 =   956 bytes   (Sobel X gradient for one output row)
+ *   _Gy   :     478 x 2 =   956 bytes   (Sobel Y gradient for one output row)
  *                        --------
- *                         7 008 bytes total
+ *                        10 528 bytes total
  */
 DRAM_ATTR static int16_t _Gray[3][SOBEL_MAX_WIDTH];
 DRAM_ATTR static int16_t _Dx[3][SOBEL_INNER_W];
@@ -182,10 +182,8 @@ void Camera_Sobel_ApplyFilter(const uint8_t *p_SrcRGB565, uint8_t *p_DstRGB565,
         Sopel_PrepareRow(_Gray[y % 3u], _Dx[y % 3u], _Sx[y % 3u], Width);
     }
 
-    /* ---------- top border row: output all zeros ---------- */
     memset(p_DstRGB565, 0, Width * 2u);
 
-    /* ---------- main sliding-window loop ---------- */
     for (uint32_t y = 1u; y < Height - 1u; y++) {
         /* Load the row that forms the bottom of the current 3-row window. */
         uint32_t NextRow = y + 1u;

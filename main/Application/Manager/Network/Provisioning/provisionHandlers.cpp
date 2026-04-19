@@ -89,6 +89,14 @@ esp_err_t Provision_Handler_Logo(httpd_req_t *p_Request)
     return httpd_resp_send(p_Request, reinterpret_cast<const char *>(logo_png_start), logo_png_end - logo_png_start);
 }
 
+esp_err_t Provision_Handler_Favicon(httpd_req_t *p_Request)
+{
+    httpd_resp_set_status(p_Request, "204 No Content");
+    httpd_resp_send(p_Request, NULL, 0);
+
+    return ESP_OK;
+}
+
 esp_err_t Provision_Handler_CaptivePortal(httpd_req_t *p_Request)
 {
     char Address[26] = { 0 };
@@ -131,8 +139,8 @@ esp_err_t Provision_Handler_Scan(httpd_req_t *p_Request)
     ScanConfig.scan_time.active.min = 120; /* Minimum scan time per channel (ms) */
     ScanConfig.scan_time.active.max = 150; /* Maximum scan time per channel (ms) */
 
-    /* Start async scan */
-    Error = esp_wifi_scan_start(&ScanConfig, false);
+    /* Start synchronous scan — blocks until all channels are scanned (~2 s) */
+    Error = esp_wifi_scan_start(&ScanConfig, true);
     if (Error != ESP_OK) {
         cJSON *Response;
 
@@ -144,13 +152,7 @@ esp_err_t Provision_Handler_Scan(httpd_req_t *p_Request)
         return Provision_Handler_Send_JSON_Response(p_Request, Response, 200);
     }
 
-    /* Wait for scan to complete (max 15 seconds for thorough scan) */
-    for (uint8_t i = 0; i < 150; i++) {
-        vTaskDelay(pdMS_TO_TICKS(100));
-        if (esp_wifi_scan_get_ap_num(&APCount) == ESP_OK) {
-            break;
-        }
-    }
+    esp_wifi_scan_get_ap_num(&APCount);
 
     if (APCount == 0) {
         cJSON *Response;
@@ -276,11 +278,20 @@ esp_err_t Provision_Handler_Connect(httpd_req_t *p_Request)
         ESP_LOGI(TAG, "WiFi credentials saved to NVS");
 
         cJSON_AddBoolToObject(Response, "success", true);
-        cJSON_AddStringToObject(Response, "message", "Credentials saved, connecting to WiFi...");
+        cJSON_AddStringToObject(Response, "message",
+                                "WiFi credentials saved. The device is now restarting its network interface "
+                                "to connect to the configured network. This access point will shut down shortly.");
 
+        /* Send the HTTP response FIRST so that the handler returns to the httpd task
+         * before the network task calls Provisioning_Stop() / httpd_stop().
+         * Posting the event first caused httpd_stop() to block because the handler
+         * was still running inside httpd_resp_send() while the shutdown was attempted. */
         Provision_Handler_Send_JSON_Response(p_Request, Response, 200);
 
-        esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_PROV_SUCCESS, NULL, 0, pdMS_TO_TICKS(100));
+        /* Post the event AFTER the response is sent.  The handler is about to return,
+         * so the httpd task will be free by the time the network task processes this
+         * bit and calls httpd_stop(). */
+        esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_PROV_SUCCESS, NULL, 0, portMAX_DELAY);
     } else {
         ESP_LOGE(TAG, "Failed to save credentials to NVS: 0x%X!", Error);
 

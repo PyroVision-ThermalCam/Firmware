@@ -24,8 +24,11 @@
 #include <esp_log.h>
 #include <esp_event.h>
 
+#include <string.h>
+
 #include "managers.h"
 
+#include "ui_messagebox.h"
 #include "ui_settings_events.h"
 
 static const char *TAG = "ui_settings_events";
@@ -122,6 +125,23 @@ void on_WiFi_Connect_Callback(lv_event_t *e)
     esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_OPEN_WIFI_REQUEST, NULL, 0, pdMS_TO_TICKS(100));
 }
 
+void on_WiFi_ClearCredentials_Callback(lv_event_t *e)
+{
+    Settings_WiFi_t WiFiSettings;
+
+    SettingsManager_GetWiFi(&WiFiSettings);
+
+    memset(WiFiSettings.SSID, '\0', sizeof(WiFiSettings.SSID));
+    memset(WiFiSettings.Password, '\0', sizeof(WiFiSettings.Password));
+
+    SettingsManager_UpdateWiFi(&WiFiSettings);
+    SettingsManager_Save();
+
+    ESP_LOGD(TAG, "WiFi credentials cleared");
+
+    MessageBox_Show("Credentials cleared", 2);
+}
+
 void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
 {
     ESP_LOGD(TAG, "Network event received: ID=%d", ID);
@@ -206,8 +226,52 @@ void on_USB_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
     }
 }
 
-void on_Memory_ClearNVS_Callback(lv_event_t *e)
+/** @brief POSIX timezone strings corresponding to the dropdown entries in
+ *         ui_Settings_Create_System_Page().  The index must match the
+ *         dropdown option index exactly.
+ */
+static const char *TIMEZONE_POSIX[] = {
+    "UTC0",                                     /* UTC */
+    "GMT0BST,M3.5.0/1,M10.5.0",                /* Europe/London */
+    "CET-1CEST,M3.5.0,M10.5.0/3",             /* Europe/Berlin / Paris */
+    "EET-2EEST,M3.5.0/3,M10.5.0/4",           /* Europe/Helsinki */
+    "MSK-3",                                    /* Europe/Moscow */
+    "EST5EDT,M3.2.0,M11.1.0",                  /* America/New_York */
+    "CST6CDT,M3.2.0,M11.1.0",                  /* America/Chicago */
+    "MST7MDT,M3.2.0,M11.1.0",                  /* America/Denver */
+    "PST8PDT,M3.2.0,M11.1.0",                  /* America/Los_Angeles */
+    "JST-9",                                    /* Asia/Tokyo */
+    "CST-8",                                    /* Asia/Shanghai */
+    "IST-5:30",                                 /* Asia/Kolkata */
+    "AEST-10AEDT,M10.1.0,M4.1.0/3",           /* Australia/Sydney */
+};
+
+void on_System_Timezone_Callback(lv_event_t *e)
 {
+    Settings_System_t SystemSettings;
+    uint16_t Selected;
+
+    Selected = lv_dropdown_get_selected(static_cast<lv_obj_t *>(lv_event_get_target(e)));
+
+    if (Selected >= (sizeof(TIMEZONE_POSIX) / sizeof(TIMEZONE_POSIX[0]))) {
+        ESP_LOGW(TAG, "Invalid timezone index: %d", Selected);
+
+        return;
+    }
+
+    SettingsManager_GetSystem(&SystemSettings);
+
+    strncpy(SystemSettings.Timezone, TIMEZONE_POSIX[Selected], sizeof(SystemSettings.Timezone) - 1);
+    SystemSettings.Timezone[sizeof(SystemSettings.Timezone) - 1] = '\0';
+
+    SettingsManager_UpdateSystem(&SystemSettings, NULL);
+
+    TimeManager_SetTimezone(SystemSettings.Timezone);
+
+    ESP_LOGD(TAG, "Timezone set to: %s", SystemSettings.Timezone);
+}
+
+void on_Memory_ClearNVS_Callback(lv_event_t *e){
     esp_err_t Error;
 
     ESP_LOGD(TAG, "Resetting settings to factory defaults...");
@@ -262,7 +326,7 @@ void on_Memory_ClearStorage_Callback(lv_event_t *e)
 {
     esp_err_t Error;
 
-    ESP_LOGI(TAG, "Erasing storage partition...");
+    ESP_LOGD(TAG, "Erasing storage partition...");
 
     Error = MemoryManager_EraseStorage();
     if (Error == ESP_OK) {
@@ -278,7 +342,7 @@ void on_Memory_ClearCoredump_Callback(lv_event_t *e)
 {
     esp_err_t Error;
 
-    ESP_LOGI(TAG, "Erasing coredump partition...");
+    ESP_LOGD(TAG, "Erasing coredump partition...");
 
     Error = MemoryManager_EraseCoredump();
     if (Error == ESP_OK) {
@@ -296,7 +360,7 @@ void on_USB_Mode_Switch_Callback(lv_event_t *e)
     lv_obj_t *Switch = static_cast<lv_obj_t *>(lv_event_get_target(e));
     bool Enable = lv_obj_has_state(Switch, LV_STATE_CHECKED);
 
-    ESP_LOGI(TAG, "%s USB MSC...", Enable ? "Enabling" : "Disabling");
+    ESP_LOGD(TAG, "%s USB MSC...", Enable ? "Enabling" : "Disabling");
 
     Error = USBManager_EnableMSC(Enable);
     if (Error != ESP_OK) {
@@ -316,7 +380,7 @@ void on_USB_UVC_Switch_Callback(lv_event_t *e)
     lv_obj_t *Switch = static_cast<lv_obj_t *>(lv_event_get_target(e));
     bool Enable = lv_obj_has_state(Switch, LV_STATE_CHECKED);
 
-    ESP_LOGI(TAG, "%s USB UVC...", Enable ? "Enabling" : "Disabling");
+    ESP_LOGD(TAG, "%s USB UVC...", Enable ? "Enabling" : "Disabling");
 
     Error = USBManager_EnableUVC(Enable);
     if (Error != ESP_OK) {
@@ -338,7 +402,7 @@ void on_USB_CDC_Switch_Callback(lv_event_t *e)
 
     USBSettings.CDC_Enabled = lv_obj_has_state(static_cast<lv_obj_t *>(lv_event_get_target(e)), LV_STATE_CHECKED);
 
-    ESP_LOGI(TAG, "CDC %s in USB settings (takes effect on next USB enable).",
+    ESP_LOGD(TAG, "CDC %s in USB settings (takes effect on next USB enable).",
              USBSettings.CDC_Enabled ? "enabled" : "disabled");
 
     SettingsManager_UpdateUSB(&USBSettings, NULL);

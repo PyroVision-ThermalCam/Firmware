@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -168,38 +168,38 @@
         <div class="header">
             <img src="/logo.png" class="header-logo" alt="PyroVision Logo">
             <h1>PyroVision</h1>
-            <p>WiFi-Konfiguration</p>
+            <p>WiFi Configuration</p>
         </div>
         <div class="content">
             <div id="status" class="status"></div>
 
             <form id="wifiForm">
                 <div class="form-group">
-                    <label for="ssid">WiFi-Netzwerk aus Liste wählen</label>
+                    <label for="ssid">Select WiFi network from list</label>
                     <select id="ssid" name="ssid">
-                        <option value="">Netzwerk wird gesucht...</option>
+                        <option value="">Scanning for networks...</option>
                     </select>
                 </div>
 
                 <div class="form-group">
-                    <label for="ssidInput">Oder SSID manuell eingeben</label>
+                    <label for="ssidInput">Or enter SSID manually</label>
                     <input type="text" id="ssidInput" name="ssidInput" 
-                           placeholder="SSID manuell eingeben" 
+                           placeholder="Enter SSID manually" 
                            maxlength="32">
                 </div>
 
                 <div class="form-group">
-                    <label for="password">Passwort</label>
+                    <label for="password">Password</label>
                     <div class="password-wrapper">
                         <input type="password" id="password" name="password" 
-                               placeholder="WiFi-Passwort" required>
+                               placeholder="WiFi password" required>
                         <button type="button" class="password-toggle" id="togglePassword" 
                                 onclick="togglePasswordVisibility()">👁️</button>
                     </div>
                 </div>
 
                 <button type="submit" id="submitBtn">
-                    <span id="btnText">Verbinden</span>
+                    <span id="btnText">Connect</span>
                     <span id="btnSpinner" class="spinner hidden"></span>
                 </button>
             </form>
@@ -261,7 +261,7 @@
                 const response = await fetch('/api/v1/provision/scan');
                 const data = await response.json();
 
-                ssidSelect.innerHTML = '<option value="">Wähle ein Netzwerk...</option>';
+                ssidSelect.innerHTML = '<option value="">Select a network...</option>';
 
                 if (data.networks && data.networks.length > 0) {
                     data.networks.forEach(network => {
@@ -270,13 +270,13 @@
                         option.textContent = `${getSignalIcon(network.rssi)} ${network.ssid} (${network.rssi} dBm)`;
                         ssidSelect.appendChild(option);
                     });
-                    showStatus(`${data.networks.length} Netzwerke gefunden`, 'info');
+                    showStatus(`${data.networks.length} networks found`, 'info');
                 } else {
-                    showStatus('Keine Netzwerke gefunden - SSID kann manuell eingegeben werden', 'info');
+                    showStatus('No networks found - you can enter the SSID manually', 'info');
                 }
             } catch (error) {
                 console.error('Network scan failed:', error);
-                showStatus('Netzwerksuche fehlgeschlagen - SSID kann manuell eingegeben werden', 'info');
+                showStatus('Network scan failed - you can enter the SSID manually', 'info');
             }
         }
 
@@ -288,14 +288,14 @@
             const password = passwordInput.value;
             
             if (!ssid) {
-                showStatus('Bitte wähle ein Netzwerk oder gib eine SSID ein', 'error');
+                showStatus('Please select a network or enter an SSID', 'error');
                 return;
             }
 
             submitBtn.disabled = true;
             btnText.classList.add('hidden');
             btnSpinner.classList.remove('hidden');
-            showStatus('Verbinde mit ' + ssid + '...', 'info');
+            showStatus('Connecting to ' + ssid + '...', 'info');
 
             try {
                 const response = await fetch('/api/v1/provision', {
@@ -309,19 +309,26 @@
                 const result = await response.json();
 
                 if (response.ok) {
-                    showStatus('✅ Verbindung erfolgreich! PyroVision startet neu...', 'success');
-                    setTimeout(() => {
-                        window.location.href = '/';
-                    }, 3000);
+                    /* Stop scan refresh — server is about to shut down */
+                    clearInterval(scanInterval);
+
+                    /* Hide the form and show a final success state */
+                    document.getElementById('wifiForm').style.display = 'none';
+                    showStatus(
+                        '✅ Credentials saved. The device is now restarting its WiFi interface to ' +
+                        'connect to "' + ssid + '". This access point will disappear shortly. ' +
+                        'Please connect your device to "' + ssid + '" and reconnect to PyroVision there.',
+                        'success'
+                    );
                 } else {
-                    showStatus('❌ Verbindung fehlgeschlagen: ' + (result.error || 'Unbekannter Fehler'), 'error');
+                    showStatus('❌ Connection failed: ' + (result.error || 'Unknown error'), 'error');
                     submitBtn.disabled = false;
                     btnText.classList.remove('hidden');
                     btnSpinner.classList.add('hidden');
                 }
             } catch (error) {
                 console.error('Connection failed:', error);
-                showStatus('❌ Verbindung fehlgeschlagen', 'error');
+                showStatus('❌ Connection failed', 'error');
                 submitBtn.disabled = false;
                 btnText.classList.remove('hidden');
                 btnSpinner.classList.add('hidden');
@@ -331,8 +338,8 @@
         // Load networks on page load
         loadNetworks();
 
-        // Refresh networks every 10 seconds
-        setInterval(loadNetworks, 10000);
+        // Refresh networks every 10 seconds — interval ID stored so it can be cancelled on success
+        let scanInterval = setInterval(loadNetworks, 10000);
     </script>
 </body>
 </html>

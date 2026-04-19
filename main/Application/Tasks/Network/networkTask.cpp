@@ -152,7 +152,7 @@ static void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base,
             break;
         }
         case NETWORK_EVENT_PROV_SUCCESS: {
-            ESP_LOGD(TAG, "Provisioning success");
+            ESP_LOGI(TAG, "Provisioning success - scheduling WiFi restart");
 
             xEventGroupSetBits(_NetworkTaskState.EventGroup, NETWORK_TASK_PROV_SUCCESS);
 
@@ -197,6 +197,10 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
     switch (ID) {
         case SETTINGS_EVENT_WIFI_CHANGED: {
             SettingsManager_ChangeNotification_t Changed;
+
+            if (p_Data == NULL) {
+                break;
+            }
 
             memcpy(&Changed, p_Data, sizeof(SettingsManager_ChangeNotification_t));
 
@@ -247,7 +251,6 @@ static void Task_Network(void *p_Parameters)
     if (WaitingForWiFiRequest == false) {
         SettingsManager_GetWiFi(&WiFiSettings);
 
-        /* Check if WiFi credentials are available */
         if (strlen(WiFiSettings.SSID) == 0) {
             ESP_LOGW(TAG, "No credentials found, starting provisioning");
 
@@ -281,7 +284,6 @@ static void Task_Network(void *p_Parameters)
         }
 
         if (EventBits & NETWORK_TASK_WIFI_CONNECTED) {
-            /* Notify Time Manager that network is available */
             TimeManager_OnNetworkConnected();
 
             if (NetworkManager_StartServer() == ESP_OK) {
@@ -301,10 +303,8 @@ static void Task_Network(void *p_Parameters)
 
             SettingsManager_GetWiFi(&WiFiSettings);
 
-            /* Notify Time Manager that network is unavailable */
             TimeManager_OnNetworkDisconnected();
 
-            /* Only start provisioning if not already active and we have no credentials */
             if ((Provisioning_IsActive() == false) && (strlen(WiFiSettings.SSID) == 0)) {
                 Provisioning_Start();
             }
@@ -313,40 +313,16 @@ static void Task_Network(void *p_Parameters)
         }
 
         if (EventBits & NETWORK_TASK_PROV_SUCCESS) {
-            ESP_LOGD(TAG, "Provisioning success - stopping provisioning and connecting to WiFi");
-
-            /* Provisioning_Stop() calls esp_wifi_stop() which can block for several seconds.
-             * NetworkManager_StartSTA() also performs blocking WiFi initialization.
-             * Unregister from WDT for the duration to prevent false WDT triggers. */
-            esp_task_wdt_delete(NULL);
-
-            /* Stop provisioning (HTTP server on port 80 and DNS) */
-            Provisioning_Stop();
-
-            ESP_LOGD(TAG, "Provisioning stopped, starting WiFi STA connection");
-
-            /* Connect to WiFi with the new credentials */
-            NetworkManager_StartSTA();
-
-            ESP_LOGD(TAG, "WiFi STA connection initiated");
-
-            /* Re-register with WDT now that the long blocking operations are complete */
-            esp_task_wdt_add(NULL);
-            esp_task_wdt_reset();
-
-            xEventGroupClearBits(_NetworkTaskState.EventGroup, NETWORK_TASK_PROV_SUCCESS);
+            esp_restart();
         }
 
         if (EventBits & NETWORK_TASK_PROV_TIMEOUT) {
             ESP_LOGD(TAG, "Handling provisioning timeout");
 
-            /* Provisioning_Stop() calls esp_wifi_stop() which can block for several seconds.
-             * Unregister from WDT for the duration to prevent false WDT triggers. */
             esp_task_wdt_delete(NULL);
 
             Provisioning_Stop();
 
-            /* Re-register with WDT now that the long blocking operation is complete */
             esp_task_wdt_add(NULL);
             esp_task_wdt_reset();
 
@@ -356,7 +332,6 @@ static void Task_Network(void *p_Parameters)
         if (EventBits & NETWORK_TASK_OPEN_WIFI_REQUEST) {
             ESP_LOGD(TAG, "Handling WiFi open request");
 
-            /* Start WiFi connection if we were waiting */
             if (WaitingForWiFiRequest) {
                 SettingsManager_GetWiFi(&WiFiSettings);
 
@@ -377,10 +352,15 @@ static void Task_Network(void *p_Parameters)
         } else if (EventBits & NETWORK_TASK_WIFI_DATA_CHANGE) {
             ESP_LOGD(TAG, "Handling WiFi data change");
 
-            /* If we're currently connected, restart WiFi to apply new settings */
+            SettingsManager_GetWiFi(&WiFiSettings);
+
             if (_NetworkTaskState.IsConnected) {
                 NetworkManager_Stop();
                 NetworkManager_StartSTA();
+            } else if ((Provisioning_IsActive()) && (strlen(WiFiSettings.SSID) > 0)) {
+                ESP_LOGI(TAG, "Credentials set during provisioning - triggering restart");
+
+                xEventGroupSetBits(_NetworkTaskState.EventGroup, NETWORK_TASK_PROV_SUCCESS);
             }
 
             xEventGroupClearBits(_NetworkTaskState.EventGroup, NETWORK_TASK_WIFI_DATA_CHANGE);

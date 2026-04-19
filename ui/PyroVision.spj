@@ -4795,7 +4795,7 @@
                           {
                             "nid": 10,
                             "strtype": "OBJECT/Name",
-                            "strval": "Label Main Thermal PixelTemperature",
+                            "strval": "Label Main Thermal Pixel Temperature",
                             "InheritedType": 10
                           },
                           {
@@ -5335,7 +5335,7 @@
                   {
                     "nid": 10,
                     "strtype": "OBJECT/Name",
-                    "strval": "Image Main Thermal",
+                    "strval": "Image Main Image",
                     "InheritedType": 10
                   },
                   {
@@ -14577,7 +14577,7 @@
                                       {
                                         "nid": 10450,
                                         "strtype": "_style/Text_Font",
-                                        "strval": "montserrat_10",
+                                        "strval": "montserrat_12",
                                         "InheritedType": 3
                                       },
                                       {
@@ -14981,7 +14981,7 @@
                               {
                                 "nid": 10,
                                 "strtype": "OBJECT/Name",
-                                "strval": "Label Info Battery Status",
+                                "strval": "Label Info Battery Status Value",
                                 "InheritedType": 10
                               },
                               {
@@ -15192,7 +15192,7 @@
                               {
                                 "nid": 10,
                                 "strtype": "OBJECT/Name",
-                                "strval": "Label Info Battery Voltage",
+                                "strval": "Label Info Battery Voltage Value",
                                 "InheritedType": 10
                               },
                               {
@@ -15403,7 +15403,7 @@
                               {
                                 "nid": 10,
                                 "strtype": "OBJECT/Name",
-                                "strval": "Label Info Battery Remaining",
+                                "strval": "Label Info Battery Remaining Value",
                                 "InheritedType": 10
                               },
                               {
@@ -15939,7 +15939,7 @@
                       {
                         "nid": 10,
                         "strtype": "OBJECT/Name",
-                        "strval": "Info Battery Bar",
+                        "strval": "Bar Info Battery Remaining",
                         "InheritedType": 10
                       },
                       {
@@ -21213,7 +21213,7 @@
   },
   "animations": [],
   "selected_theme": "Default",
-  "selected_screen": "GUID63572141-853113S4094354",
+  "selected_screen": "GUID10820859-155348S7984356",
   "info": {
     "name": "SquareLine_Project.spj",
     "depth": 1,
@@ -21241,7 +21241,7 @@
     "custom_variable_prefix": "uic",
     "separate_screen_save": false,
     "hierarchy_state_save": false,
-    "backup_cnt": 129,
+    "backup_cnt": 134,
     "autosave_cnt": 0,
     "group_color_cnt": 0,
     "imagebytearrayprefix": null,

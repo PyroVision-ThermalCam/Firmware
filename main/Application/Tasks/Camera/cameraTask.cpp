@@ -67,7 +67,7 @@ static camera_config_t _CameraConfig = {
     .ledc_timer = LEDC_TIMER_0,
     .ledc_channel = LEDC_CHANNEL_0,
     .pixel_format = PIXFORMAT_RGB565,
-    .frame_size = FRAMESIZE_QVGA,
+    .frame_size = FRAMESIZE_HVGA,
     .jpeg_quality = 10,
     .fb_count = 2,
     .fb_location = CAMERA_FB_IN_PSRAM,
@@ -89,11 +89,12 @@ static camera_config_t _CameraConfig = {
 typedef struct {
     bool IsInitialized;                 /**< true after Camera_Task_Init() has completed successfully. */
     bool IsRunning;                     /**< true while the FreeRTOS task is executing. */
+    bool EnableSobelFilter;             /**< If true, the camera task applies the Sobel filter to each captured frame before making it available to other tasks. */
     TaskHandle_t TaskHandle;            /**< FreeRTOS task handle; NULL before Camera_Task_Start(). */
     EventGroupHandle_t EventGroup;      /**< Event group used for intra-task synchronisation. */
     sensor_t *Sensor;                   /**< Pointer to the camera sensor object, obtained from esp_camera_sensor_get() after initialisation. */
-    uint8_t *p_FrameBuffer;             /**< PSRAM frame buffer for one RGB565 QVGA frame (320 x 240 x 2 = 153,600 bytes); NULL before init. */
-    uint8_t *p_SobelBuffer;             /**< PSRAM output buffer for the Sobel-filtered frame (320 x 240 x 2 = 153,600 bytes); NULL before init. */
+    uint8_t *p_FrameBuffer;             /**< PSRAM frame buffer for one RGB565 HVGA frame (480 x 320 x 2 = 307,200 bytes); NULL before init. */
+    uint8_t *p_SobelBuffer;             /**< PSRAM output buffer for the Sobel-filtered frame (480 x 320 x 2 = 307,200 bytes); NULL before init. */
 } Camera_Task_State_t;
 
 static Camera_Task_State_t _CameraTaskState;
@@ -152,13 +153,13 @@ static void Task_Camera(void *p_Parameters)
         ESP_LOGW(TAG, "AF init failed: 0x%x!", Error);
         APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_CAMERA, Error);
     } else {
-        ESP_LOGD(TAG, "AF initialized (MANUAL mode)");
+        ESP_LOGD(TAG, "AF initialized");
     }
 
     if (Error == ESP_OK) {
         _CameraTaskState.IsInitialized = true;
 
-        ESP_LOGI(TAG, "Camera initialized");
+        ESP_LOGD(TAG, "Camera initialized");
 
         esp_event_post(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_INIT_COMPLETE, NULL, 0, pdMS_TO_TICKS(100));
     } else {
@@ -200,25 +201,30 @@ static void Task_Camera(void *p_Parameters)
              * Releasing early minimises the time the DMA buffer is held, reducing frame drops. */
             memcpy(_CameraTaskState.p_FrameBuffer, Pic->buf, Pic->len);
 
-            uint32_t FrameWidth  = Pic->width;
-            uint32_t FrameHeight = Pic->height;
+            App_Camera_Frame_t Frame = {
+                .Buffer = NULL,
+                .Width  = Pic->width,
+                .Height = Pic->height
+            };
 
             esp_camera_fb_return(Pic);
 
-            /* Apply Sobel edge-detection to the copied frame.
-             * Camera_Sobel_ApplyFilter() reads p_FrameBuffer and writes the
-             * grayscale edge-magnitude result to p_SobelBuffer, both in
-             * big-endian RGB565 format matching the camera DMA output. */
-            Camera_Sobel_ApplyFilter(_CameraTaskState.p_FrameBuffer,
-                                     _CameraTaskState.p_SobelBuffer,
-                                     FrameWidth,
-                                     FrameHeight);
+            if (_CameraTaskState.EnableSobelFilter) {
+                /* Apply Sobel edge-detection to the copied frame.
+                 * Camera_Sobel_ApplyFilter() reads p_FrameBuffer and writes the
+                 * grayscale edge-magnitude result to p_SobelBuffer, both in
+                 * big-endian RGB565 format matching the camera DMA output. */
+                Camera_Sobel_ApplyFilter(_CameraTaskState.p_FrameBuffer,
+                                         _CameraTaskState.p_SobelBuffer,
+                                         Frame.Width,
+                                         Frame.Height);
+            }
 
-            App_Camera_Frame_t Frame = {
-                .Buffer = _CameraTaskState.p_SobelBuffer,
-                .Width  = FrameWidth,
-                .Height = FrameHeight
-            };
+            if (_CameraTaskState.EnableSobelFilter) {
+                Frame.Buffer = _CameraTaskState.p_SobelBuffer;
+            } else {
+                Frame.Buffer = _CameraTaskState.p_FrameBuffer;
+            }
 
             xQueueOverwrite(static_cast<App_Context_t *>(p_Parameters)->Camera_FrameQueue, &Frame);
         } else {
@@ -254,8 +260,8 @@ esp_err_t Camera_Task_Init(void)
         return ESP_ERR_NO_MEM;
     }
 
-    /* RGB565 QVGA frame buffer: 320 x 240 x 2 = 153,600 bytes (PSRAM) */
-    _CameraTaskState.p_FrameBuffer = static_cast<uint8_t *>(heap_caps_malloc(320 * 240 * 2, MALLOC_CAP_SPIRAM));
+    /* RGB565 HVGA frame buffer: 480 x 320 x 2 = 307,200 bytes (PSRAM) */
+    _CameraTaskState.p_FrameBuffer = static_cast<uint8_t *>(heap_caps_malloc(480 * 320 * 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA));
     if (_CameraTaskState.p_FrameBuffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate camera frame buffer!");
         APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_CAMERA, ESP_ERR_NO_MEM);
@@ -265,8 +271,8 @@ esp_err_t Camera_Task_Init(void)
         return ESP_ERR_NO_MEM;
     }
 
-    /* Sobel output buffer: 320 x 240 x 2 = 153,600 bytes (PSRAM) */
-    _CameraTaskState.p_SobelBuffer = static_cast<uint8_t *>(heap_caps_malloc(320 * 240 * 2, MALLOC_CAP_SPIRAM));
+    /* Sobel output buffer: 480 x 320 x 2 = 307,200 bytes (PSRAM) */
+    _CameraTaskState.p_SobelBuffer = static_cast<uint8_t *>(heap_caps_malloc(480 * 320 * 2, MALLOC_CAP_SPIRAM));
     if (_CameraTaskState.p_SobelBuffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate Sobel output buffer!");
         APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_CAMERA, ESP_ERR_NO_MEM);

@@ -32,10 +32,10 @@ lv_obj_t * ui_Label_Info_Battery_Status_Name = NULL;
 lv_obj_t * ui_Label_Info_Battery_Voltage_Name = NULL;
 lv_obj_t * ui_Label_Info_Battery_Remaining_Name = NULL;
 lv_obj_t * ui_Info_Container3 = NULL;
-lv_obj_t * ui_Label_Info_Battery_Status = NULL;
-lv_obj_t * ui_Label_Info_Battery_Voltage = NULL;
-lv_obj_t * ui_Label_Info_Battery_Remaining = NULL;
-lv_obj_t * ui_Info_Battery_Bar = NULL;
+lv_obj_t * ui_Label_Info_Battery_Status_Value = NULL;
+lv_obj_t * ui_Label_Info_Battery_Voltage_Value = NULL;
+lv_obj_t * ui_Label_Info_Battery_Remaining_Value = NULL;
+lv_obj_t * ui_Bar_Info_Battery_Remaining = NULL;
 lv_obj_t * ui_Panel_Lepton = NULL;
 lv_obj_t * ui_Label_Info_Lepton = NULL;
 lv_obj_t * ui_Container_Lepton = NULL;
@@ -453,7 +453,7 @@ void ui_Info_screen_init(void)
     lv_obj_set_style_text_color(ui_Label_Info_Battery_Voltage_Name, lv_color_hex(0xFFFFFF),
                                 LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_Label_Info_Battery_Voltage_Name, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_Label_Info_Battery_Voltage_Name, &lv_font_montserrat_10, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Label_Info_Battery_Voltage_Name, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_left(ui_Label_Info_Battery_Voltage_Name, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_right(ui_Label_Info_Battery_Voltage_Name, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_top(ui_Label_Info_Battery_Voltage_Name, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -488,79 +488,87 @@ void ui_Info_screen_init(void)
                        LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
                        LV_OBJ_FLAG_SNAPPABLE | LV_OBJ_FLAG_SCROLLABLE);     /// Flags
 
-    ui_Label_Info_Battery_Status = lv_label_create(ui_Info_Container3);
-    lv_obj_set_width(ui_Label_Info_Battery_Status, lv_pct(100));
-    lv_obj_set_height(ui_Label_Info_Battery_Status, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_align(ui_Label_Info_Battery_Status, LV_ALIGN_TOP_RIGHT);
-    lv_label_set_text(ui_Label_Info_Battery_Status, "Nothing");
-    lv_obj_remove_flag(ui_Label_Info_Battery_Status,
+    ui_Label_Info_Battery_Status_Value = lv_label_create(ui_Info_Container3);
+    lv_obj_set_width(ui_Label_Info_Battery_Status_Value, lv_pct(100));
+    lv_obj_set_height(ui_Label_Info_Battery_Status_Value, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_align(ui_Label_Info_Battery_Status_Value, LV_ALIGN_TOP_RIGHT);
+    lv_label_set_text(ui_Label_Info_Battery_Status_Value, "Nothing");
+    lv_obj_remove_flag(ui_Label_Info_Battery_Status_Value,
                        LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
                        LV_OBJ_FLAG_SNAPPABLE);     /// Flags
-    lv_obj_set_style_text_color(ui_Label_Info_Battery_Status, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_opa(ui_Label_Info_Battery_Status, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_align(ui_Label_Info_Battery_Status, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_Label_Info_Battery_Status, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_left(ui_Label_Info_Battery_Status, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_right(ui_Label_Info_Battery_Status, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_top(ui_Label_Info_Battery_Status, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_bottom(ui_Label_Info_Battery_Status, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(ui_Label_Info_Battery_Status_Value, lv_color_hex(0xFFFFFF),
+                                LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_Label_Info_Battery_Status_Value, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_align(ui_Label_Info_Battery_Status_Value, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Label_Info_Battery_Status_Value, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_left(ui_Label_Info_Battery_Status_Value, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_right(ui_Label_Info_Battery_Status_Value, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_top(ui_Label_Info_Battery_Status_Value, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_bottom(ui_Label_Info_Battery_Status_Value, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_Label_Info_Battery_Voltage = lv_label_create(ui_Info_Container3);
-    lv_obj_set_width(ui_Label_Info_Battery_Voltage, lv_pct(100));
-    lv_obj_set_height(ui_Label_Info_Battery_Voltage, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_align(ui_Label_Info_Battery_Voltage, LV_ALIGN_CENTER);
-    lv_label_set_text(ui_Label_Info_Battery_Voltage, "4.2 V");
-    lv_obj_remove_flag(ui_Label_Info_Battery_Voltage,
+    ui_Label_Info_Battery_Voltage_Value = lv_label_create(ui_Info_Container3);
+    lv_obj_set_width(ui_Label_Info_Battery_Voltage_Value, lv_pct(100));
+    lv_obj_set_height(ui_Label_Info_Battery_Voltage_Value, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_align(ui_Label_Info_Battery_Voltage_Value, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Label_Info_Battery_Voltage_Value, "4.2 V");
+    lv_obj_remove_flag(ui_Label_Info_Battery_Voltage_Value,
                        LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
                        LV_OBJ_FLAG_SNAPPABLE);     /// Flags
-    lv_obj_set_style_text_color(ui_Label_Info_Battery_Voltage, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_opa(ui_Label_Info_Battery_Voltage, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_align(ui_Label_Info_Battery_Voltage, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_Label_Info_Battery_Voltage, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_left(ui_Label_Info_Battery_Voltage, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_right(ui_Label_Info_Battery_Voltage, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_top(ui_Label_Info_Battery_Voltage, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_bottom(ui_Label_Info_Battery_Voltage, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(ui_Label_Info_Battery_Voltage_Value, lv_color_hex(0xFFFFFF),
+                                LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_Label_Info_Battery_Voltage_Value, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_align(ui_Label_Info_Battery_Voltage_Value, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Label_Info_Battery_Voltage_Value, &lv_font_montserrat_12,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_left(ui_Label_Info_Battery_Voltage_Value, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_right(ui_Label_Info_Battery_Voltage_Value, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_top(ui_Label_Info_Battery_Voltage_Value, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_bottom(ui_Label_Info_Battery_Voltage_Value, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_Label_Info_Battery_Remaining = lv_label_create(ui_Info_Container3);
-    lv_obj_set_width(ui_Label_Info_Battery_Remaining, lv_pct(100));
-    lv_obj_set_height(ui_Label_Info_Battery_Remaining, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_align(ui_Label_Info_Battery_Remaining, LV_ALIGN_CENTER);
-    lv_label_set_text(ui_Label_Info_Battery_Remaining, "75%");
-    lv_obj_remove_flag(ui_Label_Info_Battery_Remaining,
+    ui_Label_Info_Battery_Remaining_Value = lv_label_create(ui_Info_Container3);
+    lv_obj_set_width(ui_Label_Info_Battery_Remaining_Value, lv_pct(100));
+    lv_obj_set_height(ui_Label_Info_Battery_Remaining_Value, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_align(ui_Label_Info_Battery_Remaining_Value, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Label_Info_Battery_Remaining_Value, "75%");
+    lv_obj_remove_flag(ui_Label_Info_Battery_Remaining_Value,
                        LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
                        LV_OBJ_FLAG_SNAPPABLE);     /// Flags
-    lv_obj_set_style_text_color(ui_Label_Info_Battery_Remaining, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_opa(ui_Label_Info_Battery_Remaining, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_align(ui_Label_Info_Battery_Remaining, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_Label_Info_Battery_Remaining, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_left(ui_Label_Info_Battery_Remaining, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_right(ui_Label_Info_Battery_Remaining, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_top(ui_Label_Info_Battery_Remaining, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_bottom(ui_Label_Info_Battery_Remaining, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(ui_Label_Info_Battery_Remaining_Value, lv_color_hex(0xFFFFFF),
+                                LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_Label_Info_Battery_Remaining_Value, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_align(ui_Label_Info_Battery_Remaining_Value, LV_TEXT_ALIGN_RIGHT,
+                                LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Label_Info_Battery_Remaining_Value, &lv_font_montserrat_12,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_left(ui_Label_Info_Battery_Remaining_Value, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_right(ui_Label_Info_Battery_Remaining_Value, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_top(ui_Label_Info_Battery_Remaining_Value, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_bottom(ui_Label_Info_Battery_Remaining_Value, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_Info_Battery_Bar = lv_bar_create(ui_Panel_Battery);
-    lv_bar_set_value(ui_Info_Battery_Bar, 100, LV_ANIM_OFF);
-    lv_bar_set_start_value(ui_Info_Battery_Bar, 0, LV_ANIM_OFF);
-    lv_obj_set_height(ui_Info_Battery_Bar, 15);
-    lv_obj_set_width(ui_Info_Battery_Bar, lv_pct(100));
-    lv_obj_set_align(ui_Info_Battery_Bar, LV_ALIGN_BOTTOM_MID);
-    lv_obj_set_style_bg_color(ui_Info_Battery_Bar, lv_color_hex(0x333333), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(ui_Info_Battery_Bar, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_left(ui_Info_Battery_Bar, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_right(ui_Info_Battery_Bar, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_top(ui_Info_Battery_Bar, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_bottom(ui_Info_Battery_Bar, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
+    ui_Bar_Info_Battery_Remaining = lv_bar_create(ui_Panel_Battery);
+    lv_bar_set_value(ui_Bar_Info_Battery_Remaining, 100, LV_ANIM_OFF);
+    lv_bar_set_start_value(ui_Bar_Info_Battery_Remaining, 0, LV_ANIM_OFF);
+    lv_obj_set_height(ui_Bar_Info_Battery_Remaining, 15);
+    lv_obj_set_width(ui_Bar_Info_Battery_Remaining, lv_pct(100));
+    lv_obj_set_align(ui_Bar_Info_Battery_Remaining, LV_ALIGN_BOTTOM_MID);
+    lv_obj_set_style_bg_color(ui_Bar_Info_Battery_Remaining, lv_color_hex(0x333333), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(ui_Bar_Info_Battery_Remaining, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_left(ui_Bar_Info_Battery_Remaining, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_right(ui_Bar_Info_Battery_Remaining, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_top(ui_Bar_Info_Battery_Remaining, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_bottom(ui_Bar_Info_Battery_Remaining, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    lv_obj_set_style_radius(ui_Info_Battery_Bar, 4, LV_PART_INDICATOR | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_color(ui_Info_Battery_Bar, lv_color_hex(0xFF0000), LV_PART_INDICATOR | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(ui_Info_Battery_Bar, 255, LV_PART_INDICATOR | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_grad_color(ui_Info_Battery_Bar, lv_color_hex(0x61FF00), LV_PART_INDICATOR | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_grad_dir(ui_Info_Battery_Bar, LV_GRAD_DIR_HOR, LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(ui_Bar_Info_Battery_Remaining, 4, LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(ui_Bar_Info_Battery_Remaining, lv_color_hex(0xFF0000), LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(ui_Bar_Info_Battery_Remaining, 255, LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_grad_color(ui_Bar_Info_Battery_Remaining, lv_color_hex(0x61FF00),
+                                   LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_grad_dir(ui_Bar_Info_Battery_Remaining, LV_GRAD_DIR_HOR, LV_PART_INDICATOR | LV_STATE_DEFAULT);
 
     //Compensating for LVGL9.1 draw crash with bar/slider max value when top-padding is nonzero and right-padding is 0
-    if(lv_obj_get_style_pad_top(ui_Info_Battery_Bar, LV_PART_MAIN) > 0) lv_obj_set_style_pad_right(ui_Info_Battery_Bar,
-                                                                                                       lv_obj_get_style_pad_right(ui_Info_Battery_Bar, LV_PART_MAIN) + 1, LV_PART_MAIN);
+    if(lv_obj_get_style_pad_top(ui_Bar_Info_Battery_Remaining,
+                                LV_PART_MAIN) > 0) lv_obj_set_style_pad_right(ui_Bar_Info_Battery_Remaining,
+                                                                                  lv_obj_get_style_pad_right(ui_Bar_Info_Battery_Remaining, LV_PART_MAIN) + 1, LV_PART_MAIN);
     ui_Panel_Lepton = lv_obj_create(ui_Panel_Info_Content);
     lv_obj_set_width(ui_Panel_Lepton, 300);
     lv_obj_set_height(ui_Panel_Lepton, LV_SIZE_CONTENT);    /// 1
@@ -926,10 +934,10 @@ void ui_Info_screen_destroy(void)
     ui_Label_Info_Battery_Voltage_Name = NULL;
     ui_Label_Info_Battery_Remaining_Name = NULL;
     ui_Info_Container3 = NULL;
-    ui_Label_Info_Battery_Status = NULL;
-    ui_Label_Info_Battery_Voltage = NULL;
-    ui_Label_Info_Battery_Remaining = NULL;
-    ui_Info_Battery_Bar = NULL;
+    ui_Label_Info_Battery_Status_Value = NULL;
+    ui_Label_Info_Battery_Voltage_Value = NULL;
+    ui_Label_Info_Battery_Remaining_Value = NULL;
+    ui_Bar_Info_Battery_Remaining = NULL;
     ui_Panel_Lepton = NULL;
     ui_Label_Info_Lepton = NULL;
     ui_Container_Lepton = NULL;

@@ -160,6 +160,7 @@ static const char *TAG = "GUI-Helper";
 static void GUI_LVGL_TickTimer_CB(void *p_Arg)
 {
     (void)p_Arg;
+
     lv_tick_inc(CONFIG_GUI_LVGL_TICK_PERIOD_MS);
 }
 
@@ -347,17 +348,9 @@ esp_err_t GUI_Helper_InitTouch(GUI_Task_State_t *p_GUITaskState, lv_indev_read_c
 {
     esp_err_t Error;
 
-    if (p_GUITaskState == NULL) {
+    if ((p_GUITaskState == NULL) || (p_GUITaskState->Touch_IO_Handle == NULL)) {
         return ESP_ERR_INVALID_ARG;
-    }
-
-    if (p_GUITaskState->Touch_IO_Handle == NULL) {
-        ESP_LOGE(TAG, "Touch IO handle not initialized!");
-
-        return ESP_ERR_INVALID_STATE;
-    }
-
-    if (p_GUITaskState->TouchHandle != NULL) {
+    } else if (p_GUITaskState->TouchHandle != NULL) {
         ESP_LOGW(TAG, "GT911 already initialized, skipping");
 
         return ESP_OK;
@@ -423,8 +416,8 @@ void GUI_Helper_Timer_SpotUpdate(lv_timer_t *p_Timer)
     (void)p_Timer;
     App_GUI_Screenposition_t ScreenPosition;
 
-    int32_t ImageW = static_cast<int32_t>(lv_obj_get_width(ui_Image_Main_Thermal));
-    int32_t ImageH = static_cast<int32_t>(lv_obj_get_height(ui_Image_Main_Thermal));
+    int32_t ImageW = static_cast<int32_t>(lv_obj_get_width(ui_Image_Main_Image));
+    int32_t ImageH = static_cast<int32_t>(lv_obj_get_height(ui_Image_Main_Image));
 
     if ((ImageW == 0) || (ImageH == 0)) {
         return;
@@ -448,9 +441,9 @@ void GUI_Helper_Timer_SpotUpdate(lv_timer_t *p_Timer)
     int32_t LogicalCY = lv_obj_get_y_aligned(ui_Container_Main_Thermal_Crosshair) + lv_obj_get_height(
                             ui_Container_Main_Thermal_Crosshair) / 2;
 
-    ScreenPosition.x      = (ImageW - 1) - LogicalCX;
-    ScreenPosition.y      = (ImageH - 1) - LogicalCY;
-    ScreenPosition.Width  = static_cast<int32_t>(ImageW);
+    ScreenPosition.x = (ImageW - 1) - LogicalCX;
+    ScreenPosition.y = (ImageH - 1) - LogicalCY;
+    ScreenPosition.Width = static_cast<int32_t>(ImageW);
     ScreenPosition.Height = static_cast<int32_t>(ImageH);
 
     ESP_LOGD(TAG, "Crosshair: logical (%d,%d) -> canvas (%d,%d), image size (%d,%d)",

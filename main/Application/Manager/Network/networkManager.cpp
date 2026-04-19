@@ -74,10 +74,17 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
 {
     switch (ID) {
         case WIFI_EVENT_STA_START: {
+            Settings_WiFi_t WiFiSettings;
+
             ESP_LOGD(TAG, "WiFi STA started");
 
             xEventGroupSetBits(_NetworkManagerState.EventGroup, WIFI_STARTED_BIT);
-            esp_wifi_connect();
+
+            /* Only connect if credentials are available — skip during provisioning (empty SSID) */
+            SettingsManager_GetWiFi(&WiFiSettings);
+            if (strlen(WiFiSettings.SSID) > 0) {
+                esp_wifi_connect();
+            }
 
             break;
         }
@@ -225,17 +232,20 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
             esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_WIFI_DISCONNECTED, p_Data, sizeof(wifi_event_sta_disconnected_t),
                            pdMS_TO_TICKS(100));
 
-            if (_NetworkManagerState.RetryCount < WiFiSettings.MaxRetries) {
-                ESP_LOGD(TAG, "Retry %d/%d", _NetworkManagerState.RetryCount++, WiFiSettings.MaxRetries);
+            /* Only retry if credentials are available — skip during provisioning (empty SSID) */
+            if (strlen(WiFiSettings.SSID) > 0) {
+                if (_NetworkManagerState.RetryCount < WiFiSettings.MaxRetries) {
+                    ESP_LOGD(TAG, "Retry %d/%d", _NetworkManagerState.RetryCount++, WiFiSettings.MaxRetries);
 
-                vTaskDelay(pdMS_TO_TICKS(WiFiSettings.RetryInterval));
-                esp_wifi_connect();
-                _NetworkManagerState.State = NETWORK_STATE_CONNECTING;
-            } else {
-                ESP_LOGE(TAG, "Max retries reached!");
+                    vTaskDelay(pdMS_TO_TICKS(WiFiSettings.RetryInterval));
+                    esp_wifi_connect();
+                    _NetworkManagerState.State = NETWORK_STATE_CONNECTING;
+                } else {
+                    ESP_LOGE(TAG, "Max retries reached!");
 
-                xEventGroupSetBits(_NetworkManagerState.EventGroup, WIFI_FAIL_BIT);
-                _NetworkManagerState.State = NETWORK_STATE_ERROR;
+                    xEventGroupSetBits(_NetworkManagerState.EventGroup, WIFI_FAIL_BIT);
+                    _NetworkManagerState.State = NETWORK_STATE_ERROR;
+                }
             }
 
             break;

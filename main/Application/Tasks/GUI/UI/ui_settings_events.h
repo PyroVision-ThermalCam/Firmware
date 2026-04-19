@@ -77,11 +77,23 @@ void on_WiFi_Autoconnect_Callback(lv_event_t *e);
  */
 void on_WiFi_Connect_Callback(lv_event_t *e);
 
+/** @brief      WiFi clear credentials button callback to erase SSID and password from NVS.
+ *              Clears both SSID and password fields in RAM and persists the change immediately.
+ *  @param e    Pointer to the event object
+ */
+void on_WiFi_ClearCredentials_Callback(lv_event_t *e);
+
 /** @brief          Forward declaration for memory usage update function.
  *                  Implemented in ui_Settings.cpp to update storage and
  *                  coredump partition usage displays.
  */
 void ui_settings_update_memory_usage(void);
+
+/** @brief      Timezone dropdown event callback to apply the selected timezone.
+ *              Updates TimeManager and persists the change via SettingsManager.
+ *  @param e    Pointer to the event object
+ */
+void on_System_Timezone_Callback(lv_event_t *e);
 
 /** @brief      Flash clear NVS button callback to reset all settings to factory defaults.
  *  @param e    Pointer to the event object

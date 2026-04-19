@@ -434,8 +434,8 @@ static void GUI_Update_ROI(Settings_ROI_t ROI)
     ESP_LOGD(TAG, "Updating ROI rectangle - Start: (%ld,%ld), End: (%ld,%ld), Size: %ldx%ld",
              ROI.x, ROI.y, ROI.x + ROI.w, ROI.y + ROI.h, ROI.w, ROI.h);
 
-    DisplayWidth = lv_obj_get_width(ui_Image_Main_Thermal);
-    DisplayHeight = lv_obj_get_height(ui_Image_Main_Thermal);
+    DisplayWidth = lv_obj_get_width(ui_Image_Main_Image);
+    DisplayHeight = lv_obj_get_height(ui_Image_Main_Image);
 
     int32_t DispX = (ROI.x * DisplayWidth) / 160;
     int32_t DispY = (ROI.y * DisplayHeight) / 120;
@@ -574,11 +574,11 @@ static void GUI_UpdateTempLabelPosition(int32_t CX, int32_t CY)
      * within the container — it is always inside the container's clip region and can never
      * be partially cut off.  All horizontal "positioning" is handled by text-align alone. */
     if (Initialized == false) {
-        lv_obj_set_width(ui_Label_Main_Thermal_PixelTemperature, CROSSHAIR_CONTAINER_W);
+        lv_obj_set_width(ui_Label_Main_Thermal_Pixel_Temperature, CROSSHAIR_CONTAINER_W);
         Initialized = true;
     }
 
-    int32_t LabelH = lv_obj_get_height(ui_Label_Main_Thermal_PixelTemperature);
+    int32_t LabelH = lv_obj_get_height(ui_Label_Main_Thermal_Pixel_Temperature);
 
     if (LabelH <= 0) {
         LabelH = LBL_H_FALLBACK;
@@ -639,9 +639,9 @@ static void GUI_UpdateTempLabelPosition(int32_t CX, int32_t CY)
         TextAlign = LV_TEXT_ALIGN_CENTER;
     }
 
-    lv_obj_set_style_text_align(ui_Label_Main_Thermal_PixelTemperature, TextAlign, LV_PART_MAIN);
-    lv_obj_set_x(ui_Label_Main_Thermal_PixelTemperature, 0);
-    lv_obj_set_y(ui_Label_Main_Thermal_PixelTemperature, dy);
+    lv_obj_set_style_text_align(ui_Label_Main_Thermal_Pixel_Temperature, TextAlign, LV_PART_MAIN);
+    lv_obj_set_x(ui_Label_Main_Thermal_Pixel_Temperature, 0);
+    lv_obj_set_y(ui_Label_Main_Thermal_Pixel_Temperature, dy);
 }
 
 /** @brief              Scale an RGB565 source frame to a smaller RGB565 destination frame using
@@ -1081,13 +1081,13 @@ void Task_GUI(void *p_Parameters)
                                lv_obj_get_width(ui_Label_Main_Thermal_Scene_Min),
                                lv_obj_get_width(ui_Label_Main_Thermal_Scene_Mean),
                                lv_obj_get_width(ui_Label_Main_Thermal_Crosshair),
-                               lv_obj_get_width(ui_Label_Main_Thermal_PixelTemperature)
+                               lv_obj_get_width(ui_Label_Main_Thermal_Pixel_Temperature)
                              };
     int32_t SceneLabelH[5] = { lv_obj_get_height(ui_Label_Main_Thermal_Scene_Max),
                                lv_obj_get_height(ui_Label_Main_Thermal_Scene_Min),
                                lv_obj_get_height(ui_Label_Main_Thermal_Scene_Mean),
                                lv_obj_get_height(ui_Label_Main_Thermal_Crosshair),
-                               lv_obj_get_height(ui_Label_Main_Thermal_PixelTemperature)
+                               lv_obj_get_height(ui_Label_Main_Thermal_Pixel_Temperature)
                              };
 
     while (_GUITaskState.IsRunning) {
@@ -1114,8 +1114,8 @@ void Task_GUI(void *p_Parameters)
 
                 /* Scale from source to destination using bilinear interpolation. */
                 Dst = _GUITaskState.ThermalCanvasBuffer;
-                ImageWidth = lv_obj_get_width(ui_Image_Main_Thermal);
-                ImageHeight = lv_obj_get_height(ui_Image_Main_Thermal);
+                ImageWidth = lv_obj_get_width(ui_Image_Main_Image);
+                ImageHeight = lv_obj_get_height(ui_Image_Main_Image);
 
                 /* Skip if image widget not properly initialized yet. */
                 if ((ImageWidth == 0) || (ImageHeight == 0)) {
@@ -1135,8 +1135,8 @@ void Task_GUI(void *p_Parameters)
 
                     SceneLabelX0[3] = ContainerX + lv_obj_get_x(ui_Label_Main_Thermal_Crosshair);
                     SceneLabelY0[3] = ContainerY + lv_obj_get_y(ui_Label_Main_Thermal_Crosshair);
-                    SceneLabelX0[4] = ContainerX + lv_obj_get_x(ui_Label_Main_Thermal_PixelTemperature);
-                    SceneLabelY0[4] = ContainerY + lv_obj_get_y(ui_Label_Main_Thermal_PixelTemperature);
+                    SceneLabelX0[4] = ContainerX + lv_obj_get_x(ui_Label_Main_Thermal_Pixel_Temperature);
+                    SceneLabelY0[4] = ContainerY + lv_obj_get_y(ui_Label_Main_Thermal_Pixel_Temperature);
                 }
 
                 for (uint32_t x = 0; x < ImageWidth; x++) {
@@ -1248,7 +1248,7 @@ void Task_GUI(void *p_Parameters)
                     ui_Label_Main_Thermal_Scene_Min,
                     ui_Label_Main_Thermal_Scene_Mean,
                     ui_Label_Main_Thermal_Crosshair,
-                    ui_Label_Main_Thermal_PixelTemperature,
+                    ui_Label_Main_Thermal_Pixel_Temperature,
                 };
 
                 for (size_t i = 0; i < (sizeof(SceneLabels) / sizeof(SceneLabels[0])); i++) {
@@ -1271,7 +1271,7 @@ void Task_GUI(void *p_Parameters)
                 lv_label_set_text(ui_Label_Main_TempScaleMin, Buffer);
 
                 /* Trigger LVGL to redraw the image */
-                lv_obj_invalidate(ui_Image_Main_Thermal);
+                lv_obj_invalidate(ui_Image_Main_Image);
                 ESP_LOGD(TAG, "Updated thermal image display (src: %ux%u -> dst: %ux%u)", LeptonFrame.Width, LeptonFrame.Height,
                          ImageWidth, ImageHeight);
 
@@ -1324,7 +1324,7 @@ void Task_GUI(void *p_Parameters)
                     /* Scale camera frame down and render in the thermal canvas */
                     UI_Scale_Camera(CameraFrame.Buffer, CameraFrame.Width, CameraFrame.Height,
                                     _GUITaskState.ThermalCanvasBuffer, UI_IMAGE_CANVAS_WIDTH, UI_IMAGE_CANVAS_HEIGHT);
-                    lv_obj_invalidate(ui_Image_Main_Thermal);
+                    lv_obj_invalidate(ui_Image_Main_Image);
                 }
             }
         }
@@ -1397,23 +1397,25 @@ void Task_GUI(void *p_Parameters)
                 }
             }
 
-            lv_label_set_text(ui_Label_Main_Battery_Remaining_Icon, Icon);
-            lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining_Icon, lv_color_hex(Color), 0);
-            lv_bar_set_value(ui_Info_Battery_Bar, _GUITaskState.BatteryInfo.Percentage, LV_ANIM_OFF);
-
             snprintf(Buffer, sizeof(Buffer), "%d%%", _GUITaskState.BatteryInfo.Percentage);
             lv_label_set_text(ui_Label_Main_Battery_Remaining_Value, Buffer);
 
+            lv_label_set_text(ui_Label_Main_Battery_Remaining_Icon, Icon);
+            lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining_Icon, lv_color_hex(Color), 0);
+
             if (_GUITaskState.BatteryInfo.Charging) {
-                lv_label_set_text(ui_Label_Info_Battery_Status, "Charging");
+                lv_label_set_text(ui_Label_Info_Battery_Status_Value, "Charging");
                 lv_obj_set_style_text_color(ui_Label_Main_Battery_Remaining_Icon, lv_color_hex(0x00FF00), LV_PART_MAIN);
             } else {
-                lv_label_set_text(ui_Label_Info_Battery_Status, "Not charging");
+                lv_label_set_text(ui_Label_Info_Battery_Status_Value, "Not charging");
                 lv_obj_set_style_text_color(ui_Label_Main_Battery_Remaining_Icon, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
             }
 
+            lv_label_set_text(ui_Label_Info_Battery_Remaining_Value, Buffer);
+            lv_bar_set_value(ui_Bar_Info_Battery_Remaining, _GUITaskState.BatteryInfo.Percentage, LV_ANIM_OFF);
+
             snprintf(Buffer, sizeof(Buffer), "%d mV", _GUITaskState.BatteryInfo.Voltage);
-            lv_label_set_text(ui_Label_Info_Battery_Voltage, Buffer);
+            lv_label_set_text(ui_Label_Info_Battery_Voltage_Value, Buffer);
 
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_BATTERY_STATUS_CHANGED);
         }
@@ -1526,7 +1528,7 @@ void Task_GUI(void *p_Parameters)
             char Buffer[16];
 
             snprintf(Buffer, sizeof(Buffer), "%.2f \xC2\xB0""C", _GUITaskState.SpotTemperature);
-            lv_label_set_text(ui_Label_Main_Thermal_PixelTemperature, Buffer);
+            lv_label_set_text(ui_Label_Main_Thermal_Pixel_Temperature, Buffer);
 
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_PIXEL_TEMPERATURE_READY);
         }
@@ -1554,7 +1556,7 @@ void Task_GUI(void *p_Parameters)
             if (_GUITaskState.IsUVCStreaming) {
                 /* Clear thermal canvas to black */
                 memset(_GUITaskState.ThermalCanvasBuffer, 0x00, UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2);
-                lv_obj_invalidate(ui_Image_Main_Thermal);
+                lv_obj_invalidate(ui_Image_Main_Image);
 
                 /* Show UVC overlay */
                 lv_obj_remove_flag(_GUITaskState.UVCOverlayLabel, LV_OBJ_FLAG_HIDDEN);
@@ -1566,7 +1568,7 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_add_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
 
                 /* Hide temperature labels */
-                lv_obj_add_flag(ui_Label_Main_Thermal_PixelTemperature, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Label_Main_Thermal_Pixel_Temperature, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Max, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Min, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
@@ -1587,7 +1589,7 @@ void Task_GUI(void *p_Parameters)
                 }
 
                 /* Restore temperature labels */
-                lv_obj_remove_flag(ui_Label_Main_Thermal_PixelTemperature, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Label_Main_Thermal_Pixel_Temperature, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Max, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Min, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
@@ -1601,12 +1603,14 @@ void Task_GUI(void *p_Parameters)
         }
 
         if (EventBits & GUI_TASK_CAMERA_VIEW_CHANGED) {
+            /* Leaving thermal view: restore camera overlay */
             if (_GUITaskState.ShowCameraView) {
+                bool FlashEnabled;
+
                 memset(_GUITaskState.ThermalCanvasBuffer, 0x00, UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2);
-                lv_obj_invalidate(ui_Image_Main_Thermal);
 
                 /* Hide temperature overlay and scale labels */
-                lv_obj_add_flag(ui_Label_Main_Thermal_PixelTemperature, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Label_Main_Thermal_Pixel_Temperature, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Max, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Min, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
@@ -1618,15 +1622,27 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_add_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_add_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_add_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
-            } else {
-                /* Leaving camera view: restore temperature overlay */
-                lv_obj_remove_flag(ui_Label_Main_Thermal_PixelTemperature, LV_OBJ_FLAG_HIDDEN);
+
+                lv_label_set_text(ui_Label_Main_Button_ROI, "\uF0EB");
+
+                DevicesManager_IsFlashEnabled(&FlashEnabled);
+                if (FlashEnabled) {
+                } else {
+                }
+            }
+            /* Leaving camera view: restore temperature overlay */
+            else {
+                DevicesManager_SetFlashEnable(false);
+
+                lv_obj_remove_flag(ui_Label_Main_Thermal_Pixel_Temperature, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Max, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Min, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_remove_flag(ui_Label_Main_TempScaleMax, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_remove_flag(ui_Label_Main_TempScaleMin, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_remove_flag(ui_Image_Main_Gradient, LV_OBJ_FLAG_HIDDEN);
+
+                lv_label_set_text(ui_Label_Main_Button_ROI, "\uE595");
 
                 if (_GUITaskState.ShowCrosshair) {
                     lv_obj_remove_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
@@ -1644,16 +1660,23 @@ void Task_GUI(void *p_Parameters)
         }
 
         if (EventBits & GUI_TASK_THERMAL_ROI_CHANGED) {
-            if (_GUITaskState.ShowROI) {
-                lv_obj_remove_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
-            } else {
-                lv_obj_add_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
+            /* RGB camera view */
+            if (_GUITaskState.ShowCameraView) {
+                DevicesManager_ToggleFlashEnable();
+            }
+            /* Thermal view */
+            else {
+                if (_GUITaskState.ShowROI) {
+                    lv_obj_remove_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
+                    lv_obj_remove_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
+                    lv_obj_remove_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
+                    lv_obj_remove_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
+                } else {
+                    lv_obj_add_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
+                    lv_obj_add_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
+                    lv_obj_add_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
+                    lv_obj_add_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
+                }
             }
 
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_THERMAL_ROI_CHANGED);
@@ -1830,7 +1853,7 @@ esp_err_t GUI_Task_Init(void)
 
     UI_Canvas_AddTempGradient();
 
-    lv_img_set_src(ui_Image_Main_Thermal, &_GUITaskState.ThermalImageDescriptor);
+    lv_img_set_src(ui_Image_Main_Image, &_GUITaskState.ThermalImageDescriptor);
     lv_img_set_src(ui_Image_Main_Gradient, &_GUITaskState.GradientImageDescriptor);
 
     /* Create UVC streaming overlay label (hidden by default) */

@@ -54,6 +54,7 @@ lv_obj_t *memory_Page;
 lv_obj_t *settings_Menu;
 lv_obj_t *emissivity_Dropdown;
 lv_obj_t *usb_Page;
+lv_obj_t *system_Page;
 lv_obj_t *image_Page;
 lv_obj_t *calibration_Page;
 lv_obj_t *usb_mode_switch;
@@ -361,6 +362,48 @@ static lv_obj_t *ui_Settings_Create_WiFi_Page(lv_obj_t *p_Menu)
     lv_label_set_text(wifi_btn_label, "Connect WiFi");
     lv_obj_set_style_text_color(wifi_btn_label, lv_color_white(), 0);
     lv_obj_center(wifi_btn_label);
+
+    lv_obj_t *separator1 = lv_obj_create(WiFiContainer);
+    lv_obj_set_size(separator1, LV_PCT(100), 1);
+    lv_obj_set_style_bg_color(separator1, lv_color_hex(0x505050), 0);
+    lv_obj_set_style_border_width(separator1, 0, 0);
+    lv_obj_set_style_pad_all(separator1, 0, 0);
+    lv_obj_set_style_margin_top(separator1, 12, 0);
+    lv_obj_set_style_margin_bottom(separator1, 12, 0);
+
+    /* Section label */
+    lv_obj_t *section_label = lv_label_create(WiFiContainer);
+    lv_label_set_text(section_label, "WiFi Credentials");
+    lv_obj_set_style_text_color(section_label, lv_color_hex(0xFF9500), 0);
+    lv_obj_set_style_text_font(section_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_pad_top(section_label, 0, 0);
+    lv_obj_set_style_pad_bottom(section_label, 8, 0);
+
+    /* Description */
+    lv_obj_t *desc_label = lv_label_create(WiFiContainer);
+    lv_label_set_text(desc_label, "Removes the stored SSID and password from the device. "
+                                  "On next boot the provisioning access point will start.");
+    lv_obj_set_width(desc_label, LV_PCT(95));
+    lv_obj_set_style_text_color(desc_label, lv_color_hex(0xAAAAAA), 0);
+    lv_obj_set_style_text_font(desc_label, &lv_font_montserrat_10, 0);
+    lv_label_set_long_mode(desc_label, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_pad_bottom(desc_label, 16, 0);
+
+    /* Clear button */
+    lv_obj_t *btn_row = ui_Settings_Create_Row(WiFiContainer, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_height(btn_row, LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_top(btn_row, 4, 0);
+    lv_obj_set_style_pad_bottom(btn_row, 8, 0);
+    lv_obj_t *clear_btn = lv_btn_create(btn_row);
+    lv_obj_set_size(clear_btn, 160, 36);
+    lv_obj_set_style_bg_color(clear_btn, lv_color_hex(0xC0392B), LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(clear_btn, 6, 0);
+    lv_obj_set_style_shadow_width(clear_btn, 0, 0);
+    lv_obj_add_event_cb(clear_btn, on_WiFi_ClearCredentials_Callback, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *clear_btn_label = lv_label_create(clear_btn);
+    lv_label_set_text(clear_btn_label, "Clear Credentials");
+    lv_obj_set_style_text_color(clear_btn_label, lv_color_white(), 0);
+    lv_obj_center(clear_btn_label);
 
     return WiFiPage;
 }
@@ -826,6 +869,91 @@ static lv_obj_t *ui_Settings_Create_Calibration_Page(lv_obj_t *p_Menu)
     return CalibPage;
 }
 
+/** @brief          Creates the System settings page.
+ *                  Currently contains a timezone selection dropdown.
+ *  @param p_Menu   Pointer to the menu object
+ */
+static lv_obj_t *ui_Settings_Create_System_Page(lv_obj_t *p_Menu)
+{
+    Settings_System_t SystemSettings;
+    Menu_Page_Result_t Result = ui_Settings_Create_Menu_Page_With_Container(p_Menu);
+    lv_obj_t *Container = Result.Container;
+
+    SettingsManager_GetSystem(&SystemSettings);
+
+    /* ── Timezone ── */
+    lv_obj_t *tz_label = lv_label_create(Container);
+    lv_label_set_text(tz_label, "Timezone");
+    lv_obj_set_style_text_color(tz_label, lv_color_hex(0xFF9500), 0);
+    lv_obj_set_style_text_font(tz_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_pad_bottom(tz_label, 8, 0);
+
+    lv_obj_t *tz_desc = lv_label_create(Container);
+    lv_label_set_text(tz_desc, "Timezone used for timestamps and the on-screen clock.");
+    lv_obj_set_width(tz_desc, LV_PCT(95));
+    lv_obj_set_style_text_color(tz_desc, lv_color_hex(0xAAAAAA), 0);
+    lv_obj_set_style_text_font(tz_desc, &lv_font_montserrat_10, 0);
+    lv_label_set_long_mode(tz_desc, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_pad_bottom(tz_desc, 12, 0);
+
+    /* Timezone dropdown — labels MUST stay in sync with TIMEZONE_POSIX[] in
+     * ui_settings_events.cpp.  One entry per line, same order, same count. */
+    lv_obj_t *tz_dropdown = lv_dropdown_create(Container);
+    lv_obj_set_width(tz_dropdown, LV_PCT(95));
+    lv_obj_set_style_bg_color(tz_dropdown, lv_color_hex(0x3A3A3A), LV_PART_MAIN);
+    lv_obj_set_style_border_color(tz_dropdown, lv_color_hex(0xFF9500), LV_PART_MAIN);
+    lv_obj_set_style_border_width(tz_dropdown, 2, LV_PART_MAIN);
+    lv_obj_set_style_radius(tz_dropdown, 6, LV_PART_MAIN);
+    lv_obj_set_style_text_color(tz_dropdown, lv_color_white(), LV_PART_MAIN);
+    lv_obj_set_style_pad_all(tz_dropdown, 8, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(tz_dropdown, lv_color_hex(0xFF9500), LV_PART_SELECTED);
+    lv_obj_set_style_text_color(tz_dropdown, lv_color_white(), LV_PART_SELECTED);
+    lv_dropdown_set_options(tz_dropdown,
+                            "UTC\n"
+                            "Europe/London\n"
+                            "Europe/Berlin (CET)\n"
+                            "Europe/Helsinki (EET)\n"
+                            "Europe/Moscow\n"
+                            "America/New_York (ET)\n"
+                            "America/Chicago (CT)\n"
+                            "America/Denver (MT)\n"
+                            "America/Los_Angeles (PT)\n"
+                            "Asia/Tokyo (JST)\n"
+                            "Asia/Shanghai (CST)\n"
+                            "Asia/Kolkata (IST)\n"
+                            "Australia/Sydney (AEST)");
+
+    /* Pre-select the entry that matches the stored POSIX string */
+    static const char *TIMEZONE_POSIX_MATCH[] = {
+        "UTC0",
+        "GMT0BST,M3.5.0/1,M10.5.0",
+        "CET-1CEST,M3.5.0,M10.5.0/3",
+        "EET-2EEST,M3.5.0/3,M10.5.0/4",
+        "MSK-3",
+        "EST5EDT,M3.2.0,M11.1.0",
+        "CST6CDT,M3.2.0,M11.1.0",
+        "MST7MDT,M3.2.0,M11.1.0",
+        "PST8PDT,M3.2.0,M11.1.0",
+        "JST-9",
+        "CST-8",
+        "IST-5:30",
+        "AEST-10AEDT,M10.1.0,M4.1.0/3",
+    };
+
+    uint16_t Selected = 0;
+    for (uint16_t i = 0; i < sizeof(TIMEZONE_POSIX_MATCH) / sizeof(TIMEZONE_POSIX_MATCH[0]); i++) {
+        if (strncmp(SystemSettings.Timezone, TIMEZONE_POSIX_MATCH[i], sizeof(SystemSettings.Timezone)) == 0) {
+            Selected = i;
+            break;
+        }
+    }
+    lv_dropdown_set_selected(tz_dropdown, Selected);
+
+    lv_obj_add_event_cb(tz_dropdown, on_System_Timezone_Callback, LV_EVENT_VALUE_CHANGED, NULL);
+
+    return Result.Page;
+}
+
 void ui_settings_init(lv_obj_t *p_Parent)
 {
     settings_Menu = lv_menu_create(p_Parent);
@@ -843,6 +971,7 @@ void ui_settings_init(lv_obj_t *p_Parent)
     calibration_Page = ui_Settings_Create_Calibration_Page(settings_Menu);
     memory_Page = ui_Settings_Create_Memory_Page(settings_Menu);
     usb_Page = ui_Settings_Create_USB_Page(settings_Menu);
+    system_Page = ui_Settings_Create_System_Page(settings_Menu);
     about_Page = ui_Settings_Create_About_Page(settings_Menu);
 
     root_page = lv_menu_page_create(settings_Menu, NULL);
@@ -880,6 +1009,9 @@ void ui_settings_init(lv_obj_t *p_Parent)
 
     cont = ui_Settings_Create_Text(section, "USB");
     lv_menu_set_load_page_event(settings_Menu, cont, usb_Page);
+
+    cont = ui_Settings_Create_Text(section, "System");
+    lv_menu_set_load_page_event(settings_Menu, cont, system_Page);
 
     cont = ui_Settings_Create_Text(section, "About");
     lv_menu_set_load_page_event(settings_Menu, cont, about_Page);

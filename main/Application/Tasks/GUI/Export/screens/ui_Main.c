@@ -17,7 +17,7 @@ lv_obj_t * ui_Container_Main_Statusbar_Battery = NULL;
 lv_obj_t * ui_Label_Main_Battery_Remaining_Icon = NULL;
 lv_obj_t * ui_Label_Main_Battery_Remaining_Value = NULL;
 lv_obj_t * ui_Container_Main_Thermal = NULL;
-lv_obj_t * ui_Image_Main_Thermal = NULL;
+lv_obj_t * ui_Image_Main_Image = NULL;
 lv_obj_t * ui_Image_Main_Thermal_Scene_ROI = NULL;
 lv_obj_t * ui_Image_Main_Thermal_Spotmeter_ROI = NULL;
 lv_obj_t * ui_Image_Main_Thermal_Video_Focus_ROI = NULL;
@@ -27,7 +27,7 @@ lv_obj_t * ui_Label_Main_Thermal_Scene_Max = NULL;
 lv_obj_t * ui_Label_Main_Thermal_Scene_Min = NULL;
 lv_obj_t * ui_Label_Main_Thermal_Scene_Mean = NULL;
 lv_obj_t * ui_Container_Main_Thermal_Crosshair = NULL;
-lv_obj_t * ui_Label_Main_Thermal_PixelTemperature = NULL;
+lv_obj_t * ui_Label_Main_Thermal_Pixel_Temperature = NULL;
 lv_obj_t * ui_Label_Main_Thermal_Crosshair = NULL;
 lv_obj_t * ui_Container_Gradient = NULL;
 lv_obj_t * ui_Label_Main_TempScaleMax = NULL;
@@ -241,22 +241,22 @@ void ui_Main_screen_init(void)
     lv_obj_set_align(ui_Container_Main_Thermal, LV_ALIGN_CENTER);
     lv_obj_remove_flag(ui_Container_Main_Thermal, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);      /// Flags
 
-    ui_Image_Main_Thermal = lv_image_create(ui_Container_Main_Thermal);
-    lv_obj_set_width(ui_Image_Main_Thermal, 240);
-    lv_obj_set_height(ui_Image_Main_Thermal, 180);
-    lv_obj_set_x(ui_Image_Main_Thermal, 10);
-    lv_obj_set_y(ui_Image_Main_Thermal, 0);
-    lv_obj_set_align(ui_Image_Main_Thermal, LV_ALIGN_CENTER);
-    lv_obj_remove_flag(ui_Image_Main_Thermal,
+    ui_Image_Main_Image = lv_image_create(ui_Container_Main_Thermal);
+    lv_obj_set_width(ui_Image_Main_Image, 240);
+    lv_obj_set_height(ui_Image_Main_Image, 180);
+    lv_obj_set_x(ui_Image_Main_Image, 10);
+    lv_obj_set_y(ui_Image_Main_Image, 0);
+    lv_obj_set_align(ui_Image_Main_Image, LV_ALIGN_CENTER);
+    lv_obj_remove_flag(ui_Image_Main_Image,
                        LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE | LV_OBJ_FLAG_SNAPPABLE |
                        LV_OBJ_FLAG_SCROLLABLE);     /// Flags
-    lv_image_set_rotation(ui_Image_Main_Thermal, 1800);
-    lv_obj_set_style_radius(ui_Image_Main_Thermal, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_color(ui_Image_Main_Thermal, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(ui_Image_Main_Thermal, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_grad_dir(ui_Image_Main_Thermal, LV_GRAD_DIR_HOR, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_image_set_rotation(ui_Image_Main_Image, 1800);
+    lv_obj_set_style_radius(ui_Image_Main_Image, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(ui_Image_Main_Image, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(ui_Image_Main_Image, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_grad_dir(ui_Image_Main_Image, LV_GRAD_DIR_HOR, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_Image_Main_Thermal_Scene_ROI = lv_obj_create(ui_Image_Main_Thermal);
+    ui_Image_Main_Thermal_Scene_ROI = lv_obj_create(ui_Image_Main_Image);
     lv_obj_set_width(ui_Image_Main_Thermal_Scene_ROI, 240);
     lv_obj_set_height(ui_Image_Main_Thermal_Scene_ROI, 180);
     lv_obj_set_align(ui_Image_Main_Thermal_Scene_ROI, LV_ALIGN_CENTER);
@@ -272,7 +272,7 @@ void ui_Main_screen_init(void)
     lv_obj_set_style_border_opa(ui_Image_Main_Thermal_Scene_ROI, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(ui_Image_Main_Thermal_Scene_ROI, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_Image_Main_Thermal_Spotmeter_ROI = lv_obj_create(ui_Image_Main_Thermal);
+    ui_Image_Main_Thermal_Spotmeter_ROI = lv_obj_create(ui_Image_Main_Image);
     lv_obj_set_width(ui_Image_Main_Thermal_Spotmeter_ROI, 2);
     lv_obj_set_height(ui_Image_Main_Thermal_Spotmeter_ROI, 2);
     lv_obj_set_x(ui_Image_Main_Thermal_Spotmeter_ROI, -1);
@@ -291,7 +291,7 @@ void ui_Main_screen_init(void)
     lv_obj_set_style_border_opa(ui_Image_Main_Thermal_Spotmeter_ROI, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(ui_Image_Main_Thermal_Spotmeter_ROI, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_Image_Main_Thermal_Video_Focus_ROI = lv_obj_create(ui_Image_Main_Thermal);
+    ui_Image_Main_Thermal_Video_Focus_ROI = lv_obj_create(ui_Image_Main_Image);
     lv_obj_set_width(ui_Image_Main_Thermal_Video_Focus_ROI, 238);
     lv_obj_set_height(ui_Image_Main_Thermal_Video_Focus_ROI, 178);
     lv_obj_set_align(ui_Image_Main_Thermal_Video_Focus_ROI, LV_ALIGN_CENTER);
@@ -309,7 +309,7 @@ void ui_Main_screen_init(void)
     lv_obj_set_style_border_opa(ui_Image_Main_Thermal_Video_Focus_ROI, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(ui_Image_Main_Thermal_Video_Focus_ROI, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_Image_Main_Thermal_AGC_ROI = lv_obj_create(ui_Image_Main_Thermal);
+    ui_Image_Main_Thermal_AGC_ROI = lv_obj_create(ui_Image_Main_Image);
     lv_obj_set_width(ui_Image_Main_Thermal_AGC_ROI, 240);
     lv_obj_set_height(ui_Image_Main_Thermal_AGC_ROI, 180);
     lv_obj_set_align(ui_Image_Main_Thermal_AGC_ROI, LV_ALIGN_CENTER);
@@ -325,7 +325,7 @@ void ui_Main_screen_init(void)
     lv_obj_set_style_border_opa(ui_Image_Main_Thermal_AGC_ROI, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(ui_Image_Main_Thermal_AGC_ROI, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_Container_Main_Thermal_Scene_Statistics = lv_obj_create(ui_Image_Main_Thermal);
+    ui_Container_Main_Thermal_Scene_Statistics = lv_obj_create(ui_Image_Main_Image);
     lv_obj_remove_style_all(ui_Container_Main_Thermal_Scene_Statistics);
     lv_obj_set_height(ui_Container_Main_Thermal_Scene_Statistics, 20);
     lv_obj_set_width(ui_Container_Main_Thermal_Scene_Statistics, lv_pct(100));
@@ -373,7 +373,7 @@ void ui_Main_screen_init(void)
     lv_obj_set_style_text_font(ui_Label_Main_Thermal_Scene_Mean, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_image_opa(ui_Label_Main_Thermal_Scene_Mean, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_Container_Main_Thermal_Crosshair = lv_obj_create(ui_Image_Main_Thermal);
+    ui_Container_Main_Thermal_Crosshair = lv_obj_create(ui_Image_Main_Image);
     lv_obj_remove_style_all(ui_Container_Main_Thermal_Crosshair);
     lv_obj_set_width(ui_Container_Main_Thermal_Crosshair, 100);
     lv_obj_set_height(ui_Container_Main_Thermal_Crosshair, 50);
@@ -382,20 +382,20 @@ void ui_Main_screen_init(void)
                        LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
                        LV_OBJ_FLAG_SNAPPABLE | LV_OBJ_FLAG_SCROLLABLE);     /// Flags
 
-    ui_Label_Main_Thermal_PixelTemperature = lv_label_create(ui_Container_Main_Thermal_Crosshair);
-    lv_obj_set_width(ui_Label_Main_Thermal_PixelTemperature, LV_SIZE_CONTENT);   /// 1
-    lv_obj_set_height(ui_Label_Main_Thermal_PixelTemperature, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_Label_Main_Thermal_PixelTemperature, 0);
-    lv_obj_set_y(ui_Label_Main_Thermal_PixelTemperature, -15);
-    lv_obj_set_align(ui_Label_Main_Thermal_PixelTemperature, LV_ALIGN_CENTER);
-    lv_label_set_text(ui_Label_Main_Thermal_PixelTemperature, "101.1");
-    lv_obj_remove_flag(ui_Label_Main_Thermal_PixelTemperature,
+    ui_Label_Main_Thermal_Pixel_Temperature = lv_label_create(ui_Container_Main_Thermal_Crosshair);
+    lv_obj_set_width(ui_Label_Main_Thermal_Pixel_Temperature, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_Label_Main_Thermal_Pixel_Temperature, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_Label_Main_Thermal_Pixel_Temperature, 0);
+    lv_obj_set_y(ui_Label_Main_Thermal_Pixel_Temperature, -15);
+    lv_obj_set_align(ui_Label_Main_Thermal_Pixel_Temperature, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Label_Main_Thermal_Pixel_Temperature, "101.1");
+    lv_obj_remove_flag(ui_Label_Main_Thermal_Pixel_Temperature,
                        LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
                        LV_OBJ_FLAG_SNAPPABLE);     /// Flags
-    lv_obj_set_style_text_color(ui_Label_Main_Thermal_PixelTemperature, lv_color_hex(0xFFFFFF),
+    lv_obj_set_style_text_color(ui_Label_Main_Thermal_Pixel_Temperature, lv_color_hex(0xFFFFFF),
                                 LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_opa(ui_Label_Main_Thermal_PixelTemperature, 192, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_Label_Main_Thermal_PixelTemperature, &lv_font_montserrat_14,
+    lv_obj_set_style_text_opa(ui_Label_Main_Thermal_Pixel_Temperature, 192, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Label_Main_Thermal_Pixel_Temperature, &lv_font_montserrat_14,
                                LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_Label_Main_Thermal_Crosshair = lv_label_create(ui_Container_Main_Thermal_Crosshair);
@@ -580,7 +580,7 @@ void ui_Main_screen_destroy(void)
     ui_Label_Main_Battery_Remaining_Icon = NULL;
     ui_Label_Main_Battery_Remaining_Value = NULL;
     ui_Container_Main_Thermal = NULL;
-    ui_Image_Main_Thermal = NULL;
+    ui_Image_Main_Image = NULL;
     ui_Image_Main_Thermal_Scene_ROI = NULL;
     ui_Image_Main_Thermal_Spotmeter_ROI = NULL;
     ui_Image_Main_Thermal_Video_Focus_ROI = NULL;
@@ -590,7 +590,7 @@ void ui_Main_screen_destroy(void)
     ui_Label_Main_Thermal_Scene_Min = NULL;
     ui_Label_Main_Thermal_Scene_Mean = NULL;
     ui_Container_Main_Thermal_Crosshair = NULL;
-    ui_Label_Main_Thermal_PixelTemperature = NULL;
+    ui_Label_Main_Thermal_Pixel_Temperature = NULL;
     ui_Label_Main_Thermal_Crosshair = NULL;
     ui_Container_Gradient = NULL;
     ui_Label_Main_TempScaleMax = NULL;

@@ -69,7 +69,7 @@ void Task_ImageSave(void *p_Param)
 
         const char *p_StoragePath = MemoryManager_GetStoragePath();
         static uint32_t ImageCounter = 0;
-        snprintf(FilePath, sizeof(FilePath), "%s/IMG_%03u.PNG", p_StoragePath, (unsigned int)(ImageCounter % 1000));
+        snprintf(FilePath, sizeof(FilePath), "%s/IMG_%03u.PNG", p_StoragePath, static_cast<unsigned int>(ImageCounter % 1000));
         ImageCounter++;
 
         ESP_LOGD(TAG, "Saving PNG: %s (%dx%d)", FilePath, Frame.Width, Frame.Height);

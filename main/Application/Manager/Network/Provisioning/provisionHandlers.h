@@ -50,6 +50,13 @@ esp_err_t Provision_Handler_Scan(httpd_req_t *p_Request);
  */
 esp_err_t Provision_Handler_Connect(httpd_req_t *p_Request);
 
+/** @brief              Handle favicon.ico requests with 204 No Content.
+ *                      Suppresses browser warnings for missing favicon during provisioning.
+ *  @param p_Request    HTTP request handle
+ *  @return             ESP_OK on success
+ */
+esp_err_t Provision_Handler_Favicon(httpd_req_t *p_Request);
+
 /** @brief              Handle captive portal detection.
  *                      Responds to Android/iOS captive portal checks.
  *  @param p_Request    HTTP request handle

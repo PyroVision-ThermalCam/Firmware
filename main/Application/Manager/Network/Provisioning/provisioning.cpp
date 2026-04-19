@@ -316,26 +316,37 @@ esp_err_t Provisioning_Stop(void)
 
     _Provisioning_State.IsActive = false;
 
+    if (_Provisioning_State.TimeoutTimer != NULL) {
+        esp_timer_stop(_Provisioning_State.TimeoutTimer);
+    }
+
     if (_Provisioning_State.UsePortal) {
         ESP_LOGD(TAG, "Stopping DNS server");
         DNS_Server_Stop();
 
-        ESP_LOGD(TAG, "Stopping HTTP server");
-        HTTP_Server_Stop();
-
-        ESP_LOGD(TAG, "Stopping WiFi");
+        /* Stop WiFi FIRST — this immediately kills all open TCP connections
+         * (captive portal detection probes, lingering browser connections, etc.).
+         * lwIP resets every open socket, so httpd_sess_delete_all() inside
+         * httpd_stop() can call close() on all sessions without waiting for a
+         * graceful TCP FIN handshake (which can take up to 20 seconds on Android).
+         *
+         * IMPORTANT: Provision_Handler_Connect sends its HTTP response BEFORE
+         * posting NETWORK_EVENT_PROV_SUCCESS, so by the time we reach here the
+         * httpd handler has already returned to the httpd task and is no longer
+         * active.  Calling esp_wifi_stop() therefore does NOT interrupt a running
+         * handler. */
+        ESP_LOGD(TAG, "Stopping WiFi (force-closes all TCP connections)");
         esp_wifi_stop();
 
-        /* Small delay for WiFi to fully stop */
-        vTaskDelay(pdMS_TO_TICKS(50));
+        /* Give the TCP stack a moment to propagate socket errors to the httpd
+         * task so it returns to its select() loop before we call httpd_stop(). */
+        vTaskDelay(pdMS_TO_TICKS(200));
 
+        ESP_LOGD(TAG, "Stopping HTTP server");
         HTTP_Server_Deinit();
 
         ESP_LOGD(TAG, "Provisioning stopped");
     } else {
-        if (_Provisioning_State.TimeoutTimer != NULL) {
-            esp_timer_stop(_Provisioning_State.TimeoutTimer);
-        }
 
         wifi_prov_mgr_stop_provisioning();
     }

@@ -231,6 +231,7 @@ static const PCAL6416_IO_Conf_t _PCAL6416AHF_Displayboard_PinConfig[] = {
 
 typedef struct {
     bool IsInitialized;
+    bool IsFlashEnabled;
     RV8263C8_Dev_t RTC;
     TMP117_Dev_t TMP117;
     PCAL6416AHF_Dev_t ExpanderMainboard;
@@ -431,6 +432,8 @@ esp_err_t DevicesManager_Init(void)
 
         return DEVICES_ERR_I2C_COMM;
     }
+
+    _DevicesManagerState.IsFlashEnabled = false;
 
     return ESP_OK;
 }
@@ -1108,4 +1111,35 @@ esp_err_t DevicesManager_SetLED(bool R, bool G, bool B)
     DevicesManager_ReleaseI2CBus();
 
     return Error;
+}
+
+void DevicesManager_IsFlashEnabled(bool *p_Enabled)
+{
+    if (p_Enabled == NULL) {
+        return;
+    }
+
+    *p_Enabled = _DevicesManagerState.IsFlashEnabled;
+}
+
+void DevicesManager_SetFlashEnable(bool Enable)
+{
+    Settings_Display_t DisplaySettings;
+
+    _DevicesManagerState.IsFlashEnabled = Enable;
+
+    if (Enable) {
+        /* Flash ON: set flash brightness to the current level (0 = off, >0 = on) */
+        SettingsManager_GetDisplay(&DisplaySettings);
+        uint8_t Brightness = static_cast<uint8_t>(static_cast<float>(DisplaySettings.Brightness) * 2.55);
+        DevicesManager_SetBrightness(BACKLIGHT_FLASH, Brightness);
+    } else {
+        /* Flash OFF: set flash brightness to 0 (off) */
+        DevicesManager_SetBrightness(BACKLIGHT_FLASH, 0);
+    }
+}
+
+void DevicesManager_ToggleFlashEnable(void)
+{
+    DevicesManager_SetFlashEnable(!_DevicesManagerState.IsFlashEnabled);
 }

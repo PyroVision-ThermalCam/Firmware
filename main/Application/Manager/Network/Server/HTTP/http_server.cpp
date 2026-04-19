@@ -582,6 +582,16 @@ static const httpd_uri_t _URI_Provision_Connect = {
     .supported_subprotocol = NULL,
 };
 
+static const httpd_uri_t _URI_Provision_Favicon = {
+    .uri       = "/favicon.ico",
+    .method    = HTTP_GET,
+    .handler   = Provision_Handler_Favicon,
+    .user_ctx  = NULL,
+    .is_websocket = false,
+    .handle_ws_control_frames = false,
+    .supported_subprotocol = NULL,
+};
+
 static const httpd_uri_t _URI_CaptivePortal_Generate204 = {
     .uri       = "/generate_204",
     .method    = HTTP_GET,
@@ -687,6 +697,7 @@ esp_err_t HTTP_Server_Start(void)
     httpd_register_uri_handler(_HTTP_Server_State.Handle, &_URI_Provision_Logo);
     httpd_register_uri_handler(_HTTP_Server_State.Handle, &_URI_Provision_Scan);
     httpd_register_uri_handler(_HTTP_Server_State.Handle, &_URI_Provision_Connect);
+    httpd_register_uri_handler(_HTTP_Server_State.Handle, &_URI_Provision_Favicon);
     httpd_register_uri_handler(_HTTP_Server_State.Handle, &_URI_CaptivePortal_Generate204);
     httpd_register_uri_handler(_HTTP_Server_State.Handle, &_URI_CaptivePortal_Generate204_NoUnderscore);
     httpd_register_uri_handler(_HTTP_Server_State.Handle, &_URI_Time);

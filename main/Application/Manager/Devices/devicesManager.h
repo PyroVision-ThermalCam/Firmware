@@ -348,4 +348,18 @@ esp_err_t DevicesManager_SetLED(bool R, bool G, bool B);
  */
 esp_err_t DevicesManager_GetDisplayboardInputs(Devices_Input_State_t *p_State);
 
+/** @brief              Check if the flash is enabled.
+ *  @param p_Enabled    Pointer to store the flash enabled state
+ */
+void DevicesManager_IsFlashEnabled(bool *p_Enabled);
+
+/** @brief              Set the flash enabled state.
+ *  @param Enable       Flash enabled state (true = on, false = off)
+ */
+void DevicesManager_SetFlashEnable(bool Enable);
+
+/** @brief              Toggle the flash enabled state.
+ */
+void DevicesManager_ToggleFlashEnable(void);
+
 #endif /* DEVICESMANAGER_H_ */
