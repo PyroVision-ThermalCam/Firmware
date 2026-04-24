@@ -180,15 +180,13 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
  */
 static void Task_Devices(void *p_Parameters)
 {
-    Devices_Input_State_t InputState;
-    Devices_Input_State_t PendingInputState;
+    DevicesManager_Input_State_t InputState;
+    DevicesManager_Input_State_t PendingInputState;
+    DevicesManager_Battery_Status_t Batttery;
     TickType_t PendingChangeTime;
     TickType_t LastBatteryPoll;
     TickType_t LastTemperaturePoll;
     TickType_t LastCalibration;
-    int Voltage;
-    uint8_t Percentage;
-    bool Charging;
     bool SDInserted;
     bool HasPendingInput;
     App_Context_t *AppContext;
@@ -199,8 +197,8 @@ static void Task_Devices(void *p_Parameters)
 
     ESP_LOGD(TAG, "Devices task started on core %d", xPortGetCoreID());
 
-    memset(&InputState, 0, sizeof(Devices_Input_State_t));
-    memset(&PendingInputState, 0, sizeof(Devices_Input_State_t));
+    memset(&InputState, 0, sizeof(DevicesManager_Input_State_t));
+    memset(&PendingInputState, 0, sizeof(DevicesManager_Input_State_t));
 
     PendingChangeTime = 0;
     HasPendingInput = false;
@@ -214,11 +212,11 @@ static void Task_Devices(void *p_Parameters)
     }
 
     /* Report the initial battery status once at startup. */
-    if (DevicesManager_GetBatteryStatus(&Voltage, &Percentage, &Charging) == ESP_OK) {
+    if (DevicesManager_GetBatteryStatus(&Batttery) == ESP_OK) {
         App_Devices_Battery_t NewBatteryInfo = {
-            .Voltage = Voltage,
-            .Percentage = Percentage,
-            .Charging = Charging
+            .Voltage = Batttery.Voltage,
+            .Percentage = Batttery.Percentage,
+            .Charging = Batttery.IsCharging
         };
 
         esp_event_post(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_BATTERY,
@@ -345,12 +343,15 @@ static void Task_Devices(void *p_Parameters)
         if ((xTaskGetTickCount() - LastBatteryPoll) >= pdMS_TO_TICKS(CONFIG_DEVICES_TASK_BATTERY_POLL_INTERVAL_S * 1000)) {
             LastBatteryPoll = xTaskGetTickCount();
 
-            if (DevicesManager_GetBatteryStatus(&Voltage, &Percentage, &Charging) == ESP_OK) {
+            if (DevicesManager_GetBatteryStatus(&Batttery) == ESP_OK) {
                 App_Devices_Battery_t NewBatteryInfo = {
-                    .Voltage = Voltage,
-                    .Percentage = Percentage,
-                    .Charging = Charging
+                    .Voltage = Batttery.Voltage,
+                    .Percentage = Batttery.Percentage,
+                    .Charging = Batttery.IsCharging
                 };
+
+                ESP_LOGI(TAG, "Battery status: %d%%, %d mV, charging=%s", NewBatteryInfo.Percentage, NewBatteryInfo.Voltage,
+                         NewBatteryInfo.Charging ? "yes" : "no");
 
                 esp_event_post(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_BATTERY,
                                &NewBatteryInfo, sizeof(App_Devices_Battery_t), pdMS_TO_TICKS(100));
@@ -402,8 +403,8 @@ static void Task_Devices(void *p_Parameters)
         }
 
         if (DevicesManager_HandleDisplayboardExpanderInterrupt(&InputState) == ESP_OK) {
-            if (memcmp(&InputState, &PendingInputState, sizeof(Devices_Input_State_t)) != 0) {
-                memcpy(&PendingInputState, &InputState, sizeof(Devices_Input_State_t));
+            if (memcmp(&InputState, &PendingInputState, sizeof(DevicesManager_Input_State_t)) != 0) {
+                memcpy(&PendingInputState, &InputState, sizeof(DevicesManager_Input_State_t));
                 PendingChangeTime = xTaskGetTickCount();
                 HasPendingInput = true;
             }
@@ -412,7 +413,7 @@ static void Task_Devices(void *p_Parameters)
         /* Commit pending state after 30 ms of stability */
         if (HasPendingInput && ((xTaskGetTickCount() - PendingChangeTime) >= pdMS_TO_TICKS(30))) {
             xSemaphoreTake(AppContext->InputMutex, portMAX_DELAY);
-            memcpy(&AppContext->InputState, &PendingInputState, sizeof(Devices_Input_State_t));
+            memcpy(&AppContext->InputState, &PendingInputState, sizeof(DevicesManager_Input_State_t));
             xSemaphoreGive(AppContext->InputMutex);
 
             HasPendingInput = false;

@@ -105,7 +105,7 @@ enum {
     DEVICES_EVENT_RANGE_INTERRUPT,              /**< Range sensor interrupt asserted. */
     DEVICES_EVENT_SD_DETECT,                    /**< SD-card detection state changed.
                                                      Data is of type bool (true = card inserted). */
-    DEVICE_EVENT_RESPONSE_TIME,                 /**< Device RTC time has been updated.
+    DEVICES_EVENT_RESPONSE_TIME,                /**< Device RTC time has been updated.
                                                      Data is transmitted in a struct tm structure. */
 };
 
@@ -114,7 +114,7 @@ enum {
 typedef enum {
     BACKLIGHT_FLASH = 0,            /**< Flash backlight. */
     BACKLIGHT_DISPLAY,              /**< Display backlight. */
-} Devices_BacklightID_t;
+} DevicesManager_BacklightID_t;
 
 /** @brief Input state of the displayboard controls.
  *         All fields are true when the corresponding button or joystick direction is pressed.
@@ -122,16 +122,24 @@ typedef enum {
  *         a 600 ms long-press is detected until the center button is released.
  */
 typedef struct {
-    bool JoyUp;              /**< Joystick up (P0.3, active high). */
-    bool JoyDown;            /**< Joystick down (P0.4, active high). */
-    bool JoyLeft;            /**< Joystick left (P0.5, active high). */
-    bool JoyRight;           /**< Joystick right (P0.6, active high). */
-    bool JoyCenter;          /**< Joystick center press (P0.7, active high). */
-    bool JoyCenterLongPress; /**< Synthetic flag: true after a 600 ms hold; cleared on release. */
-    bool Button1;            /**< Button 1 (P1.0, active high). */
-    bool Button2;            /**< Button 2 (P1.1, active high). */
-    bool Button3;            /**< Button 3 (P1.2, active high). */
-    bool Button4;            /**< Button 4 (P1.3, active high). */
-} Devices_Input_State_t;
+    bool JoyUp;                 /**< Joystick up (P0.3, active high). */
+    bool JoyDown;               /**< Joystick down (P0.4, active high). */
+    bool JoyLeft;               /**< Joystick left (P0.5, active high). */
+    bool JoyRight;              /**< Joystick right (P0.6, active high). */
+    bool JoyCenter;             /**< Joystick center press (P0.7, active high). */
+    bool JoyCenterLongPress;    /**< Synthetic flag: true after a 600 ms hold; cleared on release. */
+    bool Button1;               /**< Button 1 (P1.0, active high). */
+    bool Button2;               /**< Button 2 (P1.1, active high). */
+    bool Button3;               /**< Button 3 (P1.2, active high). */
+    bool Button4;               /**< Button 4 (P1.3, active high). */
+} DevicesManager_Input_State_t;
+
+/** @brief Battery status structure.
+ */
+typedef struct {
+    int Voltage;                /**< Battery voltage in millivolts. */
+    uint8_t Percentage;         /**< Battery charge percentage. */
+    bool IsCharging;            /**< Battery charging state. */
+} DevicesManager_Battery_Status_t;
 
 #endif /* DEVICES_TYPES_H_ */

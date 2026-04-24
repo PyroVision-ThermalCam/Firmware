@@ -12,12 +12,13 @@ lv_obj_t * ui_Image_Main_SDCard = NULL;
 lv_obj_t * ui_Label_Main_Time = NULL;
 lv_obj_t * ui_Container_Main_Statusbar_Temperature = NULL;
 lv_obj_t * ui_Label_Main_Statusbar_Temperatur_Icon = NULL;
-lv_obj_t * ui_Label_Main_Statusbar_Temperatur_Value = NULL;
+lv_obj_t * ui_Label_Main_Statusbar_Temperatur = NULL;
 lv_obj_t * ui_Container_Main_Statusbar_Battery = NULL;
 lv_obj_t * ui_Label_Main_Battery_Remaining_Icon = NULL;
-lv_obj_t * ui_Label_Main_Battery_Remaining_Value = NULL;
+lv_obj_t * ui_Label_Main_Battery_Remaining = NULL;
 lv_obj_t * ui_Container_Main_Thermal = NULL;
 lv_obj_t * ui_Image_Main_Image = NULL;
+lv_obj_t * ui_Label_Main_Distance = NULL;
 lv_obj_t * ui_Image_Main_Thermal_Scene_ROI = NULL;
 lv_obj_t * ui_Image_Main_Thermal_Spotmeter_ROI = NULL;
 lv_obj_t * ui_Image_Main_Thermal_Video_Focus_ROI = NULL;
@@ -29,7 +30,7 @@ lv_obj_t * ui_Label_Main_Thermal_Scene_Mean = NULL;
 lv_obj_t * ui_Container_Main_Thermal_Crosshair = NULL;
 lv_obj_t * ui_Label_Main_Thermal_Pixel_Temperature = NULL;
 lv_obj_t * ui_Label_Main_Thermal_Crosshair = NULL;
-lv_obj_t * ui_Container_Gradient = NULL;
+lv_obj_t * ui_Container_Main_Gradient = NULL;
 lv_obj_t * ui_Label_Main_TempScaleMax = NULL;
 lv_obj_t * ui_Image_Main_Gradient = NULL;
 lv_obj_t * ui_Label_Main_TempScaleMin = NULL;
@@ -178,16 +179,15 @@ void ui_Main_screen_init(void)
     lv_obj_set_style_pad_top(ui_Label_Main_Statusbar_Temperatur_Icon, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_bottom(ui_Label_Main_Statusbar_Temperatur_Icon, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_Label_Main_Statusbar_Temperatur_Value = lv_label_create(ui_Container_Main_Statusbar_Temperature);
-    lv_obj_set_width(ui_Label_Main_Statusbar_Temperatur_Value, LV_SIZE_CONTENT);   /// 1
-    lv_obj_set_height(ui_Label_Main_Statusbar_Temperatur_Value, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_align(ui_Label_Main_Statusbar_Temperatur_Value, LV_ALIGN_CENTER);
-    lv_label_set_text(ui_Label_Main_Statusbar_Temperatur_Value, "0 °C");
-    lv_obj_set_style_text_color(ui_Label_Main_Statusbar_Temperatur_Value, lv_color_hex(0xFFFFFF),
+    ui_Label_Main_Statusbar_Temperatur = lv_label_create(ui_Container_Main_Statusbar_Temperature);
+    lv_obj_set_width(ui_Label_Main_Statusbar_Temperatur, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_Label_Main_Statusbar_Temperatur, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_align(ui_Label_Main_Statusbar_Temperatur, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Label_Main_Statusbar_Temperatur, "0 °C");
+    lv_obj_set_style_text_color(ui_Label_Main_Statusbar_Temperatur, lv_color_hex(0xFFFFFF),
                                 LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_opa(ui_Label_Main_Statusbar_Temperatur_Value, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_Label_Main_Statusbar_Temperatur_Value, &lv_font_montserrat_12,
-                               LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_Label_Main_Statusbar_Temperatur, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Label_Main_Statusbar_Temperatur, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_Container_Main_Statusbar_Battery = lv_obj_create(ui_Container_Main_Statusbar);
     lv_obj_remove_style_all(ui_Container_Main_Statusbar_Battery);
@@ -221,16 +221,14 @@ void ui_Main_screen_init(void)
     lv_obj_set_style_pad_top(ui_Label_Main_Battery_Remaining_Icon, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_bottom(ui_Label_Main_Battery_Remaining_Icon, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_Label_Main_Battery_Remaining_Value = lv_label_create(ui_Container_Main_Statusbar_Battery);
-    lv_obj_set_width(ui_Label_Main_Battery_Remaining_Value, LV_SIZE_CONTENT);   /// 1
-    lv_obj_set_height(ui_Label_Main_Battery_Remaining_Value, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_align(ui_Label_Main_Battery_Remaining_Value, LV_ALIGN_CENTER);
-    lv_label_set_text(ui_Label_Main_Battery_Remaining_Value, "100%");
-    lv_obj_set_style_text_color(ui_Label_Main_Battery_Remaining_Value, lv_color_hex(0xFFFFFF),
-                                LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_opa(ui_Label_Main_Battery_Remaining_Value, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_Label_Main_Battery_Remaining_Value, &lv_font_montserrat_12,
-                               LV_PART_MAIN | LV_STATE_DEFAULT);
+    ui_Label_Main_Battery_Remaining = lv_label_create(ui_Container_Main_Statusbar_Battery);
+    lv_obj_set_width(ui_Label_Main_Battery_Remaining, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_Label_Main_Battery_Remaining, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_align(ui_Label_Main_Battery_Remaining, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Label_Main_Battery_Remaining, "100%");
+    lv_obj_set_style_text_color(ui_Label_Main_Battery_Remaining, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_Label_Main_Battery_Remaining, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Label_Main_Battery_Remaining, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_Container_Main_Thermal = lv_obj_create(ui_Main);
     lv_obj_remove_style_all(ui_Container_Main_Thermal);
@@ -255,6 +253,16 @@ void ui_Main_screen_init(void)
     lv_obj_set_style_bg_color(ui_Image_Main_Image, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_Image_Main_Image, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_grad_dir(ui_Image_Main_Image, LV_GRAD_DIR_HOR, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_Label_Main_Distance = lv_label_create(ui_Image_Main_Image);
+    lv_obj_set_width(ui_Label_Main_Distance, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_Label_Main_Distance, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_Label_Main_Distance, 10);
+    lv_obj_set_y(ui_Label_Main_Distance, 10);
+    lv_label_set_text(ui_Label_Main_Distance, "0 cm");
+    lv_obj_set_style_text_color(ui_Label_Main_Distance, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_Label_Main_Distance, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Label_Main_Distance, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_Image_Main_Thermal_Scene_ROI = lv_obj_create(ui_Image_Main_Image);
     lv_obj_set_width(ui_Image_Main_Thermal_Scene_ROI, 240);
@@ -408,16 +416,16 @@ void ui_Main_screen_init(void)
                        LV_OBJ_FLAG_SNAPPABLE);     /// Flags
     lv_obj_set_style_text_font(ui_Label_Main_Thermal_Crosshair, &ui_font_fa16, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_Container_Gradient = lv_obj_create(ui_Container_Main_Thermal);
-    lv_obj_remove_style_all(ui_Container_Gradient);
-    lv_obj_set_width(ui_Container_Gradient, 40);
-    lv_obj_set_height(ui_Container_Gradient, 190);
-    lv_obj_set_x(ui_Container_Gradient, -135);
-    lv_obj_set_y(ui_Container_Gradient, 0);
-    lv_obj_set_align(ui_Container_Gradient, LV_ALIGN_CENTER);
-    lv_obj_remove_flag(ui_Container_Gradient, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);      /// Flags
+    ui_Container_Main_Gradient = lv_obj_create(ui_Container_Main_Thermal);
+    lv_obj_remove_style_all(ui_Container_Main_Gradient);
+    lv_obj_set_width(ui_Container_Main_Gradient, 40);
+    lv_obj_set_height(ui_Container_Main_Gradient, 190);
+    lv_obj_set_x(ui_Container_Main_Gradient, -135);
+    lv_obj_set_y(ui_Container_Main_Gradient, 0);
+    lv_obj_set_align(ui_Container_Main_Gradient, LV_ALIGN_CENTER);
+    lv_obj_remove_flag(ui_Container_Main_Gradient, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);      /// Flags
 
-    ui_Label_Main_TempScaleMax = lv_label_create(ui_Container_Gradient);
+    ui_Label_Main_TempScaleMax = lv_label_create(ui_Container_Main_Gradient);
     lv_obj_set_height(ui_Label_Main_TempScaleMax, 20);
     lv_obj_set_width(ui_Label_Main_TempScaleMax, lv_pct(100));
     lv_obj_set_x(ui_Label_Main_TempScaleMax, 0);
@@ -430,7 +438,7 @@ void ui_Main_screen_init(void)
     lv_obj_set_style_text_decor(ui_Label_Main_TempScaleMax, LV_TEXT_DECOR_NONE, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_Label_Main_TempScaleMax, &lv_font_montserrat_10, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_Image_Main_Gradient = lv_image_create(ui_Container_Gradient);
+    ui_Image_Main_Gradient = lv_image_create(ui_Container_Main_Gradient);
     lv_obj_set_height(ui_Image_Main_Gradient, 150);
     lv_obj_set_width(ui_Image_Main_Gradient, lv_pct(50));
     lv_obj_set_align(ui_Image_Main_Gradient, LV_ALIGN_CENTER);
@@ -442,7 +450,7 @@ void ui_Main_screen_init(void)
     lv_obj_set_style_bg_grad_color(ui_Image_Main_Gradient, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_grad_dir(ui_Image_Main_Gradient, LV_GRAD_DIR_VER, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_Label_Main_TempScaleMin = lv_label_create(ui_Container_Gradient);
+    ui_Label_Main_TempScaleMin = lv_label_create(ui_Container_Main_Gradient);
     lv_obj_set_height(ui_Label_Main_TempScaleMin, 20);
     lv_obj_set_width(ui_Label_Main_TempScaleMin, lv_pct(100));
     lv_obj_set_x(ui_Label_Main_TempScaleMin, 0);
@@ -575,12 +583,13 @@ void ui_Main_screen_destroy(void)
     ui_Label_Main_Time = NULL;
     ui_Container_Main_Statusbar_Temperature = NULL;
     ui_Label_Main_Statusbar_Temperatur_Icon = NULL;
-    ui_Label_Main_Statusbar_Temperatur_Value = NULL;
+    ui_Label_Main_Statusbar_Temperatur = NULL;
     ui_Container_Main_Statusbar_Battery = NULL;
     ui_Label_Main_Battery_Remaining_Icon = NULL;
-    ui_Label_Main_Battery_Remaining_Value = NULL;
+    ui_Label_Main_Battery_Remaining = NULL;
     ui_Container_Main_Thermal = NULL;
     ui_Image_Main_Image = NULL;
+    ui_Label_Main_Distance = NULL;
     ui_Image_Main_Thermal_Scene_ROI = NULL;
     ui_Image_Main_Thermal_Spotmeter_ROI = NULL;
     ui_Image_Main_Thermal_Video_Focus_ROI = NULL;
@@ -592,7 +601,7 @@ void ui_Main_screen_destroy(void)
     ui_Container_Main_Thermal_Crosshair = NULL;
     ui_Label_Main_Thermal_Pixel_Temperature = NULL;
     ui_Label_Main_Thermal_Crosshair = NULL;
-    ui_Container_Gradient = NULL;
+    ui_Container_Main_Gradient = NULL;
     ui_Label_Main_TempScaleMax = NULL;
     ui_Image_Main_Gradient = NULL;
     ui_Label_Main_TempScaleMin = NULL;

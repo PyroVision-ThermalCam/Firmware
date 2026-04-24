@@ -67,7 +67,7 @@ extern "C" void app_main(void)
         return;
     }
 
-    memset(&_AppContext.InputState, 0, sizeof(Devices_Input_State_t));
+    memset(&_AppContext.InputState, 0, sizeof(DevicesManager_Input_State_t));
 
     ESP_ERROR_CHECK(SettingsManager_Init());
     ESP_ERROR_CHECK(Devices_Task_Init());

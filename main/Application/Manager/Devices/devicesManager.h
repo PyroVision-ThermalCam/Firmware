@@ -126,16 +126,14 @@ spi_host_device_t DevicesManager_GetSPIHost(void);
  *  @note               ADC is calibrated using eFuse values.
  *                      Battery voltage range: typically 3.0V to 4.2V for Li-Ion.
  *  @warning            Measurement enables battery voltage divider (increases power consumption).
- *  @param p_Voltage    Pointer to store voltage in mV (millivolts)
- *  @param p_Percentage Pointer to store percentage (0-100)
- *  @param p_Charging   Pointer to store the charging state (true = charging in progress)
+ *  @param p_Status     Pointer to store the battery status
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if pointers are NULL
  *                      DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
  *                      DEVICES_ERR_ADC_READ if ADC read fails
  *                      DEVICES_ERR_I2C_COMM if I2C communication fails
  */
-esp_err_t DevicesManager_GetBatteryStatus(int *p_Voltage, uint8_t *p_Percentage, bool *p_Charging);
+esp_err_t DevicesManager_GetBatteryStatus(DevicesManager_Battery_Status_t *p_Status);
 
 /** @brief          Get the RTC device handle (for Time Manager).
  *                  Returns the I2C device handle for the RV8263-C8 Real-Time Clock.
@@ -211,7 +209,7 @@ esp_err_t DevicesManager_GetDistance(uint16_t *p_Distance_mm, bool *p_IsValid);
  *                      DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
  *                      DEVICES_ERR_I2C_COMM if I2C communication fails
  */
-esp_err_t DevicesManager_SetBrightness(Devices_BacklightID_t ID, uint8_t Brightness);
+esp_err_t DevicesManager_SetBrightness(DevicesManager_BacklightID_t ID, uint8_t Brightness);
 
 /** @brief              Enable or disable the Lepton camera reset.
  *                      Controls the reset line of the Lepton thermal camera module via
@@ -308,7 +306,7 @@ esp_err_t DevicesManager_GetSDDetect(bool *p_Inserted);
  *                      DEVICES_ERR_NOT_INITIALIZED if DevicesManager not initialized
  *                      DEVICES_ERR_I2C_COMM if I2C communication fails
  */
-esp_err_t DevicesManager_HandleDisplayboardExpanderInterrupt(Devices_Input_State_t *p_State);
+esp_err_t DevicesManager_HandleDisplayboardExpanderInterrupt(DevicesManager_Input_State_t *p_State);
 
 /** @brief              Handle a pending port expander interrupt.
  *                      Non-blocking: checks whether the GPIO ISR signalled a new INT# falling
@@ -346,7 +344,7 @@ esp_err_t DevicesManager_SetLED(bool R, bool G, bool B);
  *                      ESP_ERR_NOT_SUPPORTED if displayboard not present
  *                      DEVICES_ERR_I2C_COMM if I2C communication fails
  */
-esp_err_t DevicesManager_GetDisplayboardInputs(Devices_Input_State_t *p_State);
+esp_err_t DevicesManager_GetDisplayboardInputs(DevicesManager_Input_State_t *p_State);
 
 /** @brief              Check if the flash is enabled.
  *  @param p_Enabled    Pointer to store the flash enabled state

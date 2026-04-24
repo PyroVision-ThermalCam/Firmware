@@ -510,7 +510,7 @@ spi_host_device_t DevicesManager_GetSPIHost(void)
     return _Devices_Manager_Periph_SPI;
 }
 
-esp_err_t DevicesManager_GetBatteryStatus(int *p_Voltage, uint8_t *p_Percentage, bool *p_Charging)
+esp_err_t DevicesManager_GetBatteryStatus(DevicesManager_Battery_Status_t *p_Status)
 {
     float SOC;
     float Voltage;
@@ -518,7 +518,7 @@ esp_err_t DevicesManager_GetBatteryStatus(int *p_Voltage, uint8_t *p_Percentage,
 
     if (_DevicesManagerState.IsInitialized == false) {
         return DEVICES_ERR_NOT_INITIALIZED;
-    } else if ((p_Voltage == NULL) || (p_Percentage == NULL) || (p_Charging == NULL)) {
+    } else if (p_Status == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -529,13 +529,13 @@ esp_err_t DevicesManager_GetBatteryStatus(int *p_Voltage, uint8_t *p_Percentage,
         APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_ADC_READ);
 
         Error = DEVICES_ERR_ADC_READ;
-    } else if (PCAL6416AHF_ReadPin(&_DevicesManagerState.ExpanderMainboard, PCAL6416_PORT_0, 1, p_Charging) != ESP_OK) {
+    } else if (PCAL6416AHF_ReadPin(&_DevicesManagerState.ExpanderMainboard, PCAL6416_PORT_0, 1, &p_Status->IsCharging) != ESP_OK) {
         APP_DIAG_RECORD(APP_DIAG_SOURCE_DEVICES, DEVICES_ERR_I2C_COMM);
 
         Error = DEVICES_ERR_I2C_COMM;
     } else {
-        *p_Percentage = static_cast<uint8_t>(SOC);
-        *p_Voltage = static_cast<int>(Voltage * 1000.0f);
+        p_Status->Percentage = static_cast<uint8_t>(SOC);
+        p_Status->Voltage = static_cast<int>(Voltage * 1000.0f);
 
         ESP_LOGD(TAG, "Battery voltage: %.3f V, SOC: %.1f%%", Voltage, SOC);
     }
@@ -617,7 +617,7 @@ esp_err_t DevicesManager_GetTemperature(float *p_Temperature)
     return Error;
 }
 
-esp_err_t DevicesManager_SetBrightness(Devices_BacklightID_t ID, uint8_t Brightness)
+esp_err_t DevicesManager_SetBrightness(DevicesManager_BacklightID_t ID, uint8_t Brightness)
 {
     esp_err_t Error = ESP_OK;
 
@@ -777,7 +777,7 @@ esp_err_t DevicesManager_HandleExpanderInterrupt(void)
     return ESP_OK;
 }
 
-esp_err_t DevicesManager_HandleDisplayboardExpanderInterrupt(Devices_Input_State_t *p_State)
+esp_err_t DevicesManager_HandleDisplayboardExpanderInterrupt(DevicesManager_Input_State_t *p_State)
 {
     uint8_t Status0, Status1, In0, In1;
 
@@ -1049,7 +1049,7 @@ esp_err_t DevicesManager_GetDistance(uint16_t *p_Distance_mm, bool *p_IsValid)
     return ESP_OK;
 }
 
-esp_err_t DevicesManager_GetDisplayboardInputs(Devices_Input_State_t *p_State)
+esp_err_t DevicesManager_GetDisplayboardInputs(DevicesManager_Input_State_t *p_State)
 {
     uint8_t In0;
     uint8_t In1;

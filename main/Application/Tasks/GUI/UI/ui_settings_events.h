@@ -95,6 +95,12 @@ void ui_settings_update_memory_usage(void);
  */
 void on_System_Timezone_Callback(lv_event_t *e);
 
+/** @brief      Palette dropdown event callback to apply the selected color palette.
+ *              Persists the change via SettingsManager and posts SETTINGS_EVENT_LEPTON_CHANGED.
+ *  @param e    Pointer to the event object
+ */
+void on_Lepton_Palette_Callback(lv_event_t *e);
+
 /** @brief      Flash clear NVS button callback to reset all settings to factory defaults.
  *  @param e    Pointer to the event object
  */

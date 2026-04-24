@@ -113,6 +113,8 @@ enum {
 enum {
     SETTINGS_ID_LEPTON_EMISSIVITY,              /**< Emissivity setting changed.
                                                      Data contains uint8_t with new emissivity value. */
+    SETTINGS_ID_LEPTON_PALETTE,                 /**< Palette setting changed.
+                                                     Data contains uint8_t with new Lepton_Palette_t value. */
     SETTINGS_ID_DISPLAY_BRIGHTNESS,             /**< Display brightness setting changed.
                                                      Data contains uint8_t with new brightness value. */
     SETTINGS_ID_IMAGE_FORMAT,                   /**< Image format setting changed.
@@ -194,6 +196,7 @@ typedef struct {
     Settings_Emissivity_t EmissivityPresets[128];   /**< Array of emissivity presets. */
     size_t EmissivityPresetsCount;                  /**< Number of emissivity presets. */
     uint8_t CurrentEmissivity;                      /**< Currently selected emissivity value in the range from 0 to 100. */
+    uint8_t Palette;                                /**< Active color palette index (Lepton_Palette_t). */
 } __attribute__((packed)) Settings_Lepton_t;
 
 /** @brief  WiFi settings.

@@ -109,7 +109,7 @@ esp_err_t RemoteControl_SetTime(const char *p_TimeStr)
 
 esp_err_t RemoteControl_GetBatteryStatus(int *p_Voltage, uint8_t *p_SOC, bool *p_Charging)
 {
-    return DevicesManager_GetBatteryStatus(p_Voltage, p_SOC, p_Charging);
+    return /*DevicesManager_GetBatteryStatus(p_Voltage, p_SOC, p_Charging);*/ ESP_OK;
 }
 
 esp_err_t RemoteControl_GetOV5640Image(uint8_t **pp_Buffer, size_t *p_Size, Settings_Image_Format_t Format)

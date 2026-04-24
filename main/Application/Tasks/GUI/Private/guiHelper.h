@@ -44,6 +44,7 @@
 #define GUI_TASK_UVC_STREAMING_STATE_CHANGED        BIT2
 #define GUI_TASK_WIFI_CONNECTION_STATE_CHANGED      BIT3
 #define GUI_TASK_LEPTON_READY                       BIT4
+#define GUI_TASK_GRADIENT_REDRAW_REQUIRED           BIT5
 #define GUI_TASK_LEPTON_SCENE_STATISTICS_READY      BIT6
 #define GUI_TASK_PROVISIONING_STATE_CHANGED         BIT7
 #define GUI_TASK_SD_CARD_STATE_CHANGED              BIT8
@@ -215,5 +216,15 @@ void GUI_Helper_Timer_RAMUpdate(lv_timer_t *p_Timer);
  *  @param p_Timer  Pointer to the LVGL timer structure.
  */
 void GUI_Helper_Timer_MemoryUpdate(lv_timer_t *p_Timer);
+
+/** @brief          LVGL timer callback to request Lepton uptime update.
+ *  @param p_Timer  Pointer to the LVGL timer structure.
+ */
+void GUI_Helper_Timer_UptimeUpdate(lv_timer_t *p_Timer);
+
+/** @brief          LVGL timer callback to request ToF distance update.
+ *  @param p_Timer  Pointer to the LVGL timer structure.
+ */
+void GUI_Helper_Timer_DistanceUpdate(lv_timer_t *p_Timer);
 
 #endif /* GUI_HELPER_H_ */

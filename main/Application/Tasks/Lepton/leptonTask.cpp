@@ -35,6 +35,7 @@
 #include <sdkconfig.h>
 
 #include "lepton.h"
+#include "lepton_palette.h"
 #include "leptonTask.h"
 #include "Application/application.h"
 #include "AppDiag/appDiag.h"
@@ -42,6 +43,7 @@
 #include "Application/Manager/USB/usbManager.h"
 #include "Application/Manager/USB/UVC/usbUVC.h"
 #include "Application/Manager/Network/Server/ImageEncoder/JPEG/jpegEncoder.h"
+#include "Application/Manager/Settings/settingsManager.h"
 
 #define LEPTON_TASK_STOP_REQUEST                BIT0
 #define LEPTON_TASK_UPDATE_ROI_REQUEST          BIT1
@@ -452,9 +454,14 @@ static void Task_Lepton(void *p_Parameters)
                          _LeptonTaskState.RawFrame.Height, static_cast<unsigned int>(ImageSize));
             } else {
                 /* RAW14: Convert to RGB */
+                Settings_Lepton_t LeptonSettings;
+                SettingsManager_GetLepton(&LeptonSettings);
+                uint8_t PaletteIdx = LeptonSettings.Palette < LEPTON_PALETTE_COUNT ? LeptonSettings.Palette : 0U;
+
                 Lepton_Raw14ToRGB(&_LeptonTaskState.Lepton, _LeptonTaskState.RawFrame.ImageBuffer, WriteBuffer, &Min, &Max,
                                   _LeptonTaskState.RawFrame.Width,
-                                  _LeptonTaskState.RawFrame.Height);
+                                  _LeptonTaskState.RawFrame.Height,
+                                  Lepton_Palette_Table[PaletteIdx]);
             }
 
             /* Mark buffer as ready and update read buffer index */

@@ -70,6 +70,9 @@ GUI_Task_State_t _GUITaskState;
 
 static const char *TAG = "GUI-Task";
 
+/* Forward declaration */
+static void GUI_Task_UpdateGradient(void);
+
 /** @brief                  Event handler for the Lepton task events to receive updates when Lepton events are triggered (e.G., new frame ready, camera errors).
  *  @param p_HandlerArgs    Handler argument
  *  @param Base             Event base
@@ -152,6 +155,38 @@ static void on_Camera_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t B
         default: {
             ESP_LOGW(TAG, "Unhandled Camera event ID: 0x%X", ID);
 
+            break;
+        }
+    }
+}
+
+/** @brief                  Event handler for settings events to react on changes relevant to the GUI
+ *                          (e.g., palette change requiring the gradient canvas to be redrawn).
+ *  @param p_HandlerArgs    Handler argument
+ *  @param Base             Event base
+ *  @param ID               Event ID
+ *  @param p_Data           Event-specific data
+ */
+static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+{
+    ESP_LOGD(TAG, "Settings event received: ID=%d", ID);
+
+    switch (ID) {
+        case SETTINGS_EVENT_LEPTON_CHANGED: {
+            SettingsManager_ChangeNotification_t Changed;
+
+            memcpy(&Changed, p_Data, sizeof(SettingsManager_ChangeNotification_t));
+
+            if (Changed.ID == SETTINGS_ID_LEPTON_PALETTE) {
+                ESP_LOGD(TAG, "Palette changed to index: %u — scheduling gradient redraw",
+                         static_cast<unsigned int>(Changed.Value));
+
+                xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_GRADIENT_REDRAW_REQUIRED);
+            }
+
+            break;
+        }
+        default: {
             break;
         }
     }
@@ -496,10 +531,13 @@ static void GUI_Update_ROI(Settings_ROI_t ROI)
                    pdMS_TO_TICKS(100));
 }
 
-/** @brief Create temperature gradient canvas for palette visualization.
- *         Generates a vertical gradient from hot (top) to cold (bottom).
+/** @brief          Create temperature gradient canvas for palette visualization.
+ *                  Generates a vertical gradient from hot (top of canvas, palette index 255)
+ *                  to cold (bottom of canvas, palette index 0) using fictive temperature values
+ *                  mapped linearly across the full 256-entry palette LUT.
+ *  @param p_Palette Pointer to the 256-entry RGB888 palette LUT to use for the gradient.
  */
-static void UI_Canvas_AddTempGradient(void)
+static void UI_Canvas_AddTempGradient(const uint8_t (*p_Palette)[3])
 {
     /* Generate gradient pixel by pixel. */
     uint16_t *Buffer = reinterpret_cast<uint16_t *>(_GUITaskState.GradientCanvasBuffer);
@@ -507,16 +545,16 @@ static void UI_Canvas_AddTempGradient(void)
     for (uint32_t y = 0; y < _GUITaskState.GradientImageDescriptor.header.h; y++) {
         uint32_t Index;
 
-        /* Map y position to palette index (0 = top/hot = white, 179 = bottom/cold = black)
-         * Iron palette: index 0 = black (cold), index 255 = white (hot)
-         * So we need to invert: top (y=0) should be index 255, bottom (y=179) should be index 0.
+        /* Map y position to palette index using fictive temperature values:
+         * top (y=0)   -> index 255 (hottest)
+         * bottom (y=H-1) -> index 0 (coldest)
          */
         Index = 255 - (y * 255 / (_GUITaskState.GradientImageDescriptor.header.h - 1));
 
-        /* Get RGB888 values from palette. */
-        uint8_t R8 = Lepton_Palette_Iron[Index][0];
-        uint8_t G8 = Lepton_Palette_Iron[Index][1];
-        uint8_t B8 = Lepton_Palette_Iron[Index][2];
+        /* Get RGB888 values from the active palette LUT. */
+        uint8_t R8 = p_Palette[Index][0];
+        uint8_t G8 = p_Palette[Index][1];
+        uint8_t B8 = p_Palette[Index][2];
 
         /* Convert RGB888 to RGB565. */
         uint16_t R5 = (R8 >> 3) & 0x1F;
@@ -528,6 +566,22 @@ static void UI_Canvas_AddTempGradient(void)
             Buffer[y * _GUITaskState.GradientImageDescriptor.header.w + x] = (R5 << 11) | (G6 << 5) | B5;
         }
     }
+}
+
+/** @brief  Redraw the gradient canvas using the palette currently stored in settings
+ *          and invalidate the LVGL image widget so the new colours are displayed.
+ *  @note   Must be called from the GUI task only (not thread-safe).
+ */
+static void GUI_Task_UpdateGradient(void)
+{
+    Settings_Lepton_t LeptonSettings;
+    uint8_t PaletteIdx;
+
+    SettingsManager_GetLepton(&LeptonSettings);
+    PaletteIdx = LeptonSettings.Palette < LEPTON_PALETTE_COUNT ? LeptonSettings.Palette : 0U;
+
+    UI_Canvas_AddTempGradient(Lepton_Palette_Table[PaletteIdx]);
+    lv_obj_invalidate(ui_Image_Main_Gradient);
 }
 
 /** @brief          Reposition ui_Label_Main_Thermal_PixelTemperature relative to the crosshair
@@ -706,7 +760,7 @@ static void UI_Scale_Camera(const uint8_t *p_Src, uint32_t SrcWidth, uint32_t Sr
  */
 static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Data)
 {
-    Devices_Input_State_t State;
+    DevicesManager_Input_State_t State;
     uint32_t Key = 0;
     uint32_t CurrentBtnKey;
     bool Pressed = false;
@@ -729,7 +783,7 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
     }
 
     xSemaphoreTake(_GUITaskState.AppContext->InputMutex, portMAX_DELAY);
-    memcpy(&State, &_GUITaskState.AppContext->InputState, sizeof(Devices_Input_State_t));
+    memcpy(&State, &_GUITaskState.AppContext->InputState, sizeof(DevicesManager_Input_State_t));
     xSemaphoreGive(_GUITaskState.AppContext->InputMutex);
 
     const bool InputArray[] = {
@@ -1398,7 +1452,7 @@ void Task_GUI(void *p_Parameters)
             }
 
             snprintf(Buffer, sizeof(Buffer), "%d%%", _GUITaskState.BatteryInfo.Percentage);
-            lv_label_set_text(ui_Label_Main_Battery_Remaining_Value, Buffer);
+            lv_label_set_text(ui_Label_Main_Battery_Remaining, Buffer);
 
             lv_label_set_text(ui_Label_Main_Battery_Remaining_Icon, Icon);
             lv_obj_set_style_bg_color(ui_Label_Main_Battery_Remaining_Icon, lv_color_hex(Color), 0);
@@ -1659,6 +1713,12 @@ void Task_GUI(void *p_Parameters)
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_VIEW_CHANGED);
         }
 
+        if (EventBits & GUI_TASK_GRADIENT_REDRAW_REQUIRED) {
+            GUI_Task_UpdateGradient();
+
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_GRADIENT_REDRAW_REQUIRED);
+        }
+
         if (EventBits & GUI_TASK_THERMAL_ROI_CHANGED) {
             /* RGB camera view */
             if (_GUITaskState.ShowCameraView) {
@@ -1692,7 +1752,7 @@ void Task_GUI(void *p_Parameters)
             Offset = static_cast<float>(Calibration.RoomTemperature) - Calibration.SensorAtCalibration;
 
             snprintf(Buffer, sizeof(Buffer), "%.1f \xC2\xB0""C", _GUITaskState.TemperatureInfo.TempSensor + Offset);
-            lv_label_set_text(ui_Label_Main_Statusbar_Temperatur_Value, Buffer);
+            lv_label_set_text(ui_Label_Main_Statusbar_Temperatur, Buffer);
 
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_TEMPERATURE_SENSOR_READY);
         }
@@ -1851,7 +1911,7 @@ esp_err_t GUI_Task_Init(void)
     _GUITaskState.GradientImageDescriptor.data = _GUITaskState.GradientCanvasBuffer;
     _GUITaskState.GradientImageDescriptor.data_size = UI_GRADIENT_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2;
 
-    UI_Canvas_AddTempGradient();
+    GUI_Task_UpdateGradient();
 
     lv_img_set_src(ui_Image_Main_Image, &_GUITaskState.ThermalImageDescriptor);
     lv_img_set_src(ui_Image_Main_Gradient, &_GUITaskState.GradientImageDescriptor);
@@ -1902,6 +1962,7 @@ esp_err_t GUI_Task_Init(void)
                                NULL);
     esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_IMAGE_SAVED, on_GUI_Task_Event_Handler, NULL);
     esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_IMAGE_SAVE_FAILED, on_GUI_Task_Event_Handler, NULL);
+    esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_LEPTON_CHANGED, on_Settings_Event_Handler, NULL);
     esp_event_handler_register(LEPTON_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Task_Event_Handler, NULL);
     esp_event_handler_register(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_INIT_COMPLETE, on_Camera_Task_Event_Handler, NULL);
     esp_event_handler_register(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_INIT_FAILED, on_Camera_Task_Event_Handler, NULL);
@@ -1931,6 +1992,7 @@ void GUI_Task_Deinit(void)
                                  on_Devices_Task_Event_Handler);
     esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_IMAGE_SAVED, on_GUI_Task_Event_Handler);
     esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_IMAGE_SAVE_FAILED, on_GUI_Task_Event_Handler);
+    esp_event_handler_unregister(SETTINGS_EVENTS, SETTINGS_EVENT_LEPTON_CHANGED, on_Settings_Event_Handler);
     esp_event_handler_unregister(LEPTON_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Task_Event_Handler);
     esp_event_handler_unregister(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_INIT_COMPLETE, on_Camera_Task_Event_Handler);
     esp_event_handler_unregister(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_INIT_FAILED, on_Camera_Task_Event_Handler);

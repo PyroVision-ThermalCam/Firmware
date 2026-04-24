@@ -271,6 +271,22 @@ void on_System_Timezone_Callback(lv_event_t *e)
     ESP_LOGD(TAG, "Timezone set to: %s", SystemSettings.Timezone);
 }
 
+void on_Lepton_Palette_Callback(lv_event_t *e)
+{
+    Settings_Lepton_t LeptonSettings;
+    SettingsManager_ChangeNotification_t Changed;
+    uint16_t Selected = lv_dropdown_get_selected(static_cast<lv_obj_t *>(lv_event_get_target(e)));
+
+    SettingsManager_GetLepton(&LeptonSettings);
+
+    LeptonSettings.Palette = static_cast<uint8_t>(Selected);
+    Changed.ID = SETTINGS_ID_LEPTON_PALETTE;
+    Changed.Value = static_cast<uint32_t>(Selected);
+    SettingsManager_UpdateLepton(&LeptonSettings, &Changed);
+
+    ESP_LOGD(TAG, "Palette changed to index: %u", static_cast<unsigned int>(Selected));
+}
+
 void on_Memory_ClearNVS_Callback(lv_event_t *e){
     esp_err_t Error;
 

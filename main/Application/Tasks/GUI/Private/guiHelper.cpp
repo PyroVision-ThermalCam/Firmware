@@ -274,6 +274,8 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUITaskState, lv_indev_read_cb_t T
     p_GUITaskState->UpdateTimer[2] = lv_timer_create(GUI_Helper_Timer_SceneStatisticsUpdate, 5000, NULL);
     p_GUITaskState->UpdateTimer[3] = lv_timer_create(GUI_Helper_Timer_RAMUpdate, 5000, NULL);
     p_GUITaskState->UpdateTimer[4] = lv_timer_create(GUI_Helper_Timer_MemoryUpdate, 3000, NULL);
+    p_GUITaskState->UpdateTimer[5] = lv_timer_create(GUI_Helper_Timer_UptimeUpdate, 10000, NULL);
+    p_GUITaskState->UpdateTimer[6] = lv_timer_create(GUI_Helper_Timer_DistanceUpdate, 1000, NULL);
 
     _lock_init(&p_GUITaskState->LVGL_API_Lock);
 
@@ -401,6 +403,10 @@ void GUI_Helper_Timer_ClockUpdate(lv_timer_t *p_Timer)
     char Buffer[9];
     struct tm Now;
 
+    if (lv_display_get_screen_active(lv_display_get_default()) != ui_Main) {
+        return;
+    }
+
     TimeManager_GetTime(&Now, NULL);
 
     snprintf(Buffer, sizeof(Buffer), "%02d:%02d:%02d", Now.tm_hour, Now.tm_min, Now.tm_sec);
@@ -415,6 +421,10 @@ void GUI_Helper_Timer_SpotUpdate(lv_timer_t *p_Timer)
 {
     (void)p_Timer;
     App_GUI_Screenposition_t ScreenPosition;
+
+    if (lv_display_get_screen_active(lv_display_get_default()) != ui_Main) {
+        return;
+    }
 
     int32_t ImageW = static_cast<int32_t>(lv_obj_get_width(ui_Image_Main_Image));
     int32_t ImageH = static_cast<int32_t>(lv_obj_get_height(ui_Image_Main_Image));
@@ -461,6 +471,10 @@ void GUI_Helper_Timer_SceneStatisticsUpdate(lv_timer_t *p_Timer)
 
     ESP_LOGD(TAG, "Requesting scene statistics update...");
 
+    if (lv_display_get_screen_active(lv_display_get_default()) != ui_Main) {
+        return;
+    }
+
     esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_SCENE_STATISTICS, NULL, 0, pdMS_TO_TICKS(100));
 }
 
@@ -490,4 +504,37 @@ void GUI_Helper_Timer_MemoryUpdate(lv_timer_t *p_Timer)
     }
 
     ui_settings_update_memory_usage();
+}
+
+void GUI_Helper_Timer_UptimeUpdate(lv_timer_t *p_Timer)
+{
+    (void)p_Timer;
+    char Buffer[32];
+    uint64_t UptimeSec = esp_timer_get_time() / 1000000;
+
+    if (lv_display_get_screen_active(lv_display_get_default()) != ui_Info) {
+        return;
+    }
+
+    snprintf(Buffer, sizeof(Buffer), "%02llu:%02llu:%02llu", UptimeSec / 3600, (UptimeSec % 3600) / 60,
+             UptimeSec % 60);
+    lv_label_set_text(ui_Label_Info_Uptime, Buffer);
+}
+
+void GUI_Helper_Timer_DistanceUpdate(lv_timer_t *p_Timer)
+{
+    uint16_t Distance;
+    bool Valid;
+    char Buffer[32];
+    (void)p_Timer;
+
+    if (lv_display_get_screen_active(lv_display_get_default()) != ui_Main) {
+        return;
+    }
+
+    DevicesManager_GetDistance(&Distance, &Valid);
+
+    snprintf(Buffer, sizeof(Buffer), "%s%.2f cm", Valid ? "" : "Invalid: ", static_cast<float>(Distance) / 10.0);
+
+    lv_label_set_text(ui_Label_Main_Distance, Buffer);
 }

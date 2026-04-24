@@ -13,12 +13,14 @@ lv_obj_t * ui_Panel_Device = NULL;
 lv_obj_t * ui_Label_Info_Device = NULL;
 lv_obj_t * ui_Container_Info_Device = NULL;
 lv_obj_t * ui_Info_Container4 = NULL;
+lv_obj_t * ui_Label_Info_Uptime_Name = NULL;
 lv_obj_t * ui_Label_Info_MAC_Name = NULL;
 lv_obj_t * ui_Label_Info_IP_Name = NULL;
 lv_obj_t * ui_Label_Info_Serial_Name = NULL;
 lv_obj_t * ui_Label_Info_PSRAM_Free_Name = NULL;
 lv_obj_t * ui_Label_Info_RAM_Free_Name = NULL;
 lv_obj_t * ui_Info_Container5 = NULL;
+lv_obj_t * ui_Label_Info_Uptime = NULL;
 lv_obj_t * ui_Label_Info_MAC = NULL;
 lv_obj_t * ui_Label_Info_IP = NULL;
 lv_obj_t * ui_Label_Info_Serial = NULL;
@@ -196,6 +198,22 @@ void ui_Info_screen_init(void)
                        LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
                        LV_OBJ_FLAG_SNAPPABLE | LV_OBJ_FLAG_SCROLLABLE);     /// Flags
 
+    ui_Label_Info_Uptime_Name = lv_label_create(ui_Info_Container4);
+    lv_obj_set_width(ui_Label_Info_Uptime_Name, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_Label_Info_Uptime_Name, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_align(ui_Label_Info_Uptime_Name, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Label_Info_Uptime_Name, "Uptime:");
+    lv_obj_remove_flag(ui_Label_Info_Uptime_Name,
+                       LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
+                       LV_OBJ_FLAG_SNAPPABLE);     /// Flags
+    lv_obj_set_style_text_color(ui_Label_Info_Uptime_Name, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_Label_Info_Uptime_Name, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Label_Info_Uptime_Name, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_left(ui_Label_Info_Uptime_Name, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_right(ui_Label_Info_Uptime_Name, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_top(ui_Label_Info_Uptime_Name, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_bottom(ui_Label_Info_Uptime_Name, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
+
     ui_Label_Info_MAC_Name = lv_label_create(ui_Info_Container4);
     lv_obj_set_width(ui_Label_Info_MAC_Name, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_Label_Info_MAC_Name, LV_SIZE_CONTENT);    /// 1
@@ -286,6 +304,23 @@ void ui_Info_screen_init(void)
     lv_obj_remove_flag(ui_Info_Container5,
                        LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
                        LV_OBJ_FLAG_SNAPPABLE | LV_OBJ_FLAG_SCROLLABLE);     /// Flags
+
+    ui_Label_Info_Uptime = lv_label_create(ui_Info_Container5);
+    lv_obj_set_width(ui_Label_Info_Uptime, lv_pct(100));
+    lv_obj_set_height(ui_Label_Info_Uptime, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_align(ui_Label_Info_Uptime, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Label_Info_Uptime, "0");
+    lv_obj_remove_flag(ui_Label_Info_Uptime,
+                       LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
+                       LV_OBJ_FLAG_SNAPPABLE);     /// Flags
+    lv_obj_set_style_text_color(ui_Label_Info_Uptime, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_Label_Info_Uptime, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_align(ui_Label_Info_Uptime, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Label_Info_Uptime, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_left(ui_Label_Info_Uptime, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_right(ui_Label_Info_Uptime, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_top(ui_Label_Info_Uptime, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_bottom(ui_Label_Info_Uptime, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_Label_Info_MAC = lv_label_create(ui_Info_Container5);
     lv_obj_set_width(ui_Label_Info_MAC, lv_pct(100));
@@ -915,12 +950,14 @@ void ui_Info_screen_destroy(void)
     ui_Label_Info_Device = NULL;
     ui_Container_Info_Device = NULL;
     ui_Info_Container4 = NULL;
+    ui_Label_Info_Uptime_Name = NULL;
     ui_Label_Info_MAC_Name = NULL;
     ui_Label_Info_IP_Name = NULL;
     ui_Label_Info_Serial_Name = NULL;
     ui_Label_Info_PSRAM_Free_Name = NULL;
     ui_Label_Info_RAM_Free_Name = NULL;
     ui_Info_Container5 = NULL;
+    ui_Label_Info_Uptime = NULL;
     ui_Label_Info_MAC = NULL;
     ui_Label_Info_IP = NULL;
     ui_Label_Info_Serial = NULL;

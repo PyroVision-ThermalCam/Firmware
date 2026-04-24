@@ -38,6 +38,9 @@
 #include "../ImageEncoder/imageEncoder.h"
 #include "../../Provisioning/provisionHandlers.h"
 #include "../../SNTP/sntp.h"
+#include "../../../Devices/devicesManager.h"
+#include "../../../Network/networkManager.h"
+#include "../../../Memory/memoryManager.h"
 
 #define HTTP_SERVER_API_BASE_PATH           "/api/v1"
 #define HTTP_SERVER_API_KEY_HEADER          "X-API-Key"
@@ -329,8 +332,12 @@ static esp_err_t HTTP_Handler_Telemetry(httpd_req_t *p_Request)
 {
     esp_err_t Error;
     cJSON *JSON;
-    cJSON *Card;
-    wifi_ap_record_t Info;
+    cJSON *Memory;
+    cJSON *CoreDump;
+    DevicesManager_Battery_Status_t BatteryStatus;
+    MemoryManager_Usage_t MemoryUsage;
+    MemoryManager_Usage_t CoreDumpUsage;
+    int8_t RSSI;
 
     _HTTP_Server_State.RequestCount++;
 
@@ -338,28 +345,30 @@ static esp_err_t HTTP_Handler_Telemetry(httpd_req_t *p_Request)
         return HTTP_Server_SendError(p_Request, 401, "Unauthorized");
     }
 
+    RSSI = NetworkManager_GetRSSI();
+    DevicesManager_GetBatteryStatus(&BatteryStatus);
+    MemoryManager_GetStorageUsage(&MemoryUsage);
+    MemoryManager_GetCoredumpUsage(&CoreDumpUsage);
+
     JSON = cJSON_CreateObject();
-
     cJSON_AddNumberToObject(JSON, "uptime_s", esp_timer_get_time() / 1000000);
+    cJSON_AddNumberToObject(JSON, "battery_voltage_mv", BatteryStatus.Voltage);
+    cJSON_AddNumberToObject(JSON, "battery_percentage", BatteryStatus.Percentage);
+    cJSON_AddBoolToObject(JSON, "battery_charging", BatteryStatus.IsCharging);
+    cJSON_AddNumberToObject(JSON, "wifi_rssi_dbm", RSSI);
+    cJSON_AddBoolToObject(JSON, "present", MemoryManager_HasSDCard());
 
-    /* Sensor temperature (from thermal frame if available) */
-    if (_HTTP_Server_State.ThermalFrame != NULL) {
-        // TODO
-        //cJSON_AddNumberToObject(JSON, "sensor_temp_c", _HTTP_Server_State.ThermalFrame->temp_avg);
-    }
+    Memory = cJSON_CreateObject();
+    cJSON_AddNumberToObject(Memory, "free_mb", MemoryUsage.FreeBytes / 1024 / 1024);
+    cJSON_AddNumberToObject(Memory, "total_mb", MemoryUsage.TotalBytes / 1024 / 1024);
+    cJSON_AddNumberToObject(Memory, "used_mb", MemoryUsage.UsedBytes / 1024 / 1024);
+    cJSON_AddItemToObject(JSON, "sdcard", Memory);
 
-    cJSON_AddNumberToObject(JSON, "supply_voltage_v", 0);
-
-    if (esp_wifi_sta_get_ap_info(&Info) == ESP_OK) {
-        cJSON_AddNumberToObject(JSON, "wifi_rssi_dbm", Info.rssi);
-    } else {
-        cJSON_AddNumberToObject(JSON, "wifi_rssi_dbm", 0);
-    }
-
-    Card = cJSON_CreateObject();
-    cJSON_AddBoolToObject(Card, "present", false);
-    cJSON_AddNumberToObject(Card, "free_mb", 0);
-    cJSON_AddItemToObject(JSON, "sdcard", Card);
+    CoreDump = cJSON_CreateObject();
+    cJSON_AddNumberToObject(CoreDump, "free_mb", CoreDumpUsage.FreeBytes / 1024 / 1024);
+    cJSON_AddNumberToObject(CoreDump, "total_mb", CoreDumpUsage.TotalBytes / 1024 / 1024);
+    cJSON_AddNumberToObject(CoreDump, "used_mb", CoreDumpUsage.UsedBytes / 1024 / 1024);
+    cJSON_AddItemToObject(JSON, "coredump", CoreDump);
 
     Error = HTTP_Server_SendJSON(p_Request, JSON, 200);
     cJSON_Delete(JSON);
