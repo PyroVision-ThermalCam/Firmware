@@ -88,11 +88,11 @@ Stops the HTTP server and closes all connections.
 
 ---
 
-=== HTTP_Server_SetThermalFrame()
+=== HTTP_Server_SetRawFrame()
 
 [source,c]
 ----
-void HTTP_Server_SetThermalFrame(Network_Thermal_Frame_t *p_Frame);
+void HTTP_Server_SetRawFrame(Network_ThermalFrame_t *p_Frame);
 ----
 
 Updates the thermal frame available for `/api/image` endpoint.

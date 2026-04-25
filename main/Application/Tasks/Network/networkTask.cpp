@@ -28,15 +28,13 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/event_groups.h>
-#include <nvs_flash.h>
-
 #include <string.h>
 
 #include "managers.h"
 #include "networkTask.h"
 #include "Application/Tasks/GUI/guiTask.h"
 #include "Application/Manager/Network/Server/RemoteControl/remoteControl.h"
-#include "Application/Manager/Network/Server/ImageEncoder/imageEncoder.h"
+#include "Application/Manager/ImageEncoder/imageEncoder.h"
 
 #define NETWORK_TASK_STOP_REQUEST               BIT0
 #define NETWORK_TASK_BROADCAST_FRAME            BIT1
@@ -407,17 +405,6 @@ esp_err_t Network_Task_Init(App_Context_t *p_AppContext)
     }
 
     ESP_LOGD(TAG, "Initializing network task");
-
-    Error = nvs_flash_init();
-    if ((Error == ESP_ERR_NVS_NO_FREE_PAGES) || (Error == ESP_ERR_NVS_NEW_VERSION_FOUND)) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        Error = nvs_flash_init();
-    } else if (Error != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to init NVS flash: 0x%x!", Error);
-        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_NETWORK, Error);
-
-        return Error;
-    }
 
     _NetworkTaskState.EventGroup = xEventGroupCreate();
     if (_NetworkTaskState.EventGroup == NULL) {

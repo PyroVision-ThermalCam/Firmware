@@ -33,23 +33,29 @@
 #include "Application/Tasks/Network/networkTask.h"
 #include "Application/Tasks/Devices/devicesTask.h"
 
+#define APP_INIT_TASK_STACKSIZE     16384
+#define APP_INIT_TASK_PRIORITY      5
+#define APP_INIT_TASK_CORE          0
+
 static App_Context_t _AppContext;
 
 static const char *TAG = "main";
 
-/** @brief Main application entry point.
- *         Initializes all managers, tasks, and starts the application.
+/** @brief  FreeRTOS task that performs the full application initialization.
+ *          Spawned by app_main() so that the ESP-IDF main task (whose stack
+ *          size is controlled by CONFIG_ESP_MAIN_TASK_STACK_SIZE) can remain
+ *          small. Deletes itself once all managers and tasks have been started.
+ *  @param  p_Args  Unused task argument.
  */
-extern "C" void app_main(void)
+static void run_app_init(void *p_Args)
 {
     RV8263C8_Dev_t RtcHandle = {};
-
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     _AppContext.Lepton_FrameQueue = xQueueCreate(1, sizeof(App_Lepton_Frame_t));
     if (_AppContext.Lepton_FrameQueue == NULL) {
         ESP_LOGE(TAG, "Failed to create Lepton frame queue!");
 
+        vTaskDelete(NULL);
         return;
     }
 
@@ -57,6 +63,7 @@ extern "C" void app_main(void)
     if (_AppContext.Camera_FrameQueue == NULL) {
         ESP_LOGE(TAG, "Failed to create camera frame queue!");
 
+        vTaskDelete(NULL);
         return;
     }
 
@@ -64,6 +71,7 @@ extern "C" void app_main(void)
     if (_AppContext.InputMutex == NULL) {
         ESP_LOGE(TAG, "Failed to create input mutex!");
 
+        vTaskDelete(NULL);
         return;
     }
 
@@ -101,6 +109,16 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(Network_Task_Start());
     ESP_LOGI(TAG, "Tasks started");
 
-    /* Main task can now be deleted - no need to remove from watchdog as it was never added */
     vTaskDelete(NULL);
+}
+
+/** @brief  Main application entry point.
+ *          Creates the application initialisation task and returns immediately,
+ *          keeping the ESP-IDF main task stack usage minimal.
+ */
+extern "C" void app_main(void)
+{
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+    xTaskCreatePinnedToCore(run_app_init, "AppInit", APP_INIT_TASK_STACKSIZE, NULL, APP_INIT_TASK_PRIORITY, NULL, APP_INIT_TASK_CORE);
 }

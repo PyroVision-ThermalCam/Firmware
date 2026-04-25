@@ -116,15 +116,12 @@ static void on_screen_keypad_group_cleanup(lv_event_t *e)
 
 void ScreenMainLoaded(lv_event_t *e)
 {
-    char Buf[128];
+    (void)e;
     Settings_Info_t Info;
     lv_indev_t *p_Keypad;
     lv_group_t *p_Group;
 
     SettingsManager_GetInfo(&Info);
-
-    snprintf(Buf, sizeof(Buf), "Firmware %s\n(c) 2026 PyroVision Project", Info.FirmwareVersion);
-    lv_label_set_text(ui_SplashScreen_FirmwareVersion, Buf);
 
     /* Set the symbols for the UI */
     lv_label_set_text(ui_Image_Main_WiFi, LV_SYMBOL_WIFI);
@@ -157,9 +154,6 @@ void ScreenMainLoaded(lv_event_t *e)
     lv_obj_add_event_cb(ui_Button_Main_Menu, on_main_screen_key, LV_EVENT_KEY, NULL);
     lv_obj_remove_event_cb(ui_Main, on_screen_keypad_group_cleanup);
     lv_obj_add_event_cb(ui_Main, on_screen_keypad_group_cleanup, LV_EVENT_SCREEN_UNLOAD_START, NULL);
-
-    /* Force full screen repaint to clear any artifacts from previous screen */
-    lv_obj_invalidate(lv_screen_active());
 }
 
 void ScreenMenuLoaded(lv_event_t *e)
@@ -188,9 +182,7 @@ void ScreenMenuLoaded(lv_event_t *e)
 
 void ScreenInfoLoaded(lv_event_t *e)
 {
-    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_UPTIME, NULL, 0, pdMS_TO_TICKS(100));
-    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FPA_AUX_TEMP, NULL, 0, pdMS_TO_TICKS(100));
-
+    (void)e;
     lv_indev_t *p_Keypad = GUI_Task_GetKeypadIndev();
 
     if (p_Keypad != NULL) {
@@ -209,22 +201,25 @@ void ScreenInfoLoaded(lv_event_t *e)
     lv_obj_add_event_cb(ui_Button_Info_Back, on_info_screen_key, LV_EVENT_KEY, NULL);
     lv_obj_remove_event_cb(ui_Info, on_screen_keypad_group_cleanup);
     lv_obj_add_event_cb(ui_Info, on_screen_keypad_group_cleanup, LV_EVENT_SCREEN_UNLOAD_START, NULL);
-
-    /* Force full screen repaint to clear any artifacts from previous screen */
-    lv_obj_invalidate(lv_screen_active());
 }
 
 void ScreenSplashLoaded(lv_event_t *e)
 {
+    (void)e;
+    char Buffer[64];
+
+    snprintf(Buffer, sizeof(Buffer), "Firmware %u.%u.%u", PYROVISION_VERSION_MAJOR, PYROVISION_VERSION_MINOR, PYROVISION_VERSION_BUILD);
+
+    lv_label_set_text(ui_Label_Splash_FirmwareVersion, Buffer);
     ui_settings_init(ui_Container_Menu);
 }
 
 void ButtonMainSaveClicked(lv_event_t *e)
 {
+    (void)e;
     esp_err_t Error;
 
     Error = GUI_Task_SaveImage();
-
     if (Error != ESP_OK) {
         MessageBox_ImageSaveError(Error);
     } else {
@@ -234,16 +229,22 @@ void ButtonMainSaveClicked(lv_event_t *e)
 
 void ButtonMenuSaveClicked(lv_event_t *e)
 {
+    (void)e;
+
     SettingsManager_Save();
     MessageBox_Show("Settings Saved");
 }
 
 void ButtonMainSwitchClicked(lv_event_t * e)
 {
+    (void)e;
+
     GUI_Task_ToggleCameraView();
 }
 
 void ButtonMainROIClicked(lv_event_t * e)
 {
+    (void)e;
+
 	GUI_Task_ToggleROI();
 }

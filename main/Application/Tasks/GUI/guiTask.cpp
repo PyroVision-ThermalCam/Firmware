@@ -70,9 +70,6 @@ GUI_Task_State_t _GUITaskState;
 
 static const char *TAG = "GUI-Task";
 
-/* Forward declaration */
-static void GUI_Task_UpdateGradient(void);
-
 /** @brief                  Event handler for the Lepton task events to receive updates when Lepton events are triggered (e.G., new frame ready, camera errors).
  *  @param p_HandlerArgs    Handler argument
  *  @param Base             Event base
@@ -98,7 +95,7 @@ static void on_Lepton_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t B
             break;
         }
         case LEPTON_TASK_EVENT_RESPONSE_FPA_AUX_TEMP: {
-            memcpy(&_GUITaskState.LeptonTemperatures, p_Data, sizeof(App_Lepton_Temperatures_t));
+            memcpy(&_GUITaskState.TemperatureInfo, p_Data, sizeof(App_Devices_Temperature_t));
 
             xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_TEMPERATURE_READY);
 
@@ -178,10 +175,7 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
             memcpy(&Changed, p_Data, sizeof(SettingsManager_ChangeNotification_t));
 
             if (Changed.ID == SETTINGS_ID_LEPTON_PALETTE) {
-                ESP_LOGD(TAG, "Palette changed to index: %u — scheduling gradient redraw",
-                         static_cast<unsigned int>(Changed.Value));
-
-                xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_GRADIENT_REDRAW_REQUIRED);
+                xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_PALETTE_CHANGED);
             }
 
             break;
@@ -567,19 +561,13 @@ static void UI_Canvas_AddTempGradient(const uint8_t (*p_Palette)[3])
         }
     }
 }
-
-/** @brief  Redraw the gradient canvas using the palette currently stored in settings
- *          and invalidate the LVGL image widget so the new colours are displayed.
- *  @note   Must be called from the GUI task only (not thread-safe).
+/** @brief              Redraw the gradient canvas using the palette currently stored in settings
+ *                      and invalidate the LVGL image widget so the new colours are displayed.
+ *  @note               Must be called from the GUI task only (not thread-safe).
+ *  @param PaletteIdx   Index of the palette to use for the gradient (Lepton_Palette_t).
  */
-static void GUI_Task_UpdateGradient(void)
+static void GUI_Task_UpdateGradient(uint8_t PaletteIdx)
 {
-    Settings_Lepton_t LeptonSettings;
-    uint8_t PaletteIdx;
-
-    SettingsManager_GetLepton(&LeptonSettings);
-    PaletteIdx = LeptonSettings.Palette < LEPTON_PALETTE_COUNT ? LeptonSettings.Palette : 0U;
-
     UI_Canvas_AddTempGradient(Lepton_Palette_Table[PaletteIdx]);
     lv_obj_invalidate(ui_Image_Main_Gradient);
 }
@@ -1019,7 +1007,7 @@ void Task_GUI(void *p_Parameters)
     ESP_LOGD(TAG, "GUI Task started on core %d", xPortGetCoreID());
 
     Timeout = 0;
-    lv_label_set_text(ui_SplashScreen_StatusText, "Booting...");
+    lv_label_set_text(ui_Label_Splash_StatusText, "Booting...");
     do {
         EventBits_t EventBits;
 
@@ -1027,25 +1015,25 @@ void Task_GUI(void *p_Parameters)
 
         EventBits = xEventGroupGetBits(_GUITaskState.EventGroup);
         if (EventBits & GUI_TASK_CAMERA_READY) {
-            lv_label_set_text(ui_SplashScreen_StatusText, "Camera ready");
-            lv_bar_set_value(ui_SplashScreen_LoadingBar, lv_bar_get_value(ui_SplashScreen_LoadingBar) + 50, LV_ANIM_ON);
+            lv_label_set_text(ui_Label_Splash_StatusText, "Camera ready");
+            lv_bar_set_value(ui_ProgressBar_Splash_Loading, lv_bar_get_value(ui_ProgressBar_Splash_Loading) + 50, LV_ANIM_ON);
 
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_READY);
         } else if (EventBits & GUI_TASK_LEPTON_READY) {
-            lv_label_set_text(ui_SplashScreen_StatusText, "Lepton ready");
-            lv_bar_set_value(ui_SplashScreen_LoadingBar, lv_bar_get_value(ui_SplashScreen_LoadingBar) + 50, LV_ANIM_ON);
+            lv_label_set_text(ui_Label_Splash_StatusText, "Lepton ready");
+            lv_bar_set_value(ui_ProgressBar_Splash_Loading, lv_bar_get_value(ui_ProgressBar_Splash_Loading) + 50, LV_ANIM_ON);
 
             GUI_Helper_InitTouch(&_GUITaskState, Touch_LVGL_ReadCallback);
 
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_READY);
         } else if (EventBits & GUI_TASK_LEPTON_ERROR) {
-            lv_label_set_text(ui_SplashScreen_StatusText, "Lepton Error");
-            lv_bar_set_value(ui_SplashScreen_LoadingBar, 99, LV_ANIM_ON);
+            lv_label_set_text(ui_Label_Splash_StatusText, "Lepton Error");
+            lv_bar_set_value(ui_ProgressBar_Splash_Loading, 99, LV_ANIM_ON);
 
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_ERROR);
         } else if (EventBits & GUI_TASK_CAMERA_ERROR) {
-            lv_label_set_text(ui_SplashScreen_StatusText, "Camera Error");
-            lv_bar_set_value(ui_SplashScreen_LoadingBar, 99, LV_ANIM_ON);
+            lv_label_set_text(ui_Label_Splash_StatusText, "Camera Error");
+            lv_bar_set_value(ui_ProgressBar_Splash_Loading, 99, LV_ANIM_ON);
 
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_ERROR);
         } else if (Timeout >= 30000) {
@@ -1055,7 +1043,7 @@ void Task_GUI(void *p_Parameters)
         lv_timer_handler();
         vTaskDelay(pdMS_TO_TICKS(100));
         Timeout += 100;
-    } while (lv_bar_get_value(ui_SplashScreen_LoadingBar) < lv_bar_get_max_value(ui_SplashScreen_LoadingBar));
+    } while (lv_bar_get_value(ui_ProgressBar_Splash_Loading) < lv_bar_get_max_value(ui_ProgressBar_Splash_Loading));
 
     lv_disp_load_scr(ui_Main);
 
@@ -1143,6 +1131,15 @@ void Task_GUI(void *p_Parameters)
                                lv_obj_get_height(ui_Label_Main_Thermal_Crosshair),
                                lv_obj_get_height(ui_Label_Main_Thermal_Pixel_Temperature)
                              };
+
+    /* Cache label dark/light state: avoids calling lv_obj_set_style_text_color() (and its
+     * internal lv_obj_invalidate()) every frame when the luminance threshold has not changed. */
+    bool SceneLabelIsDark[5] = { false, false, false, false, false };
+
+    /* Cache temperature scale label strings: avoids calling lv_label_set_text() (and its
+     * internal lv_obj_invalidate()) when the formatted value is identical to the previous frame. */
+    char TempScaleMaxBuf[16] = { 0 };
+    char TempScaleMinBuf[16] = { 0 };
 
     while (_GUITaskState.IsRunning) {
         EventBits_t EventBits;
@@ -1306,9 +1303,16 @@ void Task_GUI(void *p_Parameters)
                 };
 
                 for (size_t i = 0; i < (sizeof(SceneLabels) / sizeof(SceneLabels[0])); i++) {
-                    lv_obj_set_style_text_color(SceneLabels[i],
-                                                (SceneLabelAverageLuminance[i] > 128) ? lv_color_black() : lv_color_white(),
-                                                LV_PART_MAIN);
+                    bool IsDark = (SceneLabelAverageLuminance[i] > 128);
+
+                    /* Only update style (and the internal lv_obj_invalidate it triggers) when
+                     * the luminance threshold actually crosses the 128 boundary. */
+                    if (IsDark != SceneLabelIsDark[i]) {
+                        lv_obj_set_style_text_color(SceneLabels[i],
+                                                    IsDark ? lv_color_black() : lv_color_white(),
+                                                    LV_PART_MAIN);
+                        SceneLabelIsDark[i] = IsDark;
+                    }
                 }
 
                 /* Reset watchdog after image processing */
@@ -1317,54 +1321,87 @@ void Task_GUI(void *p_Parameters)
                 /* Max temperature (top of gradient) */
                 float TempMaxCelsius = (LeptonFrame.Max / 100.0f) - 273.15f;
                 snprintf(Buffer, sizeof(Buffer), "%.1f \xC2\xB0""C", TempMaxCelsius);
-                lv_label_set_text(ui_Label_Main_TempScaleMax, Buffer);
+                if (strncmp(Buffer, TempScaleMaxBuf, sizeof(Buffer)) != 0) {
+                    lv_label_set_text(ui_Label_Main_TempScaleMax, Buffer);
+                    strncpy(TempScaleMaxBuf, Buffer, sizeof(TempScaleMaxBuf));
+                }
 
                 /* Min temperature (bottom of gradient) */
                 float TempMinCelsius = (LeptonFrame.Min / 100.0f) - 273.15f;
                 snprintf(Buffer, sizeof(Buffer), "%.1f \xC2\xB0""C", TempMinCelsius);
-                lv_label_set_text(ui_Label_Main_TempScaleMin, Buffer);
+                if (strncmp(Buffer, TempScaleMinBuf, sizeof(Buffer)) != 0) {
+                    lv_label_set_text(ui_Label_Main_TempScaleMin, Buffer);
+                    strncpy(TempScaleMinBuf, Buffer, sizeof(TempScaleMinBuf));
+                }
 
                 /* Trigger LVGL to redraw the image */
                 lv_obj_invalidate(ui_Image_Main_Image);
                 ESP_LOGD(TAG, "Updated thermal image display (src: %ux%u -> dst: %ux%u)", LeptonFrame.Width, LeptonFrame.Height,
                          ImageWidth, ImageHeight);
 
-                /* Update network frame for server streaming if server is running */
-                if (Server_IsRunning()) {
-                    if (xSemaphoreTake(_GUITaskState.NetworkFrame.Mutex, 0) == pdTRUE) {
-                        /* Convert scaled RGB565 buffer to RGB888 for network transmission */
-                        uint8_t *Rgb888Dst = _GUITaskState.NetworkRGBBuffer;
+                /* Update network frame for both WebSocket streaming and HTTP snapshot requests.
+                 * The RGB565→RGB888 conversion runs unconditionally so that Width/Height are
+                 * always valid when the HTTP image endpoint is called, even without active
+                 * WebSocket clients. */
+                if (xSemaphoreTake(_GUITaskState.NetworkFrame.Mutex, 0) == pdTRUE) {
+                    /* Convert scaled RGB565 buffer to RGB888 for network transmission.
+                     * The canvas buffer (Dst) has a 180° pre-rotation applied so that LVGL can
+                     * display it upright with lv_image_set_rotation(1800). Reading the source
+                     * pixels in reverse order (last pixel first) undoes that rotation so that
+                     * network clients (HTTP snapshot, WebSocket) receive a correctly oriented image. */
+                    uint8_t *Rgb888Dst = _GUITaskState.NetworkRGBBuffer;
+                    uint32_t Total = ImageWidth * ImageHeight;
 
-                        /* Reset watchdog before RGB conversion */
-                        esp_task_wdt_reset();
+                    /* Reset watchdog before RGB conversion */
+                    esp_task_wdt_reset();
 
-                        for (uint32_t i = 0; i < (ImageWidth * ImageHeight); i++) {
-                            /* Read RGB565 value (little endian) */
-                            uint16_t Rgb565 = Dst[(i * 2) + 0] | (Dst[(i * 2) + 1] << 8);
+                    for (uint32_t i = 0; i < Total; i++) {
+                        /* Read source pixel in reverse order to undo 180° canvas pre-rotation */
+                        uint32_t SrcIdx = Total - 1 - i;
+                        uint16_t Rgb565 = Dst[(SrcIdx * 2) + 0] | (Dst[(SrcIdx * 2) + 1] << 8);
 
-                            /* Convert RGB565 to RGB888 */
-                            uint8_t R = (Rgb565 >> 8) & 0xF8;
-                            uint8_t G = (Rgb565 >> 3) & 0xFC;
-                            uint8_t B = (Rgb565 << 3) & 0xF8;
+                        /* Convert RGB565 to RGB888 */
+                        uint8_t R = (Rgb565 >> 8) & 0xF8;
+                        uint8_t G = (Rgb565 >> 3) & 0xFC;
+                        uint8_t B = (Rgb565 << 3) & 0xF8;
 
-                            /* Store as RGB888 */
-                            Rgb888Dst[(i * 3) + 0] = R;
-                            Rgb888Dst[(i * 3) + 1] = G;
-                            Rgb888Dst[(i * 3) + 2] = B;
-                        }
-
-                        _GUITaskState.NetworkFrame.Buffer = _GUITaskState.NetworkRGBBuffer;
-                        _GUITaskState.NetworkFrame.Width = ImageWidth;
-                        _GUITaskState.NetworkFrame.Height = ImageHeight;
-                        _GUITaskState.NetworkFrame.Timestamp = esp_timer_get_time() / 1000;
-
-                        xSemaphoreGive(_GUITaskState.NetworkFrame.Mutex);
-
-                        /* Reset watchdog after RGB conversion */
-                        esp_task_wdt_reset();
+                        /* Store as RGB888 */
+                        Rgb888Dst[(i * 3) + 0] = R;
+                        Rgb888Dst[(i * 3) + 1] = G;
+                        Rgb888Dst[(i * 3) + 2] = B;
                     }
 
-                    Server_NotifyClients();
+                    _GUITaskState.NetworkFrame.Buffer = _GUITaskState.NetworkRGBBuffer;
+                    _GUITaskState.NetworkFrame.Width = static_cast<uint16_t>(ImageWidth);
+                    _GUITaskState.NetworkFrame.Height = static_cast<uint16_t>(ImageHeight);
+                    _GUITaskState.NetworkFrame.Timestamp = esp_timer_get_time() / 1000;
+
+                    /* Copy raw 14-bit data so the HTTP encoder can re-apply any palette.
+                     * LeptonFrame.Min/Max now carry the smoothed normalization range used by
+                     * Lepton_Raw14ToRGB, so the encoder will produce the same contrast as the
+                     * on-device display. */
+                    if (LeptonFrame.RawBuffer != NULL) {
+                        memcpy(_GUITaskState.NetworkRawBuffer, LeptonFrame.RawBuffer,
+                               LeptonFrame.Width * LeptonFrame.Height * sizeof(uint16_t));
+                        _GUITaskState.NetworkFrame.RawBuffer = _GUITaskState.NetworkRawBuffer;
+                        _GUITaskState.NetworkFrame.RawWidth = static_cast<uint16_t>(LeptonFrame.Width);
+                        _GUITaskState.NetworkFrame.RawHeight = static_cast<uint16_t>(LeptonFrame.Height);
+                        _GUITaskState.NetworkFrame.RawMin = static_cast<uint16_t>(LeptonFrame.Min);
+                        _GUITaskState.NetworkFrame.RawMax = static_cast<uint16_t>(LeptonFrame.Max);
+                    } else {
+                        /* RGB888 mode: no raw buffer available; clear so the encoder falls back
+                         * to the already-rendered RGB888 buffer and does not use stale raw data. */
+                        _GUITaskState.NetworkFrame.RawBuffer = NULL;
+                    }
+
+                    xSemaphoreGive(_GUITaskState.NetworkFrame.Mutex);
+
+                    /* Reset watchdog after RGB conversion */
+                    esp_task_wdt_reset();
+
+                    if (WebSocket_HasClients()) {
+                        Server_NotifyClients();
+                    }
                 }
             }
         }
@@ -1379,6 +1416,37 @@ void Task_GUI(void *p_Parameters)
                     UI_Scale_Camera(CameraFrame.Buffer, CameraFrame.Width, CameraFrame.Height,
                                     _GUITaskState.ThermalCanvasBuffer, UI_IMAGE_CANVAS_WIDTH, UI_IMAGE_CANVAS_HEIGHT);
                     lv_obj_invalidate(ui_Image_Main_Image);
+
+                    /* Update NetworkRGBBuffer with the camera frame so that HTTP capture and
+                     * WebSocket clients always receive the same image that is shown on the LCD.
+                     * UI_Scale_Camera applies the same 180° pre-rotation as the thermal path,
+                     * so the same reverse-order read is used to undo it. */
+                    if (xSemaphoreTake(_GUITaskState.NetworkFrame.Mutex, 0) == pdTRUE) {
+                        uint8_t *Rgb888Dst = _GUITaskState.NetworkRGBBuffer;
+                        uint32_t Total = UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT;
+
+                        for (uint32_t i = 0; i < Total; i++) {
+                            uint32_t SrcIdx = Total - 1 - i;
+                            uint16_t Rgb565 = _GUITaskState.ThermalCanvasBuffer[(SrcIdx * 2) + 0] |
+                                              (_GUITaskState.ThermalCanvasBuffer[(SrcIdx * 2) + 1] << 8);
+
+                            uint8_t R = (Rgb565 >> 8) & 0xF8;
+                            uint8_t G = (Rgb565 >> 3) & 0xFC;
+                            uint8_t B = (Rgb565 << 3) & 0xF8;
+
+                            Rgb888Dst[(i * 3) + 0] = R;
+                            Rgb888Dst[(i * 3) + 1] = G;
+                            Rgb888Dst[(i * 3) + 2] = B;
+                        }
+
+                        _GUITaskState.NetworkFrame.Buffer = _GUITaskState.NetworkRGBBuffer;
+                        _GUITaskState.NetworkFrame.Width = UI_IMAGE_CANVAS_WIDTH;
+                        _GUITaskState.NetworkFrame.Height = UI_IMAGE_CANVAS_HEIGHT;
+                        _GUITaskState.NetworkFrame.Timestamp = esp_timer_get_time() / 1000;
+                        _GUITaskState.NetworkFrame.RawBuffer = NULL;
+
+                        xSemaphoreGive(_GUITaskState.NetworkFrame.Mutex);
+                    }
                 }
             }
         }
@@ -1570,10 +1638,12 @@ void Task_GUI(void *p_Parameters)
         if (EventBits & GUI_TASK_LEPTON_TEMPERATURE_READY) {
             char Buffer[32];
 
-            snprintf(Buffer, sizeof(Buffer), "%.2f \xC2\xB0""C", _GUITaskState.LeptonTemperatures.FPA);
+            snprintf(Buffer, sizeof(Buffer), "%.2f \xC2\xB0""C", _GUITaskState.TemperatureInfo.FPA);
             lv_label_set_text(ui_Label_Info_Lepton_FPA, Buffer);
-            snprintf(Buffer, sizeof(Buffer), "%.2f \xC2\xB0""C", _GUITaskState.LeptonTemperatures.AUX);
+            snprintf(Buffer, sizeof(Buffer), "%.2f \xC2\xB0""C", _GUITaskState.TemperatureInfo.AUX);
             lv_label_set_text(ui_Label_Info_Lepton_AUX, Buffer);
+
+            Server_SetLeptonTemperatures(_GUITaskState.TemperatureInfo.FPA, _GUITaskState.TemperatureInfo.AUX);
 
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_TEMPERATURE_READY);
         }
@@ -1713,10 +1783,16 @@ void Task_GUI(void *p_Parameters)
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_VIEW_CHANGED);
         }
 
-        if (EventBits & GUI_TASK_GRADIENT_REDRAW_REQUIRED) {
-            GUI_Task_UpdateGradient();
+        if (EventBits & GUI_TASK_PALETTE_CHANGED) {
+            SettingsManager_GetLepton(&LeptonSettings);
 
-            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_GRADIENT_REDRAW_REQUIRED);
+            /* Update palette dropdown if the change came from elsewhere (e.g. HTTP API) */
+            if (lv_dropdown_get_selected(ui_palette_dropdown) != LeptonSettings.Palette) {
+                GUI_Task_UpdateGradient(LeptonSettings.Palette);
+                lv_dropdown_set_selected(ui_palette_dropdown, LeptonSettings.Palette);
+            }
+
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_PALETTE_CHANGED);
         }
 
         if (EventBits & GUI_TASK_THERMAL_ROI_CHANGED) {
@@ -1744,15 +1820,20 @@ void Task_GUI(void *p_Parameters)
 
         if (EventBits & GUI_TASK_TEMPERATURE_SENSOR_READY) {
             char Buffer[16];
-            float Offset;
             Settings_Calibration_t Calibration;
+            float AmbientTemp;
 
             SettingsManager_GetCalibration(&Calibration);
 
-            Offset = static_cast<float>(Calibration.RoomTemperature) - Calibration.SensorAtCalibration;
+            /* Apply the calibration offset to convert the raw sensor reading to an estimated
+             * ambient temperature: ambient = sensor + (RoomTemperature - SensorAtCalibration) */
+            AmbientTemp = _GUITaskState.TemperatureInfo.TempSensor +
+                          (static_cast<float>(Calibration.RoomTemperature) - Calibration.SensorAtCalibration);
 
-            snprintf(Buffer, sizeof(Buffer), "%.1f \xC2\xB0""C", _GUITaskState.TemperatureInfo.TempSensor + Offset);
+            snprintf(Buffer, sizeof(Buffer), "%.1f \xC2\xB0""C", AmbientTemp);
             lv_label_set_text(ui_Label_Main_Statusbar_Temperatur, Buffer);
+
+            Server_SetDeviceTemperature(AmbientTemp);
 
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_TEMPERATURE_SENSOR_READY);
         }
@@ -1819,6 +1900,9 @@ esp_err_t GUI_Task_Init(void)
                                                                                  UI_IMAGE_CANVAS_HEIGHT * 2, MALLOC_CAP_SPIRAM));
     _GUITaskState.NetworkRGBBuffer = static_cast<uint8_t *>(heap_caps_malloc(UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT
                                                                              * 3, MALLOC_CAP_SPIRAM));
+    /* Raw 14-bit network buffer: 160 × 120 × 2 = 38,400 bytes (PSRAM, Lepton native resolution) */
+    _GUITaskState.NetworkRawBuffer = static_cast<uint16_t *>(heap_caps_malloc(160 * 120 * sizeof(uint16_t),
+                                                                              MALLOC_CAP_SPIRAM));
     _GUITaskState.SaveCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT
                                                                              * 2, MALLOC_CAP_SPIRAM));
 
@@ -1848,6 +1932,17 @@ esp_err_t GUI_Task_Init(void)
         return ESP_ERR_NO_MEM;
     }
 
+    if (_GUITaskState.NetworkRawBuffer == NULL) {
+        ESP_LOGE(TAG, "Failed to allocate network raw buffer!");
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
+
+        heap_caps_free(_GUITaskState.ThermalCanvasBuffer);
+        heap_caps_free(_GUITaskState.GradientCanvasBuffer);
+        heap_caps_free(_GUITaskState.NetworkRGBBuffer);
+
+        return ESP_ERR_NO_MEM;
+    }
+
     if (_GUITaskState.SaveCanvasBuffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate save canvas buffer!");
         APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
@@ -1855,6 +1950,7 @@ esp_err_t GUI_Task_Init(void)
         heap_caps_free(_GUITaskState.ThermalCanvasBuffer);
         heap_caps_free(_GUITaskState.GradientCanvasBuffer);
         heap_caps_free(_GUITaskState.NetworkRGBBuffer);
+        heap_caps_free(_GUITaskState.NetworkRawBuffer);
 
         return ESP_ERR_NO_MEM;
     }
@@ -1867,6 +1963,7 @@ esp_err_t GUI_Task_Init(void)
         heap_caps_free(_GUITaskState.ThermalCanvasBuffer);
         heap_caps_free(_GUITaskState.GradientCanvasBuffer);
         heap_caps_free(_GUITaskState.NetworkRGBBuffer);
+        heap_caps_free(_GUITaskState.NetworkRawBuffer);
         heap_caps_free(_GUITaskState.SaveCanvasBuffer);
 
         return ESP_ERR_NO_MEM;
@@ -1911,7 +2008,9 @@ esp_err_t GUI_Task_Init(void)
     _GUITaskState.GradientImageDescriptor.data = _GUITaskState.GradientCanvasBuffer;
     _GUITaskState.GradientImageDescriptor.data_size = UI_GRADIENT_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2;
 
-    GUI_Task_UpdateGradient();
+    Settings_Lepton_t LeptonSettings;
+    SettingsManager_GetLepton(&LeptonSettings);
+    GUI_Task_UpdateGradient(LeptonSettings.Palette);
 
     lv_img_set_src(ui_Image_Main_Image, &_GUITaskState.ThermalImageDescriptor);
     lv_img_set_src(ui_Image_Main_Gradient, &_GUITaskState.GradientImageDescriptor);

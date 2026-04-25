@@ -186,6 +186,32 @@ menu "PyroVision"
                 - 70: Good quality, small file size
                 - 80: High quality (default)
                 - 90: Very high quality, larger files
+
+        menu "Encoders"
+            config IMAGE_ENCODER_JPEG
+                bool "Enable JPEG encoder"
+                default y
+                help
+                    Include the JPEG encoder. Disable to save flash space if JPEG output is not needed.
+
+            config IMAGE_ENCODER_PNG
+                bool "Enable PNG encoder"
+                default y
+                help
+                    Include the PNG encoder. Disable to save flash space if PNG output is not needed.
+
+            config IMAGE_ENCODER_BITMAP
+                bool "Enable Bitmap encoder"
+                default y
+                help
+                    Include the Bitmap (BMP) encoder. Disable to save flash space if BMP output is not needed.
+
+            config IMAGE_ENCODER_RAW
+                bool "Enable RAW encoder"
+                default y
+                help
+                    Include the RAW RGB encoder. Disable to save flash space if raw output is not needed.
+        endmenu
     endmenu
 
     menu "Lepton"
@@ -207,7 +233,7 @@ menu "PyroVision"
     menu "Devices"
         config DEVICES_TASK_BATTERY_POLL_INTERVAL_S
             int "Battery polling interval for the devices tasks in seconds"
-            default 30
+            default 10
 
         config DEVICES_TASK_TEMPERATURE_POLL_INTERVAL_S
             int "Temperature polling interval for the devices tasks in seconds"

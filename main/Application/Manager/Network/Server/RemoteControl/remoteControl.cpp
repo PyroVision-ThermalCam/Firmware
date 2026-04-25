@@ -112,7 +112,7 @@ esp_err_t RemoteControl_GetBatteryStatus(int *p_Voltage, uint8_t *p_SOC, bool *p
     return /*DevicesManager_GetBatteryStatus(p_Voltage, p_SOC, p_Charging);*/ ESP_OK;
 }
 
-esp_err_t RemoteControl_GetOV5640Image(uint8_t **pp_Buffer, size_t *p_Size, Settings_Image_Format_t Format)
+esp_err_t RemoteControl_GetOV5640Image(uint8_t **pp_Buffer, size_t *p_Size, ImageEncoder_Format_t Format)
 {
     if ((pp_Buffer == NULL) || (p_Size == NULL)) {
         return ESP_ERR_INVALID_ARG;
@@ -124,7 +124,7 @@ esp_err_t RemoteControl_GetOV5640Image(uint8_t **pp_Buffer, size_t *p_Size, Sett
     return ESP_ERR_NOT_FOUND;
 }
 
-esp_err_t RemoteControl_GetLeptonImage(uint8_t **pp_Buffer, size_t *p_Size, Settings_Image_Format_t Format)
+esp_err_t RemoteControl_GetLeptonImage(uint8_t **pp_Buffer, size_t *p_Size, ImageEncoder_Format_t Format)
 {
     if ((pp_Buffer == NULL) || (p_Size == NULL)) {
         return ESP_ERR_INVALID_ARG;
@@ -346,7 +346,7 @@ esp_err_t RemoteControl_SetFlashState(bool Enabled)
     return SettingsManager_UpdateLEDFlash(&LEDFlash, &Changed);
 }
 
-esp_err_t RemoteControl_GetImageFormat(Settings_Image_Format_t *p_Format)
+esp_err_t RemoteControl_GetImageFormat(ImageEncoder_Format_t *p_Format)
 {
     esp_err_t Error;
     Settings_System_t System;
@@ -365,7 +365,7 @@ esp_err_t RemoteControl_GetImageFormat(Settings_Image_Format_t *p_Format)
     return ESP_OK;
 }
 
-esp_err_t RemoteControl_SetImageFormat(Settings_Image_Format_t Format)
+esp_err_t RemoteControl_SetImageFormat(ImageEncoder_Format_t Format)
 {
     esp_err_t Error;
     Settings_System_t System;
@@ -384,7 +384,7 @@ esp_err_t RemoteControl_SetImageFormat(Settings_Image_Format_t Format)
 
     Changed.ID = SETTINGS_ID_IMAGE_FORMAT;
     Changed.Value = Format;
-    System.ImageFormat = static_cast<Settings_Image_Format_t>(Format);
+    System.ImageFormat = static_cast<ImageEncoder_Format_t>(Format);
 
     ESP_LOGI(TAG, "Set image format to: 0x%X", System.ImageFormat);
 

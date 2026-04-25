@@ -29,6 +29,7 @@
 #include <cJSON.h>
 
 #include "../../networkTypes.h"
+#include "../../../ImageEncoder/imageEncoderTypes.h"
 
 /** @brief          Initialize the WebSocket.
  *  @return         ESP_OK on success
@@ -58,7 +59,7 @@ bool WebSocket_HasClients(void);
 /** @brief              Set thermal frame data for streaming.
  *  @param p_Frame      Pointer to thermal frame data
  */
-void WebSocket_SetThermalFrame(Network_Thermal_Frame_t *p_Frame);
+void WebSocket_SetThermalFrame(ImageEncoder_Raw_t *p_Frame);
 
 /** @brief  Signal that a new frame is ready for broadcasting (non-blocking).
  *  @return ESP_OK on success

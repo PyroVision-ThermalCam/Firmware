@@ -38,13 +38,14 @@
 
 #include "Application/application.h"
 #include "Application/Manager/Network/networkTypes.h"
+#include "Application/Manager/ImageEncoder/imageEncoder.h"
 
 #define GUI_TASK_STOP_REQUEST                       BIT0
 #define GUI_TASK_BATTERY_STATUS_CHANGED             BIT1
 #define GUI_TASK_UVC_STREAMING_STATE_CHANGED        BIT2
 #define GUI_TASK_WIFI_CONNECTION_STATE_CHANGED      BIT3
 #define GUI_TASK_LEPTON_READY                       BIT4
-#define GUI_TASK_GRADIENT_REDRAW_REQUIRED           BIT5
+#define GUI_TASK_PALETTE_CHANGED                    BIT5
 #define GUI_TASK_LEPTON_SCENE_STATISTICS_READY      BIT6
 #define GUI_TASK_PROVISIONING_STATE_CHANGED         BIT7
 #define GUI_TASK_SD_CARD_STATE_CHANGED              BIT8
@@ -119,8 +120,6 @@ typedef struct {
     TemperatureInfo;              /**< Latest ambient/housing temperature readings from the devices task. */
     App_Lepton_ROI_Result_t ROIResult;                      /**< Latest Lepton ROI statistics (min/max/avg temperatures). */
     App_Lepton_Device_t LeptonDeviceInfo;                   /**< Lepton model, firmware version, and capability flags. */
-    App_Lepton_Temperatures_t
-    LeptonTemperatures;           /**< Lepton scene temperature statistics used by the thermal overlay. */
     App_Context_t
     *AppContext;                              /**< Pointer to the shared application context; valid after Task_Start(). */
     EventGroupHandle_t
@@ -128,6 +127,7 @@ typedef struct {
     uint8_t *ThermalCanvasBuffer;                           /**< PSRAM canvas buffer for the scaled thermal RGB image. */
     uint8_t *GradientCanvasBuffer;                          /**< PSRAM canvas buffer for the colour-gradient bar image. */
     uint8_t *NetworkRGBBuffer;                              /**< PSRAM RGB buffer transmitted to connected WebSocket clients. */
+    uint16_t *NetworkRawBuffer;                             /**< PSRAM buffer holding a copy of the latest raw 14-bit Lepton frame for HTTP re-paletization. */
     uint8_t *SaveCanvasBuffer;                              /**< PSRAM snapshot buffer holding a copy of ThermalCanvasBuffer at save-request time; prevents data races with Task_ImageSave. */
     uint32_t LeptonUptime;                                  /**< Lepton camera uptime in seconds, updated on each frame event. */
     uint32_t PrevBtnKey;                                    /**< Previous button key state for edge detection. */
@@ -137,7 +137,7 @@ typedef struct {
     SemaphoreHandle_t
     SpiMutex;                           /**< Mutex serialising SPI3 bus access between the LCD flush path and SD card writes in Task_ImageSave. */
     Network_IP_Info_t IP_Info;                              /**< Current device IP address information (STA or AP mode). */
-    Network_Thermal_Frame_t
+    ImageEncoder_Raw_t
     NetworkFrame;                   /**< Staging buffer for the thermal frame payload sent over WebSocket. */
 } GUI_Task_State_t;
 
@@ -206,6 +206,11 @@ void GUI_Helper_Timer_SpotUpdate(lv_timer_t *p_Timer);
  *  @param p_Timer  Pointer to the LVGL timer structure.
  */
 void GUI_Helper_Timer_SceneStatisticsUpdate(lv_timer_t *p_Timer);
+
+/** @brief          LVGL timer callback to request Lepton data update.
+ *  @param p_Timer  Pointer to the LVGL timer structure.
+ */
+void GUI_Helper_Timer_LeptonUpdate(lv_timer_t *p_Timer);
 
 /** @brief          LVGL timer callback to request RAM usage update.
  *  @param p_Timer  Pointer to the LVGL timer structure.

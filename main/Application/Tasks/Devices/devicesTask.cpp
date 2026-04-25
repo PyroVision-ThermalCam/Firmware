@@ -53,6 +53,16 @@
 
 #define JOYCENTER_LONGPRESS_MS              600
 
+/** @brief EMA smoothing factor for raw TMP117 readings.
+ *         At a 5-second poll interval this gives a time constant of approx. 17 s (interval / alpha).
+ *         Increase toward 1.0 to react faster; decrease toward 0.0 for heavier smoothing. */
+#define TEMP_EMA_ALPHA                      0.3f
+
+/** @brief EMA smoothing factor for the periodic auto-calibration of SensorAtCalibration.
+ *         With a 3600-second calibration interval each update moves the baseline 10 % toward the
+ *         current filtered reading, giving a drift-tracking time constant of roughly 10 hours. */
+#define CAL_EMA_ALPHA                       0.1f
+
 ESP_EVENT_DEFINE_BASE(DEVICES_TASK_EVENTS);
 
 /** @brief LED blink state machine phases used by the DevicesTask LED controller.
@@ -73,17 +83,19 @@ typedef struct {
     bool RunTemperatureRead;                            /**< true if a temperature read is requested. */
     bool PrevJoyCenter;                                 /**< Previous JoyCenter state; used for long-press edge detection. */
     bool JoyCenterLongFired;                            /**< true after the long-press event has been posted for the current hold; prevents re-firing. */
+    bool LED_R;                                         /**< Red channel of the active blink request. */
+    bool LED_G;                                         /**< Green channel of the active blink request. */
+    bool LED_B;                                         /**< Blue channel of the active blink request. */
+    bool IsEMAInitialized;                              /**< true after the EMA filter has been seeded with the first sensor reading. */
     TaskHandle_t TaskHandle;                            /**< FreeRTOS task handle; NULL before Devices_Task_Start(). */
     EventGroupHandle_t EventGroup;                      /**< Event group used for intra-task synchronisation. */
     SettingsManager_ChangeNotification_t NewSetting;    /**< Staging area for incoming settings-change notifications. */
     int16_t RoomTemperature;                            /**< Latest room temperature in tenths of a degree Celsius. */
-    bool LED_R;                                         /**< Red channel of the active blink request. */
-    bool LED_G;                                         /**< Green channel of the active blink request. */
-    bool LED_B;                                         /**< Blue channel of the active blink request. */
     uint8_t LED_CyclesRemaining;                        /**< Number of on/off flash cycles still to execute. */
     uint32_t LED_OnTime_ms;                             /**< Duration of the LED-on phase in milliseconds. */
     uint32_t LED_OffTime_ms;                            /**< Duration of the LED-off phase between flashes in milliseconds. */
     uint32_t CalibrationInterval_s;                     /**< User-configured calibration interval in seconds. */
+    float EMA_Temperature;                              /**< EMA-filtered TMP117 reading in °C; 0.0f before the first reading. */
     TickType_t LED_PhaseStart;                          /**< Tick at which the current blink phase started; 0 when idle. */
     TickType_t JoyCenterHeldSince;                      /**< Tick at which JoyCenter went high; 0 when not pressed. */
     Devices_LED_Blink_State_t LED_BlinkState;           /**< Current phase of the LED blink state machine. */
@@ -161,6 +173,10 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
 
             if (_DevicesTaskState.NewSetting.ID == SETTINGS_ID_CALIBRATION_ROOM_TEMP) {
                 _DevicesTaskState.RoomTemperature = static_cast<int16_t>(_DevicesTaskState.NewSetting.Value);
+
+                /* The user has entered the current ambient temperature — immediately take a
+                 * calibration snapshot to anchor the new offset to the current sensor reading. */
+                xEventGroupSetBits(_DevicesTaskState.EventGroup, DEVICES_TASK_TEMP_CALIBRATION);
             } else if (_DevicesTaskState.NewSetting.ID == SETTINGS_ID_CALIBRATION_INTERVAL) {
                 _DevicesTaskState.CalibrationInterval_s = static_cast<uint32_t>(_DevicesTaskState.NewSetting.Value);
             }
@@ -251,17 +267,27 @@ static void Task_Devices(void *p_Parameters)
         }
 
         if (EventBits & DEVICES_TASK_TEMP_CALIBRATION) {
-            float Temperature;
             Settings_Calibration_t Calibration;
+            float CalTemp = 0.0f;
 
-            SettingsManager_GetCalibration(&Calibration);
+            /* Prefer the EMA-filtered reading for a noise-free calibration snapshot.
+             * Fall back to a fresh raw sensor read if the EMA has not been seeded yet. */
+            if (_DevicesTaskState.IsEMAInitialized) {
+                CalTemp = _DevicesTaskState.EMA_Temperature;
+            } else {
+                float RawTemp;
 
-            if (DevicesManager_GetTemperature(&Temperature) == ESP_OK) {
+                if (DevicesManager_GetTemperature(&RawTemp) == ESP_OK) {
+                    CalTemp = RawTemp;
+                }
+            }
+
+            if (CalTemp != 0.0f) {
                 SettingsManager_GetCalibration(&Calibration);
-                Calibration.SensorAtCalibration = Temperature;
+                Calibration.SensorAtCalibration = CalTemp;
                 SettingsManager_UpdateCalibration(&Calibration, NULL);
 
-                ESP_LOGI(TAG, "Calibration snapshot: room=%d\xC2\xB0""C, sensor=%.2f\xC2\xB0""C, offset=%.2f\xC2\xB0""C",
+                ESP_LOGI(TAG, "Manual calibration snapshot: room=%d\xC2\xB0""C, sensor=%.2f\xC2\xB0""C, offset=%.2f\xC2\xB0""C",
                          static_cast<int>(Calibration.RoomTemperature),
                          Calibration.SensorAtCalibration,
                          static_cast<float>(Calibration.RoomTemperature) - Calibration.SensorAtCalibration);
@@ -332,12 +358,29 @@ static void Task_Devices(void *p_Parameters)
             }
         }
 
-        if ((xTaskGetTickCount() - LastCalibration) >= pdMS_TO_TICKS(_DevicesTaskState.CalibrationInterval_s * 1000)) {
+        if ((_DevicesTaskState.CalibrationInterval_s > 0) &&
+            ((xTaskGetTickCount() - LastCalibration) >= pdMS_TO_TICKS(_DevicesTaskState.CalibrationInterval_s * 1000))) {
             LastCalibration = xTaskGetTickCount();
 
-            ESP_LOGD(TAG, "Performing periodic temperature calibration");
+            if (_DevicesTaskState.IsEMAInitialized) {
+                Settings_Calibration_t Calibration;
 
-            xEventGroupSetBits(_DevicesTaskState.EventGroup, DEVICES_TASK_TEMP_CALIBRATION);
+                SettingsManager_GetCalibration(&Calibration);
+
+                /* Gradually blend SensorAtCalibration toward the current EMA temperature.
+                 * This tracks long-term device self-heating drift without abrupt jumps.
+                 * Each period moves the baseline by CAL_EMA_ALPHA (10 %) of the residual
+                 * difference, giving a time constant of roughly interval_s / CAL_EMA_ALPHA. */
+                Calibration.SensorAtCalibration = (1.0f - CAL_EMA_ALPHA) * Calibration.SensorAtCalibration +
+                                                   CAL_EMA_ALPHA * _DevicesTaskState.EMA_Temperature;
+                SettingsManager_UpdateCalibration(&Calibration, NULL);
+                SettingsManager_Save();
+
+                ESP_LOGI(TAG,
+                         "Auto-calibration drift correction: sensor_baseline=%.2f\xC2\xB0""C, offset=%.2f\xC2\xB0""C",
+                         Calibration.SensorAtCalibration,
+                         static_cast<float>(Calibration.RoomTemperature) - Calibration.SensorAtCalibration);
+            }
         }
 
         if ((xTaskGetTickCount() - LastBatteryPoll) >= pdMS_TO_TICKS(CONFIG_DEVICES_TASK_BATTERY_POLL_INTERVAL_S * 1000)) {
@@ -350,7 +393,7 @@ static void Task_Devices(void *p_Parameters)
                     .Charging = Batttery.IsCharging
                 };
 
-                ESP_LOGI(TAG, "Battery status: %d%%, %d mV, charging=%s", NewBatteryInfo.Percentage, NewBatteryInfo.Voltage,
+                ESP_LOGD(TAG, "Battery status: %d%%, %d mV, charging=%s", NewBatteryInfo.Percentage, NewBatteryInfo.Voltage,
                          NewBatteryInfo.Charging ? "yes" : "no");
 
                 esp_event_post(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_BATTERY,
@@ -369,18 +412,29 @@ static void Task_Devices(void *p_Parameters)
                 Settings_Calibration_t Calibration;
                 App_Devices_Temperature_t NewTemperatureInfo;
 
+                /* Update the EMA filter. Seed with the first reading; apply exponential smoothing
+                 * on subsequent readings to suppress I2C noise and short-term fluctuations.
+                 * published value = TEMP_EMA_ALPHA * raw + (1 - TEMP_EMA_ALPHA) * previous */
+                if (_DevicesTaskState.IsEMAInitialized == false) {
+                    _DevicesTaskState.EMA_Temperature = Temperature;
+                    _DevicesTaskState.IsEMAInitialized = true;
+                } else {
+                    _DevicesTaskState.EMA_Temperature = TEMP_EMA_ALPHA * Temperature +
+                                                        (1.0f - TEMP_EMA_ALPHA) * _DevicesTaskState.EMA_Temperature;
+                }
+
                 SettingsManager_GetCalibration(&Calibration);
 
                 /* Auto-initialize SensorAtCalibration on the first temperature reading.
-                * SensorAtCalibration == 0.0f is the "never calibrated" sentinel.
-                * On first reading: store the current sensor value so the persistent offset
-                * reflects the factory/power-on deviation from the configured room temperature.
-                * offset = RoomTemperature - SensorAtCalibration
-                * estimated_ambient = sensor_current + offset
-                * Example: room = 20, sensor_cal = 24.3 -> offset = -4.3
-                *          sensor_now = 24.5           -> ambient = 24.5 + (-4.3) = 20.2 */
+                 * SensorAtCalibration == 0.0f is the "never calibrated" sentinel.
+                 * On first reading: store the current EMA value so the persistent offset
+                 * reflects the factory/power-on deviation from the configured room temperature.
+                 * offset = RoomTemperature - SensorAtCalibration
+                 * estimated_ambient = sensor_current + offset
+                 * Example: room = 20, sensor_cal = 24.3 -> offset = -4.3
+                 *          sensor_now = 24.5           -> ambient = 24.5 + (-4.3) = 20.2 */
                 if (Calibration.SensorAtCalibration == 0.0f) {
-                    Calibration.SensorAtCalibration = Temperature;
+                    Calibration.SensorAtCalibration = _DevicesTaskState.EMA_Temperature;
                     SettingsManager_UpdateCalibration(&Calibration, NULL);
 
                     ESP_LOGI(TAG,
@@ -394,7 +448,9 @@ static void Task_Devices(void *p_Parameters)
                 }
 
                 NewTemperatureInfo = {
-                    .TempSensor = Temperature,
+                    .TempSensor = _DevicesTaskState.EMA_Temperature,
+                    .FPA = 0.0f,    /* FPA temperature is not read by the Devices Task; leave it at 0. */
+                    .AUX = 0.0f     /* AUX temperature is not read by the Devices Task; leave it at 0. */
                 };
 
                 esp_event_post(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE,

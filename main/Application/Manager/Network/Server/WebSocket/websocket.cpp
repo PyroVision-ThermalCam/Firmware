@@ -29,7 +29,7 @@
 #include <cstring>
 
 #include "websocket.h"
-#include "../ImageEncoder/imageEncoder.h"
+#include "../../../ImageEncoder/imageEncoder.h"
 #include "Private/websocketRemoteHandlers.h"
 
 /** @brief WebSocket client state.
@@ -39,7 +39,7 @@ typedef struct {
     bool Active;
     bool StreamEnabled;
     bool TelemetryEnabled;
-    Settings_Image_Format_t StreamFormat;
+    ImageEncoder_Format_t StreamFormat;
     uint8_t StreamFps;
     uint32_t TelemetryIntervalMs;
     uint32_t LastTelemetryTime;
@@ -52,7 +52,7 @@ typedef struct {
     httpd_handle_t ServerHandle;
     WS_Client_t Clients[CONFIG_NETWORK_WEBSOCKET_CLIENTS];
     uint8_t ClientCount;
-    Network_Thermal_Frame_t *ThermalFrame;
+    ImageEncoder_Raw_t *ThermalFrame;
     SemaphoreHandle_t ClientsMutex;
     TaskHandle_t BroadcastTask;
     QueueHandle_t FrameReadyQueue;
@@ -642,7 +642,7 @@ bool WebSocket_HasClients(void)
     return WebSocket_State.ClientCount > 0;
 }
 
-void WebSocket_SetThermalFrame(Network_Thermal_Frame_t *p_Frame)
+void WebSocket_SetThermalFrame(ImageEncoder_Raw_t *p_Frame)
 {
     xSemaphoreTake(WebSocket_State.ClientsMutex, portMAX_DELAY);
     WebSocket_State.ThermalFrame = p_Frame;
@@ -656,7 +656,7 @@ static void WebSocket_BroadcastTask(void *p_Param)
 {
     uint8_t Signal;
     esp_err_t Error;
-    Network_Encoded_Image_t Encoded;
+    ImageEncoder_EncodedImage_t Encoded;
 
     ESP_LOGI(TAG, "WebSocket broadcast task started");
 
@@ -673,8 +673,10 @@ static void WebSocket_BroadcastTask(void *p_Param)
 
             /* Encode frame ONCE for all clients (assume JPEG format for simplicity) */
             if (xSemaphoreTake(WebSocket_State.ThermalFrame->Mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-                Error = ImageEncoder_Encode(WebSocket_State.ThermalFrame,
-                                            IMAGE_FORMAT_JPEG, PALETTE_IRON, &Encoded);
+                Error = ESP_OK;
+                // TODO
+                //Error = ImageEncoder_Encode(WebSocket_State.ThermalFrame,
+                //                            IMAGE_FORMAT_JPEG, PALETTE_IRON, &Encoded);
                 xSemaphoreGive(WebSocket_State.ThermalFrame->Mutex);
 
                 if (Error != ESP_OK) {

@@ -359,7 +359,7 @@ int VISA_Cmd_SetFlashState(char **pp_Tokens, int Count, char *p_Response, size_t
 int VISA_Cmd_GetImageFormat(char *p_Response, size_t MaxLen)
 {
     esp_err_t Error;
-    Settings_Image_Format_t Format;
+    ImageEncoder_Format_t Format;
     const char *FormatStr;
     std::string Response;
 
@@ -395,7 +395,7 @@ int VISA_Cmd_GetImageFormat(char *p_Response, size_t MaxLen)
 int VISA_Cmd_SetImageFormat(char **pp_Tokens, int Count, char *p_Response, size_t MaxLen)
 {
     esp_err_t Error;
-    Settings_Image_Format_t Format;
+    ImageEncoder_Format_t Format;
     std::string FormatValue(pp_Tokens[3]);
 
     if (Count < 4) {

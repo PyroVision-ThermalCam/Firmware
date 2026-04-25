@@ -33,6 +33,8 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+#include "../ImageEncoder/imageEncoderTypes.h"
+
 #define SETTINGS_ERR_BASE                       0x4000
 
 /** @defgroup SETTINGS_ERRORS Settings Manager Error Codes
@@ -142,15 +144,6 @@ typedef enum {
     ROI_TYPE_VIDEO_FOCUS,                       /**< Video focus ROI. */
 } Settings_ROI_Type_t;
 
-/** @brief Image format types.
- */
-typedef enum {
-    IMAGE_FORMAT_JPEG = 0,                      /**< JPEG format. */
-    IMAGE_FORMAT_PNG = 1,                       /**< PNG format. */
-    IMAGE_FORMAT_RAW = 2,                       /**< Raw format. */
-    IMAGE_FORMAT_BITMAP = 3,                    /**< Bitmap (BMP) format. */
-} Settings_Image_Format_t;
-
 /** @brief Structure to hold the modified settings value.
  */
 typedef struct {
@@ -253,7 +246,7 @@ typedef struct {
     char Timezone[32];                          /**< Timezone string (e.g., "CET-1CEST,M3.5.0,M10.5.0/3"). */
     char NTPServer[32];                         /**< NTP server address. */
     char DeviceName[32];                        /**< Device name. */
-    Settings_Image_Format_t ImageFormat;        /**< Image format for captures (PNG, RAW, JPEG, Bitmap). */
+    ImageEncoder_Format_t ImageFormat;          /**< Image format for captures. */
     uint8_t JpegQuality;                        /**< JPEG compression quality (1-100). */
     uint8_t Reserved[98];                       /**< Reserved for future use. */
 } __attribute__((packed)) Settings_System_t;

@@ -297,7 +297,7 @@ void WebSocket_Handle_SetFlash(int FD, cJSON *p_Data)
 void WebSocket_Handle_GetImageFormat(int FD, cJSON *p_Data)
 {
     esp_err_t Error;
-    Settings_Image_Format_t ImageFormat;
+    ImageEncoder_Format_t ImageFormat;
     const char *Format;
     cJSON *Data;
 
@@ -342,7 +342,7 @@ void WebSocket_Handle_SetImageFormat(int FD, cJSON *p_Data)
 {
     esp_err_t Error;
     cJSON *FormatField;
-    Settings_Image_Format_t Format;
+    ImageEncoder_Format_t Format;
 
     FormatField = cJSON_GetObjectItem(p_Data, "format");
     if (cJSON_IsString(FormatField) == false) {

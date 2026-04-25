@@ -42,7 +42,7 @@
 #include "Application/Manager/Devices/devicesManager.h"
 #include "Application/Manager/USB/usbManager.h"
 #include "Application/Manager/USB/UVC/usbUVC.h"
-#include "Application/Manager/Network/Server/ImageEncoder/JPEG/jpegEncoder.h"
+#include "Application/Manager/ImageEncoder/JPEG/jpegEncoder.h"
 #include "Application/Manager/Settings/settingsManager.h"
 
 #define LEPTON_TASK_STOP_REQUEST                BIT0
@@ -68,6 +68,7 @@ typedef struct {
     TaskHandle_t TaskHandle;                            /**< FreeRTOS task handle; NULL before Lepton_Task_Start(). */
     EventGroupHandle_t EventGroup;                      /**< Event group used for intra-task synchronisation. */
     uint8_t *RGB_Buffer[2];                             /**< Double-buffered PSRAM RGB888 output; ping-pong scheme. */
+    uint16_t *Raw14Buffer;                              /**< PSRAM buffer holding the latest raw 14-bit Lepton frame (Width × Height × uint16_t). */
     uint8_t CurrentReadBuffer;                          /**< Index (0 or 1) of the buffer currently safe to read. */
     SemaphoreHandle_t BufferMutex;                      /**< Mutex protecting RGB_Buffer access across tasks. */
     QueueHandle_t RawFrameQueue;                        /**< Queue carrying raw Lepton frame pointers from the ISR. */
@@ -201,6 +202,7 @@ static void on_GUI_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
         }
         case GUI_TASK_EVENT_REQUEST_FPA_AUX_TEMP: {
             xEventGroupSetBits(_LeptonTaskState.EventGroup, LEPTON_TASK_UPDATE_TEMP_REQUEST);
+
             break;
         }
         case GUI_TASK_EVENT_REQUEST_UPTIME: {
@@ -458,6 +460,10 @@ static void Task_Lepton(void *p_Parameters)
                 SettingsManager_GetLepton(&LeptonSettings);
                 uint8_t PaletteIdx = LeptonSettings.Palette < LEPTON_PALETTE_COUNT ? LeptonSettings.Palette : 0U;
 
+                /* Save raw 14-bit data before RGB conversion so the HTTP encoder can re-apply any palette */
+                memcpy(_LeptonTaskState.Raw14Buffer, _LeptonTaskState.RawFrame.ImageBuffer,
+                       _LeptonTaskState.RawFrame.Width * _LeptonTaskState.RawFrame.Height * sizeof(uint16_t));
+
                 Lepton_Raw14ToRGB(&_LeptonTaskState.Lepton, _LeptonTaskState.RawFrame.ImageBuffer, WriteBuffer, &Min, &Max,
                                   _LeptonTaskState.RawFrame.Width,
                                   _LeptonTaskState.RawFrame.Height,
@@ -516,11 +522,18 @@ static void Task_Lepton(void *p_Parameters)
 
             FrameEvent = {
                 .Buffer = WriteBuffer,
+                /* RawBuffer is only valid in RAW14 mode; set to NULL in RGB888 mode to prevent
+                 * the network encoder from using stale or misinterpreted data. */
+                .RawBuffer = (VideoFormat == LEPTON_FORMAT_RGB888) ? NULL : _LeptonTaskState.Raw14Buffer,
                 .Width = _LeptonTaskState.RawFrame.Width,
                 .Height = _LeptonTaskState.RawFrame.Height,
                 .Channels = 3,
-                .Min = Min.Value,
-                .Max = Max.Value,
+                /* Use the smoothed min/max so the HTTP encoder normalises with the same range
+                 * that Lepton_Raw14ToRGB used for the on-device display.
+                 * Min.Value / Max.Value are the actual (unsmoothed) pixel extremes and would
+                 * produce different contrast than what is visible on screen. */
+                .Min = static_cast<int32_t>(_LeptonTaskState.Lepton.Internal.MinSmooth),
+                .Max = static_cast<int32_t>(_LeptonTaskState.Lepton.Internal.MaxSmooth),
                 .MinX = Min.x,
                 .MinY = Min.y,
                 .MaxX = Max.x,
@@ -599,14 +612,14 @@ static void Task_Lepton(void *p_Parameters)
         if (EventBits & LEPTON_TASK_UPDATE_TEMP_REQUEST) {
             uint16_t FPA_Temp;
             uint16_t AUX_Temp;
-            App_Lepton_Temperatures_t Temperatures;
+            App_Devices_Temperature_t Temperatures;
 
             Lepton_GetTemperature(&_LeptonTaskState.Lepton, &FPA_Temp, &AUX_Temp);
 
             Temperatures.FPA = (static_cast<float>(FPA_Temp) * 0.01f) - 273.15f;
             Temperatures.AUX = (static_cast<float>(AUX_Temp) * 0.01f) - 273.15f;
             esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_RESPONSE_FPA_AUX_TEMP, &Temperatures,
-                           sizeof(App_Lepton_Temperatures_t), pdMS_TO_TICKS(100));
+                           sizeof(App_Devices_Temperature_t), pdMS_TO_TICKS(100));
 
             xEventGroupClearBits(_LeptonTaskState.EventGroup, LEPTON_TASK_UPDATE_TEMP_REQUEST);
         }
@@ -709,7 +722,10 @@ static void Task_Lepton(void *p_Parameters)
 
             SettingsManager_GetCalibration(&Calibration);
 
-            Offset = static_cast<float>(Calibration.SensorAtCalibration) - Calibration.RoomTemperature;
+            /* offset = RoomTemperature - SensorAtCalibration
+             * The sensor reads higher than ambient due to self-heating; subtract that delta.
+             * Example: room=19, sensor_cal=24.59 -> offset=-5.59 -> ambient=24.59-5.59=19.0°C */
+            Offset = static_cast<float>(Calibration.RoomTemperature) - Calibration.SensorAtCalibration;
             T_Compensated = _LeptonTaskState.TemperatureInfo.TempSensor + Offset;
 
             Lepton_GetFluxLinearParameters(&_LeptonTaskState.Lepton, &FluxParams);
@@ -797,7 +813,12 @@ esp_err_t Lepton_Task_Init(void)
     _LeptonTaskState.RGB_Buffer[1] = static_cast<uint8_t *>(heap_caps_malloc(BufferSize,
                                                                              MALLOC_CAP_SIMD | MALLOC_CAP_SPIRAM));
 
-    if ((_LeptonTaskState.RGB_Buffer[0] == NULL) || (_LeptonTaskState.RGB_Buffer[1] == NULL)) {
+    /* Raw 14-bit buffer: 160 × 120 × 2 = 38,400 bytes (PSRAM) */
+    _LeptonTaskState.Raw14Buffer = static_cast<uint16_t *>(heap_caps_malloc(160 * 120 * sizeof(uint16_t),
+                                                                            MALLOC_CAP_SPIRAM));
+
+    if ((_LeptonTaskState.RGB_Buffer[0] == NULL) || (_LeptonTaskState.RGB_Buffer[1] == NULL) ||
+        (_LeptonTaskState.Raw14Buffer == NULL)) {
         ESP_LOGE(TAG, "Can not allocate RGB buffers!");
         APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_LEPTON, ESP_ERR_NO_MEM);
 
@@ -807,6 +828,10 @@ esp_err_t Lepton_Task_Init(void)
 
         if (_LeptonTaskState.RGB_Buffer[1]) {
             heap_caps_free(_LeptonTaskState.RGB_Buffer[1]);
+        }
+
+        if (_LeptonTaskState.Raw14Buffer) {
+            heap_caps_free(_LeptonTaskState.Raw14Buffer);
         }
 
         Lepton_Deinit(&_LeptonTaskState.Lepton);

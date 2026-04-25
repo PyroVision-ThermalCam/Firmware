@@ -155,16 +155,16 @@ esp_err_t SettingsManager_Init(void)
     xSemaphoreGive(_SettingsManagerState.Mutex);
 
     /* Copy the read-only data */
-    sprintf(_SettingsManagerState.Info.FirmwareVersion, "%u.%u.%u", PYROVISION_VERSION_MAJOR, PYROVISION_VERSION_MINOR,
+    snprintf(_SettingsManagerState.Info.FirmwareVersion, sizeof(_SettingsManagerState.Info.FirmwareVersion), "%u.%u.%u", PYROVISION_VERSION_MAJOR, PYROVISION_VERSION_MINOR,
             PYROVISION_VERSION_BUILD);
-    sprintf(_SettingsManagerState.Info.Manufacturer, "%s", CONFIG_DEVICE_MANUFACTURER);
-    sprintf(_SettingsManagerState.Info.Name, "%s", CONFIG_DEVICE_NAME);
-    sprintf(_SettingsManagerState.Info.Serial, "%u", Serial);
-    sprintf(_SettingsManagerState.Info.SDK, "%s", IDF_VER);
+    snprintf(_SettingsManagerState.Info.Manufacturer, sizeof(_SettingsManagerState.Info.Manufacturer), "%s", CONFIG_DEVICE_MANUFACTURER);
+    snprintf(_SettingsManagerState.Info.Name, sizeof(_SettingsManagerState.Info.Name), "%s", CONFIG_DEVICE_NAME);
+    snprintf(_SettingsManagerState.Info.Serial, sizeof(_SettingsManagerState.Info.Serial), "%u", Serial);
+    snprintf(_SettingsManagerState.Info.SDK, sizeof(_SettingsManagerState.Info.SDK), "%s", IDF_VER);
 
     /* Get application description with version info */
     const esp_app_desc_t *p_AppDesc = esp_app_get_description();
-    sprintf(_SettingsManagerState.Info.Commit, "%s", p_AppDesc->version);
+    snprintf(_SettingsManagerState.Info.Commit, sizeof(_SettingsManagerState.Info.Commit), "%s", p_AppDesc->version);
     ESP_LOGI(TAG, "Firmware Version: %s", p_AppDesc->version);
     ESP_LOGI(TAG, "Firmware Date: %s %s", p_AppDesc->date, p_AppDesc->time);
     ESP_LOGI(TAG, "Firmware IDF: %s", p_AppDesc->idf_ver);

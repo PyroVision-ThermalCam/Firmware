@@ -15,12 +15,13 @@ extern void ui_Splash_screen_init(void);
 extern void ui_Splash_screen_destroy(void);
 extern void ui_event_Splash(lv_event_t * e);
 extern lv_obj_t * ui_Splash;
-extern lv_obj_t * ui_SplashScreen_Logo;
-extern lv_obj_t * ui_SplashScreen_LogoText;
-extern lv_obj_t * ui_SplashScreen_Subtext;
-extern lv_obj_t * ui_SplashScreen_LoadingBar;
-extern lv_obj_t * ui_SplashScreen_StatusText;
-extern lv_obj_t * ui_SplashScreen_FirmwareVersion;
+extern lv_obj_t * ui_Image_Splash_Logo;
+extern lv_obj_t * ui_Image_Splash_Name;
+extern lv_obj_t * ui_Label_Splash_Slogan;
+extern lv_obj_t * ui_ProgressBar_Splash_Loading;
+extern lv_obj_t * ui_Label_Splash_StatusText;
+extern lv_obj_t * ui_Label_Splash_FirmwareVersion;
+extern lv_obj_t * ui_Label_Splash_Copyright;
 // CUSTOM VARIABLES
 
 #ifdef __cplusplus

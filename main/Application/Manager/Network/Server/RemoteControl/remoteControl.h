@@ -76,7 +76,7 @@ esp_err_t RemoteControl_GetBatteryStatus(int *p_Voltage, uint8_t *p_SOC, bool *p
  *                      ESP_ERR_NO_MEM if allocation fails
  *                      ESP_ERR_NOT_FOUND if camera not available
  */
-esp_err_t RemoteControl_GetOV5640Image(uint8_t **pp_Buffer, size_t *p_Size, Settings_Image_Format_t Format);
+esp_err_t RemoteControl_GetOV5640Image(uint8_t **pp_Buffer, size_t *p_Size, ImageEncoder_Format_t Format);
 
 /** @brief              Get Lepton thermal camera image.
  *  @param pp_Buffer    Pointer to store image buffer pointer (caller must free)
@@ -87,7 +87,7 @@ esp_err_t RemoteControl_GetOV5640Image(uint8_t **pp_Buffer, size_t *p_Size, Sett
  *                      ESP_ERR_NO_MEM if allocation fails
  *                      ESP_ERR_NOT_FOUND if camera not available
  */
-esp_err_t RemoteControl_GetLeptonImage(uint8_t **pp_Buffer, size_t *p_Size, Settings_Image_Format_t Format);
+esp_err_t RemoteControl_GetLeptonImage(uint8_t **pp_Buffer, size_t *p_Size, ImageEncoder_Format_t Format);
 
 /** @brief              Get Lepton camera emissivity.
  *  @param p_Emissivity Pointer to store emissivity value
@@ -170,14 +170,14 @@ esp_err_t RemoteControl_SetFlashState(bool Enabled);
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if p_Format is NULL
  */
-esp_err_t RemoteControl_GetImageFormat(Settings_Image_Format_t *p_Format);
+esp_err_t RemoteControl_GetImageFormat(ImageEncoder_Format_t *p_Format);
 
 /** @brief              Set image format.
  *  @param Format       Image format
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if format invalid
  */
-esp_err_t RemoteControl_SetImageFormat(Settings_Image_Format_t Format);
+esp_err_t RemoteControl_SetImageFormat(ImageEncoder_Format_t Format);
 
 /** @brief              Set status LED color and brightness.
  *  @param Color        LED color

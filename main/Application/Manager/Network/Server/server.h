@@ -56,6 +56,7 @@ static inline esp_err_t Server_Init(void)
     Error = HTTP_Server_Init(&ServerConfig);
     if (Error != ESP_OK) {
         ImageEncoder_Deinit();
+
         return Error;
     }
 
@@ -63,6 +64,7 @@ static inline esp_err_t Server_Init(void)
     if (Error != ESP_OK) {
         HTTP_Server_Deinit();
         ImageEncoder_Deinit();
+
         return Error;
     }
 
@@ -103,12 +105,14 @@ static inline esp_err_t Server_Start(void)
     Error = WebSocket_Register(HTTP_Server_GetHandle());
     if (Error != ESP_OK) {
         HTTP_Server_Stop();
+
         return Error;
     }
 
     Error = WebSocket_StartTask();
     if (Error != ESP_OK) {
         HTTP_Server_Stop();
+
         return Error;
     }
 
@@ -116,6 +120,7 @@ static inline esp_err_t Server_Start(void)
     if (Error != ESP_OK) {
         WebSocket_StopTask();
         HTTP_Server_Stop();
+
         return Error;
     }
 
@@ -144,9 +149,9 @@ static inline bool Server_IsRunning(void)
 /** @brief          Set the thermal frame data for both HTTP and WebSocket endpoints.
  *  @param p_Frame  Pointer to thermal frame data
  */
-static inline void Server_SetThermalFrame(Network_Thermal_Frame_t *p_Frame)
+static inline void Server_SetThermalFrame(ImageEncoder_Raw_t *p_Frame)
 {
-    HTTP_Server_SetThermalFrame(p_Frame);
+    HTTP_Server_SetRawFrame(p_Frame);
     WebSocket_SetThermalFrame(p_Frame);
 }
 
@@ -157,6 +162,23 @@ static inline void Server_NotifyClients(void)
     if (WebSocket_HasClients()) {
         WebSocket_NotifyFrameReady();
     }
+}
+
+/** @brief          Set the Lepton temperatures for both HTTP and WebSocket endpoints.
+ *  @param FPA      Focal Plane Array temperature in Degree Celsius
+ *  @param AUX      Auxiliary temperature in Degree Celsius
+ */
+static inline void Server_SetLeptonTemperatures(float FPA, float Aux)
+{
+    HTTP_Server_SetLeptonTemperatures(FPA, Aux);
+}
+
+/** @brief              Set the device temperature for both HTTP and WebSocket endpoints.
+ *  @param Temperature  Device temperature in Degree Celsius
+ */
+static inline void Server_SetDeviceTemperature(float Temperature)
+{
+    HTTP_Server_SetDeviceTemperature(Temperature);
 }
 
 #endif /* SERVER_H_ */

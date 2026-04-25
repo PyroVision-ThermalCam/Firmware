@@ -6,12 +6,13 @@
 #include "../ui.h"
 
 lv_obj_t * ui_Splash = NULL;
-lv_obj_t * ui_SplashScreen_Logo = NULL;
-lv_obj_t * ui_SplashScreen_LogoText = NULL;
-lv_obj_t * ui_SplashScreen_Subtext = NULL;
-lv_obj_t * ui_SplashScreen_LoadingBar = NULL;
-lv_obj_t * ui_SplashScreen_StatusText = NULL;
-lv_obj_t * ui_SplashScreen_FirmwareVersion = NULL;
+lv_obj_t * ui_Image_Splash_Logo = NULL;
+lv_obj_t * ui_Image_Splash_Name = NULL;
+lv_obj_t * ui_Label_Splash_Slogan = NULL;
+lv_obj_t * ui_ProgressBar_Splash_Loading = NULL;
+lv_obj_t * ui_Label_Splash_StatusText = NULL;
+lv_obj_t * ui_Label_Splash_FirmwareVersion = NULL;
+lv_obj_t * ui_Label_Splash_Copyright = NULL;
 // event funtions
 void ui_event_Splash(lv_event_t * e)
 {
@@ -31,91 +32,106 @@ void ui_Splash_screen_init(void)
     lv_obj_set_style_bg_color(ui_Splash, lv_color_hex(0x1E1E1E), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_Splash, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_SplashScreen_Logo = lv_image_create(ui_Splash);
-    lv_image_set_src(ui_SplashScreen_Logo, &ui_img_logo_80x44_png);
-    lv_obj_set_width(ui_SplashScreen_Logo, LV_SIZE_CONTENT);   /// 1
-    lv_obj_set_height(ui_SplashScreen_Logo, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_SplashScreen_Logo, 0);
-    lv_obj_set_y(ui_SplashScreen_Logo, -80);
-    lv_obj_set_align(ui_SplashScreen_Logo, LV_ALIGN_CENTER);
-    lv_obj_remove_flag(ui_SplashScreen_Logo,
+    ui_Image_Splash_Logo = lv_image_create(ui_Splash);
+    lv_image_set_src(ui_Image_Splash_Logo, &ui_img_logo_80x44_png);
+    lv_obj_set_width(ui_Image_Splash_Logo, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_Image_Splash_Logo, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_Image_Splash_Logo, 0);
+    lv_obj_set_y(ui_Image_Splash_Logo, -80);
+    lv_obj_set_align(ui_Image_Splash_Logo, LV_ALIGN_CENTER);
+    lv_obj_remove_flag(ui_Image_Splash_Logo,
                        LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE | LV_OBJ_FLAG_SNAPPABLE |
                        LV_OBJ_FLAG_SCROLLABLE);     /// Flags
 
-    ui_SplashScreen_LogoText = lv_image_create(ui_Splash);
-    lv_image_set_src(ui_SplashScreen_LogoText, &ui_img_text_218x40_png);
-    lv_obj_set_width(ui_SplashScreen_LogoText, LV_SIZE_CONTENT);   /// 1
-    lv_obj_set_height(ui_SplashScreen_LogoText, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_SplashScreen_LogoText, 0);
-    lv_obj_set_y(ui_SplashScreen_LogoText, -20);
-    lv_obj_set_align(ui_SplashScreen_LogoText, LV_ALIGN_CENTER);
-    lv_obj_remove_flag(ui_SplashScreen_LogoText,
+    ui_Image_Splash_Name = lv_image_create(ui_Splash);
+    lv_image_set_src(ui_Image_Splash_Name, &ui_img_text_218x40_png);
+    lv_obj_set_width(ui_Image_Splash_Name, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_Image_Splash_Name, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_Image_Splash_Name, 0);
+    lv_obj_set_y(ui_Image_Splash_Name, -20);
+    lv_obj_set_align(ui_Image_Splash_Name, LV_ALIGN_CENTER);
+    lv_obj_remove_flag(ui_Image_Splash_Name,
                        LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE | LV_OBJ_FLAG_SNAPPABLE |
                        LV_OBJ_FLAG_SCROLLABLE);     /// Flags
 
-    ui_SplashScreen_Subtext = lv_label_create(ui_Splash);
-    lv_obj_set_width(ui_SplashScreen_Subtext, LV_SIZE_CONTENT);   /// 1
-    lv_obj_set_height(ui_SplashScreen_Subtext, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_SplashScreen_Subtext, 0);
-    lv_obj_set_y(ui_SplashScreen_Subtext, 20);
-    lv_obj_set_align(ui_SplashScreen_Subtext, LV_ALIGN_CENTER);
-    lv_label_set_text(ui_SplashScreen_Subtext, "OPEN SOURCE THERMAL CAMERA");
-    lv_obj_remove_flag(ui_SplashScreen_Subtext,
+    ui_Label_Splash_Slogan = lv_label_create(ui_Splash);
+    lv_obj_set_width(ui_Label_Splash_Slogan, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_Label_Splash_Slogan, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_Label_Splash_Slogan, 0);
+    lv_obj_set_y(ui_Label_Splash_Slogan, 20);
+    lv_obj_set_align(ui_Label_Splash_Slogan, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Label_Splash_Slogan, "OPEN SOURCE THERMAL CAMERA");
+    lv_obj_remove_flag(ui_Label_Splash_Slogan,
                        LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
                        LV_OBJ_FLAG_SNAPPABLE);     /// Flags
-    lv_obj_set_style_text_color(ui_SplashScreen_Subtext, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_opa(ui_SplashScreen_Subtext, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_SplashScreen_Subtext, &lv_font_montserrat_10, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(ui_Label_Splash_Slogan, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_Label_Splash_Slogan, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Label_Splash_Slogan, &lv_font_montserrat_10, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_SplashScreen_LoadingBar = lv_bar_create(ui_Splash);
-    lv_bar_set_value(ui_SplashScreen_LoadingBar, 1, LV_ANIM_OFF);
-    lv_bar_set_start_value(ui_SplashScreen_LoadingBar, 0, LV_ANIM_OFF);
-    lv_obj_set_width(ui_SplashScreen_LoadingBar, 200);
-    lv_obj_set_height(ui_SplashScreen_LoadingBar, 5);
-    lv_obj_set_x(ui_SplashScreen_LoadingBar, 0);
-    lv_obj_set_y(ui_SplashScreen_LoadingBar, 45);
-    lv_obj_set_align(ui_SplashScreen_LoadingBar, LV_ALIGN_CENTER);
-    lv_obj_remove_flag(ui_SplashScreen_LoadingBar,
+    ui_ProgressBar_Splash_Loading = lv_bar_create(ui_Splash);
+    lv_bar_set_value(ui_ProgressBar_Splash_Loading, 1, LV_ANIM_OFF);
+    lv_bar_set_start_value(ui_ProgressBar_Splash_Loading, 0, LV_ANIM_OFF);
+    lv_obj_set_width(ui_ProgressBar_Splash_Loading, 200);
+    lv_obj_set_height(ui_ProgressBar_Splash_Loading, 5);
+    lv_obj_set_x(ui_ProgressBar_Splash_Loading, 0);
+    lv_obj_set_y(ui_ProgressBar_Splash_Loading, 45);
+    lv_obj_set_align(ui_ProgressBar_Splash_Loading, LV_ALIGN_CENTER);
+    lv_obj_remove_flag(ui_ProgressBar_Splash_Loading,
                        LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
                        LV_OBJ_FLAG_SNAPPABLE);     /// Flags
-    lv_obj_set_style_bg_color(ui_SplashScreen_LoadingBar, lv_color_hex(0x333333), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(ui_SplashScreen_LoadingBar, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(ui_ProgressBar_Splash_Loading, lv_color_hex(0x333333), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(ui_ProgressBar_Splash_Loading, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    lv_obj_set_style_bg_color(ui_SplashScreen_LoadingBar, lv_color_hex(0xB998FF), LV_PART_INDICATOR | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(ui_SplashScreen_LoadingBar, 255, LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(ui_ProgressBar_Splash_Loading, lv_color_hex(0xB998FF), LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(ui_ProgressBar_Splash_Loading, 255, LV_PART_INDICATOR | LV_STATE_DEFAULT);
 
     //Compensating for LVGL9.1 draw crash with bar/slider max value when top-padding is nonzero and right-padding is 0
-    if(lv_obj_get_style_pad_top(ui_SplashScreen_LoadingBar,
-                                LV_PART_MAIN) > 0) lv_obj_set_style_pad_right(ui_SplashScreen_LoadingBar,
-                                                                                  lv_obj_get_style_pad_right(ui_SplashScreen_LoadingBar, LV_PART_MAIN) + 1, LV_PART_MAIN);
-    ui_SplashScreen_StatusText = lv_label_create(ui_Splash);
-    lv_obj_set_width(ui_SplashScreen_StatusText, LV_SIZE_CONTENT);   /// 1
-    lv_obj_set_height(ui_SplashScreen_StatusText, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_SplashScreen_StatusText, 0);
-    lv_obj_set_y(ui_SplashScreen_StatusText, 65);
-    lv_obj_set_align(ui_SplashScreen_StatusText, LV_ALIGN_CENTER);
-    lv_label_set_text(ui_SplashScreen_StatusText, "Initialize system...");
-    lv_obj_remove_flag(ui_SplashScreen_StatusText,
+    if(lv_obj_get_style_pad_top(ui_ProgressBar_Splash_Loading,
+                                LV_PART_MAIN) > 0) lv_obj_set_style_pad_right(ui_ProgressBar_Splash_Loading,
+                                                                                  lv_obj_get_style_pad_right(ui_ProgressBar_Splash_Loading, LV_PART_MAIN) + 1, LV_PART_MAIN);
+    ui_Label_Splash_StatusText = lv_label_create(ui_Splash);
+    lv_obj_set_width(ui_Label_Splash_StatusText, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_Label_Splash_StatusText, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_Label_Splash_StatusText, 0);
+    lv_obj_set_y(ui_Label_Splash_StatusText, 65);
+    lv_obj_set_align(ui_Label_Splash_StatusText, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Label_Splash_StatusText, "Initialize system...");
+    lv_obj_remove_flag(ui_Label_Splash_StatusText,
                        LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
                        LV_OBJ_FLAG_SNAPPABLE);     /// Flags
-    lv_obj_set_style_text_color(ui_SplashScreen_StatusText, lv_color_hex(0xB998FF), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_opa(ui_SplashScreen_StatusText, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_SplashScreen_StatusText, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(ui_Label_Splash_StatusText, lv_color_hex(0xB998FF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_Label_Splash_StatusText, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Label_Splash_StatusText, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_SplashScreen_FirmwareVersion = lv_label_create(ui_Splash);
-    lv_obj_set_width(ui_SplashScreen_FirmwareVersion, LV_SIZE_CONTENT);   /// 1
-    lv_obj_set_height(ui_SplashScreen_FirmwareVersion, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_SplashScreen_FirmwareVersion, 0);
-    lv_obj_set_y(ui_SplashScreen_FirmwareVersion, 90);
-    lv_obj_set_align(ui_SplashScreen_FirmwareVersion, LV_ALIGN_CENTER);
-    lv_label_set_text(ui_SplashScreen_FirmwareVersion, "Firmware 1.0.0\n(c) 2026 PyroVision Project");
-    lv_obj_remove_flag(ui_SplashScreen_FirmwareVersion,
+    ui_Label_Splash_FirmwareVersion = lv_label_create(ui_Splash);
+    lv_obj_set_width(ui_Label_Splash_FirmwareVersion, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_Label_Splash_FirmwareVersion, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_Label_Splash_FirmwareVersion, 0);
+    lv_obj_set_y(ui_Label_Splash_FirmwareVersion, 100);
+    lv_obj_set_align(ui_Label_Splash_FirmwareVersion, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Label_Splash_FirmwareVersion, "Firmware 1.0.0");
+    lv_obj_remove_flag(ui_Label_Splash_FirmwareVersion,
                        LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
                        LV_OBJ_FLAG_SNAPPABLE);     /// Flags
-    lv_obj_set_style_text_color(ui_SplashScreen_FirmwareVersion, lv_color_hex(0x666666), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_opa(ui_SplashScreen_FirmwareVersion, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_align(ui_SplashScreen_FirmwareVersion, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_SplashScreen_FirmwareVersion, &lv_font_montserrat_10, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(ui_Label_Splash_FirmwareVersion, lv_color_hex(0x666666), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_Label_Splash_FirmwareVersion, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_align(ui_Label_Splash_FirmwareVersion, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Label_Splash_FirmwareVersion, &lv_font_montserrat_10, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_Label_Splash_Copyright = lv_label_create(ui_Splash);
+    lv_obj_set_width(ui_Label_Splash_Copyright, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_Label_Splash_Copyright, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_Label_Splash_Copyright, 0);
+    lv_obj_set_y(ui_Label_Splash_Copyright, 85);
+    lv_obj_set_align(ui_Label_Splash_Copyright, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Label_Splash_Copyright, "(c) 2026 PyroVision Project");
+    lv_obj_remove_flag(ui_Label_Splash_Copyright,
+                       LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_GESTURE_BUBBLE |
+                       LV_OBJ_FLAG_SNAPPABLE);     /// Flags
+    lv_obj_set_style_text_color(ui_Label_Splash_Copyright, lv_color_hex(0x666666), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_Label_Splash_Copyright, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_align(ui_Label_Splash_Copyright, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Label_Splash_Copyright, &lv_font_montserrat_10, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     lv_obj_add_event_cb(ui_Splash, ui_event_Splash, LV_EVENT_ALL, NULL);
 
@@ -127,11 +143,12 @@ void ui_Splash_screen_destroy(void)
 
     // NULL screen variables
     ui_Splash = NULL;
-    ui_SplashScreen_Logo = NULL;
-    ui_SplashScreen_LogoText = NULL;
-    ui_SplashScreen_Subtext = NULL;
-    ui_SplashScreen_LoadingBar = NULL;
-    ui_SplashScreen_StatusText = NULL;
-    ui_SplashScreen_FirmwareVersion = NULL;
+    ui_Image_Splash_Logo = NULL;
+    ui_Image_Splash_Name = NULL;
+    ui_Label_Splash_Slogan = NULL;
+    ui_ProgressBar_Splash_Loading = NULL;
+    ui_Label_Splash_StatusText = NULL;
+    ui_Label_Splash_FirmwareVersion = NULL;
+    ui_Label_Splash_Copyright = NULL;
 
 }

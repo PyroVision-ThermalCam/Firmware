@@ -64,6 +64,7 @@ lv_obj_t *image_format_dropdown;
 lv_obj_t *jpeg_quality_row;
 lv_obj_t *ui_settings_wifi_status_label;
 lv_obj_t *ui_settings_wifi_connect_btn;
+lv_obj_t *ui_palette_dropdown;
 
 static const char *TAG = "ui_settings";
 
@@ -208,7 +209,7 @@ static lv_obj_t *ui_Settings_Create_Text(lv_obj_t *parent, const char *txt)
     lv_obj_set_style_bg_color(obj, lv_color_hex(0x3A3A3A), LV_STATE_DEFAULT);
     lv_obj_set_style_bg_color(obj, lv_color_hex(0xFF9500), LV_STATE_PRESSED);
     lv_obj_set_style_bg_color(obj, lv_color_hex(0x3A3A3A), LV_STATE_FOCUSED);
-    lv_obj_set_style_bg_color(obj, lv_color_hex(0xFF9500), LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(obj, lv_color_hex(0x3A3A3A), LV_STATE_CHECKED);
     lv_obj_set_style_bg_color(obj, lv_color_hex(0xFF9500), LV_STATE_EDITED);
     lv_obj_set_style_bg_color(obj, lv_color_hex(0x3A3A3A), LV_STATE_FOCUS_KEY);
     lv_obj_set_style_bg_color(obj, lv_color_hex(0xFF9500), LV_STATE_PRESSED | LV_STATE_CHECKED);
@@ -217,20 +218,18 @@ static lv_obj_t *ui_Settings_Create_Text(lv_obj_t *parent, const char *txt)
     lv_obj_set_style_pad_all(obj, 10, 0);
     lv_obj_set_style_margin_bottom(obj, 4, 0);
     lv_obj_set_style_border_width(obj, 0, LV_STATE_FOCUSED);
-    lv_obj_set_style_border_width(obj, 15, LV_STATE_CHECKED);
-    lv_obj_set_style_border_color(obj, lv_color_hex(0xFF9500), LV_STATE_CHECKED);
+    lv_obj_set_style_border_width(obj, 0, LV_STATE_CHECKED);
     lv_obj_set_style_border_width(obj, 15, LV_STATE_PRESSED);
     lv_obj_set_style_border_color(obj, lv_color_hex(0xFF9500), LV_STATE_PRESSED);
     lv_obj_set_style_border_width(obj, 15, LV_STATE_EDITED);
     lv_obj_set_style_border_color(obj, lv_color_hex(0xFF9500), LV_STATE_EDITED);
     lv_obj_set_style_border_width(obj, 0, LV_STATE_FOCUS_KEY);
     lv_obj_set_style_shadow_width(obj, 0, LV_STATE_FOCUSED);
-    lv_obj_set_style_shadow_width(obj, 15, LV_STATE_CHECKED);
-    lv_obj_set_style_shadow_color(obj, lv_color_hex(0xFF9500), LV_STATE_CHECKED);
+    lv_obj_set_style_shadow_width(obj, 0, LV_STATE_CHECKED);
     lv_obj_set_style_shadow_width(obj, 15, LV_STATE_PRESSED);
     lv_obj_set_style_shadow_color(obj, lv_color_hex(0xFF9500), LV_STATE_PRESSED);
     lv_obj_set_style_shadow_opa(obj, 0, LV_STATE_FOCUSED);
-    lv_obj_set_style_shadow_opa(obj, 180, LV_STATE_CHECKED);
+    lv_obj_set_style_shadow_opa(obj, 0, LV_STATE_CHECKED);
     lv_obj_set_style_shadow_opa(obj, 180, LV_STATE_PRESSED);
     lv_obj_set_size(obj, LV_PCT(95), 36);
 
@@ -487,19 +486,29 @@ static lv_obj_t *ui_Settings_Create_Lepton_Page(lv_obj_t *p_Menu)
     lv_obj_set_style_text_font(palette_label, &lv_font_montserrat_14, 0);
 
     lv_obj_t *palette_row = ui_Settings_Create_Row(LeptonContainer, LV_FLEX_ALIGN_CENTER);
-    lv_obj_t *palette_dropdown = lv_dropdown_create(palette_row);
-    lv_obj_set_width(palette_dropdown, LV_PCT(95));
-    lv_obj_set_style_bg_color(palette_dropdown, lv_color_hex(0x3A3A3A), LV_PART_MAIN);
-    lv_obj_set_style_border_color(palette_dropdown, lv_color_hex(0xFF9500), LV_PART_MAIN);
-    lv_obj_set_style_border_width(palette_dropdown, 2, LV_PART_MAIN);
-    lv_obj_set_style_radius(palette_dropdown, 6, LV_PART_MAIN);
-    lv_obj_set_style_text_color(palette_dropdown, lv_color_white(), LV_PART_MAIN);
-    lv_obj_set_style_pad_all(palette_dropdown, 8, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(palette_dropdown, lv_color_hex(0xFF9500), LV_PART_SELECTED);
-    lv_obj_set_style_text_color(palette_dropdown, lv_color_white(), LV_PART_SELECTED);
-    lv_dropdown_set_options(palette_dropdown, "Iron\nRainbow\nWhitehot\nBlackhot\nAmber\nArctic\nLava");
-    lv_dropdown_set_selected(palette_dropdown, static_cast<uint16_t>(LeptonSettings.Palette));
-    lv_obj_add_event_cb(palette_dropdown, on_Lepton_Palette_Callback, LV_EVENT_VALUE_CHANGED, NULL);
+    ui_palette_dropdown = lv_dropdown_create(palette_row);
+    lv_obj_set_width(ui_palette_dropdown, LV_PCT(95));
+    lv_obj_set_style_bg_color(ui_palette_dropdown, lv_color_hex(0x3A3A3A), LV_PART_MAIN);
+    lv_obj_set_style_border_color(ui_palette_dropdown, lv_color_hex(0xFF9500), LV_PART_MAIN);
+    lv_obj_set_style_border_width(ui_palette_dropdown, 2, LV_PART_MAIN);
+    lv_obj_set_style_radius(ui_palette_dropdown, 6, LV_PART_MAIN);
+    lv_obj_set_style_text_color(ui_palette_dropdown, lv_color_white(), LV_PART_MAIN);
+    lv_obj_set_style_pad_all(ui_palette_dropdown, 8, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(ui_palette_dropdown, lv_color_hex(0xFF9500), LV_PART_SELECTED);
+    lv_obj_set_style_text_color(ui_palette_dropdown, lv_color_white(), LV_PART_SELECTED);
+    lv_dropdown_set_options(ui_palette_dropdown, []() -> const char * {
+        static std::string Options;
+        Options.clear();
+        for (size_t i = 0; i < LEPTON_PALETTE_COUNT; i++) {
+            if (i > 0) {
+                Options += "\n";
+            }
+            Options += Lepton_Palette_Names[i];
+        }
+        return Options.c_str();
+    }());
+    lv_dropdown_set_selected(ui_palette_dropdown, static_cast<uint16_t>(LeptonSettings.Palette));
+    lv_obj_add_event_cb(ui_palette_dropdown, on_Lepton_Palette_Callback, LV_EVENT_VALUE_CHANGED, NULL);
 
     return LeptonPage;
 }

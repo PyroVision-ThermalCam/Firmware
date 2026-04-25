@@ -92,6 +92,6 @@
     },
     "calibration": {
         "room-temperature" : 20,
-        "interval" : 300
+        "interval" : 30
     }
 }

@@ -272,10 +272,11 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUITaskState, lv_indev_read_cb_t T
     p_GUITaskState->UpdateTimer[0] = lv_timer_create(GUI_Helper_Timer_ClockUpdate, 100, NULL);
     p_GUITaskState->UpdateTimer[1] = lv_timer_create(GUI_Helper_Timer_SpotUpdate, 2000, NULL);
     p_GUITaskState->UpdateTimer[2] = lv_timer_create(GUI_Helper_Timer_SceneStatisticsUpdate, 5000, NULL);
-    p_GUITaskState->UpdateTimer[3] = lv_timer_create(GUI_Helper_Timer_RAMUpdate, 5000, NULL);
-    p_GUITaskState->UpdateTimer[4] = lv_timer_create(GUI_Helper_Timer_MemoryUpdate, 3000, NULL);
-    p_GUITaskState->UpdateTimer[5] = lv_timer_create(GUI_Helper_Timer_UptimeUpdate, 10000, NULL);
+    p_GUITaskState->UpdateTimer[3] = lv_timer_create(GUI_Helper_Timer_RAMUpdate, 10000, NULL);
+    p_GUITaskState->UpdateTimer[4] = lv_timer_create(GUI_Helper_Timer_MemoryUpdate, 10000, NULL);
+    p_GUITaskState->UpdateTimer[5] = lv_timer_create(GUI_Helper_Timer_UptimeUpdate, 1000, NULL);
     p_GUITaskState->UpdateTimer[6] = lv_timer_create(GUI_Helper_Timer_DistanceUpdate, 1000, NULL);
+    p_GUITaskState->UpdateTimer[7] = lv_timer_create(GUI_Helper_Timer_LeptonUpdate, 10000, NULL);
 
     _lock_init(&p_GUITaskState->LVGL_API_Lock);
 
@@ -469,13 +470,15 @@ void GUI_Helper_Timer_SceneStatisticsUpdate(lv_timer_t *p_Timer)
 {
     (void)p_Timer;
 
-    ESP_LOGD(TAG, "Requesting scene statistics update...");
-
-    if (lv_display_get_screen_active(lv_display_get_default()) != ui_Main) {
-        return;
-    }
-
     esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_SCENE_STATISTICS, NULL, 0, pdMS_TO_TICKS(100));
+}
+
+void GUI_Helper_Timer_LeptonUpdate(lv_timer_t *p_Timer)
+{
+    (void)p_Timer;
+
+    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FPA_AUX_TEMP, NULL, 0, pdMS_TO_TICKS(100));
+    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_UPTIME, NULL, 0, pdMS_TO_TICKS(100));
 }
 
 void GUI_Helper_Timer_RAMUpdate(lv_timer_t *p_Timer)

@@ -309,7 +309,7 @@ void on_Image_Format_Dropdown_Callback(lv_event_t *e)
 
     SettingsManager_GetSystem(&SystemSettings);
 
-    SystemSettings.ImageFormat = static_cast<Settings_Image_Format_t>(lv_dropdown_get_selected(static_cast<lv_obj_t *>
+    SystemSettings.ImageFormat = static_cast<ImageEncoder_Format_t>(lv_dropdown_get_selected(static_cast<lv_obj_t *>
                                                                                                (lv_event_get_target(e))));
     SettingsManager_UpdateSystem(&SystemSettings, NULL);
 

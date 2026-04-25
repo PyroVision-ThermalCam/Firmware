@@ -30,6 +30,7 @@
 
 extern lv_obj_t *ui_settings_wifi_status_label;
 extern lv_obj_t *ui_settings_wifi_connect_btn;
+extern lv_obj_t *ui_palette_dropdown;
 
 /** @brief          Initializes the settings UI.
  *  @param p_Parent Pointer to the parent object where the settings UI will be attached

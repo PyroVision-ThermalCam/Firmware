@@ -57,11 +57,22 @@ bool HTTP_Server_IsRunning(void);
 /** @brief          Set thermal frame data for image endpoint.
  *  @param p_Frame  Pointer to thermal frame data.
  */
-void HTTP_Server_SetThermalFrame(Network_Thermal_Frame_t *p_Frame);
+void HTTP_Server_SetRawFrame(ImageEncoder_Raw_t *p_Frame);
 
 /** @brief  Get the HTTP server handle for WebSocket registration.
  *  @return HTTP server handle or NULL if not running
  */
 httpd_handle_t HTTP_Server_GetHandle(void);
+
+/** @brief          Set the Lepton temperatures for both HTTP and WebSocket endpoints.
+ *  @param FPA      Focal Plane Array temperature in Degree Celsius
+ *  @param AUX      Auxiliary temperature in Degree Celsius
+ */
+void HTTP_Server_SetLeptonTemperatures(float FPA, float Aux);
+
+/** @brief          Set the device temperature for both HTTP and WebSocket endpoints.
+ *  @param Temperature  Device temperature in Degree Celsius
+ */
+void HTTP_Server_SetDeviceTemperature(float Temperature);
 
 #endif /* HTTP_SERVER_H_ */

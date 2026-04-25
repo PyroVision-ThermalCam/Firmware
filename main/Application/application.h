@@ -43,7 +43,7 @@ enum {
                                                      Data is transmitted in a App_Lepton_Device_t structure. */
     LEPTON_TASK_EVENT_CAMERA_ERROR,             /**< Lepton camera error occurred. */
     LEPTON_TASK_EVENT_RESPONSE_FPA_AUX_TEMP,    /**< FPA and AUX temperatures are ready.
-                                                     Data is transmitted in a App_Lepton_Temperatures_t structure. */
+                                                     Data is transmitted in a App_Devices_Temperature_t structure. */
     LEPTON_TASK_EVENT_RESPONSE_UPTIME,          /**< Uptime data is ready.
                                                      Data is transmitted as a uint32_t representing uptime in milliseconds. */
     LEPTON_TASK_EVENT_RESPONSE_PIXEL_TEMP,      /**< Pixel temperature data is ready.
@@ -114,12 +114,15 @@ typedef struct {
  */
 typedef struct {
     float TempSensor;                           /**< Measured temperature from the internal temperature sensor in degrees Celsius. */
+    float FPA;                                  /**< Focal Plane Array temperature in Degree Celsius. */
+    float AUX;                                  /**< Auxiliary temperature in Degree Celsius. */
 } App_Devices_Temperature_t;
 
 /** @brief Structure representing a ready frame from the Lepton camera.
  */
 typedef struct {
     uint8_t *Buffer;                            /**< Pointer to the image buffer (Width * Height * Channels). */
+    uint16_t *RawBuffer;                        /**< Pointer to the raw 14-bit pixel data (Width * Height × uint16_t); NULL in RGB888 mode. */
     uint32_t Width;                             /**< Width of the frame in pixels. */
     uint32_t Height;                            /**< Height of the frame in pixels. */
     uint32_t Channels;                          /**< Number of color channels (e.g., 3 for RGB). */
@@ -138,13 +141,6 @@ typedef struct {
     uint32_t Width;                             /**< Frame width in pixels. */
     uint32_t Height;                            /**< Frame height in pixels. */
 } App_Camera_Frame_t;
-
-/** @brief Structure representing FPA and AUX temperature from the Lepton camera.
- */
-typedef struct {
-    float FPA;                                  /**< Focal Plane Array temperature in Degree Celsius. */
-    float AUX;                                  /**< Auxiliary temperature in Degree Celsius. */
-} App_Lepton_Temperatures_t;
 
 /** @brief Structure representing the Lepton camera device status.
  */

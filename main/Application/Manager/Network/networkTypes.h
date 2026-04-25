@@ -140,14 +140,6 @@ typedef enum {
     NETWORK_EVENT_SERVER_ERROR,                 /**< HTTP/WebSocket server error */
 } Network_Event_t;
 
-/** @brief Color palette types.
- */
-typedef enum {
-    PALETTE_IRON = 0,
-    PALETTE_GRAY,
-    PALETTE_RAINBOW,
-} Server_Palette_t;
-
 /** @brief Scale mode for temperature visualization.
  */
 typedef enum {
@@ -185,30 +177,10 @@ typedef enum {
     REMOTE_LED_BLUE = 2,        /**< Blue LED. */
 } Remote_LED_Color_t;
 
-/** @brief Thermal frame data structure.
- */
-typedef struct {
-    uint8_t *Buffer;                    /**< Pointer to RGB888 image data */
-    uint16_t Width;                     /**< Frame width in pixels */
-    uint16_t Height;                    /**< Frame height in pixels */
-    uint32_t Timestamp;                 /**< Timestamp in milliseconds */
-    SemaphoreHandle_t Mutex;            /**< Mutex for thread-safe access */
-} Network_Thermal_Frame_t;
-
 /** @brief Thermal telemetry data structure.
  */
 typedef struct {
 } Network_Thermal_Telemetry_t;
-
-/** @brief Encoded image data.
- */
-typedef struct {
-    uint8_t *Data;                      /**< Encoded image data */
-    size_t Size;                        /**< Size of encoded data */
-    Settings_Image_Format_t Format;     /**< Image format */
-    uint16_t Width;                     /**< Image width */
-    uint16_t Height;                    /**< Image height */
-} Network_Encoded_Image_t;
 
 /** @brief IP info event data (for NETWORK_EVENT_WIFI_GOT_IP).
  */

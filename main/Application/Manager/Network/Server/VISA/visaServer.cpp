@@ -204,7 +204,7 @@ static void Task_VisaServer(void *p_Args)
         return;
     }
 
-    ESP_LOGI(TAG, "VISA server listening on port %d", _VISA_Server_State.Port);
+    ESP_LOGD(TAG, "VISA server listening on port %d", _VISA_Server_State.Port);
 
     while (_VISA_Server_State.IsRunning) {
         struct sockaddr_in Source;
