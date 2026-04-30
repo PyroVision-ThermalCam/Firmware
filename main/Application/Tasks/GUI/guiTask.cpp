@@ -845,11 +845,15 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
         }
 
         /* JoyCenter: falling edge -> autofocus (only when no long-press was handled this hold). */
-        if ((State.JoyCenter == false) && (_GUITaskState.PrevJoyCenter == true)) {
-            if (_GUITaskState.LongPressHandled == false) {
+        if ((_GUITaskState.LongPressHandled == false) && (State.JoyCenter == false) && (_GUITaskState.PrevJoyCenter == true)) {
+            if (_GUITaskState.ShowCameraView == true) {
                 ESP_LOGD(TAG, "Autofocus triggered by joystick center");
 
-                esp_event_post(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_REQUEST_FOCUS, NULL, 0, pdMS_TO_TICKS(100));
+                esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FOCUS, NULL, 0, pdMS_TO_TICKS(100));
+            } else {
+                ESP_LOGD(TAG, "FFC triggered by joystick center");
+
+                esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FFC, NULL, 0, pdMS_TO_TICKS(100));
             }
 
             _GUITaskState.LongPressHandled = false;

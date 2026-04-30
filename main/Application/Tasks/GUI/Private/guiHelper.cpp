@@ -126,6 +126,7 @@ static const esp_lcd_panel_io_i2c_config_t _GUI_Touch_IO_Config = {
         .disable_control_phase = 1,
     },
     .scl_speed_hz = CONFIG_TOUCH_CLOCK,
+    .transaction_timeout_ms = 200,
 };
 
 static esp_lcd_touch_io_gt911_config_t _GUI_Touch_GT911_Config = {

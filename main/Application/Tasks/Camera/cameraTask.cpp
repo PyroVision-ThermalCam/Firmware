@@ -101,18 +101,18 @@ static Camera_Task_State_t _CameraTaskState;
 
 static const char *TAG = "cameraTask";
 
-/** @brief                  Event handler for the camera task to receive updates when camera events are triggered (e.g., focus requests).
+/** @brief                  Event handler for the GUI task to receive updates when GUI events are triggered (e.g., focus requests).
  *  @param p_HandlerArgs    Handler argument
  *  @param Base             Event base
  *  @param ID               Event ID
  *  @param p_Data           Event-specific data
  */
-static void on_Camera_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+static void on_GUI_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
 {
-    ESP_LOGD(TAG, "Camera task event received: ID=%d", ID);
+    ESP_LOGD(TAG, "GUI task event received: ID=%d", ID);
 
     switch (ID) {
-        case CAMERA_TASK_EVENT_REQUEST_FOCUS: {
+        case GUI_TASK_EVENT_REQUEST_FOCUS: {
             ESP_LOGD(TAG, "Focus request event received");
 
             xEventGroupSetBits(_CameraTaskState.EventGroup, CAMERA_TASK_FOCUS_REQUEST);
@@ -120,7 +120,7 @@ static void on_Camera_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t B
             break;
         }
         default: {
-            ESP_LOGW(TAG, "Unhandled camera task event ID: 0x%X", ID);
+            ESP_LOGW(TAG, "Unhandled GUI task event ID: 0x%X", ID);
 
             break;
         }
@@ -292,7 +292,7 @@ esp_err_t Camera_Task_Init(void)
 
     _CameraTaskState.Sensor = esp_camera_sensor_get();
 
-    esp_event_handler_register(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_REQUEST_FOCUS, on_Camera_Task_Event_Handler, NULL);
+    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FOCUS, on_GUI_Task_Event_Handler, NULL);
 
     return ESP_OK;
 }
@@ -310,7 +310,7 @@ void Camera_Task_Deinit(void)
         _CameraTaskState.EventGroup = NULL;
     }
 
-    esp_event_handler_unregister(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_REQUEST_FOCUS, on_Camera_Task_Event_Handler);
+    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FOCUS, on_GUI_Task_Event_Handler);
 
     if (_CameraTaskState.p_FrameBuffer != NULL) {
         heap_caps_free(_CameraTaskState.p_FrameBuffer);

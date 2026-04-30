@@ -53,6 +53,7 @@
 #define LEPTON_TASK_UPDATE_SCENE_STATISTICS     BIT6
 #define LEPTON_TASK_UPDATE_EMISSIVITY           BIT7
 #define LEPTON_TASK_TEMPERATURE_STATUS_CHANGED  BIT8
+#define LEPTON_TASK_FFC_REQUEST                 BIT9
 
 ESP_EVENT_DEFINE_BASE(LEPTON_TASK_EVENTS);
 
@@ -219,6 +220,11 @@ static void on_GUI_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
         }
         case GUI_TASK_EVENT_REQUEST_SCENE_STATISTICS: {
             xEventGroupSetBits(_LeptonTaskState.EventGroup, LEPTON_TASK_UPDATE_SCENE_STATISTICS);
+
+            break;
+        }
+        case GUI_TASK_EVENT_REQUEST_FFC: {
+            xEventGroupSetBits(_LeptonTaskState.EventGroup, LEPTON_TASK_FFC_REQUEST);
 
             break;
         }
@@ -532,8 +538,8 @@ static void Task_Lepton(void *p_Parameters)
                  * that Lepton_Raw14ToRGB used for the on-device display.
                  * Min.Value / Max.Value are the actual (unsmoothed) pixel extremes and would
                  * produce different contrast than what is visible on screen. */
-                .Min = static_cast<int32_t>(_LeptonTaskState.Lepton.Internal.MinSmooth),
-                .Max = static_cast<int32_t>(_LeptonTaskState.Lepton.Internal.MaxSmooth),
+                .Min = Min.Value,
+                .Max = Max.Value,
                 .MinX = Min.x,
                 .MinY = Min.y,
                 .MaxX = Max.x,
@@ -754,6 +760,18 @@ static void Task_Lepton(void *p_Parameters)
 
             xEventGroupClearBits(_LeptonTaskState.EventGroup, LEPTON_TASK_TEMPERATURE_STATUS_CHANGED);
         }
+
+        if (EventBits & LEPTON_TASK_FFC_REQUEST) {
+            Lepton_Error_t Error = Lepton_RunFFC(&_LeptonTaskState.Lepton);
+            if (Error == LEPTON_ERR_OK) {
+                ESP_LOGD(TAG, "Requested FFC successfully");
+            } else {
+                ESP_LOGE(TAG, "Failed to request FFC!");
+                APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_LEPTON, Error);
+            }
+
+            xEventGroupClearBits(_LeptonTaskState.EventGroup, LEPTON_TASK_FFC_REQUEST);
+        }
     }
 
     ESP_LOGD(TAG, "Lepton task shutting down");
@@ -865,6 +883,8 @@ esp_err_t Lepton_Task_Init(void)
     esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_PIXEL_TEMPERATURE, on_GUI_Task_Event_Handler, NULL);
     esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_SCENE_STATISTICS, on_GUI_Task_Event_Handler,
                                NULL);
+    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FFC, on_GUI_Task_Event_Handler,
+                               NULL);
     esp_event_handler_register(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE, on_Devices_Task_Event_Handler,
                                NULL);
     esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_LEPTON_CHANGED, on_Settings_Event_Handler, NULL);
@@ -905,6 +925,7 @@ void Lepton_Task_Deinit(void)
     esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_SCENE_STATISTICS, on_GUI_Task_Event_Handler);
     esp_event_handler_unregister(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE,
                                  on_Devices_Task_Event_Handler);
+    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FFC, on_GUI_Task_Event_Handler);
     esp_event_handler_unregister(SETTINGS_EVENTS, SETTINGS_EVENT_LEPTON_CHANGED, on_Settings_Event_Handler);
     esp_event_handler_unregister(SETTINGS_EVENTS, SETTINGS_EVENT_CALIBRATION_CHANGED, on_Settings_Event_Handler);
     esp_event_handler_unregister(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler);

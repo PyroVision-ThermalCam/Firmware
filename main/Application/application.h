@@ -67,6 +67,8 @@ enum {
     GUI_TASK_EVENT_IMAGE_SAVED,                 /**< Image successfully saved to storage. */
     GUI_TASK_EVENT_IMAGE_SAVE_FAILED,           /**< Image save operation failed.
                                                      Data is transmitted as an int representing the errno value. */
+    GUI_TASK_EVENT_REQUEST_FOCUS,               /**< Request to trigger autofocus. */
+    GUI_TASK_EVENT_REQUEST_FFC                  /**< Request to trigger Flat-Field Correction. */
 };
 
 /** @brief Devices task event identifiers.
@@ -81,7 +83,6 @@ enum {
 /** @brief Camera task event identifiers.
  */
 enum {
-    CAMERA_TASK_EVENT_REQUEST_FOCUS,            /**< Request to trigger autofocus. */
     CAMERA_TASK_EVENT_INIT_COMPLETE,            /**< Camera hardware (and AF, if supported) initialised successfully. No event data. */
     CAMERA_TASK_EVENT_INIT_FAILED,              /**< Camera hardware initialisation failed. Event data: esp_err_t (4 bytes). */
 };

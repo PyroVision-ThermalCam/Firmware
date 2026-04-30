@@ -203,6 +203,7 @@ static void Task_Devices(void *p_Parameters)
     TickType_t LastBatteryPoll;
     TickType_t LastTemperaturePoll;
     TickType_t LastCalibration;
+    TickType_t LastCalibrationSave;
     bool SDInserted;
     bool HasPendingInput;
     App_Context_t *AppContext;
@@ -221,6 +222,7 @@ static void Task_Devices(void *p_Parameters)
     LastBatteryPoll = xTaskGetTickCount();
     LastTemperaturePoll = xTaskGetTickCount();
     LastCalibration = xTaskGetTickCount();
+    LastCalibrationSave = xTaskGetTickCount();
 
     /* Report the initial SD-card detect state once at startup. */
     if (DevicesManager_GetSDDetect(&SDInserted) == ESP_OK) {
@@ -374,7 +376,12 @@ static void Task_Devices(void *p_Parameters)
                 Calibration.SensorAtCalibration = (1.0f - CAL_EMA_ALPHA) * Calibration.SensorAtCalibration +
                                                    CAL_EMA_ALPHA * _DevicesTaskState.EMA_Temperature;
                 SettingsManager_UpdateCalibration(&Calibration, NULL);
-                SettingsManager_Save();
+
+                /* Persist to NVS at most once every 15 minutes to limit flash wear. */
+                if ((xTaskGetTickCount() - LastCalibrationSave) >= pdMS_TO_TICKS(15UL * 60UL * 1000UL)) {
+                    LastCalibrationSave = xTaskGetTickCount();
+                    SettingsManager_Save();
+                }
 
                 ESP_LOGI(TAG,
                          "Auto-calibration drift correction: sensor_baseline=%.2f\xC2\xB0""C, offset=%.2f\xC2\xB0""C",
