@@ -187,3 +187,19 @@ void Task_ImageSave(void *p_Param)
         esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_IMAGE_SAVED, NULL, 0, pdMS_TO_TICKS(100));
     }
 }
+
+esp_err_t GUI_Task_SaveImage(void)
+{
+    /* Check if filesystem is locked (USB active) */
+    if (MemoryManager_IsFilesystemLocked()) {
+        ESP_LOGW(TAG, "Cannot save image - USB mode active!");
+
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    /* Set flag to trigger save on next frame update */
+    _GUITaskState.SaveNextFrameRequested = true;
+    ESP_LOGD(TAG, "Image save requested - will capture next frame");
+
+    return ESP_OK;
+}

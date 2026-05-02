@@ -5856,7 +5856,7 @@
                   {
                     "nid": 1020,
                     "strtype": "IMAGE/Asset",
-                    "strval": "-",
+                    "strval": "",
                     "InheritedType": 5
                   },
                   {
@@ -6639,6 +6639,178 @@
                   }
                 ],
                 "saved_objtypeKey": "CONTAINER"
+              },
+              {
+                "guid": "GUID67435354-657133S8695122",
+                "properties": [
+                  {
+                    "nid": 10,
+                    "strtype": "OBJECT/Name",
+                    "strval": "Label Main ROI Name",
+                    "InheritedType": 10
+                  },
+                  {
+                    "nid": 20,
+                    "strtype": "OBJECT/Layout",
+                    "InheritedType": 1
+                  },
+                  {
+                    "Flow": 0,
+                    "Wrap": false,
+                    "Reversed": false,
+                    "MainAlignment": 0,
+                    "CrossAlignment": 0,
+                    "TrackAlignment": 0,
+                    "LayoutType": 0,
+                    "nid": 30,
+                    "strtype": "OBJECT/Layout_type",
+                    "strval": "No_layout",
+                    "InheritedType": 13
+                  },
+                  {
+                    "nid": 40,
+                    "strtype": "OBJECT/Transform",
+                    "InheritedType": 1
+                  },
+                  {
+                    "nid": 50,
+                    "flags": 17,
+                    "strtype": "OBJECT/Position",
+                    "intarray": [
+                      -42,
+                      10
+                    ],
+                    "InheritedType": 7
+                  },
+                  {
+                    "nid": 60,
+                    "flags": 51,
+                    "strtype": "OBJECT/Size",
+                    "intarray": [
+                      1,
+                      1
+                    ],
+                    "InheritedType": 7
+                  },
+                  {
+                    "nid": 70,
+                    "strtype": "OBJECT/Align",
+                    "strval": "TOP_RIGHT",
+                    "InheritedType": 3
+                  },
+                  {
+                    "nid": 75,
+                    "strtype": "OBJECT/Extend_click_area",
+                    "InheritedType": 6
+                  },
+                  {
+                    "nid": 90,
+                    "flags": 1048576,
+                    "strtype": "OBJECT/Flags",
+                    "InheritedType": 1
+                  },
+                  {
+                    "nid": 110,
+                    "strtype": "OBJECT/Clickable",
+                    "strval": "False",
+                    "InheritedType": 2
+                  },
+                  {
+                    "nid": 225,
+                    "flags": 1048576,
+                    "strtype": "OBJECT/Scrolling",
+                    "InheritedType": 1
+                  },
+                  {
+                    "nid": 300,
+                    "strtype": "OBJECT/Scrollbar_mode",
+                    "strval": "AUTO",
+                    "InheritedType": 3
+                  },
+                  {
+                    "nid": 310,
+                    "strtype": "OBJECT/Scroll_direction",
+                    "strval": "ALL",
+                    "InheritedType": 3
+                  },
+                  {
+                    "nid": 314,
+                    "strtype": "OBJECT/Scroll_snap_x",
+                    "strval": "NONE",
+                    "InheritedType": 3
+                  },
+                  {
+                    "nid": 315,
+                    "strtype": "OBJECT/Scroll_snap_y",
+                    "strval": "NONE",
+                    "InheritedType": 3
+                  },
+                  {
+                    "nid": 320,
+                    "flags": 1048576,
+                    "strtype": "OBJECT/States",
+                    "InheritedType": 1
+                  },
+                  {
+                    "nid": 1010,
+                    "strtype": "LABEL/Label",
+                    "InheritedType": 1
+                  },
+                  {
+                    "nid": 1020,
+                    "strtype": "LABEL/Long_mode",
+                    "strval": "WRAP",
+                    "InheritedType": 3
+                  },
+                  {
+                    "nid": 1030,
+                    "strtype": "LABEL/Text",
+                    "strval": "",
+                    "InheritedType": 10
+                  },
+                  {
+                    "part": "lv.PART.MAIN",
+                    "childs": [
+                      {
+                        "nid": 10000,
+                        "strtype": "_style/StyleState",
+                        "strval": "DEFAULT",
+                        "childs": [
+                          {
+                            "nid": 10410,
+                            "flags": 4096,
+                            "strtype": "_style/Text_Color",
+                            "intarray": [
+                              255,
+                              255,
+                              255,
+                              255
+                            ],
+                            "InheritedType": 7
+                          },
+                          {
+                            "nid": 10430,
+                            "strtype": "_style/Text_Align",
+                            "strval": "RIGHT",
+                            "InheritedType": 3
+                          },
+                          {
+                            "nid": 10450,
+                            "strtype": "_style/Text_Font",
+                            "strval": "montserrat_12",
+                            "InheritedType": 3
+                          }
+                        ],
+                        "InheritedType": 1
+                      }
+                    ],
+                    "nid": 1040,
+                    "strtype": "LABEL/Style_main",
+                    "strval": "lv.PART.MAIN, Text, Rectangle, Pad, Transform",
+                    "InheritedType": 11
+                  }
+                ],
+                "saved_objtypeKey": "LABEL"
               }
             ],
             "properties": [
@@ -6793,7 +6965,7 @@
                       {
                         "nid": 10,
                         "strtype": "OBJECT/Name",
-                        "strval": "Label Main Button Save",
+                        "strval": "Label Main Button4",
                         "InheritedType": 10
                       },
                       {
@@ -6963,7 +7135,7 @@
                   {
                     "nid": 10,
                     "strtype": "OBJECT/Name",
-                    "strval": "Button Main Save",
+                    "strval": "Button Main Button4",
                     "InheritedType": 10
                   },
                   {
@@ -7144,7 +7316,7 @@
                       {
                         "nid": 1000442,
                         "strtype": "_event/name",
-                        "strval": "ButtonMainSaveClicked",
+                        "strval": "ButtonMainButton4Clicked",
                         "InheritedType": 10
                       },
                       {
@@ -7185,7 +7357,7 @@
                           {
                             "nid": 1000449,
                             "strtype": "CALL FUNCTION/Function_name",
-                            "strval": "ButtonMainSaveClicked",
+                            "strval": "ButtonMainButton4Clicked",
                             "InheritedType": 10
                           },
                           {
@@ -7212,7 +7384,7 @@
                       {
                         "nid": 10,
                         "strtype": "OBJECT/Name",
-                        "strval": "Label Main Button ROI",
+                        "strval": "Label Main Button2",
                         "InheritedType": 10
                       },
                       {
@@ -7382,7 +7554,7 @@
                   {
                     "nid": 10,
                     "strtype": "OBJECT/Name",
-                    "strval": "Button Main ROI",
+                    "strval": "Button Main Button2",
                     "InheritedType": 10
                   },
                   {
@@ -7559,12 +7731,12 @@
                     "disabled": false,
                     "nid": 1001769,
                     "strtype": "_event/EventHandler",
-                    "strval": "CLICKED",
+                    "strval": "SHORT_CLICKED",
                     "childs": [
                       {
                         "nid": 1001770,
                         "strtype": "_event/name",
-                        "strval": "ButtonMainROIClicked",
+                        "strval": "ButtonMainButton2ShortClicked",
                         "InheritedType": 10
                       },
                       {
@@ -7605,11 +7777,76 @@
                           {
                             "nid": 1001777,
                             "strtype": "CALL FUNCTION/Function_name",
-                            "strval": "ButtonMainROIClicked",
+                            "strval": "ButtonMainButton2ShortClicked",
                             "InheritedType": 10
                           },
                           {
                             "nid": 1001778,
+                            "strtype": "CALL FUNCTION/Dont_export_function",
+                            "strval": "False",
+                            "InheritedType": 2
+                          }
+                        ],
+                        "InheritedType": 10
+                      }
+                    ],
+                    "InheritedType": 4
+                  },
+                  {
+                    "disabled": false,
+                    "nid": 1001779,
+                    "strtype": "_event/EventHandler",
+                    "strval": "LONG_PRESSED",
+                    "childs": [
+                      {
+                        "nid": 1001780,
+                        "strtype": "_event/name",
+                        "strval": "ButtonMainButton2LongClicked",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 1001781,
+                        "strtype": "_event/condition_C",
+                        "strval": "",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 1001782,
+                        "strtype": "_event/condition_P",
+                        "strval": "",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 1001783,
+                        "strtype": "_event/action",
+                        "strval": "CALL FUNCTION",
+                        "childs": [
+                          {
+                            "nid": 1001784,
+                            "strtype": "CALL FUNCTION/Name",
+                            "strval": "CALL FUNCTION",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 1001785,
+                            "strtype": "CALL FUNCTION/Call",
+                            "strval": "<{Function_name}>( event_struct )",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 1001786,
+                            "strtype": "CALL FUNCTION/CallC",
+                            "strval": "<{Function_name}>( e );",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 1001787,
+                            "strtype": "CALL FUNCTION/Function_name",
+                            "strval": "ButtonMainButton2LongClicked",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 1001788,
                             "strtype": "CALL FUNCTION/Dont_export_function",
                             "strval": "False",
                             "InheritedType": 2
@@ -7632,7 +7869,7 @@
                       {
                         "nid": 10,
                         "strtype": "OBJECT/Name",
-                        "strval": "Label Main Button Switch",
+                        "strval": "Label Main Button3",
                         "InheritedType": 10
                       },
                       {
@@ -7791,7 +8028,7 @@
                   {
                     "nid": 10,
                     "strtype": "OBJECT/Name",
-                    "strval": "Button Main Switch",
+                    "strval": "Button Main Button3",
                     "InheritedType": 10
                   },
                   {
@@ -7973,7 +8210,7 @@
                       {
                         "nid": 1000293,
                         "strtype": "_event/name",
-                        "strval": "ButtonMainSwitchClicked",
+                        "strval": "ButtonMainButton3Clicked",
                         "InheritedType": 10
                       },
                       {
@@ -8014,7 +8251,7 @@
                           {
                             "nid": 1001767,
                             "strtype": "CALL FUNCTION/Function_name",
-                            "strval": "ButtonMainSwitchClicked",
+                            "strval": "ButtonMainButton3Clicked",
                             "InheritedType": 10
                           },
                           {
@@ -8041,7 +8278,7 @@
                       {
                         "nid": 10,
                         "strtype": "OBJECT/Name",
-                        "strval": "Label Main Button Menu",
+                        "strval": "Label Main Button1",
                         "InheritedType": 10
                       },
                       {
@@ -8200,7 +8437,7 @@
                   {
                     "nid": 10,
                     "strtype": "OBJECT/Name",
-                    "strval": "Button Main Menu",
+                    "strval": "Button Main Button1",
                     "InheritedType": 10
                   },
                   {
@@ -8382,7 +8619,7 @@
                       {
                         "nid": 1000269,
                         "strtype": "_event/name",
-                        "strval": "ButtonMainMenuClicked",
+                        "strval": "ButtonMainButton1Clicked",
                         "InheritedType": 10
                       },
                       {
@@ -8398,49 +8635,39 @@
                         "InheritedType": 10
                       },
                       {
-                        "nid": 1000272,
+                        "nid": 1001789,
                         "strtype": "_event/action",
-                        "strval": "CHANGE SCREEN",
+                        "strval": "CALL FUNCTION",
                         "childs": [
                           {
-                            "nid": 1000273,
-                            "strtype": "CHANGE SCREEN/Name",
-                            "strval": "CHANGE SCREEN",
+                            "nid": 1001790,
+                            "strtype": "CALL FUNCTION/Name",
+                            "strval": "CALL FUNCTION",
                             "InheritedType": 10
                           },
                           {
-                            "nid": 1000274,
-                            "strtype": "CHANGE SCREEN/Call",
-                            "strval": "ChangeScreen( <{Screen_to}>, lv.SCR_LOAD_ANIM.<{Fade_mode}>, <{Speed}>, <{Delay}>)",
+                            "nid": 1001791,
+                            "strtype": "CALL FUNCTION/Call",
+                            "strval": "<{Function_name}>( event_struct )",
                             "InheritedType": 10
                           },
                           {
-                            "nid": 1000275,
-                            "strtype": "CHANGE SCREEN/CallC",
-                            "strval": "_ui_screen_change( &<{Screen_to}>, LV_SCR_LOAD_ANIM_<{Fade_mode}>, <{Speed}>, <{Delay}>, &<{Screen_to}>_screen_init);",
+                            "nid": 1001792,
+                            "strtype": "CALL FUNCTION/CallC",
+                            "strval": "<{Function_name}>( e );",
                             "InheritedType": 10
                           },
                           {
-                            "nid": 1000276,
-                            "strtype": "CHANGE SCREEN/Screen_to",
-                            "strval": "GUID40629891-934771S164356",
-                            "InheritedType": 9
+                            "nid": 1001793,
+                            "strtype": "CALL FUNCTION/Function_name",
+                            "strval": "ButtonMainButton1Clicked",
+                            "InheritedType": 10
                           },
                           {
-                            "nid": 1000277,
-                            "strtype": "CHANGE SCREEN/Fade_mode",
-                            "strval": "NONE",
-                            "InheritedType": 3
-                          },
-                          {
-                            "nid": 1000278,
-                            "strtype": "CHANGE SCREEN/Speed",
-                            "InheritedType": 6
-                          },
-                          {
-                            "nid": 1000279,
-                            "strtype": "CHANGE SCREEN/Delay",
-                            "InheritedType": 6
+                            "nid": 1001794,
+                            "strtype": "CALL FUNCTION/Dont_export_function",
+                            "strval": "False",
+                            "InheritedType": 2
                           }
                         ],
                         "InheritedType": 10
@@ -9360,7 +9587,7 @@
                       {
                         "nid": 10,
                         "strtype": "OBJECT/Name",
-                        "strval": "Label Menu Back",
+                        "strval": "Label Menu Button1",
                         "InheritedType": 10
                       },
                       {
@@ -9519,7 +9746,7 @@
                   {
                     "nid": 10,
                     "strtype": "OBJECT/Name",
-                    "strval": "Button Menu Back",
+                    "strval": "Button Menu Button1",
                     "InheritedType": 10
                   },
                   {
@@ -9701,7 +9928,7 @@
                       {
                         "nid": 1000269,
                         "strtype": "_event/name",
-                        "strval": "ButtonMenuBackClicked",
+                        "strval": "ButtonMenuButton1Clicked",
                         "InheritedType": 10
                       },
                       {
@@ -9779,7 +10006,7 @@
                       {
                         "nid": 10,
                         "strtype": "OBJECT/Name",
-                        "strval": "Label Menu Button Save",
+                        "strval": "Label Menu Button4",
                         "InheritedType": 10
                       },
                       {
@@ -9949,7 +10176,7 @@
                   {
                     "nid": 10,
                     "strtype": "OBJECT/Name",
-                    "strval": "Button Menu Save",
+                    "strval": "Button Menu Button4",
                     "InheritedType": 10
                   },
                   {
@@ -10131,7 +10358,7 @@
                       {
                         "nid": 1001734,
                         "strtype": "_event/name",
-                        "strval": "ButtonMenuSaveClicked",
+                        "strval": "ButtonMenuButton4Clicked",
                         "InheritedType": 10
                       },
                       {
@@ -10172,7 +10399,7 @@
                           {
                             "nid": 1001741,
                             "strtype": "CALL FUNCTION/Function_name",
-                            "strval": "ButtonMenuSaveClicked",
+                            "strval": "ButtonMenuButton4Clicked",
                             "InheritedType": 10
                           },
                           {
@@ -10199,7 +10426,7 @@
                       {
                         "nid": 10,
                         "strtype": "OBJECT/Name",
-                        "strval": "Label Info Button Info",
+                        "strval": "Label Info Button3",
                         "InheritedType": 10
                       },
                       {
@@ -10358,7 +10585,7 @@
                   {
                     "nid": 10,
                     "strtype": "OBJECT/Name",
-                    "strval": "Button Menu Info",
+                    "strval": "Button Menu Button3",
                     "InheritedType": 10
                   },
                   {
@@ -10540,7 +10767,7 @@
                       {
                         "nid": 1000293,
                         "strtype": "_event/name",
-                        "strval": "ButtonMenuInfoClicked",
+                        "strval": "ButtonMenuButton3Clicked",
                         "InheritedType": 10
                       },
                       {
@@ -21147,7 +21374,7 @@
                       {
                         "nid": 10,
                         "strtype": "OBJECT/Name",
-                        "strval": "Label Info Back",
+                        "strval": "Label Info Button1",
                         "InheritedType": 10
                       },
                       {
@@ -21306,7 +21533,7 @@
                   {
                     "nid": 10,
                     "strtype": "OBJECT/Name",
-                    "strval": "Button Info Back",
+                    "strval": "Button Info Button1",
                     "InheritedType": 10
                   },
                   {
@@ -21488,7 +21715,7 @@
                       {
                         "nid": 1000269,
                         "strtype": "_event/name",
-                        "strval": "ButtonInfoBackClicked",
+                        "strval": "ButtonInfoButton1Clicked",
                         "InheritedType": 10
                       },
                       {
@@ -22029,7 +22256,7 @@
     "custom_variable_prefix": "uic",
     "separate_screen_save": false,
     "hierarchy_state_save": false,
-    "backup_cnt": 143,
+    "backup_cnt": 154,
     "autosave_cnt": 0,
     "group_color_cnt": 0,
     "imagebytearrayprefix": null,
@@ -22040,7 +22267,7 @@
     "naming": "Screen_Name",
     "naming_force_lowercase": false,
     "naming_add_subcomponent": false,
-    "nidcnt": 1001779,
+    "nidcnt": 1001795,
     "BitDepth": 16,
     "Name": "SquareLine_Project"
   }

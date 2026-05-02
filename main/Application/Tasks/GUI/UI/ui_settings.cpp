@@ -85,9 +85,9 @@ static void on_Menu_PageChanged(lv_event_t *e)
 
     /* Hide Save button on USB and Flash pages */
     if ((cur_page == usb_Page) || (cur_page == memory_Page)) {
-        lv_obj_add_flag(ui_Button_Menu_Save, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(ui_Button_Menu_Button4, LV_OBJ_FLAG_HIDDEN);
     } else {
-        lv_obj_remove_flag(ui_Button_Menu_Save, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(ui_Button_Menu_Button4, LV_OBJ_FLAG_HIDDEN);
     }
 }
 
@@ -1066,7 +1066,7 @@ void ui_settings_init(lv_obj_t *p_Parent)
     lv_obj_add_event_cb(settings_Menu, on_Menu_PageChanged, LV_EVENT_VALUE_CHANGED, NULL);
 
     /* Initially check current page (root page doesn't need Save button hidden) */
-    lv_obj_remove_flag(ui_Button_Menu_Save, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(ui_Button_Menu_Button4, LV_OBJ_FLAG_HIDDEN);
 
     esp_event_handler_register(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler, NULL);
     esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_WIFI_CHANGED, on_Settings_Event_Handler, NULL);

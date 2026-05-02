@@ -44,6 +44,7 @@
 #include "Application/Manager/Network/Server/server.h"
 #include "Private/guiHelper.h"
 #include "Private/guiImageSave.h"
+#include "Private/guiROI.h"
 #include "UI/ui_messagebox.h"
 #include "UI/ui_settings.h"
 
@@ -431,100 +432,6 @@ static void GUI_Update_Info(void)
     lv_label_set_text(ui_Label_Info_MAC, Buffer);
 }
 
-/** @brief      Update the ROI rectangle on the GUI and on the Lepton.
- *  @param Type ROI type
- *  @param x    X position of the ROI (in Lepton coordinates 0-159)
- *  @param y    Y position (in Lepton coordinates 0-119)
- *  @param w    Width of the ROI
- *  @param h    Height of the ROI
- */
-static void GUI_Update_ROI(Settings_ROI_t ROI)
-{
-    int32_t DisplayWidth;
-    int32_t DisplayHeight;
-    Settings_Lepton_t SettingsLepton;
-
-    if ((ROI.x + ROI.w) > 160) {
-        ROI.w = 160 - ROI.x;
-    }
-
-    if ((ROI.y + ROI.h) > 120) {
-        ROI.h = 120 - ROI.y;
-    }
-
-    /* Minimum size constraints */
-    if (ROI.w < 1) {
-        ROI.w = 1;
-    } else if (ROI.h < 1) {
-        ROI.h = 1;
-    }
-
-    /* Update visual rectangle on display (convert Lepton coords to display coords). */
-    ESP_LOGD(TAG, "Updating ROI rectangle - Start: (%ld,%ld), End: (%ld,%ld), Size: %ldx%ld",
-             ROI.x, ROI.y, ROI.x + ROI.w, ROI.y + ROI.h, ROI.w, ROI.h);
-
-    DisplayWidth = lv_obj_get_width(ui_Image_Main_Image);
-    DisplayHeight = lv_obj_get_height(ui_Image_Main_Image);
-
-    int32_t DispX = (ROI.x * DisplayWidth) / 160;
-    int32_t DispY = (ROI.y * DisplayHeight) / 120;
-    int32_t DispW = (ROI.w * DisplayWidth) / 160;
-    int32_t DispH = (ROI.h * DisplayHeight) / 120;
-
-    /* Map ROI type to its LVGL overlay widget and apply the computed position/size. */
-    lv_obj_t *const ROI_WIDGETS[] = {
-        ui_Image_Main_Thermal_Spotmeter_ROI,
-        ui_Image_Main_Thermal_Scene_ROI,
-        ui_Image_Main_Thermal_AGC_ROI,
-        ui_Image_Main_Thermal_Video_Focus_ROI,
-    };
-
-    if (static_cast<size_t>(ROI.Type) >= (sizeof(ROI_WIDGETS) / sizeof(ROI_WIDGETS[0]))) {
-        ESP_LOGW(TAG, "Invalid GUI ROI type: 0x%X", ROI.Type);
-
-        return;
-    }
-
-    lv_obj_t *p_Widget = ROI_WIDGETS[ROI.Type];
-    if (p_Widget != NULL) {
-        lv_obj_set_align(p_Widget, LV_ALIGN_TOP_LEFT);
-        lv_obj_set_pos(p_Widget, DispX, DispY);
-        lv_obj_set_size(p_Widget, DispW, DispH);
-    }
-
-    SettingsManager_GetLepton(&SettingsLepton);
-
-    /* Check if an update is required. */
-    if ((SettingsLepton.ROI[ROI.Type].x == ROI.x) &&
-        (SettingsLepton.ROI[ROI.Type].y == ROI.y) &&
-        (SettingsLepton.ROI[ROI.Type].w == ROI.w) &&
-        (SettingsLepton.ROI[ROI.Type].h == ROI.h)) {
-        ESP_LOGD(TAG, "ROI unchanged, not updating NVS");
-
-        return;
-    }
-
-    /* Copy the new ROI in the existing settings structure. */
-    memcpy(&SettingsLepton.ROI[ROI.Type], &ROI, sizeof(Settings_ROI_t));
-
-    /* Save the new ROI to NVS. */
-    // TODO: Fix me. Causes crashes during boot
-    //SettingsManager_UpdateLepton(&SettingsLepton);
-    SettingsManager_Save();
-
-    /* The Lepton task needs the ROI with the Lepton coordinates. */
-    SettingsLepton.ROI[ROI.Type] = {
-        .Type = ROI.Type,
-        .x = static_cast<uint16_t>(ROI.x),
-        .y = static_cast<uint16_t>(ROI.y),
-        .w = static_cast<uint16_t>(ROI.w),
-        .h = static_cast<uint16_t>(ROI.h)
-    };
-
-    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_ROI, &SettingsLepton.ROI[ROI.Type], sizeof(Settings_ROI_t),
-                   pdMS_TO_TICKS(100));
-}
-
 /** @brief          Create temperature gradient canvas for palette visualization.
  *                  Generates a vertical gradient from hot (top of canvas, palette index 255)
  *                  to cold (bottom of canvas, palette index 0) using fictive temperature values
@@ -739,29 +646,26 @@ static void UI_Scale_Camera(const uint8_t *p_Src, uint32_t SrcWidth, uint32_t Sr
 }
 
 /** @brief          LVGL keypad read callback.
- *                  Maps the debounced displayboard input state (joystick + buttons) to a
- *                  single LVGL key event. First matching entry in KEY_MAP wins.
- *                  BTN1-4 use custom key codes to avoid interception by the LVGL group
- *                  navigation engine, and have key-repeat suppressed (rising edge only).
+ *                  Maps the debounced displayboard input state (buttons) to LVGL events.
+ *                  ShortPress consume-once flags generate LV_EVENT_KEY via a one-tick
+ *                  PRESSED pulse.  LongPress consume-once flags are injected directly as
+ *                  LV_EVENT_LONG_PRESSED on the currently focused group widget, with the
+ *                  originating key code passed as the event parameter.
  *  @param p_Indev  Input device handle
  *  @param p_Data   Input device data
  */
 static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Data)
 {
     DevicesManager_Input_State_t State;
-    uint32_t Key = 0;
-    uint32_t CurrentBtnKey;
-    bool Pressed = false;
-    const char *p_KeyName = "?";
 
     static const struct {
         uint32_t Key;
         const char *Name;
     } KEY_MAP[] = {
-        { GUI_KEYPAD_BTN1, "BTN1"  },
-        { GUI_KEYPAD_BTN2, "BTN2"  },
-        { GUI_KEYPAD_BTN3, "BTN3"  },
-        { GUI_KEYPAD_BTN4, "BTN4"  },
+        { GUI_KEYPAD_BTN1, "BTN1" },
+        { GUI_KEYPAD_BTN2, "BTN2" },
+        { GUI_KEYPAD_BTN3, "BTN3" },
+        { GUI_KEYPAD_BTN4, "BTN4" },
     };
 
     if ((_GUITaskState.AppContext == NULL) || (_GUITaskState.AppContext->InputMutex == NULL)) {
@@ -770,191 +674,82 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
         return;
     }
 
+    /* Read state and consume ShortPress / LongPress flags in one critical section. */
     xSemaphoreTake(_GUITaskState.AppContext->InputMutex, portMAX_DELAY);
+
+    /* Read state and consume ShortPress / LongPress flags in one critical section. */
     memcpy(&State, &_GUITaskState.AppContext->InputState, sizeof(DevicesManager_Input_State_t));
+    for (size_t i = 0; i < sizeof(_GUITaskState.AppContext->InputState.Buttons) / sizeof(_GUITaskState.AppContext->InputState.Buttons[0]); i++) {
+        _GUITaskState.AppContext->InputState.Buttons[i].ShortPress = false;
+        _GUITaskState.AppContext->InputState.Buttons[i].LongPress = false;
+    }
+
+    _GUITaskState.AppContext->InputState.Joystick.Center.ShortPress = false;
+    _GUITaskState.AppContext->InputState.Joystick.Center.LongPress = false;
+
     xSemaphoreGive(_GUITaskState.AppContext->InputMutex);
 
-    const bool InputArray[] = {
-        State.Button1, State.Button2, State.Button3, State.Button4,
-    };
+    /* Inject LV_EVENT_LONG_PRESSED for pending long-press flags.
+     * The key code is passed as event param so screen handlers can identify the button. */
+    lv_group_t *Group = lv_indev_get_group(p_Indev);
+    if (Group != NULL) {
+        lv_obj_t *Focused = lv_group_get_focused(Group);
 
-    for (size_t i = 0; i < (sizeof(KEY_MAP) / sizeof(KEY_MAP[0])); i++) {
-        if (InputArray[i]) {
-            Key = KEY_MAP[i].Key;
-            p_KeyName = KEY_MAP[i].Name;
-            Pressed = true;
-
-            break;
-        }
-    }
-
-    /* BTN1-4 are action buttons, not navigation buttons so we must suppress key-repeat.
-     * LVGL re-fires LV_EVENT_KEY on every indev tick while PRESSED is reported,
-     * which would trigger multiple screen changes per button press.
-     * Only the rising edge (first tick) passes through; subsequent ticks with
-     * the same button still held are suppressed by reporting RELEASED.
-     */
-    CurrentBtnKey = ((Key >= GUI_KEYPAD_BTN1) && (Key <= GUI_KEYPAD_BTN4)) ? Key : 0;
-    if ((CurrentBtnKey != 0) && (CurrentBtnKey == _GUITaskState.PrevBtnKey)) {
-        Key = 0;
-        Pressed = false;
-    }
-
-    _GUITaskState.PrevBtnKey = CurrentBtnKey;
-
-    p_Data->key = Key;
-    p_Data->state = Pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
-
-    /* Log only on edge transitions to avoid spamming every LVGL tick */
-    static bool PrevPressed = false;
-    static uint32_t PrevKey = 0;
-
-    if ((Pressed != PrevPressed) || (Pressed && (Key != PrevKey))) {
-        if (Pressed) {
-            ESP_LOGD(TAG, "Keypad: %s pressed", p_KeyName);
-        } else {
-            ESP_LOGD(TAG, "Keypad: released");
-        }
-    }
-
-    PrevPressed = Pressed;
-    PrevKey = Key;
-
-    if (lv_display_get_screen_active(lv_display_get_default()) == ui_Main) {
-        TickType_t NowTick = xTaskGetTickCount();
-
-        /* JoyCenter long-press: signalled by DevicesTask via JoyCenterLongPress in shared input state.
-         * Rising edge toggles the crosshair in thermal view only; camera view is unaffected. */
-        if ((State.JoyCenterLongPress == true) && (_GUITaskState.PrevJoyCenterLongPress == false)) {
-            _GUITaskState.LongPressHandled = true;
-
-            if (_GUITaskState.ShowCameraView == false) {
-                _GUITaskState.ShowCrosshair = !_GUITaskState.ShowCrosshair;
-
-                if (_GUITaskState.ShowCrosshair) {
-                    ESP_LOGD(TAG, "Crosshair enabled");
-
-                    lv_obj_remove_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
-                    GUI_UpdateTempLabelPosition(_GUITaskState.CrosshairX, _GUITaskState.CrosshairY);
-                } else {
-                    ESP_LOGD(TAG, "Crosshair disabled");
-
-                    lv_obj_add_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
-                }
-            }
-        }
-
-        /* JoyCenter: falling edge -> autofocus (only when no long-press was handled this hold). */
-        if ((_GUITaskState.LongPressHandled == false) && (State.JoyCenter == false) && (_GUITaskState.PrevJoyCenter == true)) {
-            if (_GUITaskState.ShowCameraView == true) {
-                ESP_LOGD(TAG, "Autofocus triggered by joystick center");
-
-                esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FOCUS, NULL, 0, pdMS_TO_TICKS(100));
-            } else {
-                ESP_LOGD(TAG, "FFC triggered by joystick center");
-
-                esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FFC, NULL, 0, pdMS_TO_TICKS(100));
-            }
-
-            _GUITaskState.LongPressHandled = false;
-        }
-
-        /* Crosshair movement with joystick directions */
-        if (_GUITaskState.ShowCrosshair) {
-            bool AnyDirNow = State.JoyUp || State.JoyDown || State.JoyLeft || State.JoyRight;
-            bool AnyDirPrev = _GUITaskState.PrevJoyUp || _GUITaskState.PrevJoyDown ||
-                              _GUITaskState.PrevJoyLeft || _GUITaskState.PrevJoyRight;
-            bool ShouldMove = false;
-
-            if (AnyDirNow && (AnyDirPrev == false)) {
-                /* Rising edge: start hold timer. The first move is deferred by
-                 * CROSSHAIR_INITIAL_DELAY_MS to filter out joystick-bounce glitches
-                 * that would cause a single physical press to register as two steps. */
-                _GUITaskState.JoyDirHeldSince = NowTick;
-                _GUITaskState.JoyDirLastMoveTick = 0;
-            } else if (AnyDirNow && (_GUITaskState.JoyDirHeldSince != 0)) {
-                TickType_t HeldFor = NowTick - _GUITaskState.JoyDirHeldSince;
-
-                if (_GUITaskState.JoyDirLastMoveTick == 0) {
-                    /* First move: fire once after the initial debounce delay. */
-                    if (HeldFor >= pdMS_TO_TICKS(CROSSHAIR_INITIAL_DELAY_MS)) {
-                        ShouldMove = true;
-                        _GUITaskState.JoyDirLastMoveTick = NowTick;
-                    }
-                } else if ((HeldFor >= pdMS_TO_TICKS(CROSSHAIR_AUTOREPEAT_DELAY_MS)) &&
-                           ((NowTick - _GUITaskState.JoyDirLastMoveTick) >= pdMS_TO_TICKS(CROSSHAIR_AUTOREPEAT_PERIOD_MS))) {
-                    /* Auto-repeat: fires at CROSSHAIR_AUTOREPEAT_PERIOD_MS intervals
-                     * after CROSSHAIR_AUTOREPEAT_DELAY_MS of continuous hold. */
-                    ShouldMove = true;
-                    _GUITaskState.JoyDirLastMoveTick = NowTick;
+        if (Focused != NULL) {
+            for (size_t i = 0; i < sizeof(_GUITaskState.AppContext->InputState.Buttons) / sizeof(_GUITaskState.AppContext->InputState.Buttons[0]); i++) {
+                if (State.Buttons[i].LongPress == true) {
+                    ESP_LOGI(TAG, "Keypad: %s long-press", KEY_MAP[i].Name);
+                    lv_obj_send_event(Focused, LV_EVENT_LONG_PRESSED, (void *)(uintptr_t)KEY_MAP[i].Key);
                 }
             }
 
-            if (AnyDirNow == false) {
-                _GUITaskState.JoyDirHeldSince = 0;
-                _GUITaskState.JoyDirLastMoveTick = 0;
-            }
-
-            if (ShouldMove) {
-                /* Move the crosshair container.  CrosshairX/Y hold the centre pixel of the
-                 * crosshair marker; the container is offset by half its size so the marker
-                 * sits exactly at that pixel.  Read position from our own state rather than
-                 * from lv_obj_get_x/y() to avoid stale coord values between layout passes. */
-                int32_t Cx = _GUITaskState.CrosshairX;
-                int32_t Cy = _GUITaskState.CrosshairY;
-                int32_t MaxX = static_cast<int32_t>(UI_IMAGE_CANVAS_WIDTH)  - 1;
-                int32_t MaxY = static_cast<int32_t>(UI_IMAGE_CANVAS_HEIGHT) - 1;
-
-                if (State.JoyUp)    {
-                    Cy -= static_cast<int32_t>(CROSSHAIR_STEP_PX);
-                }
-
-                if (State.JoyDown)  {
-                    Cy += static_cast<int32_t>(CROSSHAIR_STEP_PX);
-                }
-
-                if (State.JoyLeft)  {
-                    Cx -= static_cast<int32_t>(CROSSHAIR_STEP_PX);
-                }
-
-                if (State.JoyRight) {
-                    Cx += static_cast<int32_t>(CROSSHAIR_STEP_PX);
-                }
-
-                if (Cx < 0)    {
-                    Cx = 0;
-                }
-
-                if (Cx > MaxX) {
-                    Cx = MaxX;
-                }
-
-                if (Cy < 0)    {
-                    Cy = 0;
-                }
-
-                if (Cy > MaxY) {
-                    Cy = MaxY;
-                }
-
-                _GUITaskState.CrosshairX = Cx;
-                _GUITaskState.CrosshairY = Cy;
-                lv_obj_set_pos(ui_Container_Main_Thermal_Crosshair,
-                               Cx - CROSSHAIR_CONTAINER_W / 2,
-                               Cy - CROSSHAIR_CONTAINER_H / 2);
-                GUI_UpdateTempLabelPosition(Cx, Cy);
-
-                ESP_LOGD(TAG, "Crosshair moved to (%d, %d)", Cx, Cy);
+            if (State.Joystick.Center.LongPress == true) {
+                ESP_LOGI(TAG, "Keypad: JoyCenter long-press");
+                lv_obj_send_event(Focused, LV_EVENT_LONG_PRESSED, (void *)(uintptr_t)GUI_KEYPAD_JOY_CENTER);
             }
         }
     }
 
-    _GUITaskState.PrevJoyCenter = State.JoyCenter;
-    _GUITaskState.PrevJoyCenterLongPress = State.JoyCenterLongPress;
-    _GUITaskState.PrevJoyUp = State.JoyUp;
-    _GUITaskState.PrevJoyDown = State.JoyDown;
-    _GUITaskState.PrevJoyLeft = State.JoyLeft;
-    _GUITaskState.PrevJoyRight = State.JoyRight;
+    /* Key state priority (highest to lowest):
+     *  1. Button short-presses (BTN1–4): pulse-based, consume-once flag → one tick PRESSED.
+     *     LVGL fires LV_EVENT_KEY on the focused widget after the RELEASED tick.
+     *  2. JoyCenter short-press: same pulse-based mechanism → LV_KEY_ENTER.
+     *  3. Joystick directions (JoyUp/Down/Left/Right): level-based → PRESSED while held.
+     *     LVGL handles auto-repeat natively via its configured long_press / repeat timers. */
+    p_Data->key = 0;
+    p_Data->state = LV_INDEV_STATE_RELEASED;
+
+    for (size_t i = 0; i < sizeof(_GUITaskState.AppContext->InputState.Buttons) / sizeof(_GUITaskState.AppContext->InputState.Buttons[0]); i++) {
+        if (State.Buttons[i].ShortPress == true) {
+            p_Data->key = KEY_MAP[i].Key;
+            p_Data->state = LV_INDEV_STATE_PRESSED;
+            ESP_LOGI(TAG, "Keypad: %s short-press", KEY_MAP[i].Name);
+
+            return;
+        }
+    }
+
+    if (State.Joystick.Center.ShortPress == true) {
+        p_Data->key = GUI_KEYPAD_JOY_CENTER;
+        p_Data->state = LV_INDEV_STATE_PRESSED;
+        ESP_LOGI(TAG, "Keypad: JoyCenter short-press");
+
+        return;
+    }
+
+    if (State.Joystick.Up == true) {
+        p_Data->key = GUI_KEYPAD_JOY_UP;
+        p_Data->state = LV_INDEV_STATE_PRESSED;
+    } else if (State.Joystick.Down == true) {
+        p_Data->key = GUI_KEYPAD_JOY_DOWN;
+        p_Data->state = LV_INDEV_STATE_PRESSED;
+    } else if (State.Joystick.Left == true) {
+        p_Data->key = GUI_KEYPAD_JOY_LEFT;
+        p_Data->state = LV_INDEV_STATE_PRESSED;
+    } else if (State.Joystick.Right == true) {
+        p_Data->key = GUI_KEYPAD_JOY_RIGHT;
+        p_Data->state = LV_INDEV_STATE_PRESSED;
+    }
 }
 
 /** @brief          LVGL touch read callback.
@@ -991,7 +786,6 @@ void Task_GUI(void *p_Parameters)
 {
     uint32_t Timeout;
     App_Context_t *App_Context;
-    Settings_Lepton_t LeptonSettings;
 
     /* Precompute x bilinear coefficients once per frame (constant across all rows).
      * Saves ImageHeight (180) redundant divisions per pixel column.
@@ -1056,12 +850,7 @@ void Task_GUI(void *p_Parameters)
 
     esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_APP_STARTED, NULL, 0, pdMS_TO_TICKS(500));
 
-    /* Set the initial ROI first to give it a size. */
-    SettingsManager_GetLepton(&LeptonSettings);
-    GUI_Update_ROI(LeptonSettings.ROI[ROI_TYPE_SPOTMETER]);
-    GUI_Update_ROI(LeptonSettings.ROI[ROI_TYPE_SCENE]);
-    GUI_Update_ROI(LeptonSettings.ROI[ROI_TYPE_AGC]);
-    GUI_Update_ROI(LeptonSettings.ROI[ROI_TYPE_VIDEO_FOCUS]);
+    GUI_ROI_Load();
 
     GUI_Update_Info();
 
@@ -1326,7 +1115,7 @@ void Task_GUI(void *p_Parameters)
                 float TempMaxCelsius = (LeptonFrame.Max / 100.0f) - 273.15f;
                 snprintf(Buffer, sizeof(Buffer), "%.1f \xC2\xB0""C", TempMaxCelsius);
                 if (strncmp(Buffer, TempScaleMaxBuf, sizeof(Buffer)) != 0) {
-                    lv_label_set_text(ui_Label_Main_TempScaleMax, Buffer);
+                    lv_label_set_text(ui_Label_Main_Temp_Scale_Max, Buffer);
                     strncpy(TempScaleMaxBuf, Buffer, sizeof(TempScaleMaxBuf));
                 }
 
@@ -1334,7 +1123,7 @@ void Task_GUI(void *p_Parameters)
                 float TempMinCelsius = (LeptonFrame.Min / 100.0f) - 273.15f;
                 snprintf(Buffer, sizeof(Buffer), "%.1f \xC2\xB0""C", TempMinCelsius);
                 if (strncmp(Buffer, TempScaleMinBuf, sizeof(Buffer)) != 0) {
-                    lv_label_set_text(ui_Label_Main_TempScaleMin, Buffer);
+                    lv_label_set_text(ui_Label_Main_Temp_Scale_Min, Buffer);
                     strncpy(TempScaleMinBuf, Buffer, sizeof(TempScaleMinBuf));
                 }
 
@@ -1482,6 +1271,9 @@ void Task_GUI(void *p_Parameters)
 
                 esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_IMAGE_SAVE_FAILED, NULL, 0, pdMS_TO_TICKS(100));
             }
+        }
+
+        if (_GUITaskState.ROIConfig.IsActive) {
         }
 
         EventBits = xEventGroupGetBits(_GUITaskState.EventGroup);
@@ -1702,8 +1494,8 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
 
                 /* Hide temperature scale labels */
-                lv_obj_add_flag(ui_Label_Main_TempScaleMax, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Label_Main_TempScaleMin, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Label_Main_Temp_Scale_Max, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Label_Main_Temp_Scale_Min, LV_OBJ_FLAG_HIDDEN);
             } else {
                 /* Hide UVC overlay */
                 lv_obj_add_flag(_GUITaskState.UVCOverlayLabel, LV_OBJ_FLAG_HIDDEN);
@@ -1723,8 +1515,8 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
 
                 /* Restore temperature scale labels */
-                lv_obj_remove_flag(ui_Label_Main_TempScaleMax, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Label_Main_TempScaleMin, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Label_Main_Temp_Scale_Max, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Label_Main_Temp_Scale_Min, LV_OBJ_FLAG_HIDDEN);
             }
 
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_UVC_STREAMING_STATE_CHANGED);
@@ -1742,8 +1534,8 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Max, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Min, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Label_Main_TempScaleMax, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Label_Main_TempScaleMin, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Label_Main_Temp_Scale_Max, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui_Label_Main_Temp_Scale_Min, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_add_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_add_flag(ui_Image_Main_Gradient, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_add_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
@@ -1751,7 +1543,7 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_add_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_add_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
 
-                lv_label_set_text(ui_Label_Main_Button_ROI, "\uF0EB");
+                lv_label_set_text(ui_Label_Main_Button2, "\uF0EB");
 
                 DevicesManager_IsFlashEnabled(&FlashEnabled);
                 if (FlashEnabled) {
@@ -1766,11 +1558,11 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Max, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Min, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Label_Main_TempScaleMax, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Label_Main_TempScaleMin, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Label_Main_Temp_Scale_Max, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(ui_Label_Main_Temp_Scale_Min, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_remove_flag(ui_Image_Main_Gradient, LV_OBJ_FLAG_HIDDEN);
 
-                lv_label_set_text(ui_Label_Main_Button_ROI, "\uE595");
+                lv_label_set_text(ui_Label_Main_Button2, "\uE595");
 
                 if (_GUITaskState.ShowCrosshair) {
                     lv_obj_remove_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
@@ -1788,6 +1580,8 @@ void Task_GUI(void *p_Parameters)
         }
 
         if (EventBits & GUI_TASK_PALETTE_CHANGED) {
+            Settings_Lepton_t LeptonSettings;
+
             SettingsManager_GetLepton(&LeptonSettings);
 
             /* Update palette dropdown if the change came from elsewhere (e.g. HTTP API) */
@@ -1797,29 +1591,6 @@ void Task_GUI(void *p_Parameters)
             }
 
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_PALETTE_CHANGED);
-        }
-
-        if (EventBits & GUI_TASK_THERMAL_ROI_CHANGED) {
-            /* RGB camera view */
-            if (_GUITaskState.ShowCameraView) {
-                DevicesManager_ToggleFlashEnable();
-            }
-            /* Thermal view */
-            else {
-                if (_GUITaskState.ShowROI) {
-                    lv_obj_remove_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
-                    lv_obj_remove_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
-                    lv_obj_remove_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
-                    lv_obj_remove_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
-                } else {
-                    lv_obj_add_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
-                    lv_obj_add_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
-                    lv_obj_add_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
-                    lv_obj_add_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
-                }
-            }
-
-            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_THERMAL_ROI_CHANGED);
         }
 
         if (EventBits & GUI_TASK_TEMPERATURE_SENSOR_READY) {
@@ -2074,8 +1845,6 @@ esp_err_t GUI_Task_Init(void)
     _GUITaskState.ShowCameraView = false;
     _GUITaskState.ShowCrosshair = false;
     _GUITaskState.ShowROI = false;
-    _GUITaskState.LongPressHandled = false;
-    _GUITaskState.PrevJoyCenterLongPress = false;
     _GUITaskState.IsInitialized = true;
 
     return ESP_OK;
@@ -2169,36 +1938,12 @@ lv_indev_t *GUI_Task_GetKeypadIndev(void)
     return _GUITaskState.Keypad;
 }
 
-esp_err_t GUI_Task_SaveImage(void)
+void GUI_Task_ActivateROIConfig(void)
 {
-    /* Check if filesystem is locked (USB active) */
-    if (MemoryManager_IsFilesystemLocked()) {
-        ESP_LOGW(TAG, "Cannot save image - USB mode active!");
-
-        return ESP_ERR_INVALID_STATE;
+    /* Skip if RGB view is active or ROI config mode is already active */
+    if (_GUITaskState.ShowCameraView || _GUITaskState.ROIConfig.IsActive) {
+        return;
     }
 
-    /* Set flag to trigger save on next frame update */
-    _GUITaskState.SaveNextFrameRequested = true;
-    ESP_LOGD(TAG, "Image save requested - will capture next frame");
-
-    return ESP_OK;
-}
-
-void GUI_Task_SetCameraView(bool Enable)
-{
-    _GUITaskState.ShowCameraView = Enable;
-    xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_VIEW_CHANGED);
-}
-
-void GUI_Task_ToggleCameraView(void)
-{
-    _GUITaskState.ShowCameraView = !_GUITaskState.ShowCameraView;
-    xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_VIEW_CHANGED);
-}
-
-void GUI_Task_ToggleROI(void)
-{
-    _GUITaskState.ShowROI = !_GUITaskState.ShowROI;
-    xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_THERMAL_ROI_CHANGED);
+    GUI_ROI_Init();
 }

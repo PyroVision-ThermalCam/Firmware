@@ -8,87 +8,198 @@
 
 #include "ui.h"
 
-#include "../../../application.h"
 #include "../guiTask.h"
 #include "../UI/ui_settings.h"
 #include "../UI/ui_messagebox.h"
+#include "../../../application.h"
 
-/** @brief LV_EVENT_KEY handler registered on the focused group object of the Main screen.
- *         Translates GUI_KEYPAD_BTN2/3/4 into button click events.
+/** @brief LV_EVENT_KEY and LV_EVENT_LONG_PRESSED handler for the Main screen.
+ *         LV_EVENT_KEY (short-press): translates BTN1-4 key codes into click events.
+ *         LV_EVENT_LONG_PRESSED: dispatches long-press actions per button; the originating
+ *         key code is available via lv_event_get_param().
  */
 static void on_main_screen_key(lv_event_t *e)
 {
-    switch (lv_event_get_key(e)) {
-        case GUI_KEYPAD_BTN1: {
-            lv_obj_send_event(ui_Button_Main_Menu, LV_EVENT_CLICKED, NULL);
-            break;
+    lv_event_code_t Code = lv_event_get_code(e);
+
+    if (Code == LV_EVENT_KEY) {
+        uint32_t Key = lv_event_get_key(e);
+
+        switch (Key) {
+            case GUI_KEYPAD_BTN1: {
+                lv_obj_send_event(ui_Button_Main_Button1, LV_EVENT_CLICKED, NULL);
+
+                break;
+            }
+            case GUI_KEYPAD_BTN2: {
+                lv_obj_send_event(ui_Button_Main_Button2, LV_EVENT_SHORT_CLICKED, NULL);
+
+                break;
+            }
+            case GUI_KEYPAD_BTN3: {
+                lv_obj_send_event(ui_Button_Main_Button3, LV_EVENT_CLICKED, NULL);
+
+                break;
+            }
+            case GUI_KEYPAD_BTN4: {
+                lv_obj_send_event(ui_Button_Main_Button4, LV_EVENT_CLICKED, NULL);
+
+                break;
+            }
+
+            /* Joystick directions */
+            case GUI_KEYPAD_JOY_UP: {
+                GUI_Control_HandleJoystick(Key);
+
+                break;
+            }
+            case GUI_KEYPAD_JOY_DOWN: {
+                GUI_Control_HandleJoystick(Key);
+
+                break;
+            }
+            case GUI_KEYPAD_JOY_LEFT: {
+                GUI_Control_HandleJoystick(Key);
+
+                break;
+            }
+            case GUI_KEYPAD_JOY_RIGHT: {
+                GUI_Control_HandleJoystick(Key);
+
+                break;
+            }
+            case GUI_KEYPAD_JOY_CENTER: {
+                GUI_Control_HandleJoystick(Key);
+
+                break;
+            }
+            default: {
+                break;
+            }
         }
-        case GUI_KEYPAD_BTN2: {
-            lv_obj_send_event(ui_Button_Main_ROI, LV_EVENT_CLICKED, NULL);
-            break;
-        }
-        case GUI_KEYPAD_BTN3: {
-            lv_obj_send_event(ui_Button_Main_Switch, LV_EVENT_CLICKED, NULL);
-            break;
-        }
-        case GUI_KEYPAD_BTN4: {
-            lv_obj_send_event(ui_Button_Main_Save, LV_EVENT_CLICKED, NULL);
-            break;
-        }
-        default: {
-            break;
+    } else if (Code == LV_EVENT_LONG_PRESSED) {
+        switch (static_cast<uint32_t>(reinterpret_cast<uintptr_t>(lv_event_get_param(e)))) {
+            case GUI_KEYPAD_BTN1: {
+                break;
+            }
+            case GUI_KEYPAD_BTN2: {
+                lv_obj_send_event(ui_Button_Main_Button2, LV_EVENT_LONG_PRESSED, NULL);
+
+                break;
+            }
+            case GUI_KEYPAD_BTN3: {
+                break;
+            }
+            case GUI_KEYPAD_BTN4: {
+                break;
+            }
+            default: {
+                break;
+            }
         }
     }
 }
 
-/** @brief LV_EVENT_KEY handler registered on the focused group object of the Menu screen.
- *         Translates GUI_KEYPAD_BTN4 into the Save button click.
+/** @brief LV_EVENT_KEY and LV_EVENT_LONG_PRESSED handler for the Menu screen.
+ *         LV_EVENT_KEY (short-press): translates BTN1-4 key codes into click events.
+ *         LV_EVENT_LONG_PRESSED: dispatches long-press actions per button; the originating
+ *         key code is available via lv_event_get_param().
  */
 static void on_menu_screen_key(lv_event_t *e)
 {
-    switch (lv_event_get_key(e)) {
-        case GUI_KEYPAD_BTN1: {
-            lv_obj_send_event(ui_Button_Menu_Back, LV_EVENT_CLICKED, NULL);
-            break;
+    lv_event_code_t Code = lv_event_get_code(e);
+
+    if (Code == LV_EVENT_KEY) {
+        switch (lv_event_get_key(e)) {
+            case GUI_KEYPAD_BTN1: {
+                lv_obj_send_event(ui_Button_Menu_Button1, LV_EVENT_CLICKED, NULL);
+
+                break;
+            }
+            case GUI_KEYPAD_BTN2: {
+                break;
+            }
+            case GUI_KEYPAD_BTN3: {
+                lv_obj_send_event(ui_Button_Menu_Button3, LV_EVENT_CLICKED, NULL);
+
+                break;
+            }
+            case GUI_KEYPAD_BTN4: {
+                lv_obj_send_event(ui_Button_Menu_Button4, LV_EVENT_CLICKED, NULL);
+
+                break;
+            }
+            default: {
+                break;
+            }
         }
-        case GUI_KEYPAD_BTN2: {
-            break;
-        }
-        case GUI_KEYPAD_BTN3: {
-            lv_obj_send_event(ui_Button_Menu_Info, LV_EVENT_CLICKED, NULL);
-            break;
-        }
-        case GUI_KEYPAD_BTN4: {
-            lv_obj_send_event(ui_Button_Menu_Save, LV_EVENT_CLICKED, NULL);
-            break;
-        }
-        default: {
-            break;
+    } else if (Code == LV_EVENT_LONG_PRESSED) {
+        switch ((uint32_t)(uintptr_t)lv_event_get_param(e)) {
+            case GUI_KEYPAD_BTN1: {
+                break;
+            }
+            case GUI_KEYPAD_BTN2: {
+                break;
+            }
+            case GUI_KEYPAD_BTN3: {
+                break;
+            }
+            case GUI_KEYPAD_BTN4: {
+                break;
+            }
+            default: {
+                break;
+            }
         }
     }
 }
 
-/** @brief LV_EVENT_KEY handler registered on the focused group object of the Info screen.
- *         Translates GUI_KEYPAD_BTN1 into the Back button click.
+/** @brief LV_EVENT_KEY and LV_EVENT_LONG_PRESSED handler for the Info screen.
+ *         LV_EVENT_KEY (short-press): translates BTN1-4 key codes into click events.
+ *         LV_EVENT_LONG_PRESSED: dispatches long-press actions per button; the originating
+ *         key code is available via lv_event_get_param().
  */
 static void on_info_screen_key(lv_event_t *e)
 {
-    switch (lv_event_get_key(e)) {
-        case GUI_KEYPAD_BTN1: {
-            lv_obj_send_event(ui_Button_Info_Back, LV_EVENT_CLICKED, NULL);
-            break;
+    lv_event_code_t Code = lv_event_get_code(e);
+
+    if (Code == LV_EVENT_KEY) {
+        switch (lv_event_get_key(e)) {
+            case GUI_KEYPAD_BTN1: {
+                lv_obj_send_event(ui_Button_Info_Button1, LV_EVENT_CLICKED, NULL);
+
+                break;
+            }
+            case GUI_KEYPAD_BTN2: {
+                break;
+            }
+            case GUI_KEYPAD_BTN3: {
+                break;
+            }
+            case GUI_KEYPAD_BTN4: {
+                break;
+            }
+            default: {
+                break;
+            }
         }
-        case GUI_KEYPAD_BTN2: {
-            break;
-        }
-        case GUI_KEYPAD_BTN3: {
-            break;
-        }
-        case GUI_KEYPAD_BTN4: {
-            break;
-        }
-        default: {
-            break;
+    } else if (Code == LV_EVENT_LONG_PRESSED) {
+        switch ((uint32_t)(uintptr_t)lv_event_get_param(e)) {
+            case GUI_KEYPAD_BTN1: {
+                break;
+            }
+            case GUI_KEYPAD_BTN2: {
+                break;
+            }
+            case GUI_KEYPAD_BTN3: {
+                break;
+            }
+            case GUI_KEYPAD_BTN4: {
+                break;
+            }
+            default: {
+                break;
+            }
         }
     }
 }
@@ -98,19 +209,20 @@ static void on_info_screen_key(lv_event_t *e)
 static void on_screen_keypad_group_cleanup(lv_event_t *e)
 {
     (void)e;
+    lv_indev_t *Keypad;
+    lv_group_t *Group;
 
-    lv_indev_t *p_Keypad = GUI_Task_GetKeypadIndev();
-
-    if (p_Keypad == NULL) {
+    Keypad = GUI_Task_GetKeypadIndev();
+    if (Keypad == NULL) {
         return;
     }
 
-    lv_group_t *p_Group = lv_indev_get_group(p_Keypad);
+    Group = lv_indev_get_group(Keypad);
 
-    lv_indev_set_group(p_Keypad, NULL);
+    lv_indev_set_group(Keypad, NULL);
 
-    if (p_Group != NULL) {
-        lv_group_delete(p_Group);
+    if (Group != NULL) {
+        lv_group_delete(Group);
     }
 }
 
@@ -118,40 +230,46 @@ void ScreenMainLoaded(lv_event_t *e)
 {
     (void)e;
     Settings_Info_t Info;
-    lv_indev_t *p_Keypad;
-    lv_group_t *p_Group;
+    lv_indev_t *Keypad;
+    lv_group_t *Group;
 
     SettingsManager_GetInfo(&Info);
 
     /* Set the symbols for the UI */
     lv_label_set_text(ui_Image_Main_WiFi, LV_SYMBOL_WIFI);
     lv_label_set_text(ui_Image_Main_SDCard, LV_SYMBOL_SD_CARD);
-    lv_label_set_text(ui_Label_Main_Button_Save, LV_SYMBOL_SAVE);
-    lv_label_set_text(ui_Label_Main_Button_Menu, "\uF0C9");
-    lv_label_set_text(ui_Label_Main_Button_ROI, "\uE595");
-    lv_label_set_text(ui_Label_Main_Button_Switch, "\uE0D8");
+    lv_label_set_text(ui_Label_Main_Button1, "\uF0C9");
+    lv_label_set_text(ui_Label_Main_Button2, "\uE595");
+    lv_label_set_text(ui_Label_Main_Button3, "\uE0D8");
+    lv_label_set_text(ui_Label_Main_Button4, LV_SYMBOL_SAVE);
     lv_label_set_text(ui_Label_Main_Thermal_Crosshair, "\uF05B");
     lv_label_set_text(ui_Label_Main_Statusbar_Temperatur_Icon, "\uF2C7");
-    lv_label_set_text(ui_Label_Info_Back, "\uF060");
-    lv_label_set_text(ui_Label_Info_Button_Info, "\uF129");
-    lv_label_set_text(ui_Label_Menu_Button_Save, LV_SYMBOL_SAVE);
-    lv_label_set_text(ui_Label_Menu_Back, "\uF060");
 
-    p_Keypad = GUI_Task_GetKeypadIndev();
-    if (p_Keypad != NULL) {
-        p_Group = lv_group_create();
-        lv_group_add_obj(p_Group, ui_Button_Main_Menu);
-        lv_indev_set_group(p_Keypad, p_Group);
+    /* Change the label of button 1 to "Back" */
+    lv_label_set_text(ui_Label_Info_Button1, "\uF060");
+
+    lv_label_set_text(ui_Label_Info_Button3, "\uF129");
+    lv_label_set_text(ui_Label_Menu_Button4, LV_SYMBOL_SAVE);
+
+    /* Change the label of button 1 to "Back" */
+    lv_label_set_text(ui_Label_Menu_Button1, "\uF060");
+
+    Keypad = GUI_Task_GetKeypadIndev();
+    if (Keypad != NULL) {
+        Group = lv_group_create();
+        lv_group_add_obj(Group, ui_Button_Main_Button1);
+        lv_indev_set_group(Keypad, Group);
     }
 
     /* Suppress the LVGL focus outline on the group anchor object */
-    lv_obj_set_style_outline_width(ui_Button_Main_Menu, 0,
+    lv_obj_set_style_outline_width(ui_Button_Main_Button1, 0,
                                    static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUSED));
-    lv_obj_set_style_outline_width(ui_Button_Main_Menu, 0,
+    lv_obj_set_style_outline_width(ui_Button_Main_Button1, 0,
                                    static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUS_KEY));
 
-    lv_obj_remove_event_cb(ui_Button_Main_Menu, on_main_screen_key);
-    lv_obj_add_event_cb(ui_Button_Main_Menu, on_main_screen_key, LV_EVENT_KEY, NULL);
+    lv_obj_remove_event_cb(ui_Button_Main_Button1, on_main_screen_key);
+    lv_obj_add_event_cb(ui_Button_Main_Button1, on_main_screen_key, LV_EVENT_KEY, NULL);
+    lv_obj_add_event_cb(ui_Button_Main_Button1, on_main_screen_key, LV_EVENT_LONG_PRESSED, NULL);
     lv_obj_remove_event_cb(ui_Main, on_screen_keypad_group_cleanup);
     lv_obj_add_event_cb(ui_Main, on_screen_keypad_group_cleanup, LV_EVENT_SCREEN_UNLOAD_START, NULL);
 }
@@ -159,23 +277,24 @@ void ScreenMainLoaded(lv_event_t *e)
 void ScreenMenuLoaded(lv_event_t *e)
 {
     (void)e;
+    lv_indev_t *Keypad;
 
-    lv_indev_t *p_Keypad = GUI_Task_GetKeypadIndev();
-
-    if (p_Keypad != NULL) {
-        lv_group_t *p_Group = lv_group_create();
-        lv_group_add_obj(p_Group, ui_Button_Menu_Back);
-        lv_indev_set_group(p_Keypad, p_Group);
+    Keypad = GUI_Task_GetKeypadIndev();
+    if (Keypad != NULL) {
+        lv_group_t *Group = lv_group_create();
+        lv_group_add_obj(Group, ui_Button_Menu_Button1);
+        lv_indev_set_group(Keypad, Group);
     }
 
     /* Suppress the LVGL focus outline on the group anchor object */
-    lv_obj_set_style_outline_width(ui_Button_Menu_Back, 0,
+    lv_obj_set_style_outline_width(ui_Button_Menu_Button1, 0,
                                    static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUSED));
-    lv_obj_set_style_outline_width(ui_Button_Menu_Back, 0,
+    lv_obj_set_style_outline_width(ui_Button_Menu_Button1, 0,
                                    static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUS_KEY));
 
-    lv_obj_remove_event_cb(ui_Button_Menu_Back, on_menu_screen_key);
-    lv_obj_add_event_cb(ui_Button_Menu_Back, on_menu_screen_key, LV_EVENT_KEY, NULL);
+    lv_obj_remove_event_cb(ui_Button_Menu_Button1, on_menu_screen_key);
+    lv_obj_add_event_cb(ui_Button_Menu_Button1, on_menu_screen_key, LV_EVENT_KEY, NULL);
+    lv_obj_add_event_cb(ui_Button_Menu_Button1, on_menu_screen_key, LV_EVENT_LONG_PRESSED, NULL);
     lv_obj_remove_event_cb(ui_Menu, on_screen_keypad_group_cleanup);
     lv_obj_add_event_cb(ui_Menu, on_screen_keypad_group_cleanup, LV_EVENT_SCREEN_UNLOAD_START, NULL);
 }
@@ -183,22 +302,25 @@ void ScreenMenuLoaded(lv_event_t *e)
 void ScreenInfoLoaded(lv_event_t *e)
 {
     (void)e;
-    lv_indev_t *p_Keypad = GUI_Task_GetKeypadIndev();
+    lv_indev_t *Keypad;
+    
+    Keypad = GUI_Task_GetKeypadIndev();
 
-    if (p_Keypad != NULL) {
-        lv_group_t *p_Group = lv_group_create();
-        lv_group_add_obj(p_Group, ui_Button_Info_Back);
-        lv_indev_set_group(p_Keypad, p_Group);
+    if (Keypad != NULL) {
+        lv_group_t *Group = lv_group_create();
+        lv_group_add_obj(Group, ui_Button_Info_Button1);
+        lv_indev_set_group(Keypad, Group);
     }
 
     /* Suppress the LVGL focus outline on the group anchor object */
-    lv_obj_set_style_outline_width(ui_Button_Info_Back, 0,
+    lv_obj_set_style_outline_width(ui_Button_Info_Button1, 0,
                                    static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUSED));
-    lv_obj_set_style_outline_width(ui_Button_Info_Back, 0,
+    lv_obj_set_style_outline_width(ui_Button_Info_Button1, 0,
                                    static_cast<uint32_t>(LV_PART_MAIN) | static_cast<uint32_t>(LV_STATE_FOCUS_KEY));
 
-    lv_obj_remove_event_cb(ui_Button_Info_Back, on_info_screen_key);
-    lv_obj_add_event_cb(ui_Button_Info_Back, on_info_screen_key, LV_EVENT_KEY, NULL);
+    lv_obj_remove_event_cb(ui_Button_Info_Button1, on_info_screen_key);
+    lv_obj_add_event_cb(ui_Button_Info_Button1, on_info_screen_key, LV_EVENT_KEY, NULL);
+    lv_obj_add_event_cb(ui_Button_Info_Button1, on_info_screen_key, LV_EVENT_LONG_PRESSED, NULL);
     lv_obj_remove_event_cb(ui_Info, on_screen_keypad_group_cleanup);
     lv_obj_add_event_cb(ui_Info, on_screen_keypad_group_cleanup, LV_EVENT_SCREEN_UNLOAD_START, NULL);
 }
@@ -214,20 +336,7 @@ void ScreenSplashLoaded(lv_event_t *e)
     ui_settings_init(ui_Container_Menu);
 }
 
-void ButtonMainSaveClicked(lv_event_t *e)
-{
-    (void)e;
-    esp_err_t Error;
-
-    Error = GUI_Task_SaveImage();
-    if (Error != ESP_OK) {
-        MessageBox_ImageSaveError(Error);
-    } else {
-        MessageBox_ShowProgress("Image save in progress");
-    }
-}
-
-void ButtonMenuSaveClicked(lv_event_t *e)
+void ButtonMenuButton4Clicked(lv_event_t *e)
 {
     (void)e;
 
@@ -235,16 +344,37 @@ void ButtonMenuSaveClicked(lv_event_t *e)
     MessageBox_Show("Settings Saved");
 }
 
-void ButtonMainSwitchClicked(lv_event_t * e)
+void ButtonMainButton1Clicked(lv_event_t *e)
 {
     (void)e;
 
-    GUI_Task_ToggleCameraView();
+    GUI_Control_HandleButton1();
 }
 
-void ButtonMainROIClicked(lv_event_t * e)
+void ButtonMainButton2ShortClicked(lv_event_t *e)
 {
     (void)e;
 
-	GUI_Task_ToggleROI();
+	GUI_Control_HandleButton2Short();
+}
+
+void ButtonMainButton2LongClicked(lv_event_t *e)
+{
+    (void)e;
+
+    GUI_Control_ActivateROIConfig();
+}
+
+void ButtonMainButton3Clicked(lv_event_t *e)
+{
+    (void)e;
+
+    GUI_Control_HandleButton3();
+}
+
+void ButtonMainButton4Clicked(lv_event_t *e)
+{
+    (void)e;
+
+    GUI_Control_HandleButton4();
 }

@@ -40,22 +40,23 @@ extern lv_obj_t * ui_Container_Main_Thermal_Crosshair;
 extern lv_obj_t * ui_Label_Main_Thermal_Pixel_Temperature;
 extern lv_obj_t * ui_Label_Main_Thermal_Crosshair;
 extern lv_obj_t * ui_Container_Main_Gradient;
-extern lv_obj_t * ui_Label_Main_TempScaleMax;
+extern lv_obj_t * ui_Label_Main_Temp_Scale_Max;
 extern lv_obj_t * ui_Image_Main_Gradient;
-extern lv_obj_t * ui_Label_Main_TempScaleMin;
+extern lv_obj_t * ui_Label_Main_Temp_Scale_Min;
+extern lv_obj_t * ui_Label_Main_ROI_Name;
 extern lv_obj_t * ui_Container_Main_Buttons;
-extern void ui_event_Button_Main_Save(lv_event_t * e);
-extern lv_obj_t * ui_Button_Main_Save;
-extern lv_obj_t * ui_Label_Main_Button_Save;
-extern void ui_event_Button_Main_ROI(lv_event_t * e);
-extern lv_obj_t * ui_Button_Main_ROI;
-extern lv_obj_t * ui_Label_Main_Button_ROI;
-extern void ui_event_Button_Main_Switch(lv_event_t * e);
-extern lv_obj_t * ui_Button_Main_Switch;
-extern lv_obj_t * ui_Label_Main_Button_Switch;
-extern void ui_event_Button_Main_Menu(lv_event_t * e);
-extern lv_obj_t * ui_Button_Main_Menu;
-extern lv_obj_t * ui_Label_Main_Button_Menu;
+extern void ui_event_Button_Main_Button4(lv_event_t * e);
+extern lv_obj_t * ui_Button_Main_Button4;
+extern lv_obj_t * ui_Label_Main_Button4;
+extern void ui_event_Button_Main_Button2(lv_event_t * e);
+extern lv_obj_t * ui_Button_Main_Button2;
+extern lv_obj_t * ui_Label_Main_Button2;
+extern void ui_event_Button_Main_Button3(lv_event_t * e);
+extern lv_obj_t * ui_Button_Main_Button3;
+extern lv_obj_t * ui_Label_Main_Button3;
+extern void ui_event_Button_Main_Button1(lv_event_t * e);
+extern lv_obj_t * ui_Button_Main_Button1;
+extern lv_obj_t * ui_Label_Main_Button1;
 // CUSTOM VARIABLES
 
 #ifdef __cplusplus

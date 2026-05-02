@@ -58,8 +58,8 @@ lv_obj_t * ui_Label_Info_Lepton_Uptime = NULL;
 lv_obj_t * ui_Label_Info_Lepton_FPA = NULL;
 lv_obj_t * ui_Label_Info_Lepton_AUX = NULL;
 lv_obj_t * ui_Container_Info_Buttons = NULL;
-lv_obj_t * ui_Button_Info_Back = NULL;
-lv_obj_t * ui_Label_Info_Back = NULL;
+lv_obj_t * ui_Button_Info_Button1 = NULL;
+lv_obj_t * ui_Label_Info_Button1 = NULL;
 // event funtions
 void ui_event_Info(lv_event_t * e)
 {
@@ -74,7 +74,7 @@ void ui_event_Info(lv_event_t * e)
     }
 }
 
-void ui_event_Button_Info_Back(lv_event_t * e)
+void ui_event_Button_Info_Button1(lv_event_t * e)
 {
     lv_event_code_t event_code = lv_event_get_code(e);
 
@@ -910,29 +910,29 @@ void ui_Info_screen_init(void)
     lv_obj_set_align(ui_Container_Info_Buttons, LV_ALIGN_CENTER);
     lv_obj_remove_flag(ui_Container_Info_Buttons, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);      /// Flags
 
-    ui_Button_Info_Back = lv_button_create(ui_Container_Info_Buttons);
-    lv_obj_set_width(ui_Button_Info_Back, 50);
-    lv_obj_set_height(ui_Button_Info_Back, lv_pct(95));
-    lv_obj_set_x(ui_Button_Info_Back, -130);
-    lv_obj_set_y(ui_Button_Info_Back, 0);
-    lv_obj_set_align(ui_Button_Info_Back, LV_ALIGN_CENTER);
-    lv_obj_remove_flag(ui_Button_Info_Back,
+    ui_Button_Info_Button1 = lv_button_create(ui_Container_Info_Buttons);
+    lv_obj_set_width(ui_Button_Info_Button1, 50);
+    lv_obj_set_height(ui_Button_Info_Button1, lv_pct(95));
+    lv_obj_set_x(ui_Button_Info_Button1, -130);
+    lv_obj_set_y(ui_Button_Info_Button1, 0);
+    lv_obj_set_align(ui_Button_Info_Button1, LV_ALIGN_CENTER);
+    lv_obj_remove_flag(ui_Button_Info_Button1,
                        LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_SCROLL_ELASTIC | LV_OBJ_FLAG_SCROLL_MOMENTUM |
                        LV_OBJ_FLAG_SCROLL_CHAIN);     /// Flags
-    lv_obj_set_style_bg_color(ui_Button_Info_Back, lv_color_hex(0x323232), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(ui_Button_Info_Back, 200, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_color(ui_Button_Info_Back, lv_color_hex(0xB998FF), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_opa(ui_Button_Info_Back, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(ui_Button_Info_Back, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(ui_Button_Info_Button1, lv_color_hex(0x323232), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(ui_Button_Info_Button1, 200, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_color(ui_Button_Info_Button1, lv_color_hex(0xB998FF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_opa(ui_Button_Info_Button1, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(ui_Button_Info_Button1, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_Label_Info_Back = lv_label_create(ui_Button_Info_Back);
-    lv_obj_set_width(ui_Label_Info_Back, LV_SIZE_CONTENT);   /// 1
-    lv_obj_set_height(ui_Label_Info_Back, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_align(ui_Label_Info_Back, LV_ALIGN_CENTER);
-    lv_label_set_text(ui_Label_Info_Back, "B");
-    lv_obj_set_style_text_font(ui_Label_Info_Back, &ui_font_fa16, LV_PART_MAIN | LV_STATE_DEFAULT);
+    ui_Label_Info_Button1 = lv_label_create(ui_Button_Info_Button1);
+    lv_obj_set_width(ui_Label_Info_Button1, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_Label_Info_Button1, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_align(ui_Label_Info_Button1, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Label_Info_Button1, "B");
+    lv_obj_set_style_text_font(ui_Label_Info_Button1, &ui_font_fa16, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    lv_obj_add_event_cb(ui_Button_Info_Back, ui_event_Button_Info_Back, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(ui_Button_Info_Button1, ui_event_Button_Info_Button1, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(ui_Info, ui_event_Info, LV_EVENT_ALL, NULL);
 
 }
@@ -995,7 +995,7 @@ void ui_Info_screen_destroy(void)
     ui_Label_Info_Lepton_FPA = NULL;
     ui_Label_Info_Lepton_AUX = NULL;
     ui_Container_Info_Buttons = NULL;
-    ui_Button_Info_Back = NULL;
-    ui_Label_Info_Back = NULL;
+    ui_Button_Info_Button1 = NULL;
+    ui_Label_Info_Button1 = NULL;
 
 }

@@ -31,6 +31,24 @@
 
 #include <sdkconfig.h>
 
+/** @brief Custom key codes for Button1–4.
+ *         Values are outside the LV_KEY_* range so LVGL does not consume them
+ *         for group navigation. They are forwarded as LV_EVENT_KEY to the
+ *         current group's focused object where per-screen handlers pick them up.
+ */
+#define GUI_KEYPAD_BTN1         ((uint32_t)0x0101U)         /**< Button1: Main Menu / Menu Back / Info Back */
+#define GUI_KEYPAD_BTN2         ((uint32_t)0x0102U)         /**< Button2: Main ROI */
+#define GUI_KEYPAD_BTN3         ((uint32_t)0x0103U)         /**< Button3: Main Info */
+#define GUI_KEYPAD_BTN4         ((uint32_t)0x0104U)         /**< Button4: Main/Menu Save */
+
+/** @brief Joystick key codes. Also outside the LV_KEY_* range to avoid interference with LVGL group navigation.
+ */ 
+#define GUI_KEYPAD_JOY_UP       ((uint32_t)0x0105U)         /**< Joystick up: */
+#define GUI_KEYPAD_JOY_DOWN     ((uint32_t)0x0106U)         /**< Joystick down: */
+#define GUI_KEYPAD_JOY_LEFT     ((uint32_t)0x0107U)         /**< Joystick left: */
+#define GUI_KEYPAD_JOY_RIGHT    ((uint32_t)0x0108U)         /**< Joystick right: */
+#define GUI_KEYPAD_JOY_CENTER   ((uint32_t)0x0109U)         /**< Joystick center: */
+
 ESP_EVENT_DECLARE_BASE(LEPTON_TASK_EVENTS);
 ESP_EVENT_DECLARE_BASE(GUI_TASK_EVENTS);
 ESP_EVENT_DECLARE_BASE(DEVICES_TASK_EVENTS);

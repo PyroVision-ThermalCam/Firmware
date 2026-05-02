@@ -822,15 +822,15 @@ esp_err_t DevicesManager_HandleDisplayboardExpanderInterrupt(DevicesManager_Inpu
     ESP_LOGD(TAG, "Displayboard INT: Status0=0x%02X Status1=0x%02X In0=0x%02X In1=0x%02X",
              Status0, Status1, In0, In1);
 
-    p_State->JoyUp = ((In0 & (1 << 3)) != 0);
-    p_State->JoyDown = ((In0 & (1 << 7)) != 0);
-    p_State->JoyLeft = ((In0 & (1 << 5)) != 0);
-    p_State->JoyRight = ((In0 & (1 << 6)) != 0);
-    p_State->JoyCenter = ((In0 & (1 << 4)) != 0);
-    p_State->Button4 = ((In1 & (1 << 0)) != 0);
-    p_State->Button3 = ((In1 & (1 << 1)) != 0);
-    p_State->Button2 = ((In1 & (1 << 2)) != 0);
-    p_State->Button1 = ((In1 & (1 << 3)) != 0);
+    p_State->Joystick.Up = ((In0 & (1 << 3)) != 0);
+    p_State->Joystick.Center.Pressed = ((In0 & (1 << 4)) != 0);
+    p_State->Joystick.Left = ((In0 & (1 << 5)) != 0);
+    p_State->Joystick.Right = ((In0 & (1 << 6)) != 0);
+    p_State->Joystick.Down = ((In0 & (1 << 7)) != 0);
+    p_State->Buttons[3].Pressed = ((In1 & (1 << 0)) != 0);
+    p_State->Buttons[2].Pressed = ((In1 & (1 << 1)) != 0);
+    p_State->Buttons[1].Pressed = ((In1 & (1 << 2)) != 0);
+    p_State->Buttons[0].Pressed = ((In1 & (1 << 3)) != 0);
 
     return ESP_OK;
 }
@@ -1070,15 +1070,15 @@ esp_err_t DevicesManager_GetDisplayboardInputs(DevicesManager_Input_State_t *p_S
         return DEVICES_ERR_I2C_COMM;
     }
 
-    p_State->JoyUp = ((In0 & (1 << 3)) != 0);
-    p_State->JoyDown = ((In0 & (1 << 4)) != 0);
-    p_State->JoyLeft = ((In0 & (1 << 5)) != 0);
-    p_State->JoyRight = ((In0 & (1 << 6)) != 0);
-    p_State->JoyCenter = ((In0 & (1 << 7)) != 0);
-    p_State->Button4 = ((In1 & (1 << 0)) != 0);
-    p_State->Button3 = ((In1 & (1 << 1)) != 0);
-    p_State->Button2 = ((In1 & (1 << 2)) != 0);
-    p_State->Button1 = ((In1 & (1 << 3)) != 0);
+    p_State->Joystick.Up = ((In0 & (1 << 3)) != 0);
+    p_State->Joystick.Down = ((In0 & (1 << 4)) != 0);
+    p_State->Joystick.Left = ((In0 & (1 << 5)) != 0);
+    p_State->Joystick.Right = ((In0 & (1 << 6)) != 0);
+    p_State->Joystick.Center.Pressed = ((In0 & (1 << 7)) != 0);
+    p_State->Buttons[3].Pressed = ((In1 & (1 << 0)) != 0);
+    p_State->Buttons[2].Pressed = ((In1 & (1 << 1)) != 0);
+    p_State->Buttons[1].Pressed = ((In1 & (1 << 2)) != 0);
+    p_State->Buttons[0].Pressed = ((In1 & (1 << 3)) != 0);
 
     DevicesManager_ReleaseI2CBus();
 

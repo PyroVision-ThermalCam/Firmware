@@ -112,34 +112,47 @@ enum {
 /** @brief Backlight identifiers.
  */
 typedef enum {
-    BACKLIGHT_FLASH = 0,            /**< Flash backlight. */
-    BACKLIGHT_DISPLAY,              /**< Display backlight. */
+    BACKLIGHT_FLASH = 0,                        /**< Flash backlight. */
+    BACKLIGHT_DISPLAY,                          /**< Display backlight. */
 } DevicesManager_BacklightID_t;
 
-/** @brief Input state of the displayboard controls.
- *         All fields are true when the corresponding button or joystick direction is pressed.
- *         JoyCenterLongPress is a synthetic flag set by the Devices task: true from the moment
- *         a 600 ms long-press is detected until the center button is released.
+/** @brief Per-button or per-axis input state.
+ *         LongPress and ShortPress are consume-once flags set by the Devices task;
+ *         each must be cleared by the consumer after reading.
  */
 typedef struct {
-    bool JoyUp;                 /**< Joystick up (P0.3, active high). */
-    bool JoyDown;               /**< Joystick down (P0.4, active high). */
-    bool JoyLeft;               /**< Joystick left (P0.5, active high). */
-    bool JoyRight;              /**< Joystick right (P0.6, active high). */
-    bool JoyCenter;             /**< Joystick center press (P0.7, active high). */
-    bool JoyCenterLongPress;    /**< Synthetic flag: true after a 600 ms hold; cleared on release. */
-    bool Button1;               /**< Button 1 (P1.0, active high). */
-    bool Button2;               /**< Button 2 (P1.1, active high). */
-    bool Button3;               /**< Button 3 (P1.2, active high). */
-    bool Button4;               /**< Button 4 (P1.3, active high). */
+    bool Pressed;                               /**< true while the button is physically held down. */
+    bool LongPress;                             /**< One-shot flag: set once after a 600 ms hold; cleared by the consumer. */
+    bool ShortPress;                            /**< One-shot flag: set on release when no long-press was detected; cleared by the consumer. */
+} DevicesManager_Button_t;
+
+/** @brief Per-button or per-axis input state.
+ *         LongPress and ShortPress are consume-once flags set by the Devices task;
+ *         each must be cleared by the consumer after reading.
+ */
+typedef struct {
+    bool Up;                                    /**< Joystick up (P0.3, active high). */
+    bool Down;                                  /**< Joystick down (P0.4, active high). */
+    bool Left;                                   /**< Joystick left (P0.5, active high). */
+    bool Right;                                 /**< Joystick right (P0.6, active high). */
+    DevicesManager_Button_t Center;             /**< Joystick center button (P0.7, active high). */
+} DevicesManager_Joystick_t;
+
+/** @brief Input state of the displayboard controls.
+ *         Up/Down/Left/Right are raw direction inputs with no long-press semantics.
+ *         Center and Buttons use DevicesManager_Button_t for uniform pressed/long/short access.
+ */
+typedef struct {
+    DevicesManager_Joystick_t Joystick;         /**< Joystick. */
+    DevicesManager_Button_t Buttons[4];         /**< Buttons 1-4 (P1.0-P1.3). */
 } DevicesManager_Input_State_t;
 
 /** @brief Battery status structure.
  */
 typedef struct {
-    int Voltage;                /**< Battery voltage in millivolts. */
-    uint8_t Percentage;         /**< Battery charge percentage. */
-    bool IsCharging;            /**< Battery charging state. */
+    int Voltage;                                /**< Battery voltage in millivolts. */
+    uint8_t Percentage;                         /**< Battery charge percentage. */
+    bool IsCharging;                            /**< Battery charging state. */
 } DevicesManager_Battery_Status_t;
 
 #endif /* DEVICES_TYPES_H_ */

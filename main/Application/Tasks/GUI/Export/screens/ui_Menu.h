@@ -19,15 +19,15 @@ extern lv_obj_t * ui_Panel_Menu_Header;
 extern lv_obj_t * ui_Label_Menu_Header;
 extern lv_obj_t * ui_Container_Menu;
 extern lv_obj_t * ui_Container_Menu_Buttons;
-extern void ui_event_Button_Menu_Back(lv_event_t * e);
-extern lv_obj_t * ui_Button_Menu_Back;
-extern lv_obj_t * ui_Label_Menu_Back;
-extern void ui_event_Button_Menu_Save(lv_event_t * e);
-extern lv_obj_t * ui_Button_Menu_Save;
-extern lv_obj_t * ui_Label_Menu_Button_Save;
-extern void ui_event_Button_Menu_Info(lv_event_t * e);
-extern lv_obj_t * ui_Button_Menu_Info;
-extern lv_obj_t * ui_Label_Info_Button_Info;
+extern void ui_event_Button_Menu_Button1(lv_event_t * e);
+extern lv_obj_t * ui_Button_Menu_Button1;
+extern lv_obj_t * ui_Label_Menu_Button1;
+extern void ui_event_Button_Menu_Button4(lv_event_t * e);
+extern lv_obj_t * ui_Button_Menu_Button4;
+extern lv_obj_t * ui_Label_Menu_Button4;
+extern void ui_event_Button_Menu_Button3(lv_event_t * e);
+extern lv_obj_t * ui_Button_Menu_Button3;
+extern lv_obj_t * ui_Label_Info_Button3;
 // CUSTOM VARIABLES
 
 #ifdef __cplusplus

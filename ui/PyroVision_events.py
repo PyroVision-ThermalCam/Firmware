@@ -74,3 +74,35 @@ def ButtonMainSwitchClicked(event_struct):
 def ButtonMainROIClicked(event_struct):
     return
 
+
+def ButtonMainShortROIClicked(event_struct):
+    return
+
+
+def ButtonMainLongROIClicked(event_struct):
+    return
+
+
+def ButtonMainButton2ShortClicked(event_struct):
+    return
+
+
+def ButtonMainButton2LongClicked(event_struct):
+    return
+
+
+def ButtonMainButton3Clicked(event_struct):
+    return
+
+
+def ButtonMenuButton4Clicked(event_struct):
+    return
+
+
+def ButtonMainButton4Clicked(event_struct):
+    return
+
+
+def ButtonMainButton1Clicked(event_struct):
+    return
+

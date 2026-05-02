@@ -31,26 +31,17 @@
 
 #include <stdint.h>
 
+#include "guiControl.h"
 #include "Application/application.h"
 
-/** @brief Custom key codes for Button2–4.
- *         Values are outside the LV_KEY_* range so LVGL does not consume them
- *         for group navigation — they are forwarded as LV_EVENT_KEY to the
- *         current group's focused object where per-screen handlers pick them up.
- */
-#define GUI_KEYPAD_BTN1   ((uint32_t)0x0101U)   /**< Button1: Main Menu / Menu Back / Info Back */
-#define GUI_KEYPAD_BTN2   ((uint32_t)0x0102U)   /**< Button2: Main ROI */
-#define GUI_KEYPAD_BTN3   ((uint32_t)0x0103U)   /**< Button3: Main Info */
-#define GUI_KEYPAD_BTN4   ((uint32_t)0x0104U)   /**< Button4: Main/Menu Save */
-
-/** @brief          Initialize the GUI task.
- *                  Allocates display and canvas buffers, creates the image-save queue and
- *                  background task, sets up the LVGL display and touch/keypad input devices.
- *  @note           Call this before GUI_Task_Start().
- *                  Requires DevicesManager (I2C bus) to be initialized first.
- *  @return         ESP_OK on success
- *                  ESP_ERR_NO_MEM if buffer allocation or task/queue creation fails
- *                  ESP_FAIL if LVGL or LCD initialization fails
+/** @brief              Initialize the GUI task.
+ *                      Allocates display and canvas buffers, creates the image-save queue and
+ *                      background task, sets up the LVGL display and touch/keypad input devices.
+ *  @note               Call this before GUI_Task_Start().
+ *                      Requires DevicesManager (I2C bus) to be initialized first.
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_NO_MEM if buffer allocation or task/queue creation fails
+ *                      ESP_FAIL if LVGL or LCD initialization fails
  */
 esp_err_t GUI_Task_Init(void);
 
@@ -87,34 +78,9 @@ esp_err_t GUI_Task_Stop(void);
  */
 bool GUI_Task_IsRunning(void);
 
-/** @brief          Request to save the next image to storage as PNG file.
- *  @note           Sets a flag that triggers image save on the next frame update.
- *                  The actual save happens in background task (non-blocking).
- *                  A message box will be displayed upon completion or error.
- *                  Saves the scaled 240x180 display image (not the raw 160x120 frame).
- *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_STATE if filesystem is locked (USB active)
+/** @brief          Activate the ROI (Region of Interest) configuration screen.
  */
-esp_err_t GUI_Task_SaveImage(void);
-
-/** @brief          Enable or disable the visible-light camera view in the thermal canvas.
- *                  When enabled, incoming camera frames are scaled from 320x240 to 240x180 using
- *                  bilinear interpolation and rendered in place of the thermal image. Temperature
- *                  overlay labels are hidden automatically. When disabled, the thermal view is
- *                  restored and the temperature labels are shown again.
- *  @note           Thread-safe. The change takes effect on the next task loop iteration.
- *  @param Enable   true to show the camera view, false to restore the thermal view.
- */
-void GUI_Task_SetCameraView(bool Enable);
-
-/** @brief          Toggle the visible-light camera view in the thermal canvas.
- *  @note           Thread-safe. The change takes effect on the next task loop iteration.
- */
-void GUI_Task_ToggleCameraView(void);
-
-/** @brief          Toggle the ROI (Region of Interest) edit mode.
- */
-void GUI_Task_ToggleROI(void);
+void GUI_Task_ActivateROIConfig(void);
 
 /** @brief          Return the LVGL keypad input device handle.
  *  @note           Required to bind an lv_group_t to the physical keypad.

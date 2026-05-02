@@ -51,7 +51,8 @@
 #define DEVICES_TASK_LED_PATTERN_3x         BIT9    /**< Triple flash: 3 × 250 ms on / 250 ms off. */
 #define DEVICES_TASK_LED_PATTERN_LONG       BIT10   /**< Single long flash: 1000 ms on. */
 
-#define JOYCENTER_LONGPRESS_MS              600
+#define LONGPRESS_MS                        600     /**< Minimum hold duration in milliseconds to trigger a long press. */
+#define DEBOUNCE_MS                         30      /**< Minimum stable duration in milliseconds before a state change is committed. */
 
 /** @brief EMA smoothing factor for raw TMP117 readings.
  *         At a 5-second poll interval this gives a time constant of approx. 17 s (interval / alpha).
@@ -73,6 +74,16 @@ typedef enum {
     DEVICES_LED_BLINK_STATE_OFF,                        /**< LED is off between flashes; waiting for the off-time to expire. */
 } Devices_LED_Blink_State_t;
 
+/** @brief Per-button internal tracking state for the Devices task.
+ *         Tracks the previous debounced state for edge detection and records whether a
+ *         long-press has already been generated for the current hold to prevent re-firing.
+ */
+typedef struct {
+    bool Prev;                                          /**< Previous debounced state; used for rising/falling-edge detection. */
+    bool LongFired;                                     /**< true once a long-press event has been generated for this hold; prevents re-firing. */
+    TickType_t HeldSince;                               /**< Tick at which the debounced press started; 0 when released. */
+} Devices_Button_State_t;
+
 /** @brief Internal runtime state of the devices task.
  *         Holds FreeRTOS primitives, the latest room temperature reading, and a staging area
  *         for incoming settings-change notifications processed inside the task loop.
@@ -81,8 +92,6 @@ typedef struct {
     bool IsInitialized;                                 /**< true after Devices_Task_Init() has completed successfully. */
     bool IsRunning;                                     /**< true while the FreeRTOS task is executing. */
     bool RunTemperatureRead;                            /**< true if a temperature read is requested. */
-    bool PrevJoyCenter;                                 /**< Previous JoyCenter state; used for long-press edge detection. */
-    bool JoyCenterLongFired;                            /**< true after the long-press event has been posted for the current hold; prevents re-firing. */
     bool LED_R;                                         /**< Red channel of the active blink request. */
     bool LED_G;                                         /**< Green channel of the active blink request. */
     bool LED_B;                                         /**< Blue channel of the active blink request. */
@@ -97,7 +106,11 @@ typedef struct {
     uint32_t CalibrationInterval_s;                     /**< User-configured calibration interval in seconds. */
     float EMA_Temperature;                              /**< EMA-filtered TMP117 reading in °C; 0.0f before the first reading. */
     TickType_t LED_PhaseStart;                          /**< Tick at which the current blink phase started; 0 when idle. */
-    TickType_t JoyCenterHeldSince;                      /**< Tick at which JoyCenter went high; 0 when not pressed. */
+    Devices_Button_State_t Button1;                     /**< Edge-detection and long-press state for Button 1. */
+    Devices_Button_State_t Button2;                     /**< Edge-detection and long-press state for Button 2. */
+    Devices_Button_State_t Button3;                     /**< Edge-detection and long-press state for Button 3. */
+    Devices_Button_State_t Button4;                     /**< Edge-detection and long-press state for Button 4. */
+    Devices_Button_State_t JoyCenter;                   /**< Edge-detection and long-press state for the joystick centre button. */
     Devices_LED_Blink_State_t LED_BlinkState;           /**< Current phase of the LED blink state machine. */
 } Devices_Task_State_t;
 
@@ -191,6 +204,55 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
     }
 }
 
+/** @brief                  Process one debounced button: update the shared output state and fire the
+ *                          consume-once LongPress / ShortPress flags at the appropriate transitions.
+ *  @note                   Must be called with AppContext->InputMutex held.
+ *  @param p_Track          Per-button internal tracking state owned by the Devices task.
+ *  @param p_Out            Corresponding DevicesManager_Button_t entry in the shared input state.
+ *  @param DebouncedPressed Current debounced pressed state for this button.
+ *  @param NowTick          Current FreeRTOS tick count.
+ */
+static void DevicesTask_ProcessButton(Devices_Button_State_t *p_Track, DevicesManager_Button_t *p_Out,
+                            bool DebouncedPressed, bool HasLongPress, TickType_t NowTick)
+{
+    /* Update pressed state for consumers. */
+    p_Out->Pressed = DebouncedPressed;
+
+    /* Rising edge: arm the hold timer and clear the long-fire flag.
+     * Buttons without a long-press action fire ShortPress immediately here to
+     * minimise input latency.  Buttons with a long-press action defer ShortPress
+     * to the falling edge so a long hold cannot simultaneously fire both events. */
+    if ((DebouncedPressed == true) && (p_Track->Prev == false)) {
+        p_Track->HeldSince = NowTick;
+        p_Track->LongFired = false;
+
+        if (HasLongPress == false) {
+            p_Out->ShortPress = true;
+        }
+    }
+
+    /* Long-press threshold crossed: set the consume-once flag once per hold. */
+    if ((DebouncedPressed == true) &&
+        (p_Track->LongFired == false) &&
+        (p_Track->HeldSince != 0) &&
+        ((NowTick - p_Track->HeldSince) >= pdMS_TO_TICKS(LONGPRESS_MS))) {
+        p_Track->LongFired = true;
+        p_Out->LongPress = true;
+    }
+
+    /* Falling edge: for buttons with a long-press action, fire ShortPress here
+     * only if no long-press was generated during this hold. */
+    if ((DebouncedPressed == false) && (p_Track->Prev == true)) {
+        p_Track->HeldSince = 0;
+
+        if ((HasLongPress == true) && (p_Track->LongFired == false)) {
+            p_Out->ShortPress = true;
+        }
+    }
+
+    p_Track->Prev = DebouncedPressed;
+}
+
 /** @brief              Devices task main loop.
  *  @param p_Parameters Pointer to App_Context_t structure
  */
@@ -207,6 +269,17 @@ static void Task_Devices(void *p_Parameters)
     bool SDInserted;
     bool HasPendingInput;
     App_Context_t *AppContext;
+    struct {
+        bool JoyUp;     /**< Debounced joystick up. */
+        bool JoyDown;   /**< Debounced joystick down. */
+        bool JoyLeft;   /**< Debounced joystick left. */
+        bool JoyRight;  /**< Debounced joystick right. */
+        bool JoyCenter; /**< Debounced joystick centre press. */
+        bool Button1;   /**< Debounced Button 1 press. */
+        bool Button2;   /**< Debounced Button 2 press. */
+        bool Button3;   /**< Debounced Button 3 press. */
+        bool Button4;   /**< Debounced Button 4 press. */
+    } Committed = {};
 
     esp_task_wdt_add(NULL);
 
@@ -465,70 +538,58 @@ static void Task_Devices(void *p_Parameters)
             }
         }
 
+        NowTick = xTaskGetTickCount();
+
+        /* Read raw hardware input. */
         if (DevicesManager_HandleDisplayboardExpanderInterrupt(&InputState) == ESP_OK) {
             if (memcmp(&InputState, &PendingInputState, sizeof(DevicesManager_Input_State_t)) != 0) {
                 memcpy(&PendingInputState, &InputState, sizeof(DevicesManager_Input_State_t));
-                PendingChangeTime = xTaskGetTickCount();
+                PendingChangeTime = NowTick;
                 HasPendingInput = true;
             }
         }
 
-        /* Commit pending state after 30 ms of stability */
-        if (HasPendingInput && ((xTaskGetTickCount() - PendingChangeTime) >= pdMS_TO_TICKS(30))) {
-            xSemaphoreTake(AppContext->InputMutex, portMAX_DELAY);
-            memcpy(&AppContext->InputState, &PendingInputState, sizeof(DevicesManager_Input_State_t));
-            xSemaphoreGive(AppContext->InputMutex);
-
+        /* Debounce and commit the pending state after DEBOUNCE_MS of stability. */
+        if (HasPendingInput && ((NowTick - PendingChangeTime) >= pdMS_TO_TICKS(DEBOUNCE_MS))) {
+            Committed.JoyUp = PendingInputState.Joystick.Up;
+            Committed.JoyDown = PendingInputState.Joystick.Down;
+            Committed.JoyLeft = PendingInputState.Joystick.Left;
+            Committed.JoyRight = PendingInputState.Joystick.Right;
+            Committed.JoyCenter = PendingInputState.Joystick.Center.Pressed;
+            Committed.Button1 = PendingInputState.Buttons[0].Pressed;
+            Committed.Button2 = PendingInputState.Buttons[1].Pressed;
+            Committed.Button3 = PendingInputState.Buttons[2].Pressed;
+            Committed.Button4 = PendingInputState.Buttons[3].Pressed;
             HasPendingInput = false;
 
             ESP_LOGD(TAG, "Input committed: Joy[U=%d D=%d L=%d R=%d C=%d] Btn[1=%d 2=%d 3=%d 4=%d]",
-                     static_cast<int>(PendingInputState.JoyUp),
-                     static_cast<int>(PendingInputState.JoyDown),
-                     static_cast<int>(PendingInputState.JoyLeft),
-                     static_cast<int>(PendingInputState.JoyRight),
-                     static_cast<int>(PendingInputState.JoyCenter),
-                     static_cast<int>(PendingInputState.Button1),
-                     static_cast<int>(PendingInputState.Button2),
-                     static_cast<int>(PendingInputState.Button3),
-                     static_cast<int>(PendingInputState.Button4));
+                     static_cast<int>(Committed.JoyUp),
+                     static_cast<int>(Committed.JoyDown),
+                     static_cast<int>(Committed.JoyLeft),
+                     static_cast<int>(Committed.JoyRight),
+                     static_cast<int>(Committed.JoyCenter),
+                     static_cast<int>(Committed.Button1),
+                     static_cast<int>(Committed.Button2),
+                     static_cast<int>(Committed.Button3),
+                     static_cast<int>(Committed.Button4));
         }
 
-        /* JoyCenter long-press detection.
-         * Tracks raw InputState.JoyCenter and writes the synthetic JoyCenterLongPress field
-         * directly into AppContext->InputState (under mutex) so that consumers (e.g. GUI task)
-         * can read it via the existing shared input-state mechanism without needing extra events. */
-        NowTick = xTaskGetTickCount();
+        /* Update the shared input state and process long/short press for all buttons.
+         * Directions are updated directly; buttons go through DevicesTask_ProcessButton() for edge detection. */
+        xSemaphoreTake(AppContext->InputMutex, portMAX_DELAY);
 
-        /* Rising edge: start hold timer. */
-        if ((InputState.JoyCenter == true) && (_DevicesTaskState.PrevJoyCenter == false)) {
-            _DevicesTaskState.JoyCenterHeldSince = NowTick;
-            _DevicesTaskState.JoyCenterLongFired = false;
-        }
+        AppContext->InputState.Joystick.Up = Committed.JoyUp;
+        AppContext->InputState.Joystick.Down = Committed.JoyDown;
+        AppContext->InputState.Joystick.Left = Committed.JoyLeft;
+        AppContext->InputState.Joystick.Right = Committed.JoyRight;
 
-        /* Long-press threshold crossed: set flag once per hold. */
-        if ((InputState.JoyCenter == true) &&
-            (_DevicesTaskState.JoyCenterLongFired == false) &&
-            (_DevicesTaskState.JoyCenterHeldSince != 0) &&
-            ((NowTick - _DevicesTaskState.JoyCenterHeldSince) >= pdMS_TO_TICKS(JOYCENTER_LONGPRESS_MS))) {
-            _DevicesTaskState.JoyCenterLongFired = true;
+        DevicesTask_ProcessButton(&_DevicesTaskState.JoyCenter, &AppContext->InputState.Joystick.Center, Committed.JoyCenter, false, NowTick);
+        DevicesTask_ProcessButton(&_DevicesTaskState.Button1, &AppContext->InputState.Buttons[0], Committed.Button1, false, NowTick);
+        DevicesTask_ProcessButton(&_DevicesTaskState.Button2, &AppContext->InputState.Buttons[1], Committed.Button2, true, NowTick);
+        DevicesTask_ProcessButton(&_DevicesTaskState.Button3, &AppContext->InputState.Buttons[2], Committed.Button3, false, NowTick);
+        DevicesTask_ProcessButton(&_DevicesTaskState.Button4, &AppContext->InputState.Buttons[3], Committed.Button4, false, NowTick);
 
-            ESP_LOGD(TAG, "JoyCenter long-press detected");
-
-            xSemaphoreTake(AppContext->InputMutex, portMAX_DELAY);
-            AppContext->InputState.JoyCenterLongPress = true;
-            xSemaphoreGive(AppContext->InputMutex);
-        }
-
-        /* Falling edge: clear the flag so consumers can detect it went low. */
-        if ((InputState.JoyCenter == false) && (_DevicesTaskState.PrevJoyCenter == true)) {
-            _DevicesTaskState.JoyCenterHeldSince = 0;
-
-            xSemaphoreTake(AppContext->InputMutex, portMAX_DELAY);
-            AppContext->InputState.JoyCenterLongPress = false;
-            xSemaphoreGive(AppContext->InputMutex);
-        }
-
-        _DevicesTaskState.PrevJoyCenter = InputState.JoyCenter;
+        xSemaphoreGive(AppContext->InputMutex);
 
         vTaskDelay(pdMS_TO_TICKS(10));
     }

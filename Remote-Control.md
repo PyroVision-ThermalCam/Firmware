@@ -21,24 +21,24 @@
 
 | Parameter               | Description                              | Methods  |
 |-------------------------|------------------------------------------|----------|
-| Temperature Sensor Value| Temperature from the TMP117 sensor      | GET      |
-| Time                   | Current system time                     | GET, SET |
-| Battery Voltage         | Voltage of the battery                  | GET      |
-| State-Of-Charge         | Battery state of charge                 | GET      |
-| OV5640 Image            | Image from OV5640 camera                | GET      |
-| Lepton Image            | Image from Lepton camera                | GET      |
-| Lepton Emissivity       | Emissivity of Lepton camera             | GET, SET |
-| Lepton Scene Statistics | Scene statistics from Lepton            | GET      |
-| Lepton ROI              | Region of Interest for Lepton           | GET, SET |
-| Lepton Spotmeter        | Spotmeter data from Lepton              | GET      |
-| Flash Power             | Power of the flash                      | GET, SET |
-| Flash On / Off          | Flash state                             | GET, SET |
+| Temperature Sensor Value| Temperature from the TMP117 sensor       | GET      |
+| Time                    | Current system time                      | GET, SET |
+| Battery Voltage         | Voltage of the battery                   | GET      |
+| State-Of-Charge         | Battery state of charge                  | GET      |
+| OV5640 Image            | Image from OV5640 camera                 | GET      |
+| Lepton Image            | Image from Lepton camera                 | GET      |
+| Lepton Emissivity       | Emissivity of Lepton camera              | GET, SET |
+| Lepton Scene Statistics | Scene statistics from Lepton             | GET      |
+| Lepton ROI              | Region of Interest for Lepton            | GET, SET |
+| Lepton Spotmeter        | Spotmeter data from Lepton               | GET      |
+| Flash Power             | Power of the flash                       | GET, SET |
+| Flash On / Off          | Flash state                              | GET, SET |
 | Image Format            | File format of the output images (PNG, Raw, JPEG)       | GET, SET |
 | Status LED              | Set the Status LED (Red, Green, Blue)                      | SET      |
 | State SD card           | Checks if an SD card is available       | GET      |
 | Format                  | Format the active memory (internal flash or SD card) | SET |
 | Messagebox Display      | Display a message box with a given text | SET      |
-| Lock      | Lock the input buttons and the joystick | GET, SET      |
+| Lock                    | Lock the input buttons and the joystick | GET, SET      |
 
 ### VISA SCPI Commands
 
