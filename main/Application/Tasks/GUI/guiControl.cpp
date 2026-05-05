@@ -27,6 +27,7 @@
 #include "Private/guiHelper.h"
 #include "Private/guiROI.h"
 #include "Private/guiImageSave.h"
+#include "guiTask.h"
 #include "guiControl.h"
 
 #include "UI/ui_messagebox.h"
@@ -39,6 +40,9 @@ void GUI_Control_HandleButton1(void)
 {
     /* Quit the ROI config menu if active */
     if (_GUITaskState.ROIConfig.IsActive == true) {
+        /* Save the modified ROI */
+        GUI_ROI_Save();
+
         GUI_ROI_Deinit();
     }
     /* Switch to menu screen if not */
@@ -51,25 +55,11 @@ void GUI_Control_HandleButton2Short(void)
 {
     /* Switch ROI when ROI config mode is active */
     if (_GUITaskState.ROIConfig.IsActive) {
-        lv_obj_t *ROI_Widget;
-
         /* Stop the current fading animation and restore full opacity */
         lv_anim_del(_GUITaskState.ROIConfig.FadingAnimation.var, NULL);
         lv_obj_set_style_opa(static_cast<lv_obj_t *>(_GUITaskState.ROIConfig.FadingAnimation.var), LV_OPA_COVER, 0);
 
-        /* Hide the current ROI */
-        lv_obj_add_flag(*ROI_Widgets[_GUITaskState.ROIConfig.SelectedROI], LV_OBJ_FLAG_HIDDEN);
-
-        _GUITaskState.ROIConfig.SelectedROI = (_GUITaskState.ROIConfig.SelectedROI + 1) % 4;
-
-        /* Show the new ROI */
-        ROI_Widget = *ROI_Widgets[_GUITaskState.ROIConfig.SelectedROI];
-        lv_obj_remove_flag(ROI_Widget, LV_OBJ_FLAG_HIDDEN);
-
-        /* Set the ROI name */
-        lv_label_set_text(ui_Label_Main_ROI_Name, ROI_Labels[_GUITaskState.ROIConfig.SelectedROI]);
-
-        GUI_ROI_StartFadingAnimation(ROI_Widget);
+        GUI_ROI_SwitchToROI(_GUITaskState.ROIConfig.SelectedROI);
     }
     /* Handle ROI display logic otherwise */
     else {
@@ -96,6 +86,11 @@ void GUI_Control_HandleButton2Short(void)
     }
 }
 
+void GUI_Control_HandleButton2Long(void)
+{
+    GUI_Task_ActivateROIConfig();
+}
+
 void GUI_Control_HandleButton3(void)
 {
     /* Switch between "Resize" and "Moving" when ROI config mode is active */
@@ -115,100 +110,111 @@ void GUI_Control_HandleButton3(void)
     }
 }
 
-void GUI_Control_HandleButton4(void)
+void GUI_Control_HandleButton4Short(void)
 {
+    lv_obj_t* Screen;
     esp_err_t Error;
 
-    /* Save the ROIs */
-    if (_GUITaskState.ROIConfig.IsActive) {
-        /* No action for now - could be used for additional ROI config options in the future */
-    }
-    /* Trigger image save on next frame update */
-    else {
-        Error = GUI_SaveImage();
-        if (Error != ESP_OK) {
-            MessageBox_ImageSaveError(Error);
-        } else {
-            MessageBox_ShowProgress("Image save in progress");
+    Screen = lv_display_get_screen_active(lv_display_get_default());
+    if (Screen == ui_Menu) {
+        SettingsManager_Save();
+        MessageBox_Show("Settings Saved");
+    } else if (Screen == ui_Main) {
+        /* Reset the currently selected ROI */
+        if (_GUITaskState.ROIConfig.IsActive) {
+            GUI_ROI_Reset();
         }
+        /* Trigger image save on next frame update */
+        else {
+            Error = GUI_SaveImage();
+            if (Error != ESP_OK) {
+                MessageBox_ImageSaveError(Error);
+            } else {
+                MessageBox_ShowProgress("Image save in progress");
+            }
+        }
+    }
+}
+
+void GUI_Control_HandleButton4Long(void)
+{
+    /* Reset all ROIs to their default positions and sizes */
+    if (_GUITaskState.ROIConfig.IsActive) {
+        GUI_ROI_ResetAll();
     }
 }
 
 void GUI_Control_HandleJoystick(uint32_t Key)
 {
-    lv_obj_t *ROI_Widget;
-    
-    /* Get the current ROI widget */
-    ROI_Widget = *ROI_Widgets[_GUITaskState.ROIConfig.SelectedROI];
+    int8_t DeltaX = 0;
+    int8_t DeltaY = 0;
+    int8_t DeltaH = 0;
+    int8_t DeltaW = 0;
 
-    switch(Key) {
-        case GUI_KEYPAD_JOY_UP: {
-            if (_GUITaskState.ROIConfig.IsActive) {
-                /* Increase ROI size or move up if in moving mode */
-                if (_GUITaskState.ROIConfig.IsMovingActive) {
+    /* Handle joystick when ROI config mode is not active */
+    if (_GUITaskState.ROIConfig.IsActive == false) {
+        switch (Key) {
+            case GUI_KEYPAD_JOY_CENTER: {
+                if (_GUITaskState.ShowCameraView) {
+                    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FOCUS, NULL, 0, portMAX_DELAY);
                 } else {
+                    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FFC, NULL, 0, portMAX_DELAY);
                 }
-            }else {
 
+                break;
             }
-
-            break;
+            default: {
+                break;
+            }
         }
-        case GUI_KEYPAD_JOY_RIGHT: {
-            if (_GUITaskState.ROIConfig.IsActive) {
-                /* Increase ROI size or move up if in moving mode */
-                if (_GUITaskState.ROIConfig.IsMovingActive) {
-                } else {
-                }
-            }else {
 
+        return;
+    }
+
+    switch (Key) {
+        case GUI_KEYPAD_JOY_UP: {
+            if (_GUITaskState.ROIConfig.IsMovingActive) {
+                DeltaY = -1;
+            } else {
+                DeltaH = -1;
             }
 
             break;
         }
         case GUI_KEYPAD_JOY_DOWN: {
-            if (_GUITaskState.ROIConfig.IsActive) {
-                /* Increase ROI size or move up if in moving mode */
-                if (_GUITaskState.ROIConfig.IsMovingActive) {
-                } else {
-                }
-            }else {
-
+            if (_GUITaskState.ROIConfig.IsMovingActive) {
+                DeltaY = 1;
+            } else {
+                DeltaH = 1;
             }
 
             break;
         }
         case GUI_KEYPAD_JOY_LEFT: {
-            if (_GUITaskState.ROIConfig.IsActive) {
-                /* Increase ROI size or move up if in moving mode */
-                if (_GUITaskState.ROIConfig.IsMovingActive) {
-                } else {
-                }
-            }else {
+            if (_GUITaskState.ROIConfig.IsMovingActive) {
+                DeltaX = -1;
+            } else {
+                DeltaW = -1;
+            }
 
+            break;
+        }
+        case GUI_KEYPAD_JOY_RIGHT: {
+            if (_GUITaskState.ROIConfig.IsMovingActive) {
+                DeltaX = 1;
+            } else {
+                DeltaW = 1;
             }
 
             break;
         }
         case GUI_KEYPAD_JOY_CENTER: {
-            /* ROI configuration mode */
-            if (_GUITaskState.ROIConfig.IsActive) {
-
-            }
-            /* Camera view */
-            else {
-                /* Visible-light camera view */
-                if (_GUITaskState.ShowCameraView) {
-                    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FOCUS, NULL, 0, portMAX_DELAY);
-                }
-                /* Thermal view */
-                else {
-                    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FFC, NULL, 0, portMAX_DELAY);
-                }
-            }
+            break;
         }
         default: {
             break;
         }
     }
+
+    GUI_ROI_Change(DeltaX, DeltaY, DeltaW, DeltaH);
 }

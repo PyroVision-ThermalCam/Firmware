@@ -26,8 +26,8 @@
         "roi" : [
             {
                 "name" : "spotmeter",
-                "x" : 60,
-                "y" : 60,
+                "x" : 0,
+                "y" : 0,
                 "width" : 40,
                 "height" : 40
             },
@@ -42,15 +42,15 @@
                 "name" : "agc",
                 "x" : 0,
                 "y" : 0,
-                "width" : 160,
-                "height" : 120
+                "width" : 240,
+                "height" : 180
             },
             {
                 "name" : "video-focus",
                 "x" : 1,
                 "y" : 1,
-                "width" : 157,
-                "height" : 117
+                "width" : 238,
+                "height" : 178
             }
         ]
     },

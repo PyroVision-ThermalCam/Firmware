@@ -5856,7 +5856,7 @@
                   {
                     "nid": 1020,
                     "strtype": "IMAGE/Asset",
-                    "strval": "",
+                    "strval": "-",
                     "InheritedType": 5
                   },
                   {
@@ -6710,6 +6710,12 @@
                     "InheritedType": 1
                   },
                   {
+                    "nid": 100,
+                    "strtype": "LABEL/Hidden",
+                    "strval": "False",
+                    "InheritedType": 2
+                  },
+                  {
                     "nid": 110,
                     "strtype": "OBJECT/Clickable",
                     "strval": "False",
@@ -7311,12 +7317,12 @@
                     "disabled": false,
                     "nid": 1000441,
                     "strtype": "_event/EventHandler",
-                    "strval": "CLICKED",
+                    "strval": "SHORT_CLICKED",
                     "childs": [
                       {
                         "nid": 1000442,
                         "strtype": "_event/name",
-                        "strval": "ButtonMainButton4Clicked",
+                        "strval": "ButtonMainButton4ShortClicked",
                         "InheritedType": 10
                       },
                       {
@@ -7332,36 +7338,101 @@
                         "InheritedType": 10
                       },
                       {
-                        "nid": 1000445,
+                        "nid": 1001795,
                         "strtype": "_event/action",
                         "strval": "CALL FUNCTION",
                         "childs": [
                           {
-                            "nid": 1000446,
+                            "nid": 1001796,
                             "strtype": "CALL FUNCTION/Name",
                             "strval": "CALL FUNCTION",
                             "InheritedType": 10
                           },
                           {
-                            "nid": 1000447,
+                            "nid": 1001797,
                             "strtype": "CALL FUNCTION/Call",
                             "strval": "<{Function_name}>( event_struct )",
                             "InheritedType": 10
                           },
                           {
-                            "nid": 1000448,
+                            "nid": 1001798,
                             "strtype": "CALL FUNCTION/CallC",
                             "strval": "<{Function_name}>( e );",
                             "InheritedType": 10
                           },
                           {
-                            "nid": 1000449,
+                            "nid": 1001799,
                             "strtype": "CALL FUNCTION/Function_name",
-                            "strval": "ButtonMainButton4Clicked",
+                            "strval": "ButtonMainButton4ShortClicked",
                             "InheritedType": 10
                           },
                           {
-                            "nid": 1000450,
+                            "nid": 1001800,
+                            "strtype": "CALL FUNCTION/Dont_export_function",
+                            "strval": "False",
+                            "InheritedType": 2
+                          }
+                        ],
+                        "InheritedType": 10
+                      }
+                    ],
+                    "InheritedType": 4
+                  },
+                  {
+                    "disabled": false,
+                    "nid": 1001801,
+                    "strtype": "_event/EventHandler",
+                    "strval": "LONG_PRESSED",
+                    "childs": [
+                      {
+                        "nid": 1001802,
+                        "strtype": "_event/name",
+                        "strval": "ButtonMainButton4LongClicked",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 1001803,
+                        "strtype": "_event/condition_C",
+                        "strval": "",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 1001804,
+                        "strtype": "_event/condition_P",
+                        "strval": "",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 1001812,
+                        "strtype": "_event/action",
+                        "strval": "CALL FUNCTION",
+                        "childs": [
+                          {
+                            "nid": 1001813,
+                            "strtype": "CALL FUNCTION/Name",
+                            "strval": "CALL FUNCTION",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 1001814,
+                            "strtype": "CALL FUNCTION/Call",
+                            "strval": "<{Function_name}>( event_struct )",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 1001815,
+                            "strtype": "CALL FUNCTION/CallC",
+                            "strval": "<{Function_name}>( e );",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 1001816,
+                            "strtype": "CALL FUNCTION/Function_name",
+                            "strval": "ButtonMainButton4LongClicked",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 1001817,
                             "strtype": "CALL FUNCTION/Dont_export_function",
                             "strval": "False",
                             "InheritedType": 2
@@ -8205,12 +8276,12 @@
                     "disabled": false,
                     "nid": 1000292,
                     "strtype": "_event/EventHandler",
-                    "strval": "CLICKED",
+                    "strval": "SHORT_CLICKED",
                     "childs": [
                       {
                         "nid": 1000293,
                         "strtype": "_event/name",
-                        "strval": "ButtonMainButton3Clicked",
+                        "strval": "ButtonMainButton3ShortClicked",
                         "InheritedType": 10
                       },
                       {
@@ -8251,7 +8322,7 @@
                           {
                             "nid": 1001767,
                             "strtype": "CALL FUNCTION/Function_name",
-                            "strval": "ButtonMainButton3Clicked",
+                            "strval": "ButtonMainButton3ShortClicked",
                             "InheritedType": 10
                           },
                           {
@@ -8614,12 +8685,12 @@
                     "disabled": false,
                     "nid": 1000268,
                     "strtype": "_event/EventHandler",
-                    "strval": "CLICKED",
+                    "strval": "SHORT_CLICKED",
                     "childs": [
                       {
                         "nid": 1000269,
                         "strtype": "_event/name",
-                        "strval": "ButtonMainButton1Clicked",
+                        "strval": "ButtonMainButton1ShortClicked",
                         "InheritedType": 10
                       },
                       {
@@ -8660,7 +8731,7 @@
                           {
                             "nid": 1001793,
                             "strtype": "CALL FUNCTION/Function_name",
-                            "strval": "ButtonMainButton1Clicked",
+                            "strval": "ButtonMainButton1ShortClicked",
                             "InheritedType": 10
                           },
                           {
@@ -10358,7 +10429,7 @@
                       {
                         "nid": 1001734,
                         "strtype": "_event/name",
-                        "strval": "ButtonMenuButton4Clicked",
+                        "strval": "ButtonMenuButton4ShortClicked",
                         "InheritedType": 10
                       },
                       {
@@ -10399,7 +10470,7 @@
                           {
                             "nid": 1001741,
                             "strtype": "CALL FUNCTION/Function_name",
-                            "strval": "ButtonMenuButton4Clicked",
+                            "strval": "ButtonMenuButton4ShortClicked",
                             "InheritedType": 10
                           },
                           {
@@ -22228,7 +22299,7 @@
   },
   "animations": [],
   "selected_theme": "Default",
-  "selected_screen": "GUID63572141-853113S4094354",
+  "selected_screen": "GUID40629891-934771S164356",
   "info": {
     "name": "SquareLine_Project.spj",
     "depth": 1,
@@ -22256,10 +22327,10 @@
     "custom_variable_prefix": "uic",
     "separate_screen_save": false,
     "hierarchy_state_save": false,
-    "backup_cnt": 154,
+    "backup_cnt": 163,
     "autosave_cnt": 0,
     "group_color_cnt": 0,
-    "imagebytearrayprefix": null,
+    "imagebytearrayprefix": "",
     "lvgl_version": "9.1.0",
     "callfuncsexport": "CPP_FILE",
     "imageexport": "SOURCE",
@@ -22267,7 +22338,7 @@
     "naming": "Screen_Name",
     "naming_force_lowercase": false,
     "naming_add_subcomponent": false,
-    "nidcnt": 1001795,
+    "nidcnt": 1001818,
     "BitDepth": 16,
     "Name": "SquareLine_Project"
   }

@@ -12,13 +12,14 @@ extern "C" {
 
 void ScreenSplashLoaded(lv_event_t * e);
 void ScreenMainLoaded(lv_event_t * e);
-void ButtonMainButton4Clicked(lv_event_t * e);
+void ButtonMainButton4ShortClicked(lv_event_t * e);
+void ButtonMainButton4LongClicked(lv_event_t * e);
 void ButtonMainButton2ShortClicked(lv_event_t * e);
 void ButtonMainButton2LongClicked(lv_event_t * e);
-void ButtonMainButton3Clicked(lv_event_t * e);
-void ButtonMainButton1Clicked(lv_event_t * e);
+void ButtonMainButton3ShortClicked(lv_event_t * e);
+void ButtonMainButton1ShortClicked(lv_event_t * e);
 void ScreenMenuLoaded(lv_event_t * e);
-void ButtonMenuButton4Clicked(lv_event_t * e);
+void ButtonMenuButton4ShortClicked(lv_event_t * e);
 void ScreenInfoLoaded(lv_event_t * e);
 
 #ifdef __cplusplus

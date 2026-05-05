@@ -30,6 +30,27 @@
 
 #include "ui_messagebox.h"
 #include "ui_settings_events.h"
+#include "../../../application.h"
+
+/** @brief POSIX timezone strings corresponding to the dropdown entries in
+ *         ui_Settings_Create_System_Page().  The index must match the
+ *         dropdown option index exactly.
+ */
+static const char *TIMEZONE_POSIX[] = {
+    "UTC0",                                     /* UTC */
+    "GMT0BST,M3.5.0/1,M10.5.0",                 /* Europe/London */
+    "CET-1CEST,M3.5.0,M10.5.0/3",               /* Europe/Berlin / Paris */
+    "EET-2EEST,M3.5.0/3,M10.5.0/4",             /* Europe/Helsinki */
+    "MSK-3",                                    /* Europe/Moscow */
+    "EST5EDT,M3.2.0,M11.1.0",                   /* America/New_York */
+    "CST6CDT,M3.2.0,M11.1.0",                   /* America/Chicago */
+    "MST7MDT,M3.2.0,M11.1.0",                   /* America/Denver */
+    "PST8PDT,M3.2.0,M11.1.0",                   /* America/Los_Angeles */
+    "JST-9",                                    /* Asia/Tokyo */
+    "CST-8",                                    /* Asia/Shanghai */
+    "IST-5:30",                                 /* Asia/Kolkata */
+    "AEST-10AEDT,M10.1.0,M4.1.0/3",             /* Australia/Sydney */
+};
 
 static const char *TAG = "ui_settings_events";
 
@@ -226,26 +247,6 @@ void on_USB_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
     }
 }
 
-/** @brief POSIX timezone strings corresponding to the dropdown entries in
- *         ui_Settings_Create_System_Page().  The index must match the
- *         dropdown option index exactly.
- */
-static const char *TIMEZONE_POSIX[] = {
-    "UTC0",                                     /* UTC */
-    "GMT0BST,M3.5.0/1,M10.5.0",                /* Europe/London */
-    "CET-1CEST,M3.5.0,M10.5.0/3",             /* Europe/Berlin / Paris */
-    "EET-2EEST,M3.5.0/3,M10.5.0/4",           /* Europe/Helsinki */
-    "MSK-3",                                    /* Europe/Moscow */
-    "EST5EDT,M3.2.0,M11.1.0",                  /* America/New_York */
-    "CST6CDT,M3.2.0,M11.1.0",                  /* America/Chicago */
-    "MST7MDT,M3.2.0,M11.1.0",                  /* America/Denver */
-    "PST8PDT,M3.2.0,M11.1.0",                  /* America/Los_Angeles */
-    "JST-9",                                    /* Asia/Tokyo */
-    "CST-8",                                    /* Asia/Shanghai */
-    "IST-5:30",                                 /* Asia/Kolkata */
-    "AEST-10AEDT,M10.1.0,M4.1.0/3",           /* Australia/Sydney */
-};
-
 void on_System_Timezone_Callback(lv_event_t *e)
 {
     Settings_System_t SystemSettings;
@@ -285,6 +286,11 @@ void on_Lepton_Palette_Callback(lv_event_t *e)
     SettingsManager_UpdateLepton(&LeptonSettings, &Changed);
 
     ESP_LOGD(TAG, "Palette changed to index: %u", static_cast<unsigned int>(Selected));
+}
+
+void on_Lepton_Reset_Callback(lv_event_t *e)
+{
+    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_LEPTON_RESET, NULL, 0, pdMS_TO_TICKS(100));
 }
 
 void on_Memory_ClearNVS_Callback(lv_event_t *e){

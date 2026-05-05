@@ -510,6 +510,31 @@ static lv_obj_t *ui_Settings_Create_Lepton_Page(lv_obj_t *p_Menu)
     lv_dropdown_set_selected(ui_palette_dropdown, static_cast<uint16_t>(LeptonSettings.Palette));
     lv_obj_add_event_cb(ui_palette_dropdown, on_Lepton_Palette_Callback, LV_EVENT_VALUE_CHANGED, NULL);
 
+    /* Separator */
+    lv_obj_t *separator2 = lv_obj_create(LeptonContainer);
+    lv_obj_set_size(separator2, LV_PCT(100), 1);
+    lv_obj_set_style_bg_color(separator2, lv_color_hex(0x505050), 0);
+    lv_obj_set_style_border_width(separator2, 0, 0);
+    lv_obj_set_style_pad_all(separator2, 0, 0);
+    lv_obj_set_style_margin_top(separator2, 12, 0);
+    lv_obj_set_style_margin_bottom(separator2, 12, 0);
+
+    /* WiFi Connect Button */
+    lv_obj_t *lepton_reset_btn_row = ui_Settings_Create_Row(LeptonContainer, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_height(lepton_reset_btn_row, LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_top(lepton_reset_btn_row, 12, 0);
+    lv_obj_set_style_pad_bottom(lepton_reset_btn_row, 8, 0);
+    lv_obj_t *ui_settings_lepton_reset_btn = lv_btn_create(lepton_reset_btn_row);
+    lv_obj_set_size(ui_settings_lepton_reset_btn, 140, 36);
+    lv_obj_set_style_bg_color(ui_settings_lepton_reset_btn, lv_color_hex(0xFF9500), LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(ui_settings_lepton_reset_btn, 6, 0);
+    lv_obj_set_style_shadow_width(ui_settings_lepton_reset_btn, 0, 0);
+    lv_obj_add_event_cb(ui_settings_lepton_reset_btn, on_Lepton_Reset_Callback, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *lepton_reset_btn_label = lv_label_create(ui_settings_lepton_reset_btn);
+    lv_label_set_text(lepton_reset_btn_label, "Reset Lepton");
+    lv_obj_set_style_text_color(lepton_reset_btn_label, lv_color_white(), 0);
+    lv_obj_center(lepton_reset_btn_label);
+
     return LeptonPage;
 }
 

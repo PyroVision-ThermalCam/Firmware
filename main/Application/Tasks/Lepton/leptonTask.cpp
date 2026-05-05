@@ -25,6 +25,8 @@
 #include <esp_event.h>
 #include <esp_task_wdt.h>
 
+#include <driver/i2c_master.h>
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/event_groups.h>
@@ -46,7 +48,7 @@
 #include "Application/Manager/Settings/settingsManager.h"
 
 #define LEPTON_TASK_STOP_REQUEST                BIT0
-#define LEPTON_TASK_UPDATE_ROI_REQUEST          BIT1
+#define LEPTON_TASK_UPDATE_ROI                  BIT1
 #define LEPTON_TASK_UPDATE_TEMP_REQUEST         BIT2
 #define LEPTON_TASK_UPDATE_UPTIME_REQUEST       BIT3
 #define LEPTON_TASK_UPDATE_PIXEL_TEMPERATURE    BIT4
@@ -54,6 +56,7 @@
 #define LEPTON_TASK_UPDATE_EMISSIVITY           BIT7
 #define LEPTON_TASK_TEMPERATURE_STATUS_CHANGED  BIT8
 #define LEPTON_TASK_FFC_REQUEST                 BIT9
+#define LEPTON_TASK_RECOVER_REQUEST             BIT10
 
 ESP_EVENT_DEFINE_BASE(LEPTON_TASK_EVENTS);
 
@@ -76,10 +79,11 @@ typedef struct {
     Lepton_FrameBuffer_t RawFrame;                      /**< Scratch buffer for the latest raw Lepton frame. */
     Lepton_Conf_t LeptonConf;                           /**< Active Lepton camera configuration snapshot. */
     Lepton_t Lepton;                                    /**< Lepton driver handle used for all CCI/SPI operations. */
-    Settings_ROI_t ROI;                                 /**< Current region-of-interest settings. */
     App_GUI_Screenposition_t ScreenPosition;            /**< Mapping from Lepton pixel coordinates to display pixels. */
     App_Devices_Temperature_t TemperatureInfo;          /**< Latest ambient/housing temperature readings. */
     SettingsManager_ChangeNotification_t NewSetting;    /**< Staging area for incoming settings-change notifications. */
+    Settings_Lepton_t LeptonSettings;                   /**< Latest snapshot of the Lepton-related settings. Store them in the task state to 
+                                                             avoid stack usage because the structure can be large. */
 } Lepton_Task_State_t;
 
 static Lepton_Task_State_t _LeptonTaskState;
@@ -194,10 +198,8 @@ static void on_GUI_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
 
             break;
         }
-        case GUI_TASK_EVENT_REQUEST_ROI: {
-            memcpy(&_LeptonTaskState.ROI, p_Data, sizeof(Settings_ROI_t));
-
-            xEventGroupSetBits(_LeptonTaskState.EventGroup, LEPTON_TASK_UPDATE_ROI_REQUEST);
+        case GUI_TASK_EVENT_ROI_CHANGED: {
+            xEventGroupSetBits(_LeptonTaskState.EventGroup, LEPTON_TASK_UPDATE_ROI);
 
             break;
         }
@@ -228,6 +230,11 @@ static void on_GUI_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
 
             break;
         }
+        case GUI_TASK_EVENT_REQUEST_LEPTON_RESET: {
+            xEventGroupSetBits(_LeptonTaskState.EventGroup, LEPTON_TASK_RECOVER_REQUEST);
+
+            break;
+        }
         default: {
             ESP_LOGW(TAG, "Unhandled GUI task event ID: 0x%X", ID);
 
@@ -248,6 +255,10 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
 
     switch (ID) {
         case SETTINGS_EVENT_LEPTON_CHANGED: {
+            if (p_Data == NULL) {
+                break;
+            }
+
             memcpy(&_LeptonTaskState.NewSetting, p_Data, sizeof(SettingsManager_ChangeNotification_t));
 
             ESP_LOGD(TAG, "Lepton settings changed: ID=%d", _LeptonTaskState.NewSetting.ID);
@@ -327,6 +338,55 @@ static void Lepton_Reset(bool Enable)
 static void Lepton_PowerDown(bool Enable)
 {
     DevicesManager_SetLeptonPower(Enable == false);
+}
+
+/** @brief Performs a full hardware recovery of the Lepton camera.
+ *         Resets the I2C bus to unblock any stuck transaction, power-cycles the camera,
+ *         and re-initializes the Lepton driver and capture task from scratch.
+ *         Called from the main task loop after too many consecutive frame misses.
+ */
+static void Lepton_RecoverCamera(void)
+{
+    Lepton_Error_t Error;
+
+    ESP_LOGW(TAG, "Attempting Lepton camera recovery (I2C bus reset + power cycle)...");
+
+    /* Stop the capture task to prevent any ongoing I2C transactions. */
+    Lepton_StopCapture(&_LeptonTaskState.Lepton);
+
+    /* Stop the capture task and deinit the Lepton driver.
+     * VoSPI_Deinit frees the SPI bus; CCI_Deinit frees the I2C device handle. */
+    Lepton_Deinit(&_LeptonTaskState.Lepton);
+
+    /* Drain any stale frames and restart the VoSPI capture task. */
+    xQueueReset(_LeptonTaskState.RawFrameQueue);
+
+    /* Reset the I2C bus to unblock any transaction stuck with SDA held low.
+     * This generates up to 9 SCL pulses to force the Lepton's I2C slave to release SDA. */
+    DevicesManager_ResetI2CBus();
+
+    /* Power-cycle the camera to force a clean reboot. */
+    DevicesManager_SetLeptonPower(false);
+    vTaskDelay(pdMS_TO_TICKS(500));
+    DevicesManager_SetLeptonPower(true);
+
+    /* Re-initialize. Lepton_Init performs a hardware reset via the Reset callback,
+     * waits 1 s for the Lepton to boot, and then executes CCI_WaitForBoot (~5 s). */
+    Error = Lepton_Init(&_LeptonTaskState.Lepton, &_LeptonTaskState.LeptonConf, NULL);
+    if (Error != LEPTON_ERR_OK) {
+        ESP_LOGE(TAG, "Lepton re-initialization failed after recovery: 0x%X", static_cast<unsigned int>(Error));
+        return;
+    }
+
+    /* Re-apply user settings (emissivity, etc.). */
+    Lepton_LoadSettings();
+
+    Error = Lepton_StartCapture(&_LeptonTaskState.Lepton, _LeptonTaskState.RawFrameQueue);
+    if (Error != LEPTON_ERR_OK) {
+        ESP_LOGE(TAG, "Failed to restart Lepton capture after recovery: 0x%X", static_cast<unsigned int>(Error));
+    } else {
+        ESP_LOGI(TAG, "Lepton camera recovery successful");
+    }
 }
 
 /** @brief              Lepton camera task main loop.
@@ -409,11 +469,14 @@ static void Task_Lepton(void *p_Parameters)
 
     while (_LeptonTaskState.IsRunning) {
         EventBits_t EventBits;
+        static uint32_t ConsecutiveMisses = 0;
+        static uint32_t RecoveryAttempts = 0;
 
         esp_task_wdt_reset();
 
         /* Wait for a new raw frame with longer timeout to avoid busy waiting */
         if (xQueueReceive(_LeptonTaskState.RawFrameQueue, &_LeptonTaskState.RawFrame, pdMS_TO_TICKS(500)) == pdTRUE) {
+            ConsecutiveMisses = 0;
             uint8_t WriteBufferIdx;
             uint8_t *WriteBuffer;
             Lepton_Pixel_t Min;
@@ -461,10 +524,11 @@ static void Task_Lepton(void *p_Parameters)
                 ESP_LOGD(TAG, "Copied RGB888 frame: %ux%u (%u bytes)", _LeptonTaskState.RawFrame.Width,
                          _LeptonTaskState.RawFrame.Height, static_cast<unsigned int>(ImageSize));
             } else {
+                uint8_t PaletteIdx;
+
                 /* RAW14: Convert to RGB */
-                Settings_Lepton_t LeptonSettings;
-                SettingsManager_GetLepton(&LeptonSettings);
-                uint8_t PaletteIdx = LeptonSettings.Palette < LEPTON_PALETTE_COUNT ? LeptonSettings.Palette : 0U;
+                SettingsManager_GetLepton(&_LeptonTaskState.LeptonSettings);
+                PaletteIdx = _LeptonTaskState.LeptonSettings.Palette < LEPTON_PALETTE_COUNT ? _LeptonTaskState.LeptonSettings.Palette : 0U;
 
                 /* Save raw 14-bit data before RGB conversion so the HTTP encoder can re-apply any palette */
                 memcpy(_LeptonTaskState.Raw14Buffer, _LeptonTaskState.RawFrame.ImageBuffer,
@@ -549,7 +613,28 @@ static void Task_Lepton(void *p_Parameters)
             xQueueOverwrite(App_Context->Lepton_FrameQueue, &FrameEvent);
             ESP_LOGD(TAG, "Frame sent to queue successfully");
         } else {
+            ConsecutiveMisses++;
             ESP_LOGW(TAG, "No raw frame received from VoSPI");
+
+            /* After 20 consecutive misses (~10 s) the camera is considered unresponsive.
+             * Attempt up to 3 recoveries before giving up and posting a camera-error event. */
+            if (ConsecutiveMisses >= 20) {
+                RecoveryAttempts++;
+                ConsecutiveMisses = 0;
+
+                if (RecoveryAttempts <= 3) {
+                    ESP_LOGW(TAG, "Camera unresponsive - starting recovery attempt %u/3",
+                             static_cast<unsigned int>(RecoveryAttempts));
+                    Lepton_RecoverCamera();
+                } else {
+                    ESP_LOGE(TAG, "Lepton camera unrecoverable after 3 attempts - aborting task");
+                    APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_LEPTON, static_cast<esp_err_t>(LEPTON_ERR_FAIL));
+                    esp_event_post(LEPTON_TASK_EVENTS, LEPTON_TASK_EVENT_CAMERA_ERROR, NULL, 0, pdMS_TO_TICKS(100));
+
+                    _LeptonTaskState.IsRunning = false;
+                    break;
+                }
+            }
         }
 
         EventBits = xEventGroupGetBits(_LeptonTaskState.EventGroup);
@@ -563,56 +648,75 @@ static void Task_Lepton(void *p_Parameters)
             break;
         }
 
-        if (EventBits & LEPTON_TASK_UPDATE_ROI_REQUEST) {
-            Lepton_ROI_t ROI;
+        if (EventBits & LEPTON_TASK_UPDATE_ROI) {
             Lepton_Error_t Error;
+            Lepton_ROI_t CurrentROI;
 
-            ROI.StartCol = _LeptonTaskState.ROI.x;
-            ROI.StartRow = _LeptonTaskState.ROI.y;
-            ROI.EndCol = _LeptonTaskState.ROI.x + _LeptonTaskState.ROI.w - 1;
-            ROI.EndRow = _LeptonTaskState.ROI.y + _LeptonTaskState.ROI.h - 1;
+            SettingsManager_GetLepton(&_LeptonTaskState.LeptonSettings);
 
-            switch (_LeptonTaskState.ROI.Type) {
-                case ROI_TYPE_SPOTMETER: {
-                    Error = Lepton_SetSpotmeterROI(&_LeptonTaskState.Lepton, &ROI);
+            for (uint8_t i = 0; i < sizeof(_LeptonTaskState.LeptonSettings.ROI) / sizeof(_LeptonTaskState.LeptonSettings.ROI[0]); i++) {
+                switch (i) {
+                    case ROI_TYPE_SPOTMETER: {
+                        CurrentROI.StartCol = _LeptonTaskState.LeptonSettings.ROI[i].x;
+                        CurrentROI.StartRow = _LeptonTaskState.LeptonSettings.ROI[i].y;
+                        CurrentROI.EndCol = _LeptonTaskState.LeptonSettings.ROI[i].x + _LeptonTaskState.LeptonSettings.ROI[i].w - 1;
+                        CurrentROI.EndRow = _LeptonTaskState.LeptonSettings.ROI[i].y + _LeptonTaskState.LeptonSettings.ROI[i].h - 1;
 
-                    break;
+                        Error = Lepton_SetSpotmeterROI(&_LeptonTaskState.Lepton, &CurrentROI);
+
+                        break;
+                    }
+                    case ROI_TYPE_SCENE: {
+                        CurrentROI.StartCol = _LeptonTaskState.LeptonSettings.ROI[i].x;
+                        CurrentROI.StartRow = _LeptonTaskState.LeptonSettings.ROI[i].y;
+                        CurrentROI.EndCol = _LeptonTaskState.LeptonSettings.ROI[i].x + _LeptonTaskState.LeptonSettings.ROI[i].w - 1;
+                        CurrentROI.EndRow = _LeptonTaskState.LeptonSettings.ROI[i].y + _LeptonTaskState.LeptonSettings.ROI[i].h - 1;
+
+                        Error = Lepton_SetSceneROI(&_LeptonTaskState.Lepton, &CurrentROI);
+
+                        break;
+                    }
+                    case ROI_TYPE_AGC: {
+                        CurrentROI.StartCol = _LeptonTaskState.LeptonSettings.ROI[i].x;
+                        CurrentROI.StartRow = _LeptonTaskState.LeptonSettings.ROI[i].y;
+                        CurrentROI.EndCol = _LeptonTaskState.LeptonSettings.ROI[i].x + _LeptonTaskState.LeptonSettings.ROI[i].w - 1;
+                        CurrentROI.EndRow = _LeptonTaskState.LeptonSettings.ROI[i].y + _LeptonTaskState.LeptonSettings.ROI[i].h - 1;
+
+                        Error = Lepton_SetAGCROI(&_LeptonTaskState.Lepton, &CurrentROI);
+
+                        break;
+                    }
+                    case ROI_TYPE_VIDEO_FOCUS: {
+                        CurrentROI.StartCol = _LeptonTaskState.LeptonSettings.ROI[i].x;
+                        CurrentROI.StartRow = _LeptonTaskState.LeptonSettings.ROI[i].y;
+                        CurrentROI.EndCol = _LeptonTaskState.LeptonSettings.ROI[i].x + _LeptonTaskState.LeptonSettings.ROI[i].w - 1;
+                        CurrentROI.EndRow = _LeptonTaskState.LeptonSettings.ROI[i].y + _LeptonTaskState.LeptonSettings.ROI[i].h - 1;
+
+                        Error = Lepton_SetVideoFocusROI(&_LeptonTaskState.Lepton, &CurrentROI);
+
+                        break;
+                    }
+                    default: {
+                        ESP_LOGW(TAG, "Invalid ROI type in GUI event: 0x%X", i);
+
+                        return;
+                    }
                 }
-                case ROI_TYPE_SCENE: {
-                    Error = Lepton_SetSceneROI(&_LeptonTaskState.Lepton, &ROI);
 
-                    break;
-                }
-                case ROI_TYPE_AGC: {
-                    Error = Lepton_SetAGCROI(&_LeptonTaskState.Lepton, &ROI);
-
-                    break;
-                }
-                case ROI_TYPE_VIDEO_FOCUS: {
-                    Error = Lepton_SetVideoFocusROI(&_LeptonTaskState.Lepton, &ROI);
-
-                    break;
-                }
-                default: {
-                    ESP_LOGW(TAG, "Invalid ROI type in GUI event: 0x%X", _LeptonTaskState.ROI.Type);
-
-                    return;
+                if (Error == LEPTON_ERR_OK) {
+                    ESP_LOGI(TAG, "New Lepton ROI (Type %d) - x: %u, y: %u, w: %u, h: %u",
+                            i,
+                            _LeptonTaskState.LeptonSettings.ROI[i].x,
+                            _LeptonTaskState.LeptonSettings.ROI[i].y,
+                            _LeptonTaskState.LeptonSettings.ROI[i].w,
+                            _LeptonTaskState.LeptonSettings.ROI[i].h);
+                } else {
+                    ESP_LOGE(TAG, "Failed to update Lepton ROI with type %d!", i);
+                    APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_LEPTON, static_cast<esp_err_t>(Error));
                 }
             }
 
-            if (Error == LEPTON_ERR_OK) {
-                ESP_LOGD(TAG, "New Lepton ROI (Type %d) - Start_Col: %u, Start_Row: %u, End_Col: %u, End_Row: %u",
-                         _LeptonTaskState.ROI.Type,
-                         ROI.StartCol,
-                         ROI.StartRow,
-                         ROI.EndCol,
-                         ROI.EndRow);
-            } else {
-                ESP_LOGE(TAG, "Failed to update Lepton ROI with type %d!", _LeptonTaskState.ROI.Type);
-                APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_LEPTON, static_cast<esp_err_t>(Error));
-            }
-
-            xEventGroupClearBits(_LeptonTaskState.EventGroup, LEPTON_TASK_UPDATE_ROI_REQUEST);
+            xEventGroupClearBits(_LeptonTaskState.EventGroup, LEPTON_TASK_UPDATE_ROI);
         }
 
         if (EventBits & LEPTON_TASK_UPDATE_TEMP_REQUEST) {
@@ -772,7 +876,14 @@ static void Task_Lepton(void *p_Parameters)
 
             xEventGroupClearBits(_LeptonTaskState.EventGroup, LEPTON_TASK_FFC_REQUEST);
         }
+
+        if (EventBits & LEPTON_TASK_RECOVER_REQUEST) {
+            Lepton_RecoverCamera();
+
+            xEventGroupClearBits(_LeptonTaskState.EventGroup, LEPTON_TASK_RECOVER_REQUEST);
+        }
     }
+
 
     ESP_LOGD(TAG, "Lepton task shutting down");
     Lepton_Deinit(&_LeptonTaskState.Lepton);
@@ -877,7 +988,7 @@ esp_err_t Lepton_Task_Init(void)
     }
 
     esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_APP_STARTED, on_GUI_Task_Event_Handler, NULL);
-    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_ROI, on_GUI_Task_Event_Handler, NULL);
+    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_ROI_CHANGED, on_GUI_Task_Event_Handler, NULL);
     esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FPA_AUX_TEMP, on_GUI_Task_Event_Handler, NULL);
     esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_UPTIME, on_GUI_Task_Event_Handler, NULL);
     esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_PIXEL_TEMPERATURE, on_GUI_Task_Event_Handler, NULL);
@@ -918,7 +1029,7 @@ void Lepton_Task_Deinit(void)
     }
 
     esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_APP_STARTED, on_GUI_Task_Event_Handler);
-    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_ROI, on_GUI_Task_Event_Handler);
+    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_ROI_CHANGED, on_GUI_Task_Event_Handler);
     esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FPA_AUX_TEMP, on_GUI_Task_Event_Handler);
     esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_UPTIME, on_GUI_Task_Event_Handler);
     esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_PIXEL_TEMPERATURE, on_GUI_Task_Event_Handler);

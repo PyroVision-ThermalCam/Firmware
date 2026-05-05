@@ -31,20 +31,30 @@
  */
 void GUI_Control_HandleButton1(void);
 
-/** @brief          Handle Button2 click event.
+/** @brief          Handle Button2 short click event.
  *                  The action depends on the current screen.
  */
 void GUI_Control_HandleButton2Short(void);
+
+/** @brief          Handle Button2 long click event.
+ *                  The action depends on the current screen.
+ */
+void GUI_Control_HandleButton2Long(void);
 
 /** @brief          Handle Button3 click event.
  *                  The action depends on the current screen.
  */
 void GUI_Control_HandleButton3(void);
 
-/** @brief          Handle Button4 click event.
+/** @brief          Handle Button4 short click event.
  *                  The action depends on the current screen.
  */
-void GUI_Control_HandleButton4(void);
+void GUI_Control_HandleButton4Short(void);
+
+/** @brief          Handle Button4 long click event.
+ *                  The action depends on the current screen.
+ */
+void GUI_Control_HandleButton4Long(void);
 
 /** @brief          Handle joystick events.
  *                  The action depends on the current screen and the direction of the joystick event.

@@ -27,7 +27,7 @@ static void on_main_screen_key(lv_event_t *e)
 
         switch (Key) {
             case GUI_KEYPAD_BTN1: {
-                lv_obj_send_event(ui_Button_Main_Button1, LV_EVENT_CLICKED, NULL);
+                lv_obj_send_event(ui_Button_Main_Button1, LV_EVENT_SHORT_CLICKED, NULL);
 
                 break;
             }
@@ -37,12 +37,12 @@ static void on_main_screen_key(lv_event_t *e)
                 break;
             }
             case GUI_KEYPAD_BTN3: {
-                lv_obj_send_event(ui_Button_Main_Button3, LV_EVENT_CLICKED, NULL);
+                lv_obj_send_event(ui_Button_Main_Button3, LV_EVENT_SHORT_CLICKED, NULL);
 
                 break;
             }
             case GUI_KEYPAD_BTN4: {
-                lv_obj_send_event(ui_Button_Main_Button4, LV_EVENT_CLICKED, NULL);
+                lv_obj_send_event(ui_Button_Main_Button4, LV_EVENT_SHORT_CLICKED, NULL);
 
                 break;
             }
@@ -80,6 +80,8 @@ static void on_main_screen_key(lv_event_t *e)
     } else if (Code == LV_EVENT_LONG_PRESSED) {
         switch (static_cast<uint32_t>(reinterpret_cast<uintptr_t>(lv_event_get_param(e)))) {
             case GUI_KEYPAD_BTN1: {
+                lv_obj_send_event(ui_Button_Main_Button1, LV_EVENT_LONG_PRESSED, NULL);
+
                 break;
             }
             case GUI_KEYPAD_BTN2: {
@@ -88,9 +90,13 @@ static void on_main_screen_key(lv_event_t *e)
                 break;
             }
             case GUI_KEYPAD_BTN3: {
+                lv_obj_send_event(ui_Button_Main_Button3, LV_EVENT_LONG_PRESSED, NULL);
+
                 break;
             }
             case GUI_KEYPAD_BTN4: {
+                lv_obj_send_event(ui_Button_Main_Button4, LV_EVENT_LONG_PRESSED, NULL);
+
                 break;
             }
             default: {
@@ -336,15 +342,7 @@ void ScreenSplashLoaded(lv_event_t *e)
     ui_settings_init(ui_Container_Menu);
 }
 
-void ButtonMenuButton4Clicked(lv_event_t *e)
-{
-    (void)e;
-
-    SettingsManager_Save();
-    MessageBox_Show("Settings Saved");
-}
-
-void ButtonMainButton1Clicked(lv_event_t *e)
+void ButtonMainButton1ShortClicked(lv_event_t *e)
 {
     (void)e;
 
@@ -362,19 +360,33 @@ void ButtonMainButton2LongClicked(lv_event_t *e)
 {
     (void)e;
 
-    GUI_Control_ActivateROIConfig();
+	GUI_Control_HandleButton2Long();
 }
 
-void ButtonMainButton3Clicked(lv_event_t *e)
+void ButtonMainButton3ShortClicked(lv_event_t *e)
 {
     (void)e;
 
     GUI_Control_HandleButton3();
 }
 
-void ButtonMainButton4Clicked(lv_event_t *e)
+void ButtonMainButton4LongClicked(lv_event_t * e)
 {
     (void)e;
 
-    GUI_Control_HandleButton4();
+    GUI_Control_HandleButton4Long();
+}
+
+void ButtonMainButton4ShortClicked(lv_event_t * e)
+{
+    (void)e;
+
+    GUI_Control_HandleButton4Short();
+}
+
+void ButtonMenuButton4ShortClicked(lv_event_t * e)
+{
+    (void)e;
+
+    GUI_Control_HandleButton4Short();
 }

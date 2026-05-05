@@ -28,46 +28,38 @@
 
 #include "guiHelper.h"
 
-/* Map ROI type to its LVGL overlay widget and apply the computed position/size.
- * NOTE: Stored as pointer-to-pointer so the current widget address (set by ui_init)
- *       is always resolved at call time, not at static-initialisation time (when
- *       all LVGL widget globals are still NULL). */
-static lv_obj_t ** const ROI_Widgets[] = {
-    &ui_Image_Main_Thermal_Spotmeter_ROI,
-    &ui_Image_Main_Thermal_Scene_ROI,
-    &ui_Image_Main_Thermal_AGC_ROI,
-    &ui_Image_Main_Thermal_Video_Focus_ROI,
-};
-
-static const char *ROI_Labels[] = {
-    "Spotmeter",
-    "Scene",
-    "AGC",
-    "Video Focus"
-};
-
 /** @brief          Initialize the ROI configuration mode. */
 void GUI_ROI_Init(void);
 
 /** @brief          Deinitialize the ROI configuration mode. */
 void GUI_ROI_Deinit(void);
 
-/** @brief          Start the ROI fading animation.
- *  @param p_ROI    LVGL object representing the ROI
+/** @brief          Switch to the specified ROI.
+ *  @param ROI      ROI index
  */
-void GUI_ROI_StartFadingAnimation(lv_obj_t *p_ROI);
+void GUI_ROI_SwitchToROI(uint8_t ROI);
+
+/** @brief          Save all ROIs to the memory. */
+void GUI_ROI_Save(void);
 
 /** @brief          Load the ROIs from the memory and draw them on the display.
  */
 void GUI_ROI_Load(void);
 
-/** @brief          Update the ROI rectangle on the GUI and on the Lepton.
- *  @param Type     ROI type
- *  @param x        X position of the ROI (in Lepton coordinates 0-159)
- *  @param y        Y position (in Lepton coordinates 0-119)
- *  @param w        Width of the ROI
- *  @param h        Height of the ROI
+/** @brief          Change the specified ROI by the given delta values and update its position and size on the display.
+ *  @param DeltaX   Change in X position
+ *  @param DeltaY   Change in Y position
+ *  @param DeltaW   Change in width
+ *  @param DeltaH   Change in height
  */
-static void GUI_ROI_Update(Settings_ROI_t ROI);
+void GUI_ROI_Change(int16_t DeltaX, int16_t DeltaY, int16_t DeltaW, int16_t DeltaH);
+
+/** @brief          Reset the currently selected ROI to its default position and size.
+ */
+void GUI_ROI_Reset(void);
+
+/** @brief          Reset all ROIs to their default positions and sizes.
+ */
+void GUI_ROI_ResetAll(void);
 
 #endif /* GUI_ROI_H_ */

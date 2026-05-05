@@ -61,6 +61,21 @@
 #define GUI_TASK_IMAGE_SAVE_COMPLETED               BIT20
 #define GUI_TASK_IMAGE_SAVE_FAILED_BIT              BIT21
 
+#define UI_IMAGE_CANVAS_WIDTH                       240
+#define UI_IMAGE_CANVAS_HEIGHT                      180
+#define UI_GRADIENT_CANVAS_WIDTH                    20
+
+#define CROSSHAIR_STEP_PX                           8
+#define CROSSHAIR_INITIAL_DELAY_MS                  30
+#define CROSSHAIR_AUTOREPEAT_DELAY_MS               400
+#define CROSSHAIR_AUTOREPEAT_PERIOD_MS              150
+
+/* Fixed container dimensions taken from the UI export (ui_Main.c).
+ * Using constants avoids calling lv_obj_get_width/height on a potentially
+ * hidden widget whose coords may not be up-to-date at indev-callback time. */
+#define CROSSHAIR_CONTAINER_W                       100
+#define CROSSHAIR_CONTAINER_H                       50
+
 /** @brief Internal runtime state of the GUI task.
  */
 typedef struct {
@@ -72,6 +87,8 @@ typedef struct {
         bool IsMovingActive;                                /**< true when the currently selected ROI should be moved. False if the size should be changed. */
         uint8_t SelectedROI;                                /**< Index of the currently selected ROI for configuration (0-3). */
         lv_anim_t FadingAnimation;                          /**< LVGL animation handle for the fade-in/out of the ROI overlay. */
+        int32_t DisplayWidth;                               /**< Width of the display in pixels. */
+        int32_t DisplayHeight;                              /**< Height of the display in pixels. */
     } ROIConfig;
     bool WiFiConnected;                                     /**< true while a WiFi station connection is active. */
     bool ProvisioningActive;                                /**< true while WiFi provisioning is in progress. */

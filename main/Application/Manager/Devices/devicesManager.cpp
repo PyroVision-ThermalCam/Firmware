@@ -483,6 +483,22 @@ void DevicesManager_ReleaseI2CBus(void)
     xSemaphoreGiveRecursive(_DevicesManagerState.Mutex);
 }
 
+esp_err_t DevicesManager_ResetI2CBus(TickType_t Timeout)
+{
+    if (xSemaphoreTakeRecursive(_DevicesManagerState.Mutex, Timeout) == pdFALSE) {
+        return ESP_ERR_TIMEOUT;
+    }
+
+    if (_DevicesManagerState.I2C_Bus_Handle != NULL) {
+        i2c_master_bus_reset(_DevicesManagerState.I2C_Bus_Handle);
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+
+    xSemaphoreGiveRecursive(_DevicesManagerState.Mutex);
+
+    return ESP_OK;
+}
+
 i2c_master_bus_handle_t DevicesManager_GetI2CBusHandle(void)
 {
     if (_DevicesManagerState.IsInitialized == false) {

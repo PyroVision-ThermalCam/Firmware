@@ -188,7 +188,7 @@ void Task_ImageSave(void *p_Param)
     }
 }
 
-esp_err_t GUI_Task_SaveImage(void)
+esp_err_t GUI_SaveImage(void)
 {
     /* Check if filesystem is locked (USB active) */
     if (MemoryManager_IsFilesystemLocked()) {

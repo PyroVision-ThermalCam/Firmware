@@ -90,6 +90,17 @@ esp_err_t DevicesManager_AcquireI2CBus(TickType_t Timeout);
  */
 void DevicesManager_ReleaseI2CBus(void);
 
+/** @brief          Reset the I2C bus.
+ *                  Resets the I2C bus by toggling the SCL line and clearing any stuck devices.
+ *  @note           This function should be used as a last resort when the I2C bus is unresponsive.
+ *  @param Timeout  FreeRTOS tick timeout for acquiring the bus mutex before performing the reset.
+ *                  Use a bounded timeout (e.g. pdMS_TO_TICKS(1000))
+ *  @return         ESP_OK on success
+ *                  DEVICES_ERR_NOT_INITIALIZED if DevicesManager is not initialized
+ *                  DEVICES_ERR_I2C_BUS_RESET if the bus reset fails
+ */
+esp_err_t DevicesManager_ResetI2CBus(TickType_t Timeout = pdMS_TO_TICKS(1000));
+
 /** @brief          Get the I2C bus handle for peripheral devices.
  *                  Returns the I2C bus handle used by RTC, Port Expander, and other
  *                  peripheral devices (not the touch controller).

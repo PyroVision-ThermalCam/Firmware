@@ -106,3 +106,23 @@ def ButtonMainButton4Clicked(event_struct):
 def ButtonMainButton1Clicked(event_struct):
     return
 
+
+def ButtonMainButtonShort4Clicked(event_struct):
+    return
+
+
+def ButtonMainButton4LongClicked(event_struct):
+    return
+
+
+def ButtonMainButton1ShortClicked(event_struct):
+    return
+
+
+def ButtonMainButton3ShortClicked(event_struct):
+    return
+
+
+def ButtonMainButton4ShortClicked(event_struct):
+    return
+

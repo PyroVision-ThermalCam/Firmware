@@ -583,11 +583,11 @@ static void Task_Devices(void *p_Parameters)
         AppContext->InputState.Joystick.Left = Committed.JoyLeft;
         AppContext->InputState.Joystick.Right = Committed.JoyRight;
 
-        DevicesTask_ProcessButton(&_DevicesTaskState.JoyCenter, &AppContext->InputState.Joystick.Center, Committed.JoyCenter, false, NowTick);
-        DevicesTask_ProcessButton(&_DevicesTaskState.Button1, &AppContext->InputState.Buttons[0], Committed.Button1, false, NowTick);
+        DevicesTask_ProcessButton(&_DevicesTaskState.JoyCenter, &AppContext->InputState.Joystick.Center, Committed.JoyCenter, true, NowTick);
+        DevicesTask_ProcessButton(&_DevicesTaskState.Button1, &AppContext->InputState.Buttons[0], Committed.Button1, true, NowTick);
         DevicesTask_ProcessButton(&_DevicesTaskState.Button2, &AppContext->InputState.Buttons[1], Committed.Button2, true, NowTick);
-        DevicesTask_ProcessButton(&_DevicesTaskState.Button3, &AppContext->InputState.Buttons[2], Committed.Button3, false, NowTick);
-        DevicesTask_ProcessButton(&_DevicesTaskState.Button4, &AppContext->InputState.Buttons[3], Committed.Button4, false, NowTick);
+        DevicesTask_ProcessButton(&_DevicesTaskState.Button3, &AppContext->InputState.Buttons[2], Committed.Button3, true, NowTick);
+        DevicesTask_ProcessButton(&_DevicesTaskState.Button4, &AppContext->InputState.Buttons[3], Committed.Button4, true, NowTick);
 
         xSemaphoreGive(AppContext->InputMutex);
 

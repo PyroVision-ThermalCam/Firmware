@@ -75,8 +75,6 @@ enum {
 enum {
     GUI_TASK_EVENT_INIT_DONE,                   /**< GUI task initialization done. */
     GUI_TASK_EVENT_APP_STARTED,                 /**< Application has started. */
-    GUI_TASK_EVENT_REQUEST_ROI,                 /**< Update the ROI rectangle on the GUI.
-                                                     Data is transmitted in a Settings_ROI_t structure. */
     GUI_TASK_EVENT_REQUEST_FPA_AUX_TEMP,        /**< Request update of the FPA and AUX temperature. */
     GUI_TASK_EVENT_REQUEST_UPTIME,              /**< Request update of the uptime. */
     GUI_TASK_EVENT_REQUEST_PIXEL_TEMPERATURE,   /**< Request update of pixel temperature.
@@ -86,7 +84,9 @@ enum {
     GUI_TASK_EVENT_IMAGE_SAVE_FAILED,           /**< Image save operation failed.
                                                      Data is transmitted as an int representing the errno value. */
     GUI_TASK_EVENT_REQUEST_FOCUS,               /**< Request to trigger autofocus. */
-    GUI_TASK_EVENT_REQUEST_FFC                  /**< Request to trigger Flat-Field Correction. */
+    GUI_TASK_EVENT_REQUEST_FFC,                 /**< Request to trigger Flat-Field Correction. */
+    GUI_TASK_EVENT_REQUEST_LEPTON_RESET,        /**< Request to perform a Lepton reset and reinitialization. No event data. */
+    GUI_TASK_EVENT_ROI_CHANGED,                 /**< Notification that the ROI configuration has changed and should be re-read from the settings. */
 };
 
 /** @brief Devices task event identifiers.

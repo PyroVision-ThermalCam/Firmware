@@ -162,10 +162,10 @@ typedef struct {
  */
 typedef struct {
     Settings_ROI_Type_t Type;                   /**< ROI type (e.g., spotmeter). */
-    uint16_t x;                                 /**< X coordinate of the top-left corner. */
-    uint16_t y;                                 /**< Y coordinate of the top-left corner. */
-    uint16_t w;                                 /**< Width of the ROI. */
-    uint16_t h;                                 /**< Height of the ROI. */
+    int16_t x;                                  /**< X coordinate of the top-left corner. */
+    int16_t y;                                  /**< Y coordinate of the top-left corner. */
+    int16_t w;                                  /**< Width of the ROI. */
+    int16_t h;                                  /**< Height of the ROI. */
 } Settings_ROI_t;
 
 /** @brief  Device informations.
@@ -185,7 +185,7 @@ typedef struct {
  *          NOTE: This structure is covered by the settings version number because it is stored in the NVS.
  */
 typedef struct {
-    Settings_ROI_t ROI[4];                          /**< Camera ROIs. */
+    Settings_ROI_t ROI[4];                          /**< Camera ROIs in Lepton coordinates. */
     Settings_Emissivity_t EmissivityPresets[128];   /**< Array of emissivity presets. */
     size_t EmissivityPresetsCount;                  /**< Number of emissivity presets. */
     uint8_t CurrentEmissivity;                      /**< Currently selected emissivity value in the range from 0 to 100. */

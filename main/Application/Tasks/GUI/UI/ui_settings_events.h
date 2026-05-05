@@ -101,6 +101,11 @@ void on_System_Timezone_Callback(lv_event_t *e);
  */
 void on_Lepton_Palette_Callback(lv_event_t *e);
 
+/** @brief      Lepton reset button callback to reset Lepton settings to defaults.
+ *  @param e    Pointer to the event object
+ */
+void on_Lepton_Reset_Callback(lv_event_t *e);
+
 /** @brief      Flash clear NVS button callback to reset all settings to factory defaults.
  *  @param e    Pointer to the event object
  */
@@ -177,4 +182,5 @@ void on_USB_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
  *  @param e    Pointer to the event object
  */
 void on_Calibration_RoomTemp_Changed_Callback(lv_event_t *e);
+
 #endif /* UI_SETTINGS_EVENTS_H_ */

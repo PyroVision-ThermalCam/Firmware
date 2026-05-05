@@ -58,8 +58,11 @@ void ui_event_Button_Main_Button4(lv_event_t * e)
 {
     lv_event_code_t event_code = lv_event_get_code(e);
 
-    if(event_code == LV_EVENT_CLICKED) {
-        ButtonMainButton4Clicked(e);
+    if(event_code == LV_EVENT_SHORT_CLICKED) {
+        ButtonMainButton4ShortClicked(e);
+    }
+    if(event_code == LV_EVENT_LONG_PRESSED) {
+        ButtonMainButton4LongClicked(e);
     }
 }
 
@@ -79,8 +82,8 @@ void ui_event_Button_Main_Button3(lv_event_t * e)
 {
     lv_event_code_t event_code = lv_event_get_code(e);
 
-    if(event_code == LV_EVENT_CLICKED) {
-        ButtonMainButton3Clicked(e);
+    if(event_code == LV_EVENT_SHORT_CLICKED) {
+        ButtonMainButton3ShortClicked(e);
     }
 }
 
@@ -88,8 +91,8 @@ void ui_event_Button_Main_Button1(lv_event_t * e)
 {
     lv_event_code_t event_code = lv_event_get_code(e);
 
-    if(event_code == LV_EVENT_CLICKED) {
-        ButtonMainButton1Clicked(e);
+    if(event_code == LV_EVENT_SHORT_CLICKED) {
+        ButtonMainButton1ShortClicked(e);
     }
 }
 

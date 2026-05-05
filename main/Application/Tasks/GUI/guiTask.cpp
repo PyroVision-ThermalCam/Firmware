@@ -50,21 +50,6 @@
 
 #include "lepton.h"
 
-#define UI_IMAGE_CANVAS_WIDTH                   240
-#define UI_IMAGE_CANVAS_HEIGHT                  180
-#define UI_GRADIENT_CANVAS_WIDTH                20
-
-#define CROSSHAIR_STEP_PX                       8
-#define CROSSHAIR_INITIAL_DELAY_MS              30
-#define CROSSHAIR_AUTOREPEAT_DELAY_MS           400
-#define CROSSHAIR_AUTOREPEAT_PERIOD_MS          150
-
-/* Fixed container dimensions taken from the UI export (ui_Main.c).
- * Using constants avoids calling lv_obj_get_width/height on a potentially
- * hidden widget whose coords may not be up-to-date at indev-callback time. */
-#define CROSSHAIR_CONTAINER_W                   100
-#define CROSSHAIR_CONTAINER_H                   50
-
 ESP_EVENT_DEFINE_BASE(GUI_TASK_EVENTS);
 
 GUI_Task_State_t _GUITaskState;
@@ -171,6 +156,10 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
 
     switch (ID) {
         case SETTINGS_EVENT_LEPTON_CHANGED: {
+            if (p_Data == NULL) {
+                break;
+            }
+
             SettingsManager_ChangeNotification_t Changed;
 
             memcpy(&Changed, p_Data, sizeof(SettingsManager_ChangeNotification_t));
@@ -698,13 +687,13 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
         if (Focused != NULL) {
             for (size_t i = 0; i < sizeof(_GUITaskState.AppContext->InputState.Buttons) / sizeof(_GUITaskState.AppContext->InputState.Buttons[0]); i++) {
                 if (State.Buttons[i].LongPress == true) {
-                    ESP_LOGI(TAG, "Keypad: %s long-press", KEY_MAP[i].Name);
+                    ESP_LOGD(TAG, "Keypad: %s long-press", KEY_MAP[i].Name);
                     lv_obj_send_event(Focused, LV_EVENT_LONG_PRESSED, (void *)(uintptr_t)KEY_MAP[i].Key);
                 }
             }
 
             if (State.Joystick.Center.LongPress == true) {
-                ESP_LOGI(TAG, "Keypad: JoyCenter long-press");
+                ESP_LOGD(TAG, "Keypad: JoyCenter long-press");
                 lv_obj_send_event(Focused, LV_EVENT_LONG_PRESSED, (void *)(uintptr_t)GUI_KEYPAD_JOY_CENTER);
             }
         }
@@ -723,7 +712,7 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
         if (State.Buttons[i].ShortPress == true) {
             p_Data->key = KEY_MAP[i].Key;
             p_Data->state = LV_INDEV_STATE_PRESSED;
-            ESP_LOGI(TAG, "Keypad: %s short-press", KEY_MAP[i].Name);
+            ESP_LOGD(TAG, "Keypad: %s short-press", KEY_MAP[i].Name);
 
             return;
         }
@@ -732,7 +721,7 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
     if (State.Joystick.Center.ShortPress == true) {
         p_Data->key = GUI_KEYPAD_JOY_CENTER;
         p_Data->state = LV_INDEV_STATE_PRESSED;
-        ESP_LOGI(TAG, "Keypad: JoyCenter short-press");
+        ESP_LOGD(TAG, "Keypad: JoyCenter short-press");
 
         return;
     }
