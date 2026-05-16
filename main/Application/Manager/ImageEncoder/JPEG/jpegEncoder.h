@@ -25,23 +25,26 @@
 #define JPEG_ENCODER_H_
 
 #include <esp_err.h>
+#include <esp_jpeg_common.h>
 
 #include <stdint.h>
 #include <stddef.h>
 
-/** @brief          Encode RGB888 data to JPEG format.
- *  @param p_RGB    Pointer to RGB888 pixel data (width * height * 3 bytes)
- *  @param Width    Image width in pixels
- *  @param Height   Image height in pixels
- *  @param Quality  JPEG quality (1-100, higher is better quality)
- *  @param p_Output Pointer to store encoded JPEG data pointer
- *  @param p_Size   Pointer to store encoded data size
- *  @return         ESP_OK on success
- *                  ESP_ERR_INVALID_ARG if parameters are invalid
- *                  ESP_ERR_NO_MEM if memory allocation fails
- *                  ESP_FAIL if encoding fails
+/** @brief              Encode RGB888 data to JPEG format.
+ *  @param p_RGB        Pointer to RGB888 pixel data (width * height * 3 bytes)
+ *  @param Width        Image width in pixels
+ *  @param Height       Image height in pixels
+ *  @param Quality      JPEG quality (1-100, higher is better quality)
+ *  @param Rotation     Clockwise rotation applied before encoding (JPEG_ROTATE_0D … JPEG_ROTATE_270D)
+ *  @param p_Output     Pointer to store encoded JPEG data pointer
+ *  @param p_Size       Pointer to store encoded data size
+ *  @return             ESP_OK on success
+ *                      ESP_ERR_INVALID_ARG if parameters are invalid
+ *                      ESP_ERR_NO_MEM if memory allocation fails
+ *                      ESP_FAIL if encoding fails
  */
 esp_err_t JPEGEncoder_Encode(const uint8_t *p_RGB, uint16_t Width, uint16_t Height,
-                             uint8_t Quality, uint8_t **p_Output, size_t *p_Size);
+                             uint8_t Quality, jpeg_rotate_t Rotation,
+                             uint8_t **p_Output, size_t *p_Size);
 
 #endif /* JPEG_ENCODER_H_ */

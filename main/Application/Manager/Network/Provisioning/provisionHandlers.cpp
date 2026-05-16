@@ -210,7 +210,6 @@ esp_err_t Provision_Handler_Connect(httpd_req_t *p_Request)
     cJSON *Password_JSON = NULL;
     cJSON *Response = NULL;
     esp_err_t Error = ESP_OK;
-    uint32_t Caps;
     int Received;
     Settings_WiFi_t WiFiSettings;
 
@@ -220,13 +219,7 @@ esp_err_t Provision_Handler_Connect(httpd_req_t *p_Request)
         return ESP_FAIL;
     }
 
-#ifdef CONFIG_SPIRAM
-    Caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
-#else
-    Caps = MALLOC_CAP_8BIT;
-#endif
-
-    Buffer = static_cast<char *>(heap_caps_malloc(p_Request->content_len + 1, Caps));
+    Buffer = static_cast<char *>(heap_caps_malloc(p_Request->content_len + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     if (Buffer == NULL) {
         httpd_resp_send_500(p_Request);
 

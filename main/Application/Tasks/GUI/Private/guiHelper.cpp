@@ -168,8 +168,6 @@ static void GUI_LVGL_TickTimer_CB(void *p_Arg)
 esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUITaskState, lv_indev_read_cb_t Touch_Read_Callback,
                           lv_display_flush_cb_t Display_Flush_CB)
 {
-    uint32_t Caps;
-
     ESP_LOGD(TAG, "Create I2C bus for touch controller...");
 
     p_GUITaskState->Touch_Bus_Handle = DevicesManager_GetTouchI2CBusHandle();
@@ -219,14 +217,8 @@ esp_err_t GUI_Helper_Init(GUI_Task_State_t *p_GUITaskState, lv_indev_read_cb_t T
     lv_display_set_flush_cb(p_GUITaskState->Display, Display_Flush_CB);
     lv_display_set_user_data(p_GUITaskState->Display, p_GUITaskState->PanelHandle);
 
-#ifdef CONFIG_SPIRAM
-    Caps = MALLOC_CAP_SPIRAM;
-#else
-    Caps = 0;
-#endif
-
-    p_GUITaskState->DisplayBuffer1 = heap_caps_malloc(GUI_DRAW_BUFFER_SIZE, Caps);
-    p_GUITaskState->DisplayBuffer2 = heap_caps_malloc(GUI_DRAW_BUFFER_SIZE, Caps);
+    p_GUITaskState->DisplayBuffer1 = heap_caps_malloc(GUI_DRAW_BUFFER_SIZE, MALLOC_CAP_SPIRAM);
+    p_GUITaskState->DisplayBuffer2 = heap_caps_malloc(GUI_DRAW_BUFFER_SIZE, MALLOC_CAP_SPIRAM);
     ESP_LOGD(TAG, "Allocated LVGL buffers: %d bytes each in PSRAM", GUI_DRAW_BUFFER_SIZE);
     if ((p_GUITaskState->DisplayBuffer1 == NULL) || (p_GUITaskState->DisplayBuffer2 == NULL)) {
         ESP_LOGE(TAG, "Failed to allocate LVGL draw buffers!");

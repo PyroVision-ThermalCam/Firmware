@@ -91,9 +91,7 @@ esp_err_t ImageEncoder_Encode(const ImageEncoder_Raw_t *p_Frame,
 
     if ((p_Frame == NULL) || (p_Encoded == NULL)) {
         return IMAGE_ENCODER_ERR_INVALID_ARG;
-    }
-
-    if (p_Frame->Buffer == NULL) {
+    } else if (p_Frame->Buffer == NULL) {
         return IMAGE_ENCODER_ERR_INVALID_ARG;
     }
 
@@ -108,7 +106,7 @@ esp_err_t ImageEncoder_Encode(const ImageEncoder_Raw_t *p_Frame,
         case IMAGE_FORMAT_JPEG: {
 #ifdef CONFIG_IMAGE_ENCODER_JPEG
             Error = JPEGEncoder_Encode(p_Frame->Buffer, EncodeWidth, EncodeHeight,
-                                       _ImageEncoderState.JpegQuality,
+                                       _ImageEncoderState.JpegQuality, JPEG_ROTATE_0D,
                                        &p_EncodedData, &EncodedSize);
             if (Error == ESP_OK) {
                 p_Encoded->Data = p_EncodedData;

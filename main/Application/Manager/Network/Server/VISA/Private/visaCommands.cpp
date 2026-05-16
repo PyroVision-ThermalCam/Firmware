@@ -292,20 +292,13 @@ static int VISA_CMD_SENS_IMG_DATA(char *p_Response, size_t MaxLen)
     int Digits;
     size_t Size = 1024;
     uint8_t *Data;
-    uint32_t Caps;
 
     /* TODO: Get actual image data */
     /* This should return binary data in IEEE 488.2 format */
     /* Format: #<n><length><data> where n = digits in length */
 
-#ifdef CONFIG_SPIRAM
-    Caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
-#else
-    Caps = MALLOC_CAP_8BIT;
-#endif
-
     /* Example with dummy data */
-    Data = static_cast<uint8_t *>(heap_caps_malloc(1024, Caps));
+    Data = static_cast<uint8_t *>(heap_caps_malloc(1024, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     if (Data == NULL) {
         VISA_PushError(SCPI_ERROR_OUT_OF_MEMORY);
 

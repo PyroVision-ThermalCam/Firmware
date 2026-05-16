@@ -124,7 +124,12 @@ static bool on_UVC_FrameRequest(int itf, uint8_t **pp_Buffer, size_t *p_BufferSi
     *pp_Buffer = _UVCState.Buffers[ReadIdx].p_Buffer;
     *p_BufferSize = _UVCState.Buffers[ReadIdx].Size;
 
-    ESP_LOGD(TAG, "Frame request: buffer[%d], size=%d", ReadIdx, _UVCState.Buffers[ReadIdx].Size);
+    /* Mark buffer as in-flight so neither on_UVC_FrameReturn (under mutex contention)
+     * nor a second fb_request_cb call can double-return the same buffer, and so
+     * USBUVC_SubmitFrame correctly sees the slot as free for the next write. */
+    _UVCState.Buffers[ReadIdx].IsReady = false;
+
+    ESP_LOGD(TAG, "Frame request: buffer[%d], size=%d", ReadIdx, static_cast<int>(*p_BufferSize));
 
     xSemaphoreGive(_UVCState.BufferMutex);
 
@@ -161,7 +166,6 @@ static void on_UVC_FrameReturn(int itf, uint8_t *p_Buffer)
 esp_err_t USBUVC_Init(const USB_UVC_Config_t *p_Config)
 {
     esp_err_t Error;
-    uint32_t Caps;
 
     if (p_Config == NULL) {
         ESP_LOGE(TAG, "Invalid configuration!");
@@ -187,14 +191,8 @@ esp_err_t USBUVC_Init(const USB_UVC_Config_t *p_Config)
         return ESP_ERR_NO_MEM;
     }
 
-#ifdef CONFIG_SPIRAM
-    Caps = MALLOC_CAP_SPIRAM;
-#else
-    Caps = 0;
-#endif
-
     for (int i = 0; i < UVC_NUM_BUFFERS; i++) {
-        _UVCState.Buffers[i].p_Buffer = static_cast<uint8_t *>(heap_caps_malloc(UVC_MAX_FRAME_SIZE, Caps));
+        _UVCState.Buffers[i].p_Buffer = static_cast<uint8_t *>(heap_caps_malloc(UVC_MAX_FRAME_SIZE, MALLOC_CAP_SPIRAM));
         if (_UVCState.Buffers[i].p_Buffer == NULL) {
             ESP_LOGE(TAG, "Failed to allocate buffer %d!", i);
 

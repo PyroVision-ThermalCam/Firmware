@@ -38,8 +38,8 @@
 #include "MSC/usbMSC.h"
 #include "UVC/usbUVC.h"
 #include "CDC/usbCDC.h"
-#include "../AppDiag/appDiag.h"
 #include "Descriptors/descriptors.h"
+#include "../AppDiag/appDiag.h"
 #include "../Memory/memoryManager.h"
 
 ESP_EVENT_DEFINE_BASE(USB_EVENTS);

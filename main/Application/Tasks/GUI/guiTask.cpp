@@ -43,6 +43,8 @@
 #include "Application/application.h"
 #include "Application/Manager/managers.h"
 #include "Application/Manager/Network/Server/server.h"
+#include "Application/Manager/USB/UVC/usbUVC.h"
+#include "Application/Manager/ImageEncoder/JPEG/jpegEncoder.h"
 #include "Private/guiHelper.h"
 #include "Private/guiImageSave.h"
 #include "Private/guiROI.h"
@@ -51,6 +53,8 @@
 #include "UI/ui_settings.h"
 
 #include "lepton.h"
+
+#define GUI_IMAGE_CANVAS_BUFFER_SIZE        (GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT * 2)
 
 ESP_EVENT_DEFINE_BASE(GUI_TASK_EVENTS);
 
@@ -344,25 +348,17 @@ static void on_USB_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int
 
     switch (ID) {
         case USB_EVENT_UVC_STREAMING_START: {
-            _GUITaskState.IsUVCStreaming = true;
-
-            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_UVC_STREAMING_STATE_CHANGED);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_UVC_STREAMING_STATE_START);
 
             break;
         }
         case USB_EVENT_UVC_STREAMING_STOP: {
-            _GUITaskState.IsUVCStreaming = false;
-
-            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_UVC_STREAMING_STATE_CHANGED);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_UVC_STREAMING_STATE_STOP);
 
             break;
         }
         case USB_EVENT_UNINITIALIZED: {
-            if (_GUITaskState.IsUVCStreaming) {
-                _GUITaskState.IsUVCStreaming = false;
-
-                xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_UVC_STREAMING_STATE_CHANGED);
-            }
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_UVC_STREAMING_STATE_STOP);
 
             break;
         }
@@ -402,6 +398,64 @@ static void GUI_LCD_Flush_CB(lv_display_t *p_Disp, const lv_area_t *p_Area, uint
     esp_lcd_panel_draw_bitmap(static_cast<esp_lcd_panel_handle_t>(lv_display_get_user_data(p_Disp)), OffsetX1, OffsetY1,
                               OffsetX2 + 1, OffsetY2 + 1, p_PxMap);
     xSemaphoreGive(_GUITaskState.SpiMutex);
+}
+
+/** @brief   Restore the thermal view by showing all relevant UI elements. 
+ */
+static void GUI_RestoreThermalView(void)
+{
+    DevicesManager_SetFlashEnable(false);
+
+    if (_GUITaskState.UVC_Stream.IsStreaming == false) {
+        GUI_Crosshair_Show();
+        GUI_ROI_Show();
+
+        /* Restore temperature labels */
+        lv_obj_remove_flag(ui_Label_Main_Thermal_Pixel_Temperature, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Max, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Min, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
+
+        /* Restore temperature scale labels */
+        lv_obj_remove_flag(ui_Label_Main_Temp_Scale_Max, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(ui_Label_Main_Temp_Scale_Min, LV_OBJ_FLAG_HIDDEN);
+
+        /* Restore gradient canvas*/
+        lv_obj_remove_flag(ui_Image_Main_Gradient, LV_OBJ_FLAG_HIDDEN);
+
+        /* Restore crosshair label */
+        lv_obj_remove_flag(ui_Label_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    lv_label_set_text(ui_Label_Main_Button2, "\uE595");
+}
+
+/** @brief   Restore the RGB view by showing all relevant UI elements. 
+ */
+static void GUI_RestoreRGBView(void)
+{
+    bool FlashEnabled;
+
+    /* Hide temperature overlay and scale labels */
+    lv_obj_add_flag(ui_Label_Main_Thermal_Pixel_Temperature, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Max, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Min, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ui_Label_Main_Temp_Scale_Max, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ui_Label_Main_Temp_Scale_Min, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ui_Image_Main_Gradient, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
+
+    lv_label_set_text(ui_Label_Main_Button2, "\uF0EB");
+
+    DevicesManager_IsFlashEnabled(&FlashEnabled);
+    if (FlashEnabled) {
+    } else {
+    }
 }
 
 /** @brief Update the information screen labels.
@@ -1026,10 +1080,7 @@ void Task_GUI(void *p_Parameters)
                     strncpy(TempScaleMinBuf, Buffer, sizeof(TempScaleMinBuf));
                 }
 
-                /* Trigger LVGL to redraw the image */
                 lv_obj_invalidate(ui_Image_Main_Image);
-                ESP_LOGD(TAG, "Updated thermal image display (src: %ux%u -> dst: %ux%u)", LeptonFrame.Width, LeptonFrame.Height,
-                         ImageWidth, ImageHeight);
 
                 GUI_UpdateNetworkImage(_GUITaskState.ImageCanvasBuffer, ImageWidth, ImageHeight);
             }
@@ -1044,9 +1095,63 @@ void Task_GUI(void *p_Parameters)
                     /* Scale camera frame down and render in the thermal canvas */
                     UI_Scale_Camera(CameraFrame.Buffer, CameraFrame.Width, CameraFrame.Height,
                                     _GUITaskState.ImageCanvasBuffer, GUI_IMAGE_CANVAS_WIDTH, GUI_IMAGE_CANVAS_HEIGHT);
+
                     lv_obj_invalidate(ui_Image_Main_Image);
 
                     GUI_UpdateNetworkImage(_GUITaskState.ImageCanvasBuffer, GUI_IMAGE_CANVAS_WIDTH, GUI_IMAGE_CANVAS_HEIGHT);
+                }
+            }
+        }
+
+        /* If UVC streaming is active, also send frames to USB.
+         * USBUVC_IsStreaming() is checked directly (not the task-local flag) to bypass the
+         * async event-propagation delay: commit_cb -> event loop -> GUI event handler.
+         * Without this, the first frame is delayed by 200-500 ms, which regularly causes
+         * the Windows Camera app to fail to start on the first open. */
+        if (USBUVC_IsStreaming()) {
+            if (_GUITaskState.UVC_Stream.ImageBuffer != NULL) {
+                uint8_t *JpegData = NULL;
+                size_t JpegSize = 0;
+
+                /* Convert RGB565 canvas snapshot to RGB888 for JPEG encoding.
+                 * The reverse-order read (SrcIdx = Total - 1 - i) applies the required
+                 * 180-degree rotation identical to the HTTP/WebSocket streaming path. */
+                const uint32_t Total = GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT;
+                const uint8_t *p_Src = _GUITaskState.ImageCanvasBuffer;
+                uint8_t *p_Dst = _GUITaskState.UVC_Stream.ImageBuffer;
+
+                for (uint32_t i = 0; i < Total; i++) {
+                    uint32_t SrcIdx = Total - 1 - i;
+                    uint16_t Rgb565 = static_cast<uint16_t>(p_Src[(SrcIdx * 2) + 0]) |
+                                        (static_cast<uint16_t>(p_Src[(SrcIdx * 2) + 1]) << 8);
+
+                    p_Dst[(i * 3) + 0] = (Rgb565 >> 8) & 0xF8;
+                    p_Dst[(i * 3) + 1] = (Rgb565 >> 3) & 0xFC;
+                    p_Dst[(i * 3) + 2] = (Rgb565 << 3) & 0xF8;
+                }
+
+                esp_err_t JpegError = JPEGEncoder_Encode(_GUITaskState.UVC_Stream.ImageBuffer,
+                                                         GUI_IMAGE_CANVAS_WIDTH,
+                                                         GUI_IMAGE_CANVAS_HEIGHT,
+                                                         80,
+                                                         JPEG_ROTATE_0D,
+                                                         &JpegData,
+                                                         &JpegSize);
+                if (JpegError == ESP_OK) {
+                    esp_err_t UVCError;
+
+                    UVCError = USBUVC_SubmitFrame(JpegData, JpegSize);
+                    if (UVCError != ESP_OK && UVCError != ESP_ERR_NO_MEM) {
+                        /* ESP_ERR_NO_MEM means both ping-pong buffers are in-flight — this
+                         * is expected at high frame rates and does not indicate an error. */
+                        ESP_LOGW(TAG, "Failed to submit frame to UVC: 0x%X", UVCError);
+                    } else {
+                        ESP_LOGD(TAG, "UVC frame submitted: %zu bytes JPEG", JpegSize);
+                    }
+
+                    heap_caps_free(JpegData);
+                } else {
+                    ESP_LOGW(TAG, "JPEG encoding failed: 0x%X", JpegError);
                 }
             }
         }
@@ -1062,7 +1167,7 @@ void Task_GUI(void *p_Parameters)
 
             /* Take a snapshot of the current canvas before handing the pointer to Task_ImageSave. */
             memcpy(_GUITaskState.SaveCanvasBuffer, _GUITaskState.ImageCanvasBuffer,
-                   GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT * 2);
+                   GUI_IMAGE_CANVAS_BUFFER_SIZE);
 
             SaveFrame.Buffer = _GUITaskState.SaveCanvasBuffer;
             SaveFrame.Width = GUI_IMAGE_CANVAS_WIDTH;
@@ -1276,95 +1381,124 @@ void Task_GUI(void *p_Parameters)
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_SCENE_STATISTICS_READY);
         }
 
-        if (EventBits & GUI_TASK_UVC_STREAMING_STATE_CHANGED) {
-            if (_GUITaskState.IsUVCStreaming) {
-                /* Clear thermal canvas to black */
-                memset(_GUITaskState.ImageCanvasBuffer, 0x00, GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT * 2);
-                lv_obj_invalidate(ui_Image_Main_Image);
+        if (EventBits & GUI_TASK_UVC_STREAMING_STATE_START) {
+            _GUITaskState.UVC_Stream.IsStreaming = true;
 
-                /* Show UVC overlay */
-                lv_obj_remove_flag(_GUITaskState.UVCOverlayLabel, LV_OBJ_FLAG_HIDDEN);
+            /* Allocate PSRAM buffer for UVC image (RGB888: Width x Height x 3 = 240 x 180 x 3 = 129,600 bytes) */
+            _GUITaskState.UVC_Stream.ImageBuffer = reinterpret_cast<uint8_t *>(heap_caps_malloc(GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT * 3, MALLOC_CAP_SPIRAM));
 
-                /* Hide ROI rectangles */
-                lv_obj_add_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
+            /* Create UVC streaming overlay label (hidden by default) */
+            _GUITaskState.UVC_Stream.OverlayLabel = lv_label_create(ui_Container_Main_Thermal);
+            lv_label_set_text(_GUITaskState.UVC_Stream.OverlayLabel, "USB Video Mode");
+            lv_obj_set_align(_GUITaskState.UVC_Stream.OverlayLabel, LV_ALIGN_CENTER);
+            lv_obj_set_style_text_color(_GUITaskState.UVC_Stream.OverlayLabel, lv_color_white(), LV_PART_MAIN);
+            lv_obj_set_style_text_font(_GUITaskState.UVC_Stream.OverlayLabel, &lv_font_montserrat_14, LV_PART_MAIN);
+            lv_obj_remove_flag(_GUITaskState.UVC_Stream.OverlayLabel, LV_OBJ_FLAG_HIDDEN);
 
-                /* Hide temperature labels */
-                lv_obj_add_flag(ui_Label_Main_Thermal_Pixel_Temperature, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Max, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Min, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
+            /* Hide ROI rectangles */
+            lv_obj_add_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
 
-                /* Hide temperature scale labels */
-                lv_obj_add_flag(ui_Label_Main_Temp_Scale_Max, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Label_Main_Temp_Scale_Min, LV_OBJ_FLAG_HIDDEN);
-            } else {
-                /* Hide UVC overlay */
-                lv_obj_add_flag(_GUITaskState.UVCOverlayLabel, LV_OBJ_FLAG_HIDDEN);
+            /* Hide temperature labels */
+            lv_obj_add_flag(ui_Label_Main_Thermal_Pixel_Temperature, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Max, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Min, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
 
-                /* Restore ROI rectangles */
-                GUI_ROI_Show();
+            /* Hide temperature scale labels */
+            lv_obj_add_flag(ui_Label_Main_Temp_Scale_Max, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(ui_Label_Main_Temp_Scale_Min, LV_OBJ_FLAG_HIDDEN);
 
-                /* Restore temperature labels */
-                lv_obj_remove_flag(ui_Label_Main_Thermal_Pixel_Temperature, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Max, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Min, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
+            /* Hide gradient canvas*/
+            lv_obj_add_flag(ui_Image_Main_Gradient, LV_OBJ_FLAG_HIDDEN);
 
-                /* Restore temperature scale labels */
-                lv_obj_remove_flag(ui_Label_Main_Temp_Scale_Max, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Label_Main_Temp_Scale_Min, LV_OBJ_FLAG_HIDDEN);
+            /* Hide distance label */
+            lv_obj_add_flag(ui_Label_Main_Distance, LV_OBJ_FLAG_HIDDEN);
+
+            /* Hide crosshair label */
+            lv_obj_remove_flag(ui_Label_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
+
+            /* Create a full-canvas black rectangle placed on top of ui_Image_Main_Image to
+             * cover the thermal image on the display while USB Video Mode is active. */
+            _GUITaskState.UVC_Stream.BlackBackground = lv_obj_create(ui_Image_Main_Image);
+            lv_obj_set_size(_GUITaskState.UVC_Stream.BlackBackground, GUI_IMAGE_CANVAS_WIDTH, GUI_IMAGE_CANVAS_HEIGHT);
+            lv_obj_align(_GUITaskState.UVC_Stream.BlackBackground, LV_ALIGN_TOP_LEFT, 0, 0);
+            lv_obj_set_style_bg_color(_GUITaskState.UVC_Stream.BlackBackground, lv_color_black(), LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(_GUITaskState.UVC_Stream.BlackBackground, LV_OPA_COVER, LV_PART_MAIN);
+            lv_obj_set_style_border_width(_GUITaskState.UVC_Stream.BlackBackground, 0, LV_PART_MAIN);
+            lv_obj_set_style_pad_all(_GUITaskState.UVC_Stream.BlackBackground, 0, LV_PART_MAIN);
+            lv_obj_set_style_radius(_GUITaskState.UVC_Stream.BlackBackground, 0, LV_PART_MAIN);
+
+            /* Clear the canvas to black so the host receives a clean black first frame
+             * instead of the last frozen thermal image. */
+            memset(_GUITaskState.ImageCanvasBuffer, 0x00, GUI_IMAGE_CANVAS_BUFFER_SIZE);
+            lv_obj_invalidate(ui_Image_Main_Image);
+
+            /* Immediately encode and submit a black first frame so Windows Camera app
+             * receives a valid MJPEG payload within its startup timeout (~500 ms).
+             * Without this the GUI task loop must complete a full iteration (including at
+             * least one Lepton frame and event processing) before any frame is submitted,
+             * which regularly exceeds the Windows timeout and causes the first open to fail. */
+            if (_GUITaskState.UVC_Stream.ImageBuffer != NULL) {
+                uint8_t *p_FirstFrameData = NULL;
+                size_t FirstFrameSize = 0;
+
+                memset(_GUITaskState.UVC_Stream.ImageBuffer, 0x00, GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT * 3);
+
+                if (JPEGEncoder_Encode(_GUITaskState.UVC_Stream.ImageBuffer,
+                                       GUI_IMAGE_CANVAS_WIDTH,
+                                       GUI_IMAGE_CANVAS_HEIGHT,
+                                       80,
+                                       JPEG_ROTATE_0D,
+                                       &p_FirstFrameData,
+                                       &FirstFrameSize) == ESP_OK) {
+                    USBUVC_SubmitFrame(p_FirstFrameData, FirstFrameSize);
+                    heap_caps_free(p_FirstFrameData);
+                }
             }
 
-            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_UVC_STREAMING_STATE_CHANGED);
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_UVC_STREAMING_STATE_START);
+        }
+
+        if (EventBits & GUI_TASK_UVC_STREAMING_STATE_STOP) {
+            _GUITaskState.UVC_Stream.IsStreaming = false;
+
+            if (_GUITaskState.UVC_Stream.ImageBuffer != NULL) {
+                heap_caps_free(_GUITaskState.UVC_Stream.ImageBuffer);
+                _GUITaskState.UVC_Stream.ImageBuffer = NULL;
+            }
+
+            /* Remove black background overlay */
+            if (_GUITaskState.UVC_Stream.BlackBackground != NULL) {
+                lv_obj_del(_GUITaskState.UVC_Stream.BlackBackground);
+                _GUITaskState.UVC_Stream.BlackBackground = NULL;
+            }
+
+            /* Destroy UVC overlay label */
+            if (_GUITaskState.UVC_Stream.OverlayLabel != NULL) {
+                lv_obj_del(_GUITaskState.UVC_Stream.OverlayLabel);
+                _GUITaskState.UVC_Stream.OverlayLabel = NULL;
+            }
+
+            if (_GUITaskState.ShowCameraView == false) {
+                GUI_RestoreThermalView();
+            } else {
+                GUI_RestoreRGBView();
+            }
+
+            xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_UVC_STREAMING_STATE_STOP);
         }
 
         if (EventBits & GUI_TASK_CAMERA_VIEW_CHANGED) {
             /* Leaving thermal view: restore camera overlay */
             if (_GUITaskState.ShowCameraView) {
-                bool FlashEnabled;
-
-                memset(_GUITaskState.ImageCanvasBuffer, 0x00, GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT * 2);
-
-                /* Hide temperature overlay and scale labels */
-                lv_obj_add_flag(ui_Label_Main_Thermal_Pixel_Temperature, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Max, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Min, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Label_Main_Temp_Scale_Max, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Label_Main_Temp_Scale_Min, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Image_Main_Gradient, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
-
-                lv_label_set_text(ui_Label_Main_Button2, "\uF0EB");
-
-                DevicesManager_IsFlashEnabled(&FlashEnabled);
-                if (FlashEnabled) {
-                } else {
-                }
+                GUI_RestoreRGBView();
             }
             /* Leaving camera view: restore temperature overlay */
             else {
-                DevicesManager_SetFlashEnable(false);
-
-                lv_obj_remove_flag(ui_Label_Main_Thermal_Pixel_Temperature, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Max, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Min, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Label_Main_Thermal_Scene_Mean, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Label_Main_Temp_Scale_Max, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Label_Main_Temp_Scale_Min, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Image_Main_Gradient, LV_OBJ_FLAG_HIDDEN);
-
-                lv_label_set_text(ui_Label_Main_Button2, "\uE595");
-
-                GUI_Crosshair_Show();
-                GUI_ROI_Show();
+                GUI_RestoreThermalView();
             }
 
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_VIEW_CHANGED);
@@ -1375,9 +1509,11 @@ void Task_GUI(void *p_Parameters)
 
             SettingsManager_GetLepton(&LeptonSettings);
 
-            /* Update palette dropdown if the change came from elsewhere (e.g. HTTP API) */
+            /* Always redraw the gradient canvas with the new palette. */
+            GUI_Task_UpdateGradient(LeptonSettings.Palette);
+
+            /* Sync the dropdown if the change came from elsewhere (e.g. HTTP API). */
             if (lv_dropdown_get_selected(ui_palette_dropdown) != LeptonSettings.Palette) {
-                GUI_Task_UpdateGradient(LeptonSettings.Palette);
                 lv_dropdown_set_selected(ui_palette_dropdown, LeptonSettings.Palette);
             }
 
@@ -1464,13 +1600,10 @@ esp_err_t GUI_Task_Init(void)
                                                                                 GUI_IMAGE_CANVAS_HEIGHT * 2, MALLOC_CAP_SPIRAM));
     _GUITaskState.GradientCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(GUI_GRADIENT_CANVAS_WIDTH *
                                                                                  GUI_IMAGE_CANVAS_HEIGHT * 2, MALLOC_CAP_SPIRAM));
+    // TODO: Allocate when network used
     _GUITaskState.NetworkRGBBuffer = static_cast<uint8_t *>(heap_caps_malloc(GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT
                                                                              * 3, MALLOC_CAP_SPIRAM));
-    /* Raw 14-bit network buffer: 160 × 120 × 2 = 38,400 bytes (PSRAM, Lepton native resolution) */
-    _GUITaskState.NetworkRawBuffer = static_cast<uint16_t *>(heap_caps_malloc(160 * 120 * sizeof(uint16_t),
-                                                                              MALLOC_CAP_SPIRAM));
-    _GUITaskState.SaveCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT
-                                                                             * 2, MALLOC_CAP_SPIRAM));
+    _GUITaskState.SaveCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(GUI_IMAGE_CANVAS_BUFFER_SIZE, MALLOC_CAP_SPIRAM));
 
     if (_GUITaskState.ImageCanvasBuffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate thermal canvas buffer!");
@@ -1498,17 +1631,6 @@ esp_err_t GUI_Task_Init(void)
         return ESP_ERR_NO_MEM;
     }
 
-    if (_GUITaskState.NetworkRawBuffer == NULL) {
-        ESP_LOGE(TAG, "Failed to allocate network raw buffer!");
-        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
-
-        heap_caps_free(_GUITaskState.ImageCanvasBuffer);
-        heap_caps_free(_GUITaskState.GradientCanvasBuffer);
-        heap_caps_free(_GUITaskState.NetworkRGBBuffer);
-
-        return ESP_ERR_NO_MEM;
-    }
-
     if (_GUITaskState.SaveCanvasBuffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate save canvas buffer!");
         APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
@@ -1516,7 +1638,6 @@ esp_err_t GUI_Task_Init(void)
         heap_caps_free(_GUITaskState.ImageCanvasBuffer);
         heap_caps_free(_GUITaskState.GradientCanvasBuffer);
         heap_caps_free(_GUITaskState.NetworkRGBBuffer);
-        heap_caps_free(_GUITaskState.NetworkRawBuffer);
 
         return ESP_ERR_NO_MEM;
     }
@@ -1529,7 +1650,6 @@ esp_err_t GUI_Task_Init(void)
         heap_caps_free(_GUITaskState.ImageCanvasBuffer);
         heap_caps_free(_GUITaskState.GradientCanvasBuffer);
         heap_caps_free(_GUITaskState.NetworkRGBBuffer);
-        heap_caps_free(_GUITaskState.NetworkRawBuffer);
         heap_caps_free(_GUITaskState.SaveCanvasBuffer);
 
         return ESP_ERR_NO_MEM;
@@ -1558,7 +1678,7 @@ esp_err_t GUI_Task_Init(void)
     }
 
     /* Initialize buffers with black pixels (RGB565 = 0x0000) */
-    memset(_GUITaskState.ImageCanvasBuffer, 0x00, GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT * 2);
+    memset(_GUITaskState.ImageCanvasBuffer, 0x00, GUI_IMAGE_CANVAS_BUFFER_SIZE);
     memset(_GUITaskState.GradientCanvasBuffer, 0x00, GUI_GRADIENT_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT * 2);
 
     /* Now configure the image descriptors with allocated buffers */
@@ -1566,7 +1686,7 @@ esp_err_t GUI_Task_Init(void)
     _GUITaskState.ThermalImageDescriptor.header.w = GUI_IMAGE_CANVAS_WIDTH;
     _GUITaskState.ThermalImageDescriptor.header.h = GUI_IMAGE_CANVAS_HEIGHT;
     _GUITaskState.ThermalImageDescriptor.data = _GUITaskState.ImageCanvasBuffer;
-    _GUITaskState.ThermalImageDescriptor.data_size = GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT * 2;
+    _GUITaskState.ThermalImageDescriptor.data_size = GUI_IMAGE_CANVAS_BUFFER_SIZE;
 
     _GUITaskState.GradientImageDescriptor.header.cf = LV_COLOR_FORMAT_RGB565;
     _GUITaskState.GradientImageDescriptor.header.w = GUI_GRADIENT_CANVAS_WIDTH;
@@ -1580,15 +1700,6 @@ esp_err_t GUI_Task_Init(void)
 
     lv_img_set_src(ui_Image_Main_Image, &_GUITaskState.ThermalImageDescriptor);
     lv_img_set_src(ui_Image_Main_Gradient, &_GUITaskState.GradientImageDescriptor);
-
-    /* Create UVC streaming overlay label (hidden by default) */
-    _GUITaskState.UVCOverlayLabel = lv_label_create(ui_Container_Main_Thermal);
-    lv_label_set_text(_GUITaskState.UVCOverlayLabel, "USB Video Mode");
-    lv_obj_set_align(_GUITaskState.UVCOverlayLabel, LV_ALIGN_CENTER);
-    lv_obj_set_style_text_color(_GUITaskState.UVCOverlayLabel, lv_color_white(), LV_PART_MAIN);
-    lv_obj_set_style_text_font(_GUITaskState.UVCOverlayLabel, &lv_font_montserrat_14, LV_PART_MAIN);
-    lv_obj_add_flag(_GUITaskState.UVCOverlayLabel, LV_OBJ_FLAG_HIDDEN);
-    _GUITaskState.IsUVCStreaming = false;
 
     /* Initialize network frame for server streaming */
     _GUITaskState.NetworkFrame.Mutex = xSemaphoreCreateMutex();

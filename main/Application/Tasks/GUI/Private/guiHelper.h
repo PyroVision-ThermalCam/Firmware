@@ -42,7 +42,6 @@
 
 #define GUI_TASK_STOP_REQUEST                       BIT0
 #define GUI_TASK_BATTERY_STATUS_CHANGED             BIT1
-#define GUI_TASK_UVC_STREAMING_STATE_CHANGED        BIT2
 #define GUI_TASK_WIFI_CONNECTION_STATE_CHANGED      BIT3
 #define GUI_TASK_LEPTON_READY                       BIT4
 #define GUI_TASK_PALETTE_CHANGED                    BIT5
@@ -60,6 +59,8 @@
 #define GUI_TASK_SCREEN_REFRESH_REQUIRED            BIT19
 #define GUI_TASK_IMAGE_SAVE_COMPLETED               BIT20
 #define GUI_TASK_IMAGE_SAVE_FAILED_BIT              BIT21
+#define GUI_TASK_UVC_STREAMING_STATE_START          BIT22
+#define GUI_TASK_UVC_STREAMING_STATE_STOP           BIT23
 
 #define GUI_IMAGE_CANVAS_WIDTH                      240
 #define GUI_IMAGE_CANVAS_HEIGHT                     180
@@ -70,7 +71,6 @@
 typedef struct {
     bool IsInitialized;                                     /**< true after GUI_Task_Init() has completed successfully. */
     bool IsRunning;                                         /**< true while the main GUI FreeRTOS task is executing. */
-    bool IsUVCStreaming;                                    /**< true while a UVC host is actively receiving frames. */
     struct {
         int32_t MinX;
         int32_t MaxX;
@@ -95,6 +95,12 @@ typedef struct {
         int32_t DisplayHeight;                              /**< Height of the display in pixels. */
         bool Show;                                          /**< true when the ROI (Region of Interest) rectangle overlay is visible on the thermal image. */
     } ROIConfig;
+    struct {
+        uint8_t *ImageBuffer;                               /**< PSRAM buffer holding the latest UVC image. */
+        bool IsStreaming;                                   /**< true while a UVC host is actively receiving frames. */
+        lv_obj_t *OverlayLabel;                             /**< LVGL label object shown as UVC-active overlay; NULL when hidden. */
+        lv_obj_t *BlackBackground;                          /**< LVGL object covering the image canvas with a black fill while UVC is active; NULL when inactive. */
+    } UVC_Stream;
     bool WiFiConnected;                                     /**< true while a WiFi station connection is active. */
     bool ProvisioningActive;                                /**< true while WiFi provisioning is in progress. */
     bool CardPresent;                                       /**< true while an SD card is mounted and accessible. */
@@ -118,7 +124,6 @@ typedef struct {
     esp_lcd_panel_io_handle_t Panel_IO_Handle;              /**< Panel I/O (SPI) handle used to command the ILI9341. */
     esp_lcd_panel_io_handle_t
     Touch_IO_Handle;              /**< Panel I/O (I2C) handle used to communicate with the GT911. */
-    lv_obj_t *UVCOverlayLabel;                              /**< LVGL label object shown as UVC-active overlay; NULL when hidden. */
     lv_display_t
     *Display;                                  /**< LVGL display handle bound to the ILI9341; NULL before init. */
     lv_indev_t
@@ -144,7 +149,6 @@ typedef struct {
     uint8_t *ImageCanvasBuffer;                           /**< PSRAM canvas buffer for the scaled thermal RGB image. */
     uint8_t *GradientCanvasBuffer;                          /**< PSRAM canvas buffer for the colour-gradient bar image. */
     uint8_t *NetworkRGBBuffer;                              /**< PSRAM RGB buffer transmitted to connected WebSocket clients. */
-    uint16_t *NetworkRawBuffer;                             /**< PSRAM buffer holding a copy of the latest raw 14-bit Lepton frame for HTTP re-paletization. */
     uint8_t *SaveCanvasBuffer;                              /**< PSRAM snapshot buffer holding a copy of ThermalCanvasBuffer at save-request time; prevents data races with Task_ImageSave. */
     uint32_t LeptonUptime;                                  /**< Lepton camera uptime in seconds, updated on each frame event. */
 

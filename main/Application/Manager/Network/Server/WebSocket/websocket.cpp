@@ -444,15 +444,7 @@ static esp_err_t WebSocket_Handler(httpd_req_t *p_Request)
     }
 
     if (Frame.len > 0) {
-        uint32_t Caps;
-
-#ifdef CONFIG_SPIRAM
-        Caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
-#else
-        Caps = MALLOC_CAP_8BIT;
-#endif
-
-        Frame.payload = static_cast<uint8_t *>(heap_caps_malloc(Frame.len + 1, Caps));
+        Frame.payload = static_cast<uint8_t *>(heap_caps_malloc(Frame.len + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
         if (Frame.payload == NULL) {
             ESP_LOGE(TAG, "Failed to allocate frame buffer!");
 

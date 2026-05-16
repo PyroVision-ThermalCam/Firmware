@@ -30,10 +30,10 @@
 static const char *TAG = "JPEG-Encoder";
 
 esp_err_t JPEGEncoder_Encode(const uint8_t *p_RGB, uint16_t Width, uint16_t Height,
-                             uint8_t Quality, uint8_t **p_Output, size_t *p_Size)
+                             uint8_t Quality, jpeg_rotate_t Rotation,
+                             uint8_t **p_Output, size_t *p_Size)
 {
     int Size;
-    uint32_t Caps;
     jpeg_error_t Error;
     jpeg_enc_handle_t Encoder = NULL;
     jpeg_enc_config_t EncoderConfig = {
@@ -42,7 +42,7 @@ esp_err_t JPEGEncoder_Encode(const uint8_t *p_RGB, uint16_t Width, uint16_t Heig
         .src_type = JPEG_PIXEL_FORMAT_RGB888,
         .subsampling = JPEG_SUBSAMPLE_420,
         .quality = Quality,
-        .rotate = JPEG_ROTATE_0D,
+        .rotate = Rotation,
         .task_enable = false,
         .hfm_task_priority = 0,
         .hfm_task_core = 0,
@@ -68,13 +68,7 @@ esp_err_t JPEGEncoder_Encode(const uint8_t *p_RGB, uint16_t Width, uint16_t Heig
         return ESP_FAIL;
     }
 
-#ifdef CONFIG_SPIRAM
-    Caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
-#else
-    Caps = MALLOC_CAP_8BIT;
-#endif
-
-    *p_Output = static_cast<uint8_t *>(heap_caps_malloc(Width * Height * 3, Caps));
+    *p_Output = static_cast<uint8_t *>(heap_caps_malloc(Width * Height * 3, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     if (*p_Output == NULL) {
         ESP_LOGE(TAG, "Failed to allocate JPEG output buffer!");
 
