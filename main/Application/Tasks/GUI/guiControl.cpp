@@ -21,20 +21,22 @@
  * Errors and commissions should be reported to DanielKampert@kampis-elektroecke.de
  */
 
-#include <esp_log.h>
 #include <esp_event.h>
 
 #include "Private/guiHelper.h"
 #include "Private/guiROI.h"
 #include "Private/guiImageSave.h"
+#include "Private/guiCrosshair.h"
 #include "guiTask.h"
 #include "guiControl.h"
 
 #include "UI/ui_messagebox.h"
 
-extern GUI_Task_State_t _GUITaskState;
+/** @brief Number of pixels to move/resize the ROI per joystick step. Must be even for symmetric resize.
+ */
+#define GUI_CONTROL_ROI_STEP_SIZE           4
 
-static const char *TAG = "GUI-ROI";
+extern GUI_Task_State_t _GUITaskState;
 
 void GUI_Control_HandleButton1(void)
 {
@@ -69,19 +71,7 @@ void GUI_Control_HandleButton2Short(void)
         }
         /* Thermal view */
         else {
-            _GUITaskState.ShowROI = !_GUITaskState.ShowROI;
-
-            if (_GUITaskState.ShowROI) {
-                lv_obj_remove_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_remove_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
-            } else {
-                lv_obj_add_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
-            }
+            GUI_ROI_Toggle();
         }
     }
 }
@@ -151,70 +141,85 @@ void GUI_Control_HandleJoystick(uint32_t Key)
     int8_t DeltaH = 0;
     int8_t DeltaW = 0;
 
-    /* Handle joystick when ROI config mode is not active */
-    if (_GUITaskState.ROIConfig.IsActive == false) {
-        switch (Key) {
-            case GUI_KEYPAD_JOY_CENTER: {
-                if (_GUITaskState.ShowCameraView) {
-                    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FOCUS, NULL, 0, portMAX_DELAY);
-                } else {
-                    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FFC, NULL, 0, portMAX_DELAY);
-                }
-
-                break;
-            }
-            default: {
-                break;
-            }
-        }
-
-        return;
-    }
-
     switch (Key) {
         case GUI_KEYPAD_JOY_UP: {
-            if (_GUITaskState.ROIConfig.IsMovingActive) {
-                DeltaY = -1;
+            if (_GUITaskState.ROIConfig.IsActive) {
+                if (_GUITaskState.ROIConfig.IsMovingActive) {
+                    DeltaY = -GUI_CONTROL_ROI_STEP_SIZE;
+                } else {
+                    /* Shrink height symmetrically: top moves down, bottom moves up */
+                    DeltaH = -GUI_CONTROL_ROI_STEP_SIZE;
+                    DeltaY = GUI_CONTROL_ROI_STEP_SIZE / 2;
+                }
             } else {
-                DeltaH = -1;
+                GUI_Crosshair_DecreaseY();
             }
 
             break;
         }
         case GUI_KEYPAD_JOY_DOWN: {
-            if (_GUITaskState.ROIConfig.IsMovingActive) {
-                DeltaY = 1;
+            if (_GUITaskState.ROIConfig.IsActive) {
+                if (_GUITaskState.ROIConfig.IsMovingActive) {
+                    DeltaY = GUI_CONTROL_ROI_STEP_SIZE;
+                } else {
+                    /* Grow height symmetrically: top moves up, bottom moves down */
+                    DeltaH = GUI_CONTROL_ROI_STEP_SIZE;
+                    DeltaY = -(GUI_CONTROL_ROI_STEP_SIZE / 2);
+                }
             } else {
-                DeltaH = 1;
+                GUI_Crosshair_IncreaseY();
             }
 
             break;
         }
         case GUI_KEYPAD_JOY_LEFT: {
-            if (_GUITaskState.ROIConfig.IsMovingActive) {
-                DeltaX = -1;
+            if (_GUITaskState.ROIConfig.IsActive) {
+                if (_GUITaskState.ROIConfig.IsMovingActive) {
+                    DeltaX = -GUI_CONTROL_ROI_STEP_SIZE;
+                } else {
+                    /* Shrink width symmetrically: left moves right, right moves left */
+                    DeltaW = -GUI_CONTROL_ROI_STEP_SIZE;
+                    DeltaX = GUI_CONTROL_ROI_STEP_SIZE / 2;
+                }
             } else {
-                DeltaW = -1;
+                GUI_Crosshair_DecreaseX();
             }
 
             break;
         }
         case GUI_KEYPAD_JOY_RIGHT: {
-            if (_GUITaskState.ROIConfig.IsMovingActive) {
-                DeltaX = 1;
+            if (_GUITaskState.ROIConfig.IsActive) {
+                if (_GUITaskState.ROIConfig.IsMovingActive) {
+                    DeltaX = GUI_CONTROL_ROI_STEP_SIZE;
+                } else {
+                    /* Grow width symmetrically: left moves left, right moves right */
+                    DeltaW = GUI_CONTROL_ROI_STEP_SIZE;
+                    DeltaX = -(GUI_CONTROL_ROI_STEP_SIZE / 2);
+                }
             } else {
-                DeltaW = 1;
+                GUI_Crosshair_IncreaseX();
             }
 
             break;
         }
         case GUI_KEYPAD_JOY_CENTER: {
+            /* Handle joystick when ROI config mode is not active */
+            if (_GUITaskState.ROIConfig.IsActive == false) {
+                if (_GUITaskState.ShowCameraView) {
+                    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FOCUS, NULL, 0, portMAX_DELAY);
+                } else {
+                    esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FFC, NULL, 0, portMAX_DELAY);
+                }
+            }
+
             break;
         }
         default: {
             break;
         }
     }
+
+    GUI_Crosshair_Set();
 
     GUI_ROI_Change(DeltaX, DeltaY, DeltaW, DeltaH);
 }

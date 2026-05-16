@@ -42,15 +42,15 @@
                 "name" : "agc",
                 "x" : 0,
                 "y" : 0,
-                "width" : 240,
-                "height" : 180
+                "width" : 160,
+                "height" : 120
             },
             {
                 "name" : "video-focus",
                 "x" : 1,
                 "y" : 1,
-                "width" : 238,
-                "height" : 178
+                "width" : 158,
+                "height" : 118
             }
         ]
     },

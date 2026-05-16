@@ -38,6 +38,7 @@
 #include <string.h>
 
 #include "guiTask.h"
+#include "guiControl.h"
 #include "Export/ui.h"
 #include "Application/application.h"
 #include "Application/Manager/managers.h"
@@ -45,6 +46,7 @@
 #include "Private/guiHelper.h"
 #include "Private/guiImageSave.h"
 #include "Private/guiROI.h"
+#include "Private/guiCrosshair.h"
 #include "UI/ui_messagebox.h"
 #include "UI/ui_settings.h"
 
@@ -301,8 +303,7 @@ static void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base,
             _GUITaskState.ProvisioningActive = false;
             _GUITaskState.WiFiConnected = false;
 
-            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_PROVISIONING_STATE_CHANGED);
-            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_WIFI_CONNECTION_STATE_CHANGED);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_PROVISIONING_STATE_CHANGED | GUI_TASK_WIFI_CONNECTION_STATE_CHANGED);
 
             break;
         }
@@ -317,8 +318,7 @@ static void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base,
             _GUITaskState.ProvisioningActive = false;
             _GUITaskState.WiFiConnected = false;
 
-            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_PROVISIONING_STATE_CHANGED);
-            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_WIFI_CONNECTION_STATE_CHANGED);
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_PROVISIONING_STATE_CHANGED | GUI_TASK_WIFI_CONNECTION_STATE_CHANGED);
 
             break;
         }
@@ -421,11 +421,11 @@ static void GUI_Update_Info(void)
     lv_label_set_text(ui_Label_Info_MAC, Buffer);
 }
 
-/** @brief          Create temperature gradient canvas for palette visualization.
- *                  Generates a vertical gradient from hot (top of canvas, palette index 255)
- *                  to cold (bottom of canvas, palette index 0) using fictive temperature values
- *                  mapped linearly across the full 256-entry palette LUT.
- *  @param p_Palette Pointer to the 256-entry RGB888 palette LUT to use for the gradient.
+/** @brief              Create temperature gradient canvas for palette visualization.
+ *                      Generates a vertical gradient from hot (top of canvas, palette index 255)
+ *                      to cold (bottom of canvas, palette index 0) using fictive temperature values
+ *                      mapped linearly across the full 256-entry palette LUT.
+ *  @param p_Palette    Pointer to the 256-entry RGB888 palette LUT to use for the gradient
  */
 static void UI_Canvas_AddTempGradient(const uint8_t (*p_Palette)[3])
 {
@@ -436,7 +436,7 @@ static void UI_Canvas_AddTempGradient(const uint8_t (*p_Palette)[3])
         uint32_t Index;
 
         /* Map y position to palette index using fictive temperature values:
-         * top (y=0)   -> index 255 (hottest)
+         * top (y=0) -> index 255 (hottest)
          * bottom (y=H-1) -> index 0 (coldest)
          */
         Index = 255 - (y * 255 / (_GUITaskState.GradientImageDescriptor.header.h - 1));
@@ -466,120 +466,6 @@ static void GUI_Task_UpdateGradient(uint8_t PaletteIdx)
 {
     UI_Canvas_AddTempGradient(Lepton_Palette_Table[PaletteIdx]);
     lv_obj_invalidate(ui_Image_Main_Gradient);
-}
-
-/** @brief          Reposition ui_Label_Main_Thermal_PixelTemperature relative to the crosshair
- *                  centre so the label text always stays within the visible thermal canvas.
- *                  The label is given a fixed width equal to the container width so that its
- *                  bounding box is always confined to [0, CROSSHAIR_CONTAINER_W] within the
- *                  container — regardless of the actual text length.  Text visibility near
- *                  the image edges is achieved by changing the text-align style rather than
- *                  by shifting the label's x position:
- *                    - Default:         LV_TEXT_ALIGN_CENTER, dy = –LABEL_Y_OFFSET (above).
- *                    - Near top edge:   dy = +LABEL_Y_OFFSET (below); text-align unchanged.
- *                    - Near left edge:  LV_TEXT_ALIGN_RIGHT (text hugs the right/visible side).
- *                    - Near right edge: LV_TEXT_ALIGN_LEFT  (text hugs the left/visible side).
- *  @note           Because the label bounding box never leaves the container, no dx shift or
- *                  clamp arithmetic is needed and clipping artefacts are impossible.
- *                  Must be called from the GUI task only (not thread-safe).
- *                  Flip state is stored in static locals; hysteresis prevents flickering at
- *                  the threshold positions.
- *  @param CX       Crosshair centre X in thermal canvas pixels [0 .. UI_IMAGE_CANVAS_WIDTH-1].
- *  @param CY       Crosshair centre Y in thermal canvas pixels [0 .. UI_IMAGE_CANVAS_HEIGHT-1].
- */
-static void GUI_UpdateTempLabelPosition(int32_t CX, int32_t CY)
-{
-    int32_t dy;
-    int32_t TopWhenAbove;
-    lv_text_align_t TextAlign;
-    static bool Initialized = false;    /**< true once the label width has been set to a fixed value. */
-    static bool FlippedY = false;       /**< true while label is shown below the crosshair. */
-    static bool FlippedLeft = false;    /**< true while text is right-aligned (near left image edge). */
-    static bool FlippedRight = false;   /**< true while text is left-aligned (near right image edge). */
-
-    /* Nominal y offset: label centre is this many pixels above/below the crosshair centre. */
-    static const int32_t LABEL_Y_OFFSET = 15;
-    /* Hysteresis: crosshair must move this far past the flip threshold before reverting. */
-    static const int32_t HYSTERESIS = 5;
-    /* Fallback label height before LVGL has performed the first layout pass. */
-    static const int32_t LBL_H_FALLBACK = 15;
-
-    int32_t ImageW = static_cast<int32_t>(UI_IMAGE_CANVAS_WIDTH);
-    int32_t HalfContainerW = CROSSHAIR_CONTAINER_W / 2;
-
-    /* Give the label a fixed pixel width equal to the container width once.
-     * With a fixed-width label centred at dx=0, the label spans [0, CROSSHAIR_CONTAINER_W]
-     * within the container — it is always inside the container's clip region and can never
-     * be partially cut off.  All horizontal "positioning" is handled by text-align alone. */
-    if (Initialized == false) {
-        lv_obj_set_width(ui_Label_Main_Thermal_Pixel_Temperature, CROSSHAIR_CONTAINER_W);
-        Initialized = true;
-    }
-
-    int32_t LabelH = lv_obj_get_height(ui_Label_Main_Thermal_Pixel_Temperature);
-
-    if (LabelH <= 0) {
-        LabelH = LBL_H_FALLBACK;
-    }
-
-    /* Vertical flip (above <-> below crosshair). */
-    TopWhenAbove = CY - LABEL_Y_OFFSET - LabelH / 2;
-
-    if (FlippedY == false) {
-        if (TopWhenAbove < 0) {
-            FlippedY = true;
-        }
-    } else {
-        if (TopWhenAbove >= HYSTERESIS) {
-            FlippedY = false;
-        }
-    }
-
-    dy = FlippedY ? LABEL_Y_OFFSET : -LABEL_Y_OFFSET;
-
-    /* Horizontal flip via text-align.
-     * Flip threshold = HalfContainerW: when the container's left/right edge crosses the
-     * image boundary the text would otherwise be invisible — anchoring it to the near
-     * (visible) side of the label keeps all digits on screen.
-     *
-     * Near left edge  (CX < HalfContainerW):
-     *   Container left goes outside the image.  Anchor text to the right of the label
-     *   (= the portion still inside the image) with LV_TEXT_ALIGN_RIGHT.
-     *
-     * Near right edge (CX > ImageW - HalfContainerW):
-     *   Container right goes outside the image.  Anchor text to the left with
-     *   LV_TEXT_ALIGN_LEFT. */
-    if (FlippedLeft == false) {
-        if (CX < HalfContainerW) {
-            FlippedLeft = true;
-        }
-    } else {
-        if (CX >= HalfContainerW + HYSTERESIS) {
-            FlippedLeft = false;
-        }
-    }
-
-    if (FlippedRight == false) {
-        if (CX > ImageW - HalfContainerW) {
-            FlippedRight = true;
-        }
-    } else {
-        if (CX <= ImageW - HalfContainerW - HYSTERESIS) {
-            FlippedRight = false;
-        }
-    }
-
-    if (FlippedLeft == true) {
-        TextAlign = LV_TEXT_ALIGN_RIGHT;
-    } else if (FlippedRight == true) {
-        TextAlign = LV_TEXT_ALIGN_LEFT;
-    } else {
-        TextAlign = LV_TEXT_ALIGN_CENTER;
-    }
-
-    lv_obj_set_style_text_align(ui_Label_Main_Thermal_Pixel_Temperature, TextAlign, LV_PART_MAIN);
-    lv_obj_set_x(ui_Label_Main_Thermal_Pixel_Temperature, 0);
-    lv_obj_set_y(ui_Label_Main_Thermal_Pixel_Temperature, dy);
 }
 
 /** @brief              Scale an RGB565 source frame to a smaller RGB565 destination frame using
@@ -768,6 +654,54 @@ static void Touch_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Data
     }
 }
 
+/** @brief              Update the network image buffer with the latest camera frame.
+ *  @param p_Buffer     Pointer to the source image buffer (RGB565 format)
+ *  @param ImageWidth   Width of the image
+ *  @param ImageHeight  Height of the image
+ */
+static void GUI_UpdateNetworkImage(const uint8_t* p_Buffer, uint32_t ImageWidth, int32_t ImageHeight)
+{
+    /* Update NetworkRGBBuffer with the camera frame so that HTTP capture and
+     * WebSocket clients always receive the same image that is shown on the LCD.
+     * UI_Scale_Camera applies the same 180° pre-rotation as the thermal path,
+     * so the same reverse-order read is used to undo it. */
+    if (xSemaphoreTake(_GUITaskState.NetworkFrame.Mutex, 0) == pdTRUE) {
+        uint8_t *Rgb888Dst = _GUITaskState.NetworkRGBBuffer;
+        uint32_t Total = ImageWidth * ImageHeight;
+
+        /* Reset watchdog before RGB conversion */
+        esp_task_wdt_reset();
+
+        for (uint32_t i = 0; i < Total; i++) {
+            uint32_t SrcIdx = Total - 1 - i;
+            uint16_t Rgb565 = p_Buffer[(SrcIdx * 2) + 0] | (p_Buffer[(SrcIdx * 2) + 1] << 8);
+
+            uint8_t R = (Rgb565 >> 8) & 0xF8;
+            uint8_t G = (Rgb565 >> 3) & 0xFC;
+            uint8_t B = (Rgb565 << 3) & 0xF8;
+
+            Rgb888Dst[(i * 3) + 0] = R;
+            Rgb888Dst[(i * 3) + 1] = G;
+            Rgb888Dst[(i * 3) + 2] = B;
+        }
+
+        _GUITaskState.NetworkFrame.Buffer = _GUITaskState.NetworkRGBBuffer;
+        _GUITaskState.NetworkFrame.Width = static_cast<uint16_t>(ImageWidth);
+        _GUITaskState.NetworkFrame.Height = static_cast<uint16_t>(ImageHeight);
+        _GUITaskState.NetworkFrame.Timestamp = esp_timer_get_time() / 1000;
+        _GUITaskState.NetworkFrame.RawBuffer = NULL;
+
+        xSemaphoreGive(_GUITaskState.NetworkFrame.Mutex);
+
+        /* Reset watchdog after RGB conversion */
+        esp_task_wdt_reset();
+
+        if (WebSocket_HasClients()) {
+            Server_NotifyClients();
+        }
+    }
+}
+
 /** @brief              GUI Task main function.
  *  @param p_Parameters Task parameters
  */
@@ -843,24 +777,7 @@ void Task_GUI(void *p_Parameters)
 
     GUI_Update_Info();
 
-    /* Show the crosshair at boot, centred on the canvas.
-     * CrosshairX/Y store the centre pixel of the crosshair marker (not the container's
-     * top-left corner).  lv_obj_set_pos() is called with (CX - W/2, CY - H/2) so that
-     * the marker sits exactly at the stored position; negative values are valid and allow
-     * the crosshair to reach every edge of the image.
-     * LV_ALIGN_TOP_LEFT is required so that LVGL treats the position as an absolute offset
-     * from the parent's top-left origin; without it negative offsets are clamped to 0.
-     */
-    _GUITaskState.ShowCrosshair = true;
-    _GUITaskState.CrosshairX = static_cast<int32_t>(UI_IMAGE_CANVAS_WIDTH)  / 2;
-    _GUITaskState.CrosshairY = static_cast<int32_t>(UI_IMAGE_CANVAS_HEIGHT) / 2;
-    lv_obj_set_align(ui_Container_Main_Thermal_Crosshair, LV_ALIGN_TOP_LEFT);
-    lv_obj_set_pos(ui_Container_Main_Thermal_Crosshair,
-                   _GUITaskState.CrosshairX - CROSSHAIR_CONTAINER_W / 2,
-                   _GUITaskState.CrosshairY - CROSSHAIR_CONTAINER_H / 2);
-
-    lv_obj_remove_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
-    GUI_UpdateTempLabelPosition(_GUITaskState.CrosshairX, _GUITaskState.CrosshairY);
+    GUI_Crosshair_Init();
 
     /* Initialize SD card icon based on current storage state. */
     if (MemoryManager_HasSDCard()) {
@@ -915,8 +832,11 @@ void Task_GUI(void *p_Parameters)
                              };
 
     /* Cache label dark/light state: avoids calling lv_obj_set_style_text_color() (and its
-     * internal lv_obj_invalidate()) every frame when the luminance threshold has not changed. */
-    bool SceneLabelIsDark[5] = { false, false, false, false, false };
+     * internal lv_obj_invalidate()) every frame when the luminance threshold has not changed.
+     * Initialised to true (= bright background assumed, default text colour black) so that the
+     * very first dark-background frame triggers an update and sets the colour to white
+     * immediately, without waiting for a luminance transition. */
+    bool SceneLabelIsDark[5] = { true, true, true, true, true };
 
     /* Cache temperature scale label strings: avoids calling lv_label_set_text() (and its
      * internal lv_obj_invalidate()) when the formatted value is identical to the previous frame. */
@@ -925,15 +845,14 @@ void Task_GUI(void *p_Parameters)
 
     while (_GUITaskState.IsRunning) {
         EventBits_t EventBits;
-        App_Lepton_Frame_t LeptonFrame;
 
         esp_task_wdt_reset();
 
-        /* Check for new thermal frame. */
-        if (xQueueReceive(App_Context->Lepton_FrameQueue, &LeptonFrame, 0) == pdTRUE) {
-            if (_GUITaskState.IsUVCStreaming || _GUITaskState.ShowCameraView) {
-                ESP_LOGD(TAG, "UVC streaming or camera view active - skipping GUI thermal frame processing");
-            } else {
+        /* Process new thermal frame. */
+        if (_GUITaskState.ShowCameraView == false) {
+            App_Lepton_Frame_t LeptonFrame;
+
+            if (xQueueReceive(App_Context->Lepton_FrameQueue, &LeptonFrame, 0) == pdTRUE) {
                 uint8_t *Dst;
                 uint32_t ImageWidth;
                 uint32_t ImageHeight;
@@ -946,31 +865,22 @@ void Task_GUI(void *p_Parameters)
                 esp_task_wdt_reset();
 
                 /* Scale from source to destination using bilinear interpolation. */
-                Dst = _GUITaskState.ThermalCanvasBuffer;
+                Dst = _GUITaskState.ImageCanvasBuffer;
                 ImageWidth = lv_obj_get_width(ui_Image_Main_Image);
                 ImageHeight = lv_obj_get_height(ui_Image_Main_Image);
-
-                /* Skip if image widget not properly initialized yet. */
-                if ((ImageWidth == 0) || (ImageHeight == 0)) {
-                    ESP_LOGW(TAG, "Image widget not ready yet (size: %ux%u), skipping frame", ImageWidth, ImageHeight);
-
-                    continue;
-                }
 
                 /* Update crosshair overlay label positions every frame.
                  * ui_Label_Main_Thermal_Crosshair and ui_Label_Main_Thermal_PixelTemperature are
                  * children of ui_Container_Main_Thermal_Crosshair (100×50), not direct children
                  * of ui_Image_Main_Thermal. The container position changes with every joystick move,
                  * so the image-relative coordinates must be recomputed here. */
-                {
-                    int32_t ContainerX = lv_obj_get_x(ui_Container_Main_Thermal_Crosshair);
-                    int32_t ContainerY = lv_obj_get_y(ui_Container_Main_Thermal_Crosshair);
+                int32_t ContainerX = lv_obj_get_x(ui_Container_Main_Thermal_Crosshair);
+                int32_t ContainerY = lv_obj_get_y(ui_Container_Main_Thermal_Crosshair);
 
-                    SceneLabelX0[3] = ContainerX + lv_obj_get_x(ui_Label_Main_Thermal_Crosshair);
-                    SceneLabelY0[3] = ContainerY + lv_obj_get_y(ui_Label_Main_Thermal_Crosshair);
-                    SceneLabelX0[4] = ContainerX + lv_obj_get_x(ui_Label_Main_Thermal_Pixel_Temperature);
-                    SceneLabelY0[4] = ContainerY + lv_obj_get_y(ui_Label_Main_Thermal_Pixel_Temperature);
-                }
+                SceneLabelX0[3] = ContainerX + lv_obj_get_x(ui_Label_Main_Thermal_Crosshair);
+                SceneLabelY0[3] = ContainerY + lv_obj_get_y(ui_Label_Main_Thermal_Crosshair);
+                SceneLabelX0[4] = ContainerX + lv_obj_get_x(ui_Label_Main_Thermal_Pixel_Temperature);
+                SceneLabelY0[4] = ContainerY + lv_obj_get_y(ui_Label_Main_Thermal_Pixel_Temperature);
 
                 for (uint32_t x = 0; x < ImageWidth; x++) {
                     uint32_t SrcXFixed = x * ((LeptonFrame.Width - 1) << 16) / ImageWidth;
@@ -1121,121 +1031,29 @@ void Task_GUI(void *p_Parameters)
                 ESP_LOGD(TAG, "Updated thermal image display (src: %ux%u -> dst: %ux%u)", LeptonFrame.Width, LeptonFrame.Height,
                          ImageWidth, ImageHeight);
 
-                /* Update network frame for both WebSocket streaming and HTTP snapshot requests.
-                 * The RGB565→RGB888 conversion runs unconditionally so that Width/Height are
-                 * always valid when the HTTP image endpoint is called, even without active
-                 * WebSocket clients. */
-                if (xSemaphoreTake(_GUITaskState.NetworkFrame.Mutex, 0) == pdTRUE) {
-                    /* Convert scaled RGB565 buffer to RGB888 for network transmission.
-                     * The canvas buffer (Dst) has a 180° pre-rotation applied so that LVGL can
-                     * display it upright with lv_image_set_rotation(1800). Reading the source
-                     * pixels in reverse order (last pixel first) undoes that rotation so that
-                     * network clients (HTTP snapshot, WebSocket) receive a correctly oriented image. */
-                    uint8_t *Rgb888Dst = _GUITaskState.NetworkRGBBuffer;
-                    uint32_t Total = ImageWidth * ImageHeight;
-
-                    /* Reset watchdog before RGB conversion */
-                    esp_task_wdt_reset();
-
-                    for (uint32_t i = 0; i < Total; i++) {
-                        /* Read source pixel in reverse order to undo 180° canvas pre-rotation */
-                        uint32_t SrcIdx = Total - 1 - i;
-                        uint16_t Rgb565 = Dst[(SrcIdx * 2) + 0] | (Dst[(SrcIdx * 2) + 1] << 8);
-
-                        /* Convert RGB565 to RGB888 */
-                        uint8_t R = (Rgb565 >> 8) & 0xF8;
-                        uint8_t G = (Rgb565 >> 3) & 0xFC;
-                        uint8_t B = (Rgb565 << 3) & 0xF8;
-
-                        /* Store as RGB888 */
-                        Rgb888Dst[(i * 3) + 0] = R;
-                        Rgb888Dst[(i * 3) + 1] = G;
-                        Rgb888Dst[(i * 3) + 2] = B;
-                    }
-
-                    _GUITaskState.NetworkFrame.Buffer = _GUITaskState.NetworkRGBBuffer;
-                    _GUITaskState.NetworkFrame.Width = static_cast<uint16_t>(ImageWidth);
-                    _GUITaskState.NetworkFrame.Height = static_cast<uint16_t>(ImageHeight);
-                    _GUITaskState.NetworkFrame.Timestamp = esp_timer_get_time() / 1000;
-
-                    /* Copy raw 14-bit data so the HTTP encoder can re-apply any palette.
-                     * LeptonFrame.Min/Max now carry the smoothed normalization range used by
-                     * Lepton_Raw14ToRGB, so the encoder will produce the same contrast as the
-                     * on-device display. */
-                    if (LeptonFrame.RawBuffer != NULL) {
-                        memcpy(_GUITaskState.NetworkRawBuffer, LeptonFrame.RawBuffer,
-                               LeptonFrame.Width * LeptonFrame.Height * sizeof(uint16_t));
-                        _GUITaskState.NetworkFrame.RawBuffer = _GUITaskState.NetworkRawBuffer;
-                        _GUITaskState.NetworkFrame.RawWidth = static_cast<uint16_t>(LeptonFrame.Width);
-                        _GUITaskState.NetworkFrame.RawHeight = static_cast<uint16_t>(LeptonFrame.Height);
-                        _GUITaskState.NetworkFrame.RawMin = static_cast<uint16_t>(LeptonFrame.Min);
-                        _GUITaskState.NetworkFrame.RawMax = static_cast<uint16_t>(LeptonFrame.Max);
-                    } else {
-                        /* RGB888 mode: no raw buffer available; clear so the encoder falls back
-                         * to the already-rendered RGB888 buffer and does not use stale raw data. */
-                        _GUITaskState.NetworkFrame.RawBuffer = NULL;
-                    }
-
-                    xSemaphoreGive(_GUITaskState.NetworkFrame.Mutex);
-
-                    /* Reset watchdog after RGB conversion */
-                    esp_task_wdt_reset();
-
-                    if (WebSocket_HasClients()) {
-                        Server_NotifyClients();
-                    }
-                }
+                GUI_UpdateNetworkImage(_GUITaskState.ImageCanvasBuffer, ImageWidth, ImageHeight);
             }
         }
 
-        /* Check for new visible-light camera frame. */
-        if (App_Context->Camera_FrameQueue != NULL) {
-            App_Camera_Frame_t CameraFrame;
+        /* Process new visible-light camera frame. */
+        if (_GUITaskState.ShowCameraView) {
+            if (App_Context->Camera_FrameQueue != NULL) {
+                App_Camera_Frame_t CameraFrame;
 
-            if (xQueueReceive(App_Context->Camera_FrameQueue, &CameraFrame, 0) == pdTRUE) {
-                if (_GUITaskState.ShowCameraView) {
+                if (xQueueReceive(App_Context->Camera_FrameQueue, &CameraFrame, 0) == pdTRUE) {
                     /* Scale camera frame down and render in the thermal canvas */
                     UI_Scale_Camera(CameraFrame.Buffer, CameraFrame.Width, CameraFrame.Height,
-                                    _GUITaskState.ThermalCanvasBuffer, UI_IMAGE_CANVAS_WIDTH, UI_IMAGE_CANVAS_HEIGHT);
+                                    _GUITaskState.ImageCanvasBuffer, GUI_IMAGE_CANVAS_WIDTH, GUI_IMAGE_CANVAS_HEIGHT);
                     lv_obj_invalidate(ui_Image_Main_Image);
 
-                    /* Update NetworkRGBBuffer with the camera frame so that HTTP capture and
-                     * WebSocket clients always receive the same image that is shown on the LCD.
-                     * UI_Scale_Camera applies the same 180° pre-rotation as the thermal path,
-                     * so the same reverse-order read is used to undo it. */
-                    if (xSemaphoreTake(_GUITaskState.NetworkFrame.Mutex, 0) == pdTRUE) {
-                        uint8_t *Rgb888Dst = _GUITaskState.NetworkRGBBuffer;
-                        uint32_t Total = UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT;
-
-                        for (uint32_t i = 0; i < Total; i++) {
-                            uint32_t SrcIdx = Total - 1 - i;
-                            uint16_t Rgb565 = _GUITaskState.ThermalCanvasBuffer[(SrcIdx * 2) + 0] |
-                                              (_GUITaskState.ThermalCanvasBuffer[(SrcIdx * 2) + 1] << 8);
-
-                            uint8_t R = (Rgb565 >> 8) & 0xF8;
-                            uint8_t G = (Rgb565 >> 3) & 0xFC;
-                            uint8_t B = (Rgb565 << 3) & 0xF8;
-
-                            Rgb888Dst[(i * 3) + 0] = R;
-                            Rgb888Dst[(i * 3) + 1] = G;
-                            Rgb888Dst[(i * 3) + 2] = B;
-                        }
-
-                        _GUITaskState.NetworkFrame.Buffer = _GUITaskState.NetworkRGBBuffer;
-                        _GUITaskState.NetworkFrame.Width = UI_IMAGE_CANVAS_WIDTH;
-                        _GUITaskState.NetworkFrame.Height = UI_IMAGE_CANVAS_HEIGHT;
-                        _GUITaskState.NetworkFrame.Timestamp = esp_timer_get_time() / 1000;
-                        _GUITaskState.NetworkFrame.RawBuffer = NULL;
-
-                        xSemaphoreGive(_GUITaskState.NetworkFrame.Mutex);
-                    }
+                    GUI_UpdateNetworkImage(_GUITaskState.ImageCanvasBuffer, GUI_IMAGE_CANVAS_WIDTH, GUI_IMAGE_CANVAS_HEIGHT);
                 }
             }
         }
 
         /* Save the currently displayed frame (thermal or camera) if requested.
          * A dedicated snapshot copy (SaveCanvasBuffer) is used to prevent a data race
-         * between Task_GUI overwriting ThermalCanvasBuffer and Task_ImageSave reading it.
+         * between Task_GUI overwriting ImageCanvasBuffer and Task_ImageSave reading it.
          */
         if (_GUITaskState.SaveNextFrameRequested) {
             App_Lepton_Frame_t SaveFrame;
@@ -1243,12 +1061,12 @@ void Task_GUI(void *p_Parameters)
             _GUITaskState.SaveNextFrameRequested = false;
 
             /* Take a snapshot of the current canvas before handing the pointer to Task_ImageSave. */
-            memcpy(_GUITaskState.SaveCanvasBuffer, _GUITaskState.ThermalCanvasBuffer,
-                   UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2);
+            memcpy(_GUITaskState.SaveCanvasBuffer, _GUITaskState.ImageCanvasBuffer,
+                   GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT * 2);
 
             SaveFrame.Buffer = _GUITaskState.SaveCanvasBuffer;
-            SaveFrame.Width = UI_IMAGE_CANVAS_WIDTH;
-            SaveFrame.Height = UI_IMAGE_CANVAS_HEIGHT;
+            SaveFrame.Width = GUI_IMAGE_CANVAS_WIDTH;
+            SaveFrame.Height = GUI_IMAGE_CANVAS_HEIGHT;
 
             /* RGB565 = 2 bytes per pixel */
             SaveFrame.Channels = 2;
@@ -1260,9 +1078,6 @@ void Task_GUI(void *p_Parameters)
 
                 esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_IMAGE_SAVE_FAILED, NULL, 0, pdMS_TO_TICKS(100));
             }
-        }
-
-        if (_GUITaskState.ROIConfig.IsActive) {
         }
 
         EventBits = xEventGroupGetBits(_GUITaskState.EventGroup);
@@ -1464,7 +1279,7 @@ void Task_GUI(void *p_Parameters)
         if (EventBits & GUI_TASK_UVC_STREAMING_STATE_CHANGED) {
             if (_GUITaskState.IsUVCStreaming) {
                 /* Clear thermal canvas to black */
-                memset(_GUITaskState.ThermalCanvasBuffer, 0x00, UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2);
+                memset(_GUITaskState.ImageCanvasBuffer, 0x00, GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT * 2);
                 lv_obj_invalidate(ui_Image_Main_Image);
 
                 /* Show UVC overlay */
@@ -1490,12 +1305,7 @@ void Task_GUI(void *p_Parameters)
                 lv_obj_add_flag(_GUITaskState.UVCOverlayLabel, LV_OBJ_FLAG_HIDDEN);
 
                 /* Restore ROI rectangles */
-                if (_GUITaskState.ShowROI) {
-                    lv_obj_remove_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
-                    lv_obj_remove_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
-                    lv_obj_remove_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
-                    lv_obj_remove_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
-                }
+                GUI_ROI_Show();
 
                 /* Restore temperature labels */
                 lv_obj_remove_flag(ui_Label_Main_Thermal_Pixel_Temperature, LV_OBJ_FLAG_HIDDEN);
@@ -1516,7 +1326,7 @@ void Task_GUI(void *p_Parameters)
             if (_GUITaskState.ShowCameraView) {
                 bool FlashEnabled;
 
-                memset(_GUITaskState.ThermalCanvasBuffer, 0x00, UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2);
+                memset(_GUITaskState.ImageCanvasBuffer, 0x00, GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT * 2);
 
                 /* Hide temperature overlay and scale labels */
                 lv_obj_add_flag(ui_Label_Main_Thermal_Pixel_Temperature, LV_OBJ_FLAG_HIDDEN);
@@ -1553,16 +1363,8 @@ void Task_GUI(void *p_Parameters)
 
                 lv_label_set_text(ui_Label_Main_Button2, "\uE595");
 
-                if (_GUITaskState.ShowCrosshair) {
-                    lv_obj_remove_flag(ui_Container_Main_Thermal_Crosshair, LV_OBJ_FLAG_HIDDEN);
-                }
-
-                if (_GUITaskState.ShowROI) {
-                    lv_obj_remove_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
-                    lv_obj_remove_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
-                    lv_obj_remove_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
-                    lv_obj_remove_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
-                }
+                GUI_Crosshair_Show();
+                GUI_ROI_Show();
             }
 
             xEventGroupClearBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_VIEW_CHANGED);
@@ -1658,19 +1460,19 @@ esp_err_t GUI_Task_Init(void)
 
     ui_init();
 
-    _GUITaskState.ThermalCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(UI_IMAGE_CANVAS_WIDTH *
-                                                                                UI_IMAGE_CANVAS_HEIGHT * 2, MALLOC_CAP_SPIRAM));
-    _GUITaskState.GradientCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(UI_GRADIENT_CANVAS_WIDTH *
-                                                                                 UI_IMAGE_CANVAS_HEIGHT * 2, MALLOC_CAP_SPIRAM));
-    _GUITaskState.NetworkRGBBuffer = static_cast<uint8_t *>(heap_caps_malloc(UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT
+    _GUITaskState.ImageCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(GUI_IMAGE_CANVAS_WIDTH *
+                                                                                GUI_IMAGE_CANVAS_HEIGHT * 2, MALLOC_CAP_SPIRAM));
+    _GUITaskState.GradientCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(GUI_GRADIENT_CANVAS_WIDTH *
+                                                                                 GUI_IMAGE_CANVAS_HEIGHT * 2, MALLOC_CAP_SPIRAM));
+    _GUITaskState.NetworkRGBBuffer = static_cast<uint8_t *>(heap_caps_malloc(GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT
                                                                              * 3, MALLOC_CAP_SPIRAM));
     /* Raw 14-bit network buffer: 160 × 120 × 2 = 38,400 bytes (PSRAM, Lepton native resolution) */
     _GUITaskState.NetworkRawBuffer = static_cast<uint16_t *>(heap_caps_malloc(160 * 120 * sizeof(uint16_t),
                                                                               MALLOC_CAP_SPIRAM));
-    _GUITaskState.SaveCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT
+    _GUITaskState.SaveCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT
                                                                              * 2, MALLOC_CAP_SPIRAM));
 
-    if (_GUITaskState.ThermalCanvasBuffer == NULL) {
+    if (_GUITaskState.ImageCanvasBuffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate thermal canvas buffer!");
         APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
 
@@ -1681,7 +1483,7 @@ esp_err_t GUI_Task_Init(void)
         ESP_LOGE(TAG, "Failed to allocate gradient canvas buffer!");
         APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
 
-        heap_caps_free(_GUITaskState.ThermalCanvasBuffer);
+        heap_caps_free(_GUITaskState.ImageCanvasBuffer);
 
         return ESP_ERR_NO_MEM;
     }
@@ -1690,7 +1492,7 @@ esp_err_t GUI_Task_Init(void)
         ESP_LOGE(TAG, "Failed to allocate network RGB buffer!");
         APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
 
-        heap_caps_free(_GUITaskState.ThermalCanvasBuffer);
+        heap_caps_free(_GUITaskState.ImageCanvasBuffer);
         heap_caps_free(_GUITaskState.GradientCanvasBuffer);
 
         return ESP_ERR_NO_MEM;
@@ -1700,7 +1502,7 @@ esp_err_t GUI_Task_Init(void)
         ESP_LOGE(TAG, "Failed to allocate network raw buffer!");
         APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
 
-        heap_caps_free(_GUITaskState.ThermalCanvasBuffer);
+        heap_caps_free(_GUITaskState.ImageCanvasBuffer);
         heap_caps_free(_GUITaskState.GradientCanvasBuffer);
         heap_caps_free(_GUITaskState.NetworkRGBBuffer);
 
@@ -1711,7 +1513,7 @@ esp_err_t GUI_Task_Init(void)
         ESP_LOGE(TAG, "Failed to allocate save canvas buffer!");
         APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
 
-        heap_caps_free(_GUITaskState.ThermalCanvasBuffer);
+        heap_caps_free(_GUITaskState.ImageCanvasBuffer);
         heap_caps_free(_GUITaskState.GradientCanvasBuffer);
         heap_caps_free(_GUITaskState.NetworkRGBBuffer);
         heap_caps_free(_GUITaskState.NetworkRawBuffer);
@@ -1724,7 +1526,7 @@ esp_err_t GUI_Task_Init(void)
         ESP_LOGE(TAG, "Failed to create image save queue!");
         APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
 
-        heap_caps_free(_GUITaskState.ThermalCanvasBuffer);
+        heap_caps_free(_GUITaskState.ImageCanvasBuffer);
         heap_caps_free(_GUITaskState.GradientCanvasBuffer);
         heap_caps_free(_GUITaskState.NetworkRGBBuffer);
         heap_caps_free(_GUITaskState.NetworkRawBuffer);
@@ -1741,13 +1543,13 @@ esp_err_t GUI_Task_Init(void)
 
         vQueueDelete(_GUITaskState.ImageSaveQueue);
 
-        heap_caps_free(_GUITaskState.ThermalCanvasBuffer);
+        heap_caps_free(_GUITaskState.ImageCanvasBuffer);
         heap_caps_free(_GUITaskState.GradientCanvasBuffer);
         heap_caps_free(_GUITaskState.NetworkRGBBuffer);
         heap_caps_free(_GUITaskState.SaveCanvasBuffer);
 
         _GUITaskState.ImageSaveQueue = NULL;
-        _GUITaskState.ThermalCanvasBuffer = NULL;
+        _GUITaskState.ImageCanvasBuffer = NULL;
         _GUITaskState.GradientCanvasBuffer = NULL;
         _GUITaskState.NetworkRGBBuffer = NULL;
         _GUITaskState.SaveCanvasBuffer = NULL;
@@ -1756,21 +1558,21 @@ esp_err_t GUI_Task_Init(void)
     }
 
     /* Initialize buffers with black pixels (RGB565 = 0x0000) */
-    memset(_GUITaskState.ThermalCanvasBuffer, 0x00, UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2);
-    memset(_GUITaskState.GradientCanvasBuffer, 0x00, UI_GRADIENT_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2);
+    memset(_GUITaskState.ImageCanvasBuffer, 0x00, GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT * 2);
+    memset(_GUITaskState.GradientCanvasBuffer, 0x00, GUI_GRADIENT_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT * 2);
 
     /* Now configure the image descriptors with allocated buffers */
     _GUITaskState.ThermalImageDescriptor.header.cf = LV_COLOR_FORMAT_RGB565;
-    _GUITaskState.ThermalImageDescriptor.header.w = UI_IMAGE_CANVAS_WIDTH;
-    _GUITaskState.ThermalImageDescriptor.header.h = UI_IMAGE_CANVAS_HEIGHT;
-    _GUITaskState.ThermalImageDescriptor.data = _GUITaskState.ThermalCanvasBuffer;
-    _GUITaskState.ThermalImageDescriptor.data_size = UI_IMAGE_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2;
+    _GUITaskState.ThermalImageDescriptor.header.w = GUI_IMAGE_CANVAS_WIDTH;
+    _GUITaskState.ThermalImageDescriptor.header.h = GUI_IMAGE_CANVAS_HEIGHT;
+    _GUITaskState.ThermalImageDescriptor.data = _GUITaskState.ImageCanvasBuffer;
+    _GUITaskState.ThermalImageDescriptor.data_size = GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT * 2;
 
     _GUITaskState.GradientImageDescriptor.header.cf = LV_COLOR_FORMAT_RGB565;
-    _GUITaskState.GradientImageDescriptor.header.w = UI_GRADIENT_CANVAS_WIDTH;
-    _GUITaskState.GradientImageDescriptor.header.h = UI_IMAGE_CANVAS_HEIGHT;
+    _GUITaskState.GradientImageDescriptor.header.w = GUI_GRADIENT_CANVAS_WIDTH;
+    _GUITaskState.GradientImageDescriptor.header.h = GUI_IMAGE_CANVAS_HEIGHT;
     _GUITaskState.GradientImageDescriptor.data = _GUITaskState.GradientCanvasBuffer;
-    _GUITaskState.GradientImageDescriptor.data_size = UI_GRADIENT_CANVAS_WIDTH * UI_IMAGE_CANVAS_HEIGHT * 2;
+    _GUITaskState.GradientImageDescriptor.data_size = GUI_GRADIENT_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT * 2;
 
     Settings_Lepton_t LeptonSettings;
     SettingsManager_GetLepton(&LeptonSettings);
@@ -1794,7 +1596,7 @@ esp_err_t GUI_Task_Init(void)
         ESP_LOGE(TAG, "Failed to create NetworkFrame mutex!");
         APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
 
-        heap_caps_free(_GUITaskState.ThermalCanvasBuffer);
+        heap_caps_free(_GUITaskState.ImageCanvasBuffer);
         heap_caps_free(_GUITaskState.GradientCanvasBuffer);
         heap_caps_free(_GUITaskState.NetworkRGBBuffer);
         heap_caps_free(_GUITaskState.SaveCanvasBuffer);
@@ -1808,7 +1610,7 @@ esp_err_t GUI_Task_Init(void)
         APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
 
         vSemaphoreDelete(_GUITaskState.NetworkFrame.Mutex);
-        heap_caps_free(_GUITaskState.ThermalCanvasBuffer);
+        heap_caps_free(_GUITaskState.ImageCanvasBuffer);
         heap_caps_free(_GUITaskState.GradientCanvasBuffer);
         heap_caps_free(_GUITaskState.NetworkRGBBuffer);
         heap_caps_free(_GUITaskState.SaveCanvasBuffer);
@@ -1832,10 +1634,12 @@ esp_err_t GUI_Task_Init(void)
 
     _GUITaskState.SaveNextFrameRequested = false;
     _GUITaskState.ShowCameraView = false;
-    _GUITaskState.ShowCrosshair = false;
-    _GUITaskState.ShowROI = false;
     _GUITaskState.IsInitialized = true;
 
+    GUI_ROI_Hide();
+
+    GUI_Crosshair_Hide();
+    
     return ESP_OK;
 }
 

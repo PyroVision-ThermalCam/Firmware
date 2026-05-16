@@ -148,10 +148,16 @@ void Task_ImageSave(void *p_Param)
         /* Write PNG header */
         png_write_info(png_ptr, info_ptr);
 
-        /* Write image data row by row */
+        /* Write image data row by row.
+         * The canvas buffer has a 180° pre-rotation applied so that LVGL can display it
+         * upright via lv_image_set_rotation(1800). Reading in reverse order (bottom-to-top,
+         * right-to-left) undoes that rotation so the saved PNG is correctly oriented. */
         for (uint32_t y = 0; y < Frame.Height; y++) {
             for (uint32_t x = 0; x < Frame.Width; x++) {
-                uint32_t Idx = (y * Frame.Width + x) * 2;  /* RGB565 = 2 bytes per pixel */
+                /* Undo 180° canvas pre-rotation: read from the opposite corner */
+                uint32_t SrcY = Frame.Height - 1 - y;
+                uint32_t SrcX = Frame.Width - 1 - x;
+                uint32_t Idx = (SrcY * Frame.Width + SrcX) * 2;  /* RGB565 = 2 bytes per pixel */
                 uint16_t Rgb565 = Frame.Buffer[Idx] | (Frame.Buffer[Idx + 1] << 8);
 
                 /* Convert RGB565 to RGB888 */

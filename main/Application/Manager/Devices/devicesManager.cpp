@@ -701,7 +701,7 @@ esp_err_t DevicesManager_LeptonReset(bool Reset)
 
     DevicesManager_AcquireI2CBus(portMAX_DELAY);
     Error = PCAL6416AHF_WritePin(&_DevicesManagerState.ExpanderMainboard,
-                                 PCAL6416_PORT_1, 5, (Reset == false));
+                                 PCAL6416_PORT_1, 5, Reset == false /* active-low reset */);
     DevicesManager_ReleaseI2CBus();
 
     return Error;
@@ -716,7 +716,7 @@ esp_err_t DevicesManager_SetLeptonPower(bool Enable)
     }
 
     DevicesManager_AcquireI2CBus(portMAX_DELAY);
-    Error = PCAL6416AHF_WritePin(&_DevicesManagerState.ExpanderMainboard, PCAL6416_PORT_0, 3, Enable);
+    Error = PCAL6416AHF_WritePin(&_DevicesManagerState.ExpanderMainboard, PCAL6416_PORT_0, 3, Enable == false /* active-high power */);
     DevicesManager_ReleaseI2CBus();
 
     return Error;
@@ -805,7 +805,7 @@ esp_err_t DevicesManager_HandleDisplayboardExpanderInterrupt(DevicesManager_Inpu
 
     /* INT# is active-low open-drain: level high means no pin state change */
     if (gpio_get_level(static_cast<gpio_num_t>(CONFIG_DISPLAYBOARD_EXPANDER_INT_GPIO)) != 0) {
-        return ESP_ERR_NOT_FOUND;
+        return ESP_ERR_INVALID_STATE;
     }
 
     /* Reading INT_STATUS0/1 clears all pending bits and releases INT#.

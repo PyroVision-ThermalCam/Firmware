@@ -62,8 +62,8 @@ void SettingsManager_InitDefaultLeptonROIs(Settings_t *p_Settings)
     p_Settings->Lepton.ROI[ROI_TYPE_VIDEO_FOCUS].Type = ROI_TYPE_VIDEO_FOCUS;
     p_Settings->Lepton.ROI[ROI_TYPE_VIDEO_FOCUS].x = 1;
     p_Settings->Lepton.ROI[ROI_TYPE_VIDEO_FOCUS].y = 1;
-    p_Settings->Lepton.ROI[ROI_TYPE_VIDEO_FOCUS].w = 157;
-    p_Settings->Lepton.ROI[ROI_TYPE_VIDEO_FOCUS].h = 157;
+    p_Settings->Lepton.ROI[ROI_TYPE_VIDEO_FOCUS].w = 158;
+    p_Settings->Lepton.ROI[ROI_TYPE_VIDEO_FOCUS].h = 118;
 }
 
 void SettingsManager_InitDefaultLeptonEmissivityPresets(Settings_t *p_Settings)

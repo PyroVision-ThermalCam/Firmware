@@ -35,15 +35,31 @@
 #include "ui_settings.h"
 #include "ui_settings_events.h"
 
-Slider_Widgets_t brightness_widgets;
-Slider_Widgets_t emissivity_widgets;
-Slider_Widgets_t jpeg_quality_widgets;
-
 static lv_obj_t *memory_storage_used_label = NULL;
 static lv_obj_t *memory_storage_free_label = NULL;
 static lv_obj_t *memory_coredump_used_label = NULL;
 static lv_obj_t *memory_coredump_total_label = NULL;
 static lv_obj_t *root_page;
+
+static const char *ui_settings_timezone[] = {
+    "UTC0",
+    "GMT0BST,M3.5.0/1,M10.5.0",
+    "CET-1CEST,M3.5.0,M10.5.0/3",
+    "EET-2EEST,M3.5.0/3,M10.5.0/4",
+    "MSK-3",
+    "EST5EDT,M3.2.0,M11.1.0",
+    "CST6CDT,M3.2.0,M11.1.0",
+    "MST7MDT,M3.2.0,M11.1.0",
+    "PST8PDT,M3.2.0,M11.1.0",
+    "JST-9",
+    "CST-8",
+    "IST-5:30",
+    "AEST-10AEDT,M10.1.0,M4.1.0/3",
+};
+
+Slider_Widgets_t brightness_widgets;
+Slider_Widgets_t emissivity_widgets;
+Slider_Widgets_t jpeg_quality_widgets;
 
 lv_obj_t *cont;
 lv_obj_t *section;
@@ -328,6 +344,15 @@ static lv_obj_t *ui_Settings_Create_WiFi_Page(lv_obj_t *p_Menu)
     lv_label_set_text(wifi_label, "Autoconnect");
     lv_obj_set_style_text_color(wifi_label, lv_color_white(), 0);
 
+    /* Separator */
+    lv_obj_t *separator1 = lv_obj_create(WiFiContainer);
+    lv_obj_set_size(separator1, LV_PCT(100), 1);
+    lv_obj_set_style_bg_color(separator1, lv_color_hex(0x505050), 0);
+    lv_obj_set_style_border_width(separator1, 0, 0);
+    lv_obj_set_style_pad_all(separator1, 0, 0);
+    lv_obj_set_style_margin_top(separator1, 12, 0);
+    lv_obj_set_style_margin_bottom(separator1, 12, 0);
+
     lv_obj_t *wifi_switch = lv_switch_create(wifi_row1);
     lv_obj_set_style_bg_color(wifi_switch, lv_color_hex(0x7B3FF0), 0);
     lv_obj_set_style_bg_color(wifi_switch, lv_color_hex(0xFF9500), LV_PART_KNOB);
@@ -363,13 +388,14 @@ static lv_obj_t *ui_Settings_Create_WiFi_Page(lv_obj_t *p_Menu)
     lv_obj_set_style_text_color(wifi_btn_label, lv_color_white(), 0);
     lv_obj_center(wifi_btn_label);
 
-    lv_obj_t *separator1 = lv_obj_create(WiFiContainer);
-    lv_obj_set_size(separator1, LV_PCT(100), 1);
-    lv_obj_set_style_bg_color(separator1, lv_color_hex(0x505050), 0);
-    lv_obj_set_style_border_width(separator1, 0, 0);
-    lv_obj_set_style_pad_all(separator1, 0, 0);
-    lv_obj_set_style_margin_top(separator1, 12, 0);
-    lv_obj_set_style_margin_bottom(separator1, 12, 0);
+    /* Separator */
+    lv_obj_t *separator2 = lv_obj_create(WiFiContainer);
+    lv_obj_set_size(separator2, LV_PCT(100), 1);
+    lv_obj_set_style_bg_color(separator2, lv_color_hex(0x505050), 0);
+    lv_obj_set_style_border_width(separator2, 0, 0);
+    lv_obj_set_style_pad_all(separator2, 0, 0);
+    lv_obj_set_style_margin_top(separator2, 12, 0);
+    lv_obj_set_style_margin_bottom(separator2, 12, 0);
 
     /* Section label */
     lv_obj_t *section_label = lv_label_create(WiFiContainer);
@@ -519,7 +545,7 @@ static lv_obj_t *ui_Settings_Create_Lepton_Page(lv_obj_t *p_Menu)
     lv_obj_set_style_margin_top(separator2, 12, 0);
     lv_obj_set_style_margin_bottom(separator2, 12, 0);
 
-    /* WiFi Connect Button */
+    /* Lepton reset Connect Button */
     lv_obj_t *lepton_reset_btn_row = ui_Settings_Create_Row(LeptonContainer, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_height(lepton_reset_btn_row, LV_SIZE_CONTENT);
     lv_obj_set_style_pad_top(lepton_reset_btn_row, 12, 0);
@@ -989,27 +1015,9 @@ static lv_obj_t *ui_Settings_Create_System_Page(lv_obj_t *p_Menu)
                             "Asia/Kolkata (IST)\n"
                             "Australia/Sydney (AEST)");
 
-    /* Pre-select the entry that matches the stored POSIX string */
-    static const char *TIMEZONE_POSIX_MATCH[] = {
-        "UTC0",
-        "GMT0BST,M3.5.0/1,M10.5.0",
-        "CET-1CEST,M3.5.0,M10.5.0/3",
-        "EET-2EEST,M3.5.0/3,M10.5.0/4",
-        "MSK-3",
-        "EST5EDT,M3.2.0,M11.1.0",
-        "CST6CDT,M3.2.0,M11.1.0",
-        "MST7MDT,M3.2.0,M11.1.0",
-        "PST8PDT,M3.2.0,M11.1.0",
-        "JST-9",
-        "CST-8",
-        "IST-5:30",
-        "AEST-10AEDT,M10.1.0,M4.1.0/3",
-    };
-
     uint16_t Selected = 0;
-    for (uint16_t i = 0; i < sizeof(TIMEZONE_POSIX_MATCH) / sizeof(TIMEZONE_POSIX_MATCH[0]); i++) {
-        if (strncmp(SystemSettings.Timezone, TIMEZONE_POSIX_MATCH[i], sizeof(SystemSettings.Timezone)) == 0) {
-            Selected = i;
+    for (Selected = 0; Selected < sizeof(ui_settings_timezone) / sizeof(ui_settings_timezone[0]); Selected++) {
+        if (strncmp(SystemSettings.Timezone, ui_settings_timezone[Selected], sizeof(SystemSettings.Timezone)) == 0) {
             break;
         }
     }

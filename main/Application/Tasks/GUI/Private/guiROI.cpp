@@ -232,7 +232,10 @@ void GUI_ROI_Change(int16_t DeltaX, int16_t DeltaY, int16_t DeltaW, int16_t Delt
         NewH = 1;
     }
 
-    /* Clamp position to sensor bounds (160 x 120) */
+    /* Clamp position to sensor bounds (160 x 120).
+     * Position clamp must come before extent clamp so the extent clamp can
+     * never push the origin back to a negative value (which happened with
+     * symmetric resize where both DeltaY and DeltaH are non-zero). */
     if (NewX < 0) {
         NewX = 0;
     }
@@ -241,9 +244,13 @@ void GUI_ROI_Change(int16_t DeltaX, int16_t DeltaY, int16_t DeltaW, int16_t Delt
         NewY = 0;
     }
 
-    /* Keep ROI fully within sensor area; prefer clamping the moved edge */
+    /* Keep ROI fully within sensor area.
+     * In pure-move mode (DeltaW == 0 && DeltaH == 0) keep the size constant
+     * and stop the leading edge at the boundary.
+     * In resize mode (at least one size delta is non-zero) keep the origin and
+     * clip the trailing edge instead. */
     if ((NewX + NewW) > 160) {
-        if (DeltaX != 0) {
+        if ((DeltaW == 0) && (DeltaH == 0)) {
             NewX = 160 - NewW;
         } else {
             NewW = 160 - NewX;
@@ -251,7 +258,7 @@ void GUI_ROI_Change(int16_t DeltaX, int16_t DeltaY, int16_t DeltaW, int16_t Delt
     }
 
     if ((NewY + NewH) > 120) {
-        if (DeltaY != 0) {
+        if ((DeltaW == 0) && (DeltaH == 0)) {
             NewY = 120 - NewH;
         } else {
             NewH = 120 - NewY;
@@ -335,4 +342,36 @@ void GUI_ROI_ResetAll(void)
         _GUITaskState.ROIConfig.SelectedROI = i;
         GUI_ROI_Reset();
     }
+}
+
+void GUI_ROI_Hide(void)
+{
+    _GUITaskState.ROIConfig.Show = false;
+}
+
+void GUI_ROI_Show(void)
+{
+    if (_GUITaskState.ROIConfig.Show) {
+        lv_obj_remove_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+void GUI_ROI_Toggle(void)
+{
+    _GUITaskState.ROIConfig.Show = !_GUITaskState.ROIConfig.Show;
+
+    if (_GUITaskState.ROIConfig.Show) {
+        lv_obj_remove_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(ui_Image_Main_Thermal_AGC_ROI, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(ui_Image_Main_Thermal_Scene_ROI, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(ui_Image_Main_Thermal_Video_Focus_ROI, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(ui_Image_Main_Thermal_Spotmeter_ROI, LV_OBJ_FLAG_HIDDEN);
+    } 
 }

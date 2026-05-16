@@ -324,20 +324,12 @@ static void Lepton_LoadSettings(void)
     Lepton_SetEmissivity(&_LeptonTaskState.Lepton, static_cast<Lepton_Emissivity_t>(LeptonSettings.CurrentEmissivity));
 }
 
-/** @brief          Resets the Lepton camera.
- *  @param Enable   true to reset (RESET_L LOW), false to release (RESET_L HIGH)
- */
-static void Lepton_Reset(bool Enable)
-{
-    //DevicesManager_LeptonReset(Enable);
-}
-
 /** @brief          Powers down the Lepton camera.
  *  @param Enable   true to power down, false to power up
  */
 static void Lepton_PowerDown(bool Enable)
 {
-    DevicesManager_SetLeptonPower(Enable == false);
+    DevicesManager_SetLeptonPower(Enable);
 }
 
 /** @brief Performs a full hardware recovery of the Lepton camera.
@@ -349,7 +341,12 @@ static void Lepton_RecoverCamera(void)
 {
     Lepton_Error_t Error;
 
-    ESP_LOGW(TAG, "Attempting Lepton camera recovery (I2C bus reset + power cycle)...");
+    ESP_LOGW(TAG, "Attempting Lepton camera recovery (power cycle + RESET_L sequence)...");
+
+    /* Lepton_Init takes up to ~6 s (hardware reset + CCI_WaitForBoot) which
+     * exceeds the default task WDT timeout.  Unsubscribe for the duration of
+     * recovery and re-register immediately afterwards. */
+    esp_task_wdt_delete(NULL);
 
     /* Stop the capture task to prevent any ongoing I2C transactions. */
     Lepton_StopCapture(&_LeptonTaskState.Lepton);
@@ -361,18 +358,48 @@ static void Lepton_RecoverCamera(void)
     /* Drain any stale frames and restart the VoSPI capture task. */
     xQueueReset(_LeptonTaskState.RawFrameQueue);
 
-    /* Reset the I2C bus to unblock any transaction stuck with SDA held low.
-     * This generates up to 9 SCL pulses to force the Lepton's I2C slave to release SDA. */
+    /* Power off the camera FIRST so the I2C bus reset (9 SCL pulses) happens
+     * while the Lepton I2C slave is unpowered.  This avoids confusing the camera
+     * during the clock-stretching recovery and ensures a clean SDA release. */
+    DevicesManager_SetLeptonPower(false);
+
+    /* Assert RESET_L (active-low) immediately after power-off.
+     * Per FLIR Lepton IDD the reset pin must be driven LOW before or together
+     * with the power supply so that the camera performs a clean internal POR.
+     * Without this assertion the camera sees VDD rise while RESET_L is already
+     * HIGH, which results in undefined / failed boot behaviour (STATUS stays
+     * 0x0000 for the entire CCI_WaitForBoot window). */
+    DevicesManager_LeptonReset(true);
+
+    /* Hold power off for 2 s to allow decoupling capacitors to fully discharge
+     * and guarantee a clean power-on reset of the Lepton MCU. */
+    vTaskDelay(pdMS_TO_TICKS(2000));
+
+    /* Reset the I2C bus while the camera is powered off to force any stuck
+     * SDA line high before we power the device back on. */
     DevicesManager_ResetI2CBus();
 
-    /* Power-cycle the camera to force a clean reboot. */
-    DevicesManager_SetLeptonPower(false);
-    vTaskDelay(pdMS_TO_TICKS(500));
+    /* Power the camera back on with RESET_L still asserted. */
     DevicesManager_SetLeptonPower(true);
+
+    /* Wait for VDD to stabilise.  FLIR IDD tPWR requirement is >= 5 ms; 50 ms
+     * provides comfortable margin before RESET_L is released. */
+    vTaskDelay(pdMS_TO_TICKS(50));
+
+    /* Deassert RESET_L — the Lepton MCU now starts its ~5 s boot sequence. */
+    DevicesManager_LeptonReset(false);
+
+    /* Small head-start before Lepton_Init's internal 1 s delays kick in. */
+    vTaskDelay(pdMS_TO_TICKS(200));
 
     /* Re-initialize. Lepton_Init performs a hardware reset via the Reset callback,
      * waits 1 s for the Lepton to boot, and then executes CCI_WaitForBoot (~5 s). */
     Error = Lepton_Init(&_LeptonTaskState.Lepton, &_LeptonTaskState.LeptonConf, NULL);
+
+    /* Re-subscribe to the task WDT now that the slow initialisation is complete. */
+    esp_task_wdt_add(NULL);
+    esp_task_wdt_reset();
+
     if (Error != LEPTON_ERR_OK) {
         ESP_LOGE(TAG, "Lepton re-initialization failed after recovery: 0x%X", static_cast<unsigned int>(Error));
         return;
@@ -625,7 +652,7 @@ static void Task_Lepton(void *p_Parameters)
                 if (RecoveryAttempts <= 3) {
                     ESP_LOGW(TAG, "Camera unresponsive - starting recovery attempt %u/3",
                              static_cast<unsigned int>(RecoveryAttempts));
-                    Lepton_RecoverCamera();
+                    //Lepton_RecoverCamera();
                 } else {
                     ESP_LOGE(TAG, "Lepton camera unrecoverable after 3 attempts - aborting task");
                     APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_LEPTON, static_cast<esp_err_t>(LEPTON_ERR_FAIL));
@@ -878,12 +905,11 @@ static void Task_Lepton(void *p_Parameters)
         }
 
         if (EventBits & LEPTON_TASK_RECOVER_REQUEST) {
-            Lepton_RecoverCamera();
+            //Lepton_RecoverCamera();
 
             xEventGroupClearBits(_LeptonTaskState.EventGroup, LEPTON_TASK_RECOVER_REQUEST);
         }
     }
-
 
     ESP_LOGD(TAG, "Lepton task shutting down");
     Lepton_Deinit(&_LeptonTaskState.Lepton);
@@ -929,7 +955,6 @@ esp_err_t Lepton_Task_Init(void)
     LEPTON_ASSIGN_I2C_FUNC(_LeptonTaskState.LeptonConf, NULL, NULL, Lepton_CCI_Write, Lepton_CCI_Read,
                            Lepton_CCI_WriteRead);
     LEPTON_ASSIGN_I2C_HANDLE(_LeptonTaskState.LeptonConf, DevicesManager_GetI2CBusHandle());
-    LEPTON_ASSIGN_GPIO_FUNC(_LeptonTaskState.LeptonConf, Lepton_Reset, Lepton_PowerDown);
 
     /* Allocate RGB buffers - both RAW14 and RGB888 use 160x120 resolution
      * RAW14: 160x120x3 = 57,600 bytes (after conversion to RGB)
@@ -996,6 +1021,8 @@ esp_err_t Lepton_Task_Init(void)
                                NULL);
     esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FFC, on_GUI_Task_Event_Handler,
                                NULL);
+    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_LEPTON_RESET, on_GUI_Task_Event_Handler,
+                               NULL);
     esp_event_handler_register(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE, on_Devices_Task_Event_Handler,
                                NULL);
     esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_LEPTON_CHANGED, on_Settings_Event_Handler, NULL);
@@ -1037,6 +1064,7 @@ void Lepton_Task_Deinit(void)
     esp_event_handler_unregister(DEVICES_TASK_EVENTS, DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE,
                                  on_Devices_Task_Event_Handler);
     esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_FFC, on_GUI_Task_Event_Handler);
+    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_LEPTON_RESET, on_GUI_Task_Event_Handler);
     esp_event_handler_unregister(SETTINGS_EVENTS, SETTINGS_EVENT_LEPTON_CHANGED, on_Settings_Event_Handler);
     esp_event_handler_unregister(SETTINGS_EVENTS, SETTINGS_EVENT_CALIBRATION_CHANGED, on_Settings_Event_Handler);
     esp_event_handler_unregister(USB_EVENTS, ESP_EVENT_ANY_ID, on_USB_Event_Handler);

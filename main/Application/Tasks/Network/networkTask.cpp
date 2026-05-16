@@ -311,7 +311,6 @@ static void Task_Network(void *p_Parameters)
         }
 
         if (EventBits & NETWORK_TASK_PROV_SUCCESS) {
-            esp_restart();
         }
 
         if (EventBits & NETWORK_TASK_PROV_TIMEOUT) {

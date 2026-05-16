@@ -540,7 +540,7 @@ static void Task_Devices(void *p_Parameters)
 
         NowTick = xTaskGetTickCount();
 
-        /* Read raw hardware input. */
+        /* Read raw hardware input and start the debouncing when the state is different from the previous state. */
         if (DevicesManager_HandleDisplayboardExpanderInterrupt(&InputState) == ESP_OK) {
             if (memcmp(&InputState, &PendingInputState, sizeof(DevicesManager_Input_State_t)) != 0) {
                 memcpy(&PendingInputState, &InputState, sizeof(DevicesManager_Input_State_t));

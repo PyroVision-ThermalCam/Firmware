@@ -62,4 +62,16 @@ void GUI_ROI_Reset(void);
  */
 void GUI_ROI_ResetAll(void);
 
+/** @brief          Hide the ROI configuration mode and its child labels.  Must be called from the GUI task only (not thread-safe).
+ */
+void GUI_ROI_Hide(void);
+
+/** @brief          Show the ROI configuration mode and its child labels.  Must be called from the GUI task only (not thread-safe).
+ */
+void GUI_ROI_Show(void);
+
+/** @brief          Toggle the visibility of the ROI configuration mode and its child labels.  Must be called from the GUI task only (not thread-safe).
+ */
+void GUI_ROI_Toggle(void);
+
 #endif /* GUI_ROI_H_ */

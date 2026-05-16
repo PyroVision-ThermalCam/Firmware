@@ -126,3 +126,7 @@ def ButtonMainButton3ShortClicked(event_struct):
 def ButtonMainButton4ShortClicked(event_struct):
     return
 
+
+def ButtonMenuButton4ShortClicked(event_struct):
+    return
+

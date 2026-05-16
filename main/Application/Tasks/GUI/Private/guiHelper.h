@@ -61,20 +61,9 @@
 #define GUI_TASK_IMAGE_SAVE_COMPLETED               BIT20
 #define GUI_TASK_IMAGE_SAVE_FAILED_BIT              BIT21
 
-#define UI_IMAGE_CANVAS_WIDTH                       240
-#define UI_IMAGE_CANVAS_HEIGHT                      180
-#define UI_GRADIENT_CANVAS_WIDTH                    20
-
-#define CROSSHAIR_STEP_PX                           8
-#define CROSSHAIR_INITIAL_DELAY_MS                  30
-#define CROSSHAIR_AUTOREPEAT_DELAY_MS               400
-#define CROSSHAIR_AUTOREPEAT_PERIOD_MS              150
-
-/* Fixed container dimensions taken from the UI export (ui_Main.c).
- * Using constants avoids calling lv_obj_get_width/height on a potentially
- * hidden widget whose coords may not be up-to-date at indev-callback time. */
-#define CROSSHAIR_CONTAINER_W                       100
-#define CROSSHAIR_CONTAINER_H                       50
+#define GUI_IMAGE_CANVAS_WIDTH                      240
+#define GUI_IMAGE_CANVAS_HEIGHT                     180
+#define GUI_GRADIENT_CANVAS_WIDTH                   20
 
 /** @brief Internal runtime state of the GUI task.
  */
@@ -83,23 +72,35 @@ typedef struct {
     bool IsRunning;                                         /**< true while the main GUI FreeRTOS task is executing. */
     bool IsUVCStreaming;                                    /**< true while a UVC host is actively receiving frames. */
     struct {
+        int32_t MinX;
+        int32_t MaxX;
+        int32_t MinY;
+        int32_t MaxY;
+        int32_t X;                                          /**< X pixel coordinate of the crosshair centre in thermal canvas space [0 .. GUI_IMAGE_CANVAS_WIDTH-1]. The container is placed at (CrosshairX - W/2) so the marker sits at exactly this pixel. Owned by the GUI task; never read back from LVGL to avoid stale-coord issues. */
+        int32_t Y;                                          /**< Y pixel coordinate of the crosshair centre in thermal canvas space [0 .. GUI_IMAGE_CANVAS_HEIGHT-1]. The container is placed at (CrosshairY - H/2) so the marker sits at exactly this pixel. Owned by the GUI task; never read back from LVGL to avoid stale-coord issues. */
+        int32_t LastX;                                      /**< Previous X coordinate used for hysteresis in label flipping logic. */
+        int32_t LastY;                                      /**< Previous Y coordinate used for hysteresis in label flipping logic. */
+        bool Show;                                          /**< true when the crosshair overlay is currently active in the live-view. */
+        bool Initialized;                                   /**< true once the label width has been set to a fixed value. */
+        bool FlippedY;                                      /**< true while label is shown below the crosshair. */
+        bool FlippedLeft;                                   /**< true while text is right-aligned (near left image edge). */
+        bool FlippedRight;                                  /**< true while text is left-aligned (near right image edge). */
+    } Crosshair;
+    struct {
         bool IsActive;                                      /**< true when the ROI configuration screen is active (used to trigger updates when ROI is changed). */
         bool IsMovingActive;                                /**< true when the currently selected ROI should be moved. False if the size should be changed. */
         uint8_t SelectedROI;                                /**< Index of the currently selected ROI for configuration (0-3). */
         lv_anim_t FadingAnimation;                          /**< LVGL animation handle for the fade-in/out of the ROI overlay. */
         int32_t DisplayWidth;                               /**< Width of the display in pixels. */
         int32_t DisplayHeight;                              /**< Height of the display in pixels. */
+        bool Show;                                          /**< true when the ROI (Region of Interest) rectangle overlay is visible on the thermal image. */
     } ROIConfig;
     bool WiFiConnected;                                     /**< true while a WiFi station connection is active. */
     bool ProvisioningActive;                                /**< true while WiFi provisioning is in progress. */
     bool CardPresent;                                       /**< true while an SD card is mounted and accessible. */
     bool SaveNextFrameRequested;                            /**< true when the next rendered frame should be saved as PNG. */
     bool ShowCameraView;                                    /**< true while the visible-light camera image is shown in place of the thermal image. */
-    bool ShowROI;                                           /**< true when the ROI (Region of Interest) rectangle overlay is visible on the thermal image. */
-    bool ShowCrosshair;                                     /**< true when the crosshair overlay is currently active in the live-view. */
     DevicesManager_Input_State_t Prev;                      /**< Previous joystick state for edge detection. */
-    int32_t CrosshairX;                                     /**< X pixel coordinate of the crosshair centre in thermal canvas space [0 .. UI_IMAGE_CANVAS_WIDTH-1]. The container is placed at (CrosshairX - W/2) so the marker sits at exactly this pixel. Owned by the GUI task; never read back from LVGL to avoid stale-coord issues. */
-    int32_t CrosshairY;                                     /**< Y pixel coordinate of the crosshair centre in thermal canvas space [0 .. UI_IMAGE_CANVAS_HEIGHT-1]. The container is placed at (CrosshairY - H/2) so the marker sits at exactly this pixel. Owned by the GUI task; never read back from LVGL to avoid stale-coord issues. */
     TickType_t
     JoyDirHeldSince;                             /**< Tick when any joystick direction first went active; 0 when released. */
     TickType_t
@@ -140,7 +141,7 @@ typedef struct {
     *AppContext;                              /**< Pointer to the shared application context; valid after Task_Start(). */
     EventGroupHandle_t
     EventGroup;                          /**< Event group used for intra-task and inter-task synchronisation. */
-    uint8_t *ThermalCanvasBuffer;                           /**< PSRAM canvas buffer for the scaled thermal RGB image. */
+    uint8_t *ImageCanvasBuffer;                           /**< PSRAM canvas buffer for the scaled thermal RGB image. */
     uint8_t *GradientCanvasBuffer;                          /**< PSRAM canvas buffer for the colour-gradient bar image. */
     uint8_t *NetworkRGBBuffer;                              /**< PSRAM RGB buffer transmitted to connected WebSocket clients. */
     uint16_t *NetworkRawBuffer;                             /**< PSRAM buffer holding a copy of the latest raw 14-bit Lepton frame for HTTP re-paletization. */

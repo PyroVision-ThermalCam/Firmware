@@ -87,6 +87,69 @@ static void SettingsManager_LoadLepton(Settings_Manager_State_t *p_State, const 
 
         roi_array = cJSON_GetObjectItem(lepton, "roi");
         if (cJSON_IsArray(roi_array)) {
+            int32_t Count;
+            Settings_ROI_Type_t RoiType;
+            bool Found;
+
+            /* Start with hardcoded defaults so any missing JSON entry keeps a valid value */
+            SettingsManager_InitDefaultLeptonROIs(&p_State->Settings);
+
+            Count = cJSON_GetArraySize(roi_array);
+            for (int32_t i = 0; i < Count; i++) {
+                cJSON *Item = cJSON_GetArrayItem(roi_array, i);
+                cJSON *ItemName = cJSON_GetObjectItem(Item, "name");
+                cJSON *ItemX = cJSON_GetObjectItem(Item, "x");
+                cJSON *ItemY = cJSON_GetObjectItem(Item, "y");
+                cJSON *ItemW = cJSON_GetObjectItem(Item, "width");
+                cJSON *ItemH = cJSON_GetObjectItem(Item, "height");
+
+                if (cJSON_IsString(ItemName) == false) {
+                    continue;
+                }
+
+                Found = true;
+                if (strcmp(ItemName->valuestring, "spotmeter") == 0) {
+                    RoiType = ROI_TYPE_SPOTMETER;
+                } else if (strcmp(ItemName->valuestring, "scene") == 0) {
+                    RoiType = ROI_TYPE_SCENE;
+                } else if (strcmp(ItemName->valuestring, "agc") == 0) {
+                    RoiType = ROI_TYPE_AGC;
+                } else if (strcmp(ItemName->valuestring, "video-focus") == 0) {
+                    RoiType = ROI_TYPE_VIDEO_FOCUS;
+                } else {
+                    Found = false;
+                }
+
+                if (Found == false) {
+                    ESP_LOGW(TAG, "Unknown ROI name in JSON: %s", ItemName->valuestring);
+                    continue;
+                }
+
+                p_State->Settings.Lepton.ROI[RoiType].Type = RoiType;
+
+                if (cJSON_IsNumber(ItemX)) {
+                    p_State->Settings.Lepton.ROI[RoiType].x = static_cast<int16_t>(ItemX->valueint);
+                }
+
+                if (cJSON_IsNumber(ItemY)) {
+                    p_State->Settings.Lepton.ROI[RoiType].y = static_cast<int16_t>(ItemY->valueint);
+                }
+
+                if (cJSON_IsNumber(ItemW)) {
+                    p_State->Settings.Lepton.ROI[RoiType].w = static_cast<int16_t>(ItemW->valueint);
+                }
+
+                if (cJSON_IsNumber(ItemH)) {
+                    p_State->Settings.Lepton.ROI[RoiType].h = static_cast<int16_t>(ItemH->valueint);
+                }
+
+                ESP_LOGD(TAG, "ROI '%s' loaded: x=%d, y=%d, w=%d, h=%d",
+                         ItemName->valuestring,
+                         p_State->Settings.Lepton.ROI[RoiType].x,
+                         p_State->Settings.Lepton.ROI[RoiType].y,
+                         p_State->Settings.Lepton.ROI[RoiType].w,
+                         p_State->Settings.Lepton.ROI[RoiType].h);
+            }
         } else {
             SettingsManager_InitDefaultLeptonROIs(&p_State->Settings);
         }
