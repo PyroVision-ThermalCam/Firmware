@@ -204,7 +204,7 @@ esp_err_t MemoryManager_Init(void)
 
     ESP_LOGD(TAG, "Initializing Memory Manager");
 
-    memset(&_MemoryManagerState, 0, sizeof(Memory_Manager_State_t));
+    __builtin_memset(&_MemoryManagerState, 0, sizeof(Memory_Manager_State_t));
 
     /* Try to mount SD card first */
     if (MemoryManager_Mount_SD_Card() == ESP_OK) {
@@ -680,7 +680,7 @@ esp_err_t MemoryManager_SoftRemountStorage(void)
             return Error;
         }
 
-        memset(&VFS_Conf, 0, sizeof(VFS_Conf));
+        __builtin_memset(&VFS_Conf, 0, sizeof(VFS_Conf));
         VFS_Conf.base_path = "/storage";
         VFS_Conf.fat_drive = Drive;
         VFS_Conf.max_files = 5;
@@ -720,7 +720,7 @@ esp_err_t MemoryManager_SoftRemountStorage(void)
         ff_diskio_register_sdmmc(Pdrv, _MemoryManagerState.SDCard);
         ff_sdmmc_set_disk_status_check(Pdrv, false);
 
-        memset(&VFS_Conf, 0, sizeof(VFS_Conf));
+        __builtin_memset(&VFS_Conf, 0, sizeof(VFS_Conf));
         VFS_Conf.base_path = "/sdcard";
         VFS_Conf.fat_drive = Drive;
         VFS_Conf.max_files = 5;

@@ -185,7 +185,7 @@ void AppDiag_Clear(void)
         xSemaphoreTake(_AppDiag_State.Mutex, portMAX_DELAY);
     }
 
-    memset(_AppDiag_State.Entries, 0, sizeof(_AppDiag_State.Entries));
+    __builtin_memset(_AppDiag_State.Entries, 0, sizeof(_AppDiag_State.Entries));
     _AppDiag_State.Head  = 0;
     _AppDiag_State.Count = 0;
 

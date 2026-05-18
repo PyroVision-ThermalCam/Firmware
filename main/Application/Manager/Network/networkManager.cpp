@@ -271,7 +271,7 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
 
             ESP_LOGD(TAG, "Station " MACSTR " joined, AID=%d", MAC2STR(Event->mac), Event->aid);
 
-            memcpy(StaInfo.MAC, Event->mac, 6);
+            __builtin_memcpy(StaInfo.MAC, Event->mac, 6);
             esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_AP_STA_CONNECTED, &StaInfo, sizeof(StaInfo), pdMS_TO_TICKS(100));
 
             break;
@@ -281,7 +281,7 @@ static void on_WiFi_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID
             Network_Event_STA_Info_t StaInfo;
 
             ESP_LOGD(TAG, "Station " MACSTR " left, AID=%d", MAC2STR(Event->mac), Event->aid);
-            memcpy(StaInfo.MAC, Event->mac, 6);
+            __builtin_memcpy(StaInfo.MAC, Event->mac, 6);
             esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_AP_STA_DISCONNECTED, &StaInfo, sizeof(StaInfo), pdMS_TO_TICKS(100));
 
             break;
@@ -307,7 +307,7 @@ static void on_IP_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, 
 
             ESP_LOGD(TAG, "Got IP: " IPSTR, IP2STR(&Event->ip_info.ip));
 
-            memcpy(&_NetworkManagerState.IP_Info, &Event->ip_info, sizeof(esp_netif_ip_info_t));
+            __builtin_memcpy(&_NetworkManagerState.IP_Info, &Event->ip_info, sizeof(esp_netif_ip_info_t));
             _NetworkManagerState.State = NETWORK_STATE_CONNECTED;
 
             IP_Data.IP = Event->ip_info.ip.addr;
@@ -322,7 +322,7 @@ static void on_IP_Event(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, 
         case IP_EVENT_STA_LOST_IP: {
             ESP_LOGW(TAG, "Lost IP address");
 
-            memset(&_NetworkManagerState.IP_Info, 0, sizeof(esp_netif_ip_info_t));
+            __builtin_memset(&_NetworkManagerState.IP_Info, 0, sizeof(esp_netif_ip_info_t));
 
             break;
         }
@@ -344,7 +344,7 @@ esp_err_t NetworkManager_Init(void)
 
     ESP_LOGD(TAG, "Initializing WiFi Manager");
 
-    memset(&_NetworkManagerState, 0, sizeof(Network_Manager_State_t));
+    __builtin_memset(&_NetworkManagerState, 0, sizeof(Network_Manager_State_t));
 
     ESP_ERROR_CHECK(esp_netif_init());
 
@@ -466,7 +466,7 @@ esp_err_t NetworkManager_StartSTA(void)
     ESP_LOGI(TAG, "Starting WiFi in STA mode");
     ESP_LOGI(TAG, "Connecting to SSID: %s", WiFiSettings.SSID);
 
-    memset(&WifiConfig, 0, sizeof(wifi_config_t));
+    __builtin_memset(&WifiConfig, 0, sizeof(wifi_config_t));
     WifiConfig.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
     WifiConfig.sta.pmf_cfg.capable = true;
     WifiConfig.sta.pmf_cfg.required = false;
@@ -576,7 +576,7 @@ esp_err_t NetworkManager_GetIP(esp_netif_ip_info_t *p_IP)
         return ESP_ERR_INVALID_ARG;
     }
 
-    memcpy(p_IP, &_NetworkManagerState.IP_Info, sizeof(esp_netif_ip_info_t));
+    __builtin_memcpy(p_IP, &_NetworkManagerState.IP_Info, sizeof(esp_netif_ip_info_t));
 
     return ESP_OK;
 }

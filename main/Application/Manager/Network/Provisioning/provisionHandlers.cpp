@@ -133,7 +133,7 @@ esp_err_t Provision_Handler_Scan(httpd_req_t *p_Request)
     uint16_t MaxAPCount = 50;
     wifi_ap_record_t *APList;
 
-    memset(&ScanConfig, 0, sizeof(ScanConfig));
+    __builtin_memset(&ScanConfig, 0, sizeof(ScanConfig));
     ScanConfig.show_hidden = true;  /* Also scan for hidden networks */
     ScanConfig.scan_type = WIFI_SCAN_TYPE_ACTIVE; /* Active scan for better detection */
     ScanConfig.scan_time.active.min = 120; /* Minimum scan time per channel (ms) */

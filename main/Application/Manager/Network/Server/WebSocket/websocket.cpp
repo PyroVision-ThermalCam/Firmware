@@ -433,7 +433,7 @@ static esp_err_t WebSocket_Handler(httpd_req_t *p_Request)
     }
 
     /* Handle WebSocket frame */
-    memset(&Frame, 0, sizeof(httpd_ws_frame_t));
+    __builtin_memset(&Frame, 0, sizeof(httpd_ws_frame_t));
 
     /* Get frame info */
     Error = httpd_ws_recv_frame(p_Request, &Frame, 0);
@@ -547,7 +547,7 @@ esp_err_t WebSocket_Init(void)
 
     ESP_LOGI(TAG, "Initializing WebSocket handler");
 
-    memset(WebSocket_State.Clients, 0, sizeof(WebSocket_State.Clients));
+    __builtin_memset(WebSocket_State.Clients, 0, sizeof(WebSocket_State.Clients));
     WebSocket_State.ClientCount = 0;
     WebSocket_State.ThermalFrame = NULL;
     WebSocket_State.ServerHandle = NULL;

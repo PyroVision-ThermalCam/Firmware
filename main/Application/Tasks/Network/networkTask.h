@@ -29,7 +29,7 @@
 
 #include <stdint.h>
 
-#include "Application/application.h"
+#include "Application/app_types.h"
 #include "Application/Manager/Network/networkTypes.h"
 
 /** @brief              Initialize the network task.

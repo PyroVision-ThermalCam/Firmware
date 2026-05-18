@@ -88,13 +88,13 @@ esp_err_t BitmapEncoder_Encode(const uint8_t *p_RGB, uint16_t Width, uint16_t He
     }
 
     /* Fill file header */
-    memset(&FileHeader, 0, sizeof(BMP_FileHeader_t));
+    __builtin_memset(&FileHeader, 0, sizeof(BMP_FileHeader_t));
     FileHeader.Type = 0x4D42;                                           /* 'BM' */
     FileHeader.Size = TotalSize;
     FileHeader.OffBits = sizeof(BMP_FileHeader_t) + sizeof(BMP_InfoHeader_t);
 
     /* Fill info header */
-    memset(&InfoHeader, 0, sizeof(BMP_InfoHeader_t));
+    __builtin_memset(&InfoHeader, 0, sizeof(BMP_InfoHeader_t));
     InfoHeader.Size = sizeof(BMP_InfoHeader_t);
     InfoHeader.Width = Width;
     InfoHeader.Height = Height;                                         /* Positive = bottom-up */
@@ -108,8 +108,8 @@ esp_err_t BitmapEncoder_Encode(const uint8_t *p_RGB, uint16_t Width, uint16_t He
     InfoHeader.ClrImportant = 0;
 
     /* Write headers to output buffer */
-    memcpy(p_BMP, &FileHeader, sizeof(BMP_FileHeader_t));
-    memcpy(p_BMP + sizeof(BMP_FileHeader_t), &InfoHeader, sizeof(BMP_InfoHeader_t));
+    __builtin_memcpy(p_BMP, &FileHeader, sizeof(BMP_FileHeader_t));
+    __builtin_memcpy(p_BMP + sizeof(BMP_FileHeader_t), &InfoHeader, sizeof(BMP_InfoHeader_t));
 
     /* Convert RGB to BGR and write pixel data (bottom-to-top) */
     p_Dest = p_BMP + sizeof(BMP_FileHeader_t) + sizeof(BMP_InfoHeader_t);
@@ -127,7 +127,7 @@ esp_err_t BitmapEncoder_Encode(const uint8_t *p_RGB, uint16_t Width, uint16_t He
         /* Add row padding (if needed) */
         uint32_t Padding = RowSize - (Width * 3);
         if (Padding > 0) {
-            memset(p_Dest + (Width * 3), 0, Padding);
+            __builtin_memset(p_Dest + (Width * 3), 0, Padding);
         }
 
         p_Dest += RowSize;

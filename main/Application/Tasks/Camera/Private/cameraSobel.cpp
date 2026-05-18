@@ -182,7 +182,7 @@ void Camera_Sobel_ApplyFilter(const uint8_t *p_SrcRGB565, uint8_t *p_DstRGB565,
         Sopel_PrepareRow(_Gray[y % 3u], _Dx[y % 3u], _Sx[y % 3u], Width);
     }
 
-    memset(p_DstRGB565, 0, Width * 2u);
+    __builtin_memset(p_DstRGB565, 0, Width * 2u);
 
     for (uint32_t y = 1u; y < Height - 1u; y++) {
         /* Load the row that forms the bottom of the current 3-row window. */
@@ -241,5 +241,5 @@ void Camera_Sobel_ApplyFilter(const uint8_t *p_SrcRGB565, uint8_t *p_DstRGB565,
     }
 
     /* ---------- bottom border row: output all zeros ---------- */
-    memset(p_DstRGB565 + (Height - 1u) * Width * 2u, 0, Width * 2u);
+    __builtin_memset(p_DstRGB565 + (Height - 1u) * Width * 2u, 0, Width * 2u);
 }

@@ -62,6 +62,11 @@ void on_Lepton_Emissivity_Slider_Callback(lv_event_t *e);
  */
 void on_Display_Brightness_Slider_Callback(lv_event_t *e);
 
+/** @brief      Display timeout slider event callback to update value label.
+ *  @param e    Pointer to the event object
+ */
+void on_Display_Timeout_Slider_Callback(lv_event_t *e);
+
 /** @brief      Dropdown event callback to update slider and label with selected emissivity preset value.
  *  @param e    Pointer to the event object
  */

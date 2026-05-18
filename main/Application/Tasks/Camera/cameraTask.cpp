@@ -37,7 +37,7 @@
 #include <stdbool.h>
 
 #include "cameraTask.h"
-#include "Application/application.h"
+#include "Application/app_types.h"
 #include "AppDiag/appDiag.h"
 #include "Private/cameraSobel.h"
 
@@ -199,7 +199,7 @@ static void Task_Camera(void *p_Parameters)
         if (Pic != NULL) {
             /* Copy frame to PSRAM buffer and immediately release the DMA buffer back to the driver.
              * Releasing early minimises the time the DMA buffer is held, reducing frame drops. */
-            memcpy(_CameraTaskState.p_FrameBuffer, Pic->buf, Pic->len);
+            __builtin_memcpy(_CameraTaskState.p_FrameBuffer, Pic->buf, Pic->len);
 
             App_Camera_Frame_t Frame = {
                 .Buffer = NULL,

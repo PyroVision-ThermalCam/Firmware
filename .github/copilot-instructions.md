@@ -124,7 +124,7 @@ if (!p_Buffer) {
 main/
 ├── main.cpp                   # Application entry point
 ├── Application/
-│   ├── application.h          # Application-wide types and events
+│   ├── app_types.h            # Application-wide types and events
 │   ├── Manager/               # All manager modules
 │   │   ├── managers.h         # Manager includes
 │   │   ├── Settings/          # Settings management

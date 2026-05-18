@@ -47,7 +47,7 @@ static inline esp_err_t Server_Init(void)
     }
 
     SettingsManager_GetHTTPServer(&Config);
-    memcpy(ServerConfig.API_Key, Config.APIKey, sizeof(ServerConfig.API_Key));
+    __builtin_memcpy(ServerConfig.API_Key, Config.APIKey, sizeof(ServerConfig.API_Key));
     ServerConfig.EnableCORS = Config.UseCORS;
     ServerConfig.MaxClients = Config.MaxClients;
     ServerConfig.Port = Config.Port;

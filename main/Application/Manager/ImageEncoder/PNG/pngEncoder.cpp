@@ -61,7 +61,7 @@ esp_err_t PNGEncoder_Encode(const uint8_t *p_RGB, uint16_t Width, uint16_t Heigh
      *     return ESP_ERR_NO_MEM;
      * }
      *
-     * memcpy(*p_Output, png_data, png_size);
+     * __builtin_memcpy(*p_Output, png_data, png_size);
      * free(png_data);
      * *p_Size = png_size;
      *

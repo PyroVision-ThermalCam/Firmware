@@ -29,7 +29,7 @@
 
 #include <stdint.h>
 
-#include "Application/application.h"
+#include "Application/app_types.h"
 
 ESP_EVENT_DECLARE_BASE(CAMERA_TASK_EVENTS);
 

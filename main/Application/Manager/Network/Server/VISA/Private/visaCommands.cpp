@@ -133,7 +133,7 @@ static int VISA_CMD_IDN(char *p_Response, size_t MaxLen)
 
     /* Copy to output buffer */
     Length = std::min(Result.length(), MaxLen - 1);
-    memcpy(p_Response, Result.c_str(), Length);
+    __builtin_memcpy(p_Response, Result.c_str(), Length);
     p_Response[Length] = '\0';
 
     ESP_LOGI(TAG, "*IDN? response: %s", Result.c_str());
@@ -185,7 +185,7 @@ static int VISA_CMD_OPC(char *p_Response, size_t MaxLen)
 
     Result = std::to_string(VISA_OperationComplete ? 1 : 0) + "\n";
     Length = std::min(Result.length(), MaxLen - 1);
-    memcpy(p_Response, Result.c_str(), Length);
+    __builtin_memcpy(p_Response, Result.c_str(), Length);
     p_Response[Length] = '\0';
 
     return static_cast<int>(Length);
@@ -211,7 +211,7 @@ static int VISA_CMD_TST(char *p_Response, size_t MaxLen)
 
     Response = std::to_string(Result) + "\n";
     Length = std::min(Response.length(), MaxLen - 1);
-    memcpy(p_Response, Response.c_str(), Length);
+    __builtin_memcpy(p_Response, Response.c_str(), Length);
     p_Response[Length] = '\0';
 
     return static_cast<int>(Length);
@@ -238,7 +238,7 @@ static int VISA_CMD_SYST_ERR(char *p_Response, size_t MaxLen)
 
     Result = oss.str();
     Length = std::min(Result.length(), MaxLen - 1);
-    memcpy(p_Response, Result.c_str(), Length);
+    __builtin_memcpy(p_Response, Result.c_str(), Length);
     p_Response[Length] = '\0';
 
     return static_cast<int>(Length);
@@ -255,7 +255,7 @@ static int VISA_CMD_SYST_VERS(char *p_Response, size_t MaxLen)
     size_t Length;
 
     Length = std::min(Result.length(), MaxLen - 1);
-    memcpy(p_Response, Result.c_str(), Length);
+    __builtin_memcpy(p_Response, Result.c_str(), Length);
     p_Response[Length] = '\0';
 
     return static_cast<int>(Length);
@@ -305,7 +305,7 @@ static int VISA_CMD_SENS_IMG_DATA(char *p_Response, size_t MaxLen)
         return SCPI_ERROR_OUT_OF_MEMORY;
     }
 
-    memset(Data, 0xAA, Size); /* Dummy data */
+    __builtin_memset(Data, 0xAA, Size); /* Dummy data */
 
     /* Format binary block header */
     Digits = snprintf(Header, sizeof(Header), "%zu", Size);
@@ -313,7 +313,7 @@ static int VISA_CMD_SENS_IMG_DATA(char *p_Response, size_t MaxLen)
 
     /* Copy image data after header */
     if ((HeaderSize + Size) < MaxLen) {
-        memcpy(p_Response + HeaderSize, Data, Size);
+        __builtin_memcpy(p_Response + HeaderSize, Data, Size);
         free(Data);
 
         return HeaderSize + Size;
@@ -598,5 +598,5 @@ int VISACommands_GetError(void)
 void VISACommands_ClearErrors(void)
 {
     VISA_ErrorCount = 0;
-    memset(VISA_ErrorQueue, 0, sizeof(VISA_ErrorQueue));
+    __builtin_memset(VISA_ErrorQueue, 0, sizeof(VISA_ErrorQueue));
 }

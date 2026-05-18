@@ -71,7 +71,7 @@ static void SettingsManager_LoadLepton(Settings_Manager_State_t *p_State, const 
                         p_State->Settings.Lepton.EmissivityPresets[i].Value = 100.0f;
                     }
 
-                    memset(p_State->Settings.Lepton.EmissivityPresets[i].Description, 0,
+                    __builtin_memset(p_State->Settings.Lepton.EmissivityPresets[i].Description, 0,
                            sizeof(p_State->Settings.Lepton.EmissivityPresets[i].Description));
                     strncpy(p_State->Settings.Lepton.EmissivityPresets[i].Description, name->valuestring,
                             sizeof(p_State->Settings.Lepton.EmissivityPresets[i].Description));

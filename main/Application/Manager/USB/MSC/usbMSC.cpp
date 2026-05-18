@@ -65,7 +65,7 @@ esp_err_t USBMSC_Init(const USB_MSC_Config_t *p_Config)
         return ESP_ERR_INVALID_ARG;
     }
 
-    memset(&_MSCState, 0, sizeof(USBMSC_State_t));
+    __builtin_memset(&_MSCState, 0, sizeof(USBMSC_State_t));
 
     /* Detect active storage type from MemoryManager */
     StorageLocation = MemoryManager_GetStorageLocation();
@@ -111,7 +111,7 @@ esp_err_t USBMSC_Init(const USB_MSC_Config_t *p_Config)
 
         ESP_LOGD(TAG, "Using SD card from MemoryManager");
 
-        memset(&Storage_Config, 0, sizeof(tinyusb_msc_storage_config_t));
+        __builtin_memset(&Storage_Config, 0, sizeof(tinyusb_msc_storage_config_t));
         Storage_Config.medium.card = Card;
         Storage_Config.mount_point = TINYUSB_MSC_STORAGE_MOUNT_USB;
 
@@ -142,7 +142,7 @@ esp_err_t USBMSC_Init(const USB_MSC_Config_t *p_Config)
 
         ESP_LOGD(TAG, "Using existing wear leveling handle: 0x%X", WL_Handle);
 
-        memset(&Storage_Config, 0, sizeof(tinyusb_msc_storage_config_t));
+        __builtin_memset(&Storage_Config, 0, sizeof(tinyusb_msc_storage_config_t));
         Storage_Config.medium.wl_handle = WL_Handle;
         Storage_Config.mount_point = TINYUSB_MSC_STORAGE_MOUNT_USB;
 

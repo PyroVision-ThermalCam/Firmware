@@ -26,7 +26,7 @@
 #include <string.h>
 
 #include "managers.h"
-#include "Application/application.h"
+#include "Application/app_types.h"
 #include "Application/Tasks/GUI/guiTask.h"
 #include "Application/Tasks/Camera/cameraTask.h"
 #include "Application/Tasks/Lepton/leptonTask.h"
@@ -75,7 +75,7 @@ static void run_app_init(void *p_Args)
         return;
     }
 
-    memset(&_AppContext.InputState, 0, sizeof(DevicesManager_Input_State_t));
+    __builtin_memset(&_AppContext.InputState, 0, sizeof(DevicesManager_Input_State_t));
 
     ESP_ERROR_CHECK(SettingsManager_Init());
     ESP_ERROR_CHECK(Devices_Task_Init());

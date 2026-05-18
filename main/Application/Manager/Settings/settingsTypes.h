@@ -119,6 +119,8 @@ enum {
                                                      Data contains uint8_t with new Lepton_Palette_t value. */
     SETTINGS_ID_DISPLAY_BRIGHTNESS,             /**< Display brightness setting changed.
                                                      Data contains uint8_t with new brightness value. */
+    SETTINGS_ID_DISPLAY_TIMEOUT,                /**< Display timeout setting changed.
+                                                     Data contains uint8_t with new timeout value. */
     SETTINGS_ID_IMAGE_FORMAT,                   /**< Image format setting changed.
                                                      Data contains Settings_Image_Format_t. */
     SETTINGS_ID_WIFI_SSID,                      /**< WiFi settings changed.

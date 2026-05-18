@@ -223,7 +223,7 @@ esp_err_t USBManager_Init(void)
 
     ESP_LOGD(TAG, "Initializing USB Manager...");
 
-    memset(&_USBManagerState, 0, sizeof(USB_Manager_State_t));
+    __builtin_memset(&_USBManagerState, 0, sizeof(USB_Manager_State_t));
 
     _USBManagerState.StringDescriptors[0] = USB_LangID;
     _USBManagerState.StringDescriptors[1] = CONFIG_DEVICE_MANUFACTURER;

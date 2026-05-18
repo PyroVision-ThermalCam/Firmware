@@ -90,7 +90,7 @@ esp_err_t USBCDC_Init(const USB_CDC_Config_t *p_Config)
         return ESP_ERR_INVALID_STATE;
     }
 
-    memset(&_CDCState, 0, sizeof(USB_CDCState_t));
+    __builtin_memset(&_CDCState, 0, sizeof(USB_CDCState_t));
 
     tinyusb_config_cdcacm_t CDC_Config = {
         .cdc_port = TINYUSB_CDC_ACM_0,
@@ -129,7 +129,7 @@ esp_err_t USBCDC_Deinit(void)
         ESP_LOGW(TAG, "Failed to deinitialize TinyUSB CDC-ACM: 0x%X!", Error);
     }
 
-    memset(&_CDCState, 0, sizeof(USB_CDCState_t));
+    __builtin_memset(&_CDCState, 0, sizeof(USB_CDCState_t));
 
     ESP_LOGD(TAG, "CDC-ACM deinitialized");
 

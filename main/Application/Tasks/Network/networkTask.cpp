@@ -200,7 +200,7 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
                 break;
             }
 
-            memcpy(&Changed, p_Data, sizeof(SettingsManager_ChangeNotification_t));
+            __builtin_memcpy(&Changed, p_Data, sizeof(SettingsManager_ChangeNotification_t));
 
             if (Changed.ID == SETTINGS_ID_WIFI_SSID) {
                 ESP_LOGD(TAG, "WiFi settings changed, ID: 0x%X", Changed.ID);

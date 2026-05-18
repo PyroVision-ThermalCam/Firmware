@@ -37,9 +37,8 @@
 #include <sdkconfig.h>
 
 #include "lepton.h"
-#include "lepton_palette.h"
 #include "leptonTask.h"
-#include "Application/application.h"
+#include "Application/app_types.h"
 #include "AppDiag/appDiag.h"
 #include "Application/Manager/Devices/devicesManager.h"
 #include "Application/Manager/USB/usbManager.h"
@@ -160,7 +159,7 @@ static void on_Devices_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t 
 
     switch (ID) {
         case DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE: {
-            memcpy(&_LeptonTaskState.TemperatureInfo, p_Data, sizeof(App_Devices_Temperature_t));
+            __builtin_memcpy(&_LeptonTaskState.TemperatureInfo, p_Data, sizeof(App_Devices_Temperature_t));
 
             ESP_LOGD(TAG, "Temperature status updated: Temperature = %.2f\xC2\xB0""C",
                      _LeptonTaskState.TemperatureInfo.TempSensor);
@@ -256,7 +255,7 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
                 break;
             }
 
-            memcpy(&_LeptonTaskState.NewSetting, p_Data, sizeof(SettingsManager_ChangeNotification_t));
+            __builtin_memcpy(&_LeptonTaskState.NewSetting, p_Data, sizeof(SettingsManager_ChangeNotification_t));
 
             ESP_LOGD(TAG, "Lepton settings changed: ID=%d", _LeptonTaskState.NewSetting.ID);
             ESP_LOGD(TAG, "Lepton settings changed: Value=%d", _LeptonTaskState.NewSetting.Value);
@@ -408,7 +407,7 @@ static void Task_Lepton(void *p_Parameters)
              _LeptonTaskState.Lepton.SerialNumber[2], _LeptonTaskState.Lepton.SerialNumber[3],
              _LeptonTaskState.Lepton.SerialNumber[4], _LeptonTaskState.Lepton.SerialNumber[5],
              _LeptonTaskState.Lepton.SerialNumber[6], _LeptonTaskState.Lepton.SerialNumber[7]);
-    memcpy(DeviceInfo.PartNumber, _LeptonTaskState.Lepton.PartNumber, sizeof(DeviceInfo.PartNumber));
+    __builtin_memcpy(DeviceInfo.PartNumber, _LeptonTaskState.Lepton.PartNumber, sizeof(DeviceInfo.PartNumber));
 
     snprintf(DeviceInfo.SoftwareRevision.GPP_Revision, sizeof(DeviceInfo.SoftwareRevision.GPP_Revision),
              "%u.%u.%u",
@@ -473,7 +472,7 @@ static void Task_Lepton(void *p_Parameters)
             App_Lepton_Frame_t FrameEvent;
 
             if (_LeptonTaskState.RawFrame.TelemetryBuffer != NULL) {
-                memcpy(&Telemetry, _LeptonTaskState.RawFrame.TelemetryBuffer, sizeof(Lepton_Telemetry_t));
+                __builtin_memcpy(&Telemetry, _LeptonTaskState.RawFrame.TelemetryBuffer, sizeof(Lepton_Telemetry_t));
                 ESP_LOGD(TAG, "Telemetry - FrameCounter: %u, FPA_Temp: %uK, Housing_Temp: %uK",
                          Telemetry.FrameCounter,
                          Telemetry.FPA_Temp,
@@ -506,7 +505,7 @@ static void Task_Lepton(void *p_Parameters)
                 size_t ImageSize = _LeptonTaskState.RawFrame.Width * _LeptonTaskState.RawFrame.Height *
                                    _LeptonTaskState.RawFrame.BytesPerPixel;
 
-                memcpy(WriteBuffer, _LeptonTaskState.RawFrame.ImageBuffer, ImageSize);
+                __builtin_memcpy(WriteBuffer, _LeptonTaskState.RawFrame.ImageBuffer, ImageSize);
 
                 ESP_LOGD(TAG, "Copied RGB888 frame: %ux%u (%u bytes)", _LeptonTaskState.RawFrame.Width,
                          _LeptonTaskState.RawFrame.Height, static_cast<unsigned int>(ImageSize));
@@ -518,7 +517,7 @@ static void Task_Lepton(void *p_Parameters)
                 PaletteIdx = _LeptonTaskState.LeptonSettings.Palette < LEPTON_PALETTE_COUNT ? _LeptonTaskState.LeptonSettings.Palette : 0U;
 
                 /* Save raw 14-bit data before RGB conversion so the HTTP encoder can re-apply any palette */
-                memcpy(_LeptonTaskState.Raw14Buffer, _LeptonTaskState.RawFrame.ImageBuffer,
+                __builtin_memcpy(_LeptonTaskState.Raw14Buffer, _LeptonTaskState.RawFrame.ImageBuffer,
                        _LeptonTaskState.RawFrame.Width * _LeptonTaskState.RawFrame.Height * sizeof(uint16_t));
 
                 Lepton_Raw14ToRGB(&_LeptonTaskState.Lepton, _LeptonTaskState.RawFrame.ImageBuffer, WriteBuffer, &Min, &Max,

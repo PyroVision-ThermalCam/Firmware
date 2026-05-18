@@ -79,8 +79,8 @@ static void on_Prov_Event(void *p_Arg, esp_event_base_t EventBase, int32_t Event
             wifi_sta_config_t *wifi_cfg = static_cast<wifi_sta_config_t *>(p_EventData);
 
             if (wifi_cfg != NULL) {
-                memcpy(&_Provisioning_State.WiFi_STA_Config.ssid, wifi_cfg->ssid, sizeof(wifi_cfg->ssid));
-                memcpy(&_Provisioning_State.WiFi_STA_Config.password, wifi_cfg->password, sizeof(wifi_cfg->password));
+                __builtin_memcpy(&_Provisioning_State.WiFi_STA_Config.ssid, wifi_cfg->ssid, sizeof(wifi_cfg->ssid));
+                __builtin_memcpy(&_Provisioning_State.WiFi_STA_Config.password, wifi_cfg->password, sizeof(wifi_cfg->password));
 
                 _Provisioning_State.HasCredentials = true;
 
@@ -253,7 +253,7 @@ esp_err_t Provisioning_Start(void)
     ServerConfig.Port = 80;
     ServerConfig.MaxClients = 1;  /* Only one client for provisioning */
     ServerConfig.EnableCORS = true;
-    memset(ServerConfig.API_Key, '\0', sizeof(ServerConfig.API_Key));
+    __builtin_memset(ServerConfig.API_Key, '\0', sizeof(ServerConfig.API_Key));
 
     /* Initialize HTTP server first (without WebSocket) */
     Error = HTTP_Server_Init(&ServerConfig);
@@ -361,7 +361,7 @@ bool Provisioning_isProvisioned(void)
     bool IsProvisioned;
     wifi_prov_mgr_config_t Config;
 
-    memset(&Config, 0, sizeof(wifi_prov_mgr_config_t));
+    __builtin_memset(&Config, 0, sizeof(wifi_prov_mgr_config_t));
 
     Config.scheme = wifi_prov_scheme_softap;
     Config.scheme_event_handler = WIFI_PROV_EVENT_HANDLER_NONE;

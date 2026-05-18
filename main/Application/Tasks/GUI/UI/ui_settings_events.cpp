@@ -30,7 +30,7 @@
 
 #include "ui_messagebox.h"
 #include "ui_settings_events.h"
-#include "../../../application.h"
+#include "../../../app_types.h"
 
 /** @brief POSIX timezone strings corresponding to the dropdown entries in
  *         ui_Settings_Create_System_Page().  The index must match the
@@ -100,6 +100,29 @@ void on_Display_Brightness_Slider_Callback(lv_event_t *e)
     }
 }
 
+void on_Display_Timeout_Slider_Callback(lv_event_t *e)
+{
+    int Value;
+    Settings_Display_t DisplaySettings;
+    lv_obj_t *Slider = static_cast<lv_obj_t *>(lv_event_get_target(e));
+    Slider_Widgets_t *Widgets = static_cast<Slider_Widgets_t *>(lv_obj_get_user_data(Slider));
+
+    SettingsManager_GetDisplay(&DisplaySettings);
+
+    Value = static_cast<int>(lv_slider_get_value(Slider));
+    lv_label_set_text_fmt(Widgets->Label, "%d", Value);
+
+    /* Save on release only */
+    if (lv_event_get_code(e) == LV_EVENT_RELEASED) {
+        SettingsManager_ChangeNotification_t Changed;
+
+        Changed.ID = SETTINGS_ID_DISPLAY_TIMEOUT;
+        Changed.Value = Value;
+        DisplaySettings.Timeout = static_cast<uint16_t>(Value);
+        SettingsManager_UpdateDisplay(&DisplaySettings, &Changed);
+    }
+}
+
 void on_Lepton_Dropdown_Callback(lv_event_t *e)
 {
     int Value;
@@ -152,8 +175,8 @@ void on_WiFi_ClearCredentials_Callback(lv_event_t *e)
 
     SettingsManager_GetWiFi(&WiFiSettings);
 
-    memset(WiFiSettings.SSID, '\0', sizeof(WiFiSettings.SSID));
-    memset(WiFiSettings.Password, '\0', sizeof(WiFiSettings.Password));
+    __builtin_memset(WiFiSettings.SSID, '\0', sizeof(WiFiSettings.SSID));
+    __builtin_memset(WiFiSettings.Password, '\0', sizeof(WiFiSettings.Password));
 
     SettingsManager_UpdateWiFi(&WiFiSettings);
     SettingsManager_Save();

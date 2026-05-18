@@ -324,7 +324,7 @@ All fields are `true` when the corresponding input is *pressed/active*.
 * *Device Manager* (`devicesManager.h`): Full hardware initialization and sensor access.
   `Devices_Task_Init()` calls `DevicesManager_Init()` and `Devices_Task_Deinit()` calls
   `DevicesManager_Deinit()`.
-* *Application Context* (`application.h`): `App_Context_t` passed to `Devices_Task_Start()`.
+* *Application Context* (`app_types.h`): `App_Context_t` passed to `Devices_Task_Start()`.
 * *ESP Event System*: Default event loop must be created before `Devices_Task_Init()`.
 
 ---

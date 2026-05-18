@@ -35,7 +35,7 @@
 #include <stdbool.h>
 
 #include "devicesTask.h"
-#include "Application/application.h"
+#include "Application/app_types.h"
 #include "Application/Manager/Devices/devicesManager.h"
 #include "AppDiag/appDiag.h"
 
@@ -161,7 +161,7 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
 
     switch (ID) {
         case SETTINGS_EVENT_DISPLAY_CHANGED: {
-            memcpy(&_DevicesTaskState.NewSetting, p_Data, sizeof(SettingsManager_ChangeNotification_t));
+            __builtin_memcpy(&_DevicesTaskState.NewSetting, p_Data, sizeof(SettingsManager_ChangeNotification_t));
 
             ESP_LOGD(TAG, "Display settings changed: ID=%d", _DevicesTaskState.NewSetting.ID);
             ESP_LOGD(TAG, "Display settings changed: Value=%d", _DevicesTaskState.NewSetting.Value);
@@ -179,7 +179,7 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
                 break;
             }
 
-            memcpy(&_DevicesTaskState.NewSetting, p_Data, sizeof(SettingsManager_ChangeNotification_t));
+            __builtin_memcpy(&_DevicesTaskState.NewSetting, p_Data, sizeof(SettingsManager_ChangeNotification_t));
 
             ESP_LOGD(TAG, "Calibration settings changed: ID=%d", _DevicesTaskState.NewSetting.ID);
             ESP_LOGD(TAG, "Calibration settings changed: Value=%d", _DevicesTaskState.NewSetting.Value);
@@ -287,8 +287,8 @@ static void Task_Devices(void *p_Parameters)
 
     ESP_LOGD(TAG, "Devices task started on core %d", xPortGetCoreID());
 
-    memset(&InputState, 0, sizeof(DevicesManager_Input_State_t));
-    memset(&PendingInputState, 0, sizeof(DevicesManager_Input_State_t));
+    __builtin_memset(&InputState, 0, sizeof(DevicesManager_Input_State_t));
+    __builtin_memset(&PendingInputState, 0, sizeof(DevicesManager_Input_State_t));
 
     PendingChangeTime = 0;
     HasPendingInput = false;
@@ -543,7 +543,7 @@ static void Task_Devices(void *p_Parameters)
         /* Read raw hardware input and start the debouncing when the state is different from the previous state. */
         if (DevicesManager_HandleDisplayboardExpanderInterrupt(&InputState) == ESP_OK) {
             if (memcmp(&InputState, &PendingInputState, sizeof(DevicesManager_Input_State_t)) != 0) {
-                memcpy(&PendingInputState, &InputState, sizeof(DevicesManager_Input_State_t));
+                __builtin_memcpy(&PendingInputState, &InputState, sizeof(DevicesManager_Input_State_t));
                 PendingChangeTime = NowTick;
                 HasPendingInput = true;
             }

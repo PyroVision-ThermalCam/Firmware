@@ -261,7 +261,7 @@ esp_err_t DevicesManager_Init(void)
 
     ESP_LOGD(TAG, "Initializing Devices Manager...");
 
-    memset(&_DevicesManagerState, 0, sizeof(Devices_Manager_State_t));
+    __builtin_memset(&_DevicesManagerState, 0, sizeof(Devices_Manager_State_t));
 
     _DevicesManagerState.Mutex = xSemaphoreCreateRecursiveMutex();
     if (_DevicesManagerState.Mutex == NULL) {

@@ -25,7 +25,7 @@
 #include <driver/i2c.h>
 
 #include "guiHelper.h"
-#include "Application/application.h"
+#include "Application/app_types.h"
 #include "../Export/ui.h"
 #include "../UI/ui_settings.h"
 

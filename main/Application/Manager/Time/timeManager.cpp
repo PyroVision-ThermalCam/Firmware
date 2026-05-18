@@ -146,7 +146,7 @@ esp_err_t TimeManager_Init(void *p_RTC_Handle)
 
     ESP_LOGD(TAG, "Initializing Time Manager");
 
-    memset(&_TimeManagerState, 0, sizeof(TimeManager_State_t));
+    __builtin_memset(&_TimeManagerState, 0, sizeof(TimeManager_State_t));
 
     _TimeManagerState.HasRTC = true;
     ESP_LOGD(TAG, "RTC available for time backup");

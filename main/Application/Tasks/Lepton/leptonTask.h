@@ -29,7 +29,7 @@
 
 #include <stdint.h>
 
-#include "Application/application.h"
+#include "Application/app_types.h"
 
 /** @brief          Initialize the Lepton camera task.
  *                  Creates FreeRTOS task for Lepton thermal camera frame acquisition.

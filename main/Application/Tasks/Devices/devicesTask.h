@@ -31,7 +31,7 @@
 
 #include <stdint.h>
 
-#include "Application/application.h"
+#include "Application/app_types.h"
 
 /** @brief              Initialize the devices task.
  *                      Creates the FreeRTOS task, event group, and registers event handlers

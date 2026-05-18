@@ -415,7 +415,7 @@ esp_err_t VL53L1X_Init(i2c_master_bus_handle_t *p_Bus_Handle, VL53L1X_Dev_t *p_D
         TimingBudget = p_Config->TimingBudget;
     }
 
-    memset(p_Device, 0, sizeof(VL53L1X_Dev_t));
+    __builtin_memset(p_Device, 0, sizeof(VL53L1X_Dev_t));
 
     Error = i2c_master_bus_add_device(*p_Bus_Handle, &_VL53L1X_I2C_Config, &p_Device->Handle);
     if (Error != ESP_OK) {

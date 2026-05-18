@@ -36,7 +36,7 @@
 
 #include <lvgl.h>
 
-#include "Application/application.h"
+#include "Application/app_types.h"
 #include "Application/Manager/Network/networkTypes.h"
 #include "Application/Manager/ImageEncoder/imageEncoder.h"
 

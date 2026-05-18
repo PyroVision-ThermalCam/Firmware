@@ -177,7 +177,7 @@ esp_err_t USBUVC_Init(const USB_UVC_Config_t *p_Config)
         return ESP_ERR_INVALID_STATE;
     }
 
-    memset(&_UVCState, 0, sizeof(USB_UVCState_t));
+    __builtin_memset(&_UVCState, 0, sizeof(USB_UVCState_t));
 
     _UVCState.Width = p_Config->Width;
     _UVCState.Height = p_Config->Height;
@@ -275,7 +275,7 @@ esp_err_t USBUVC_Deinit(void)
         _UVCState.BufferMutex = NULL;
     }
 
-    memset(&_UVCState, 0, sizeof(USB_UVCState_t));
+    __builtin_memset(&_UVCState, 0, sizeof(USB_UVCState_t));
 
     /* If we were streaming, post STOP event so tasks can clean up */
     if (WasStreaming) {
@@ -322,7 +322,7 @@ esp_err_t USBUVC_SubmitFrame(const uint8_t *p_Data, size_t Size)
     }
 
     /* Copy frame data to buffer */
-    memcpy(_UVCState.Buffers[WriteIdx].p_Buffer, p_Data, Size);
+    __builtin_memcpy(_UVCState.Buffers[WriteIdx].p_Buffer, p_Data, Size);
     _UVCState.Buffers[WriteIdx].Size = Size;
     _UVCState.Buffers[WriteIdx].IsReady = true;
 

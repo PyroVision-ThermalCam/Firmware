@@ -170,7 +170,7 @@ void SettingsManager_InitDefaultUSB(Settings_t *p_Settings)
     p_Settings->USB.UVC_Enabled = SETTINGS_DEFAULT_USB_UVC_ENABLE;
     p_Settings->USB.CDC_Enabled = SETTINGS_DEFAULT_USB_CDC_ENABLE;
 
-    memset(p_Settings->USB.Reserved, 0, sizeof(p_Settings->USB.Reserved));
+    __builtin_memset(p_Settings->USB.Reserved, 0, sizeof(p_Settings->USB.Reserved));
 }
 
 void SettingsManager_InitDefaultCalibration(Settings_t *p_Settings)
@@ -185,12 +185,12 @@ void SettingsManager_InitDefaultCalibration(Settings_t *p_Settings)
      * reading into SensorAtCalibration). */
     p_Settings->Calibration.SensorAtCalibration = 0.0f;
 
-    memset(p_Settings->Calibration.Reserved, 0, sizeof(p_Settings->Calibration.Reserved));
+    __builtin_memset(p_Settings->Calibration.Reserved, 0, sizeof(p_Settings->Calibration.Reserved));
 }
 
 void SettingsManager_LoadFromDefaults(Settings_Manager_State_t *p_State)
 {
-    memset(&p_State->Settings, 0, sizeof(Settings_t));
+    __builtin_memset(&p_State->Settings, 0, sizeof(Settings_t));
 
     p_State->Settings.Version = SETTINGS_VERSION;
     SettingsManager_InitDefaultDisplay(&p_State->Settings);

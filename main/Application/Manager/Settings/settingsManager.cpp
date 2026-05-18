@@ -62,7 +62,7 @@ static esp_err_t SettingsManager_Update(void *p_Src, void *p_Dst, size_t Size, i
 
     xSemaphoreTake(_SettingsManagerState.Mutex, portMAX_DELAY);
 
-    memcpy(p_Dst, p_Src, Size);
+    __builtin_memcpy(p_Dst, p_Src, Size);
 
     xSemaphoreGive(_SettingsManagerState.Mutex);
 
@@ -88,7 +88,7 @@ static esp_err_t SettingsManager_Get(void* p_Output, void* p_Source, size_t Size
     }
 
     xSemaphoreTake(_SettingsManagerState.Mutex, portMAX_DELAY);
-    memcpy(p_Output, p_Source, Size);
+    __builtin_memcpy(p_Output, p_Source, Size);
     xSemaphoreGive(_SettingsManagerState.Mutex);
 
     return ESP_OK;
@@ -107,7 +107,7 @@ esp_err_t SettingsManager_Init(void)
 
     ESP_LOGI(TAG, "Initializing Settings Manager...");
 
-    memset(&_SettingsManagerState, 0, sizeof(Settings_Manager_State_t));
+    __builtin_memset(&_SettingsManagerState, 0, sizeof(Settings_Manager_State_t));
 
     ESP_ERROR_CHECK(nvs_flash_init());
 
@@ -296,7 +296,7 @@ esp_err_t SettingsManager_LoadFromNVS(Settings_t *p_Settings)
             goto SettingsManager_LoadFromNVS_Exit;
         }
 
-        memcpy(p_Settings, &_SettingsManagerState.Settings, sizeof(Settings_t));
+        __builtin_memcpy(p_Settings, &_SettingsManagerState.Settings, sizeof(Settings_t));
 
         ESP_LOGD(TAG, "Settings loaded from NVS");
 

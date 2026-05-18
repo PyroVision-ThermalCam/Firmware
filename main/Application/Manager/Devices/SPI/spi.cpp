@@ -210,7 +210,7 @@ esp_err_t SPIM_Transmit(spi_host_device_t Host, spi_device_handle_t Handle, uint
         return ESP_ERR_INVALID_ARG;
     }
 
-    memset(&trans, 0, sizeof(trans));
+    __builtin_memset(&trans, 0, sizeof(trans));
     trans.tx_buffer = p_Tx_Data;
     trans.rx_buffer = p_Rx_Data;
     trans.length = Length * 8;

@@ -40,7 +40,7 @@
 #include "guiTask.h"
 #include "guiControl.h"
 #include "Export/ui.h"
-#include "Application/application.h"
+#include "Application/app_types.h"
 #include "Application/Manager/managers.h"
 #include "Application/Manager/Network/Server/server.h"
 #include "Application/Manager/USB/UVC/usbUVC.h"
@@ -74,7 +74,7 @@ static void on_Lepton_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t B
 
     switch (ID) {
         case LEPTON_TASK_EVENT_CAMERA_READY: {
-            memcpy(&_GUITaskState.LeptonDeviceInfo, static_cast<const App_Lepton_Device_t *>(p_Data),
+            __builtin_memcpy(&_GUITaskState.LeptonDeviceInfo, static_cast<const App_Lepton_Device_t *>(p_Data),
                    sizeof(App_Lepton_Device_t));
 
             xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_READY);
@@ -87,28 +87,28 @@ static void on_Lepton_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t B
             break;
         }
         case LEPTON_TASK_EVENT_RESPONSE_FPA_AUX_TEMP: {
-            memcpy(&_GUITaskState.TemperatureInfo, p_Data, sizeof(App_Devices_Temperature_t));
+            __builtin_memcpy(&_GUITaskState.TemperatureInfo, p_Data, sizeof(App_Devices_Temperature_t));
 
             xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_TEMPERATURE_READY);
 
             break;
         }
         case LEPTON_TASK_EVENT_RESPONSE_SCENE_STATISTICS: {
-            memcpy(&_GUITaskState.ROIResult, p_Data, sizeof(App_Lepton_ROI_Result_t));
+            __builtin_memcpy(&_GUITaskState.ROIResult, p_Data, sizeof(App_Lepton_ROI_Result_t));
 
             xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_SCENE_STATISTICS_READY);
 
             break;
         }
         case LEPTON_TASK_EVENT_RESPONSE_UPTIME: {
-            memcpy(&_GUITaskState.LeptonUptime, p_Data, sizeof(uint32_t));
+            __builtin_memcpy(&_GUITaskState.LeptonUptime, p_Data, sizeof(uint32_t));
 
             xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_UPTIME_READY);
 
             break;
         }
         case LEPTON_TASK_EVENT_RESPONSE_PIXEL_TEMP: {
-            memcpy(&_GUITaskState.SpotTemperature, p_Data, sizeof(float));
+            __builtin_memcpy(&_GUITaskState.SpotTemperature, p_Data, sizeof(float));
 
             xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_LEPTON_PIXEL_TEMPERATURE_READY);
 
@@ -168,7 +168,7 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
 
             SettingsManager_ChangeNotification_t Changed;
 
-            memcpy(&Changed, p_Data, sizeof(SettingsManager_ChangeNotification_t));
+            __builtin_memcpy(&Changed, p_Data, sizeof(SettingsManager_ChangeNotification_t));
 
             if (Changed.ID == SETTINGS_ID_LEPTON_PALETTE) {
                 xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_PALETTE_CHANGED);
@@ -211,6 +211,23 @@ static void on_GUI_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
 
             break;
         }
+        case GUI_TASK_EVENT_SWITCH_CAMERA: {
+            int Index;
+
+            __builtin_memcpy(&Index, p_Data, sizeof(int));
+
+            ESP_LOGI(TAG, "Switching camera view: Index=%d", Index);
+
+            if (Index == 0) {
+                _GUITaskState.ShowCameraView = false;
+            } else {
+                _GUITaskState.ShowCameraView = true;
+            }
+
+            xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_CAMERA_VIEW_CHANGED);
+
+            break;
+        }
     }
 }
 
@@ -226,7 +243,7 @@ static void on_Devices_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t 
 
     switch (ID) {
         case DEVICES_TASK_EVENT_RESPONSE_BATTERY: {
-            memcpy(&_GUITaskState.BatteryInfo, p_Data, sizeof(App_Devices_Battery_t));
+            __builtin_memcpy(&_GUITaskState.BatteryInfo, p_Data, sizeof(App_Devices_Battery_t));
 
             ESP_LOGD(TAG, "Battery status updated: Voltage=%dmV, Percentage=%d%%, Charging=%s",
                      _GUITaskState.BatteryInfo.Voltage, _GUITaskState.BatteryInfo.Percentage,
@@ -237,7 +254,7 @@ static void on_Devices_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t 
             break;
         }
         case DEVICES_TASK_EVENT_RESPONSE_TEMPERATURE: {
-            memcpy(&_GUITaskState.TemperatureInfo, p_Data, sizeof(App_Devices_Temperature_t));
+            __builtin_memcpy(&_GUITaskState.TemperatureInfo, p_Data, sizeof(App_Devices_Temperature_t));
 
             ESP_LOGD(TAG, "Room temperature updated: %.1f \xC2\xB0""C", _GUITaskState.TemperatureInfo.TempSensor);
 
@@ -281,7 +298,7 @@ static void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base,
 
     switch (ID) {
         case NETWORK_EVENT_WIFI_GOT_IP: {
-            memcpy(&_GUITaskState.IP_Info, p_Data, sizeof(Network_IP_Info_t));
+            __builtin_memcpy(&_GUITaskState.IP_Info, p_Data, sizeof(Network_IP_Info_t));
             _GUITaskState.WiFiConnected = true;
 
             xEventGroupSetBits(_GUITaskState.EventGroup, GUI_TASK_WIFI_CONNECTION_STATE_CHANGED);
@@ -607,7 +624,7 @@ static void Keypad_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Dat
     xSemaphoreTake(_GUITaskState.AppContext->InputMutex, portMAX_DELAY);
 
     /* Read state and consume ShortPress / LongPress flags in one critical section. */
-    memcpy(&State, &_GUITaskState.AppContext->InputState, sizeof(DevicesManager_Input_State_t));
+    __builtin_memcpy(&State, &_GUITaskState.AppContext->InputState, sizeof(DevicesManager_Input_State_t));
     for (size_t i = 0; i < sizeof(_GUITaskState.AppContext->InputState.Buttons) / sizeof(_GUITaskState.AppContext->InputState.Buttons[0]); i++) {
         _GUITaskState.AppContext->InputState.Buttons[i].ShortPress = false;
         _GUITaskState.AppContext->InputState.Buttons[i].LongPress = false;
@@ -715,6 +732,12 @@ static void Touch_LVGL_ReadCallback(lv_indev_t *p_Indev, lv_indev_data_t *p_Data
  */
 static void GUI_UpdateNetworkImage(const uint8_t* p_Buffer, uint32_t ImageWidth, int32_t ImageHeight)
 {
+    if (_GUITaskState.NetworkRGBBuffer == NULL) {
+        ESP_LOGE(TAG, "Network RGB buffer is NULL, cannot update network image");
+
+        return;
+    }
+
     /* Update NetworkRGBBuffer with the camera frame so that HTTP capture and
      * WebSocket clients always receive the same image that is shown on the LCD.
      * UI_Scale_Camera applies the same 180° pre-rotation as the thermal path,
@@ -1082,7 +1105,9 @@ void Task_GUI(void *p_Parameters)
 
                 lv_obj_invalidate(ui_Image_Main_Image);
 
-                GUI_UpdateNetworkImage(_GUITaskState.ImageCanvasBuffer, ImageWidth, ImageHeight);
+                if (NetworkManager_isConnected()) {
+                    GUI_UpdateNetworkImage(_GUITaskState.ImageCanvasBuffer, ImageWidth, ImageHeight);
+                }
             }
         }
 
@@ -1098,7 +1123,9 @@ void Task_GUI(void *p_Parameters)
 
                     lv_obj_invalidate(ui_Image_Main_Image);
 
-                    GUI_UpdateNetworkImage(_GUITaskState.ImageCanvasBuffer, GUI_IMAGE_CANVAS_WIDTH, GUI_IMAGE_CANVAS_HEIGHT);
+                    if (NetworkManager_isConnected()) {
+                        GUI_UpdateNetworkImage(_GUITaskState.ImageCanvasBuffer, GUI_IMAGE_CANVAS_WIDTH, GUI_IMAGE_CANVAS_HEIGHT);
+                    }
                 }
             }
         }
@@ -1166,7 +1193,7 @@ void Task_GUI(void *p_Parameters)
             _GUITaskState.SaveNextFrameRequested = false;
 
             /* Take a snapshot of the current canvas before handing the pointer to Task_ImageSave. */
-            memcpy(_GUITaskState.SaveCanvasBuffer, _GUITaskState.ImageCanvasBuffer,
+            __builtin_memcpy(_GUITaskState.SaveCanvasBuffer, _GUITaskState.ImageCanvasBuffer,
                    GUI_IMAGE_CANVAS_BUFFER_SIZE);
 
             SaveFrame.Buffer = _GUITaskState.SaveCanvasBuffer;
@@ -1251,6 +1278,9 @@ void Task_GUI(void *p_Parameters)
             if (_GUITaskState.WiFiConnected) {
                 char Buffer[32];
 
+                _GUITaskState.NetworkRGBBuffer = static_cast<uint8_t *>(heap_caps_malloc(GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT
+                                                                             * 3, MALLOC_CAP_SPIRAM));
+
                 snprintf(Buffer, sizeof(Buffer), "IP: %lu.%lu.%lu.%lu",
                          (_GUITaskState.IP_Info.IP >> 0) & 0xFF,
                          (_GUITaskState.IP_Info.IP >> 8) & 0xFF,
@@ -1267,6 +1297,11 @@ void Task_GUI(void *p_Parameters)
                 /* Disable WiFi buttons in the settings menu */
                 lv_obj_remove_flag(ui_settings_wifi_connect_btn, LV_OBJ_FLAG_CLICKABLE);
             } else {
+                if (_GUITaskState.NetworkRGBBuffer != NULL) {
+                    heap_caps_free(_GUITaskState.NetworkRGBBuffer);
+                    _GUITaskState.NetworkRGBBuffer = NULL;
+                }
+
                 lv_label_set_text(ui_Label_Info_IP, "Not connected");
                 lv_label_set_text(ui_settings_wifi_status_label, "Not connected");
                 lv_obj_set_style_text_color(ui_Image_Main_WiFi, lv_color_hex(0xFF0000), LV_PART_MAIN);
@@ -1433,7 +1468,7 @@ void Task_GUI(void *p_Parameters)
 
             /* Clear the canvas to black so the host receives a clean black first frame
              * instead of the last frozen thermal image. */
-            memset(_GUITaskState.ImageCanvasBuffer, 0x00, GUI_IMAGE_CANVAS_BUFFER_SIZE);
+            __builtin_memset(_GUITaskState.ImageCanvasBuffer, 0x00, GUI_IMAGE_CANVAS_BUFFER_SIZE);
             lv_obj_invalidate(ui_Image_Main_Image);
 
             /* Immediately encode and submit a black first frame so Windows Camera app
@@ -1445,7 +1480,7 @@ void Task_GUI(void *p_Parameters)
                 uint8_t *p_FirstFrameData = NULL;
                 size_t FirstFrameSize = 0;
 
-                memset(_GUITaskState.UVC_Stream.ImageBuffer, 0x00, GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT * 3);
+                __builtin_memset(_GUITaskState.UVC_Stream.ImageBuffer, 0x00, GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT * 3);
 
                 if (JPEGEncoder_Encode(_GUITaskState.UVC_Stream.ImageBuffer,
                                        GUI_IMAGE_CANVAS_WIDTH,
@@ -1600,9 +1635,6 @@ esp_err_t GUI_Task_Init(void)
                                                                                 GUI_IMAGE_CANVAS_HEIGHT * 2, MALLOC_CAP_SPIRAM));
     _GUITaskState.GradientCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(GUI_GRADIENT_CANVAS_WIDTH *
                                                                                  GUI_IMAGE_CANVAS_HEIGHT * 2, MALLOC_CAP_SPIRAM));
-    // TODO: Allocate when network used
-    _GUITaskState.NetworkRGBBuffer = static_cast<uint8_t *>(heap_caps_malloc(GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT
-                                                                             * 3, MALLOC_CAP_SPIRAM));
     _GUITaskState.SaveCanvasBuffer = static_cast<uint8_t *>(heap_caps_malloc(GUI_IMAGE_CANVAS_BUFFER_SIZE, MALLOC_CAP_SPIRAM));
 
     if (_GUITaskState.ImageCanvasBuffer == NULL) {
@@ -1621,23 +1653,12 @@ esp_err_t GUI_Task_Init(void)
         return ESP_ERR_NO_MEM;
     }
 
-    if (_GUITaskState.NetworkRGBBuffer == NULL) {
-        ESP_LOGE(TAG, "Failed to allocate network RGB buffer!");
-        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
-
-        heap_caps_free(_GUITaskState.ImageCanvasBuffer);
-        heap_caps_free(_GUITaskState.GradientCanvasBuffer);
-
-        return ESP_ERR_NO_MEM;
-    }
-
     if (_GUITaskState.SaveCanvasBuffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate save canvas buffer!");
         APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_GUI, ESP_ERR_NO_MEM);
 
         heap_caps_free(_GUITaskState.ImageCanvasBuffer);
         heap_caps_free(_GUITaskState.GradientCanvasBuffer);
-        heap_caps_free(_GUITaskState.NetworkRGBBuffer);
 
         return ESP_ERR_NO_MEM;
     }
@@ -1649,7 +1670,6 @@ esp_err_t GUI_Task_Init(void)
 
         heap_caps_free(_GUITaskState.ImageCanvasBuffer);
         heap_caps_free(_GUITaskState.GradientCanvasBuffer);
-        heap_caps_free(_GUITaskState.NetworkRGBBuffer);
         heap_caps_free(_GUITaskState.SaveCanvasBuffer);
 
         return ESP_ERR_NO_MEM;
@@ -1665,21 +1685,19 @@ esp_err_t GUI_Task_Init(void)
 
         heap_caps_free(_GUITaskState.ImageCanvasBuffer);
         heap_caps_free(_GUITaskState.GradientCanvasBuffer);
-        heap_caps_free(_GUITaskState.NetworkRGBBuffer);
         heap_caps_free(_GUITaskState.SaveCanvasBuffer);
 
         _GUITaskState.ImageSaveQueue = NULL;
         _GUITaskState.ImageCanvasBuffer = NULL;
         _GUITaskState.GradientCanvasBuffer = NULL;
-        _GUITaskState.NetworkRGBBuffer = NULL;
         _GUITaskState.SaveCanvasBuffer = NULL;
 
         return ESP_FAIL;
     }
 
     /* Initialize buffers with black pixels (RGB565 = 0x0000) */
-    memset(_GUITaskState.ImageCanvasBuffer, 0x00, GUI_IMAGE_CANVAS_BUFFER_SIZE);
-    memset(_GUITaskState.GradientCanvasBuffer, 0x00, GUI_GRADIENT_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT * 2);
+    __builtin_memset(_GUITaskState.ImageCanvasBuffer, 0x00, GUI_IMAGE_CANVAS_BUFFER_SIZE);
+    __builtin_memset(_GUITaskState.GradientCanvasBuffer, 0x00, GUI_GRADIENT_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT * 2);
 
     /* Now configure the image descriptors with allocated buffers */
     _GUITaskState.ThermalImageDescriptor.header.cf = LV_COLOR_FORMAT_RGB565;
@@ -1709,7 +1727,6 @@ esp_err_t GUI_Task_Init(void)
 
         heap_caps_free(_GUITaskState.ImageCanvasBuffer);
         heap_caps_free(_GUITaskState.GradientCanvasBuffer);
-        heap_caps_free(_GUITaskState.NetworkRGBBuffer);
         heap_caps_free(_GUITaskState.SaveCanvasBuffer);
 
         return ESP_ERR_NO_MEM;
@@ -1723,7 +1740,6 @@ esp_err_t GUI_Task_Init(void)
         vSemaphoreDelete(_GUITaskState.NetworkFrame.Mutex);
         heap_caps_free(_GUITaskState.ImageCanvasBuffer);
         heap_caps_free(_GUITaskState.GradientCanvasBuffer);
-        heap_caps_free(_GUITaskState.NetworkRGBBuffer);
         heap_caps_free(_GUITaskState.SaveCanvasBuffer);
 
         return ESP_ERR_NO_MEM;
@@ -1738,6 +1754,7 @@ esp_err_t GUI_Task_Init(void)
                                NULL);
     esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_IMAGE_SAVED, on_GUI_Task_Event_Handler, NULL);
     esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_IMAGE_SAVE_FAILED, on_GUI_Task_Event_Handler, NULL);
+    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_SWITCH_CAMERA, on_GUI_Task_Event_Handler, NULL);
     esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_LEPTON_CHANGED, on_Settings_Event_Handler, NULL);
     esp_event_handler_register(LEPTON_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Task_Event_Handler, NULL);
     esp_event_handler_register(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_INIT_COMPLETE, on_Camera_Task_Event_Handler, NULL);
@@ -1768,6 +1785,7 @@ void GUI_Task_Deinit(void)
                                  on_Devices_Task_Event_Handler);
     esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_IMAGE_SAVED, on_GUI_Task_Event_Handler);
     esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_IMAGE_SAVE_FAILED, on_GUI_Task_Event_Handler);
+    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_SWITCH_CAMERA, on_GUI_Task_Event_Handler);
     esp_event_handler_unregister(SETTINGS_EVENTS, SETTINGS_EVENT_LEPTON_CHANGED, on_Settings_Event_Handler);
     esp_event_handler_unregister(LEPTON_TASK_EVENTS, ESP_EVENT_ANY_ID, on_Lepton_Task_Event_Handler);
     esp_event_handler_unregister(CAMERA_TASK_EVENTS, CAMERA_TASK_EVENT_INIT_COMPLETE, on_Camera_Task_Event_Handler);

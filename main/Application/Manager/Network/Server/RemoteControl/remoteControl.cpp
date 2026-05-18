@@ -441,7 +441,7 @@ esp_err_t RemoteControl_DisplayMessageBox(const char *p_Message)
 
     ESP_LOGI(TAG, "Display message: %s", p_Message);
 
-    memcpy(Message.Message, p_Message, sizeof(Message.Message) - 1);
+    __builtin_memcpy(Message.Message, p_Message, sizeof(Message.Message) - 1);
     Message.Message[sizeof(Message.Message) - 1] = '\0';
 
     return esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_REMOTE_DISPLAY_MESSAGE, &Message, sizeof(Message),

@@ -1,5 +1,5 @@
 /*
- * application.h
+ * app_types.h
  *
  *  Copyright (C) Daniel Kampert, 2026
  *  Website: www.kampis-elektroecke.de
@@ -19,8 +19,8 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef APPLICATION_H_
-#define APPLICATION_H_
+#ifndef APP_TYPES_H_
+#define APP_TYPES_H_
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -87,6 +87,8 @@ enum {
     GUI_TASK_EVENT_REQUEST_FFC,                 /**< Request to trigger Flat-Field Correction. */
     GUI_TASK_EVENT_REQUEST_LEPTON_RESET,        /**< Request to perform a Lepton reset and reinitialization. No event data. */
     GUI_TASK_EVENT_ROI_CHANGED,                 /**< Notification that the ROI configuration has changed and should be re-read from the settings. */
+    GUI_TASK_EVENT_SWITCH_CAMERA,               /**< Request to switch between thermal and RGB camera view.
+                                                     Data is transmitted as an int representing the camera index. */
 };
 
 /** @brief Devices task event identifiers.
@@ -193,4 +195,4 @@ typedef struct {
                                                      Devices Task and read by the LVGL keypad indev. */
 } App_Context_t;
 
-#endif /* APPLICATION_H_ */
+#endif /* APP_TYPES_H_ */

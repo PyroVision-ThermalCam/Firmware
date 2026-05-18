@@ -30,7 +30,7 @@
 #include <png.h>
 
 #include "guiImageSave.h"
-#include "Application/application.h"
+#include "Application/app_types.h"
 #include "Application/Manager/Memory/memoryManager.h"
 
 extern GUI_Task_State_t _GUITaskState;

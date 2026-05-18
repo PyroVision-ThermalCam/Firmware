@@ -72,7 +72,7 @@ esp_err_t SNTP_GetTime(uint8_t Retries)
 
     ESP_LOGD(TAG, "Initializing SNTP");
 
-    memset(&TimeInfo, 0, sizeof(struct tm));
+    __builtin_memset(&TimeInfo, 0, sizeof(struct tm));
 
     Retry = 0;
     while ((TimeInfo.tm_year < (2016 - 1900)) && (++Retry < Retries)) {
@@ -106,8 +106,8 @@ void SNTP_SetTimezone(const char *p_Timezone)
 
     SettingsManager_GetSystem(&SystemSettings);
 
-    memset(SystemSettings.Timezone, '\0', sizeof(SystemSettings.Timezone));
-    memcpy(&SystemSettings.Timezone, p_Timezone, strlen(p_Timezone) + 1);
+    __builtin_memset(SystemSettings.Timezone, '\0', sizeof(SystemSettings.Timezone));
+    __builtin_memcpy(&SystemSettings.Timezone, p_Timezone, strlen(p_Timezone) + 1);
 
     Changed.ID = SETTINGS_ID_SNTP_TIMEZONE;
     Changed.Value = 0;

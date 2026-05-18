@@ -134,7 +134,7 @@ static void DNS_Server_Task(void *p_Arg)
         *AnswerPtr++ = htons(0x003C);   /* TTL low (60 seconds) */
         *AnswerPtr++ = htons(0x0004);   /* Data length */
 
-        memcpy(AnswerPtr, &IP_Info.ip.addr, sizeof(IP_Info.ip.addr));
+        __builtin_memcpy(AnswerPtr, &IP_Info.ip.addr, sizeof(IP_Info.ip.addr));
         ResponsePtr = reinterpret_cast<uint8_t *>(AnswerPtr) + sizeof(IP_Info.ip.addr);
 
         sendto(_DNS_Server_State.Socket, Buffer, ResponsePtr - Buffer, 0,
@@ -175,7 +175,7 @@ esp_err_t DNS_Server_Start(void)
         ESP_LOGW(TAG, "Failed to set socket timeout: 0x%X!", errno);
     }
 
-    memset(&ServerAddr, 0, sizeof(ServerAddr));
+    __builtin_memset(&ServerAddr, 0, sizeof(ServerAddr));
     ServerAddr.sin_family = AF_INET;
     ServerAddr.sin_addr.s_addr = INADDR_ANY;
     ServerAddr.sin_port = htons(DNS_PORT);

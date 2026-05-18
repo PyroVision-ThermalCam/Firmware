@@ -187,7 +187,7 @@ static esp_err_t RV8263C8_Write_Registers(i2c_master_dev_handle_t *p_Dev_Handle,
     }
 
     Buffer[0] = Register;
-    memcpy(&Buffer[1], p_Data, Length);
+    __builtin_memcpy(&Buffer[1], p_Data, Length);
 
     return I2CM_Write(p_Dev_Handle, Buffer, Length + 1);
 }

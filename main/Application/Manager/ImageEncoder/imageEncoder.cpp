@@ -95,7 +95,7 @@ esp_err_t ImageEncoder_Encode(const ImageEncoder_Raw_t *p_Frame,
         return IMAGE_ENCODER_ERR_INVALID_ARG;
     }
 
-    memset(p_Encoded, 0, sizeof(ImageEncoder_EncodedImage_t));
+    __builtin_memset(p_Encoded, 0, sizeof(ImageEncoder_EncodedImage_t));
 
     uint16_t EncodeWidth = p_Frame->Width;
     uint16_t EncodeHeight = p_Frame->Height;
@@ -141,7 +141,7 @@ esp_err_t ImageEncoder_Encode(const ImageEncoder_Raw_t *p_Frame,
                 if (p_RawCopy == NULL) {
                     return ESP_ERR_NO_MEM;
                 }
-                memcpy(p_RawCopy, p_Frame->Buffer, PixelCount * 3);
+                __builtin_memcpy(p_RawCopy, p_Frame->Buffer, PixelCount * 3);
                 p_Encoded->Data = p_RawCopy;
                 p_Encoded->Size = PixelCount * 3;
                 p_Encoded->Format = IMAGE_FORMAT_RAW;
@@ -185,7 +185,7 @@ esp_err_t ImageEncoder_Encode(const ImageEncoder_Raw_t *p_Frame,
             if (p_RawCopy == NULL) {
                 return ESP_ERR_NO_MEM;
             }
-            memcpy(p_RawCopy, p_Frame->Buffer, PixelCount * 3);
+            __builtin_memcpy(p_RawCopy, p_Frame->Buffer, PixelCount * 3);
             p_Encoded->Data = p_RawCopy;
             p_Encoded->Size = PixelCount * 3;
             p_Encoded->Format = IMAGE_FORMAT_RAW;

@@ -11,7 +11,7 @@
 #include "../guiTask.h"
 #include "../UI/ui_settings.h"
 #include "../UI/ui_messagebox.h"
-#include "../../../application.h"
+#include "../../../app_types.h"
 
 /** @brief LV_EVENT_KEY and LV_EVENT_LONG_PRESSED handler for the Main screen.
  *         LV_EVENT_KEY (short-press): translates BTN1-4 key codes into click events.

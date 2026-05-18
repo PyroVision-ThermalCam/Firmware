@@ -32,7 +32,7 @@
 #include <stdint.h>
 
 #include "guiControl.h"
-#include "Application/application.h"
+#include "Application/app_types.h"
 
 /** @brief              Initialize the GUI task.
  *                      Allocates display and canvas buffers, creates the image-save queue and

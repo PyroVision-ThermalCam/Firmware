@@ -106,7 +106,7 @@ static void VISA_HandleClient(int ClientSocket)
     while (_VISA_Server_State.IsRunning) {
         int Length;
 
-        memset(RxBuffer, 0, sizeof(RxBuffer));
+        __builtin_memset(RxBuffer, 0, sizeof(RxBuffer));
 
         Length = recv(ClientSocket, RxBuffer, sizeof(RxBuffer) - 1, 0);
         if (Length < 0) {
@@ -127,7 +127,7 @@ static void VISA_HandleClient(int ClientSocket)
         RxBuffer[Length] = '\0';
         ESP_LOGD(TAG, "Received: %s", RxBuffer);
 
-        memset(TxBuffer, 0, sizeof(TxBuffer));
+        __builtin_memset(TxBuffer, 0, sizeof(TxBuffer));
 
         /* Process command */
         Length = VISA_ProcessCommand(RxBuffer, TxBuffer, sizeof(TxBuffer));
@@ -254,7 +254,7 @@ esp_err_t VISAServer_Init(void)
 
     SettingsManager_GetVISAServer(&Config);
 
-    memset(&_VISA_Server_State, 0, sizeof(_VISA_Server_State));
+    __builtin_memset(&_VISA_Server_State, 0, sizeof(_VISA_Server_State));
     _VISA_Server_State.Port = Config.Port;
     _VISA_Server_State.Timeout = Config.Timeout;
 

@@ -58,6 +58,7 @@ static const char *ui_settings_timezone[] = {
 };
 
 Slider_Widgets_t brightness_widgets;
+Slider_Widgets_t timeout_widgets;
 Slider_Widgets_t emissivity_widgets;
 Slider_Widgets_t jpeg_quality_widgets;
 
@@ -288,15 +289,15 @@ static lv_obj_t *ui_Settings_Create_About_Page(lv_obj_t *p_parent)
     lv_obj_set_style_pad_all(section, 8, 0);
     ui_Settings_Create_Text(section, "PyroVision Firmware");
 
-    memset(Buffer, 0, sizeof(Buffer));
+    __builtin_memset(Buffer, 0, sizeof(Buffer));
     snprintf(Buffer, sizeof(Buffer), "Version %u.%u.%u", 1, 0, 0);
     ui_Settings_Create_Text(section, Buffer);
 
-    memset(Buffer, 0, sizeof(Buffer));
+    __builtin_memset(Buffer, 0, sizeof(Buffer));
     snprintf(Buffer, sizeof(Buffer), "Platform: %s", CONFIG_IDF_TARGET);
     ui_Settings_Create_Text(section, Buffer);
 
-    memset(Buffer, 0, sizeof(Buffer));
+    __builtin_memset(Buffer, 0, sizeof(Buffer));
     snprintf(Buffer, sizeof(Buffer), "LVGL Version: %d.%d.%d\n", LVGL_VERSION_MAJOR, LVGL_VERSION_MINOR,
              LVGL_VERSION_PATCH);
     ui_Settings_Create_Text(section, Buffer);
@@ -452,6 +453,22 @@ static lv_obj_t *ui_Settings_Create_Display_Page(lv_obj_t *p_Menu)
 
     lv_obj_add_event_cb(brightness_slider, on_Display_Brightness_Slider_Callback, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(brightness_slider, on_Display_Brightness_Slider_Callback, LV_EVENT_RELEASED, NULL);
+
+    /* Separator */
+    lv_obj_t *separator = lv_obj_create(DisplayContainer);
+    lv_obj_set_size(separator, LV_PCT(100), 1);
+    lv_obj_set_style_bg_color(separator, lv_color_hex(0x505050), 0);
+    lv_obj_set_style_border_width(separator, 0, 0);
+    lv_obj_set_style_pad_all(separator, 0, 0);
+    lv_obj_set_style_margin_top(separator, 12, 0);
+    lv_obj_set_style_margin_bottom(separator, 12, 0);
+
+    lv_obj_t *timeout_slider = ui_Settings_Create_Compact_Slider(DisplayContainer, "Timeout", 0, 60,
+                                                                    DisplaySettings.Timeout,
+                                                                    &timeout_widgets);
+
+    lv_obj_add_event_cb(timeout_slider, on_Display_Timeout_Slider_Callback, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_add_event_cb(timeout_slider, on_Display_Timeout_Slider_Callback, LV_EVENT_RELEASED, NULL);
 
     return DisplayPage;
 }
