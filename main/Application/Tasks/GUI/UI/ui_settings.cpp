@@ -809,9 +809,9 @@ static lv_obj_t *ui_Settings_Create_Image_Page(lv_obj_t *p_Menu)
     Menu_Page_Result_t ImageResult = ui_Settings_Create_Menu_Page_With_Container(p_Menu);
     lv_obj_t *ImageContainer = ImageResult.Container;
     lv_obj_t *ImagePage = ImageResult.Page;
-    Settings_System_t SystemSettings;
+    Settings_Image_t ImageSettings;
 
-    SettingsManager_GetSystem(&SystemSettings);
+    SettingsManager_GetImage(&ImageSettings);
 
     /* Section Label */
     lv_obj_t *image_section_label = lv_label_create(ImageContainer);
@@ -835,7 +835,7 @@ static lv_obj_t *ui_Settings_Create_Image_Page(lv_obj_t *p_Menu)
     lv_obj_set_style_bg_color(image_format_dropdown, lv_color_hex(0xFF9500), LV_PART_SELECTED);
     lv_obj_set_style_text_color(image_format_dropdown, lv_color_white(), LV_PART_SELECTED);
     lv_dropdown_set_options(image_format_dropdown, "JPEG\nPNG\nRAW\nBitmap");
-    lv_dropdown_set_selected(image_format_dropdown, static_cast<uint16_t>(SystemSettings.ImageFormat));
+    lv_dropdown_set_selected(image_format_dropdown, static_cast<uint16_t>(ImageSettings.Format));
     lv_obj_add_event_cb(image_format_dropdown, on_Image_Format_Dropdown_Callback, LV_EVENT_VALUE_CHANGED, NULL);
 
     /* Separator */
@@ -866,11 +866,11 @@ static lv_obj_t *ui_Settings_Create_Image_Page(lv_obj_t *p_Menu)
 
     /* JPEG Quality Slider (only visible when JPEG is selected) */
     lv_obj_t *quality_slider = ui_Settings_Create_Compact_Slider(jpeg_quality_row, "Quality", 1, 100,
-                                                                 SystemSettings.JpegQuality, &jpeg_quality_widgets);
+                                                                 ImageSettings.JpegQuality, &jpeg_quality_widgets);
     lv_obj_add_event_cb(quality_slider, on_Image_JpegQuality_Slider_Callback, LV_EVENT_VALUE_CHANGED, NULL);
 
     /* Show/hide quality section based on current format */
-    if (SystemSettings.ImageFormat != IMAGE_FORMAT_JPEG) {
+    if (ImageSettings.Format != IMAGE_FORMAT_JPEG) {
         lv_obj_add_flag(jpeg_quality_row, LV_OBJ_FLAG_HIDDEN);
     }
 

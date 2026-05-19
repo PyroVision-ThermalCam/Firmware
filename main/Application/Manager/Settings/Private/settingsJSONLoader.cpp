@@ -22,16 +22,10 @@
  */
 
 #include <esp_log.h>
-#include <esp_littlefs.h>
-#include <esp_vfs_fat.h>
-#include <sdmmc_cmd.h>
-#include <driver/sdmmc_host.h>
 
 #include <string.h>
 #include <sys/stat.h>
 #include <cJSON.h>
-#include <sys/stat.h>
-#include <dirent.h>
 
 #include "settingsLoader.h"
 #include "../settingsManager.h"
@@ -288,36 +282,6 @@ static void SettingsManager_LoadSystem(Settings_Manager_State_t *p_State, const 
             strncpy(p_State->Settings.System.DeviceName, SETTINGS_SYSTEM_DEFAULT_DEVICENAME,
                     sizeof(p_State->Settings.System.DeviceName));
         }
-
-        cJSON *ImageFormat = cJSON_GetObjectItem(system, "ImageFormat");
-        if (cJSON_IsString(ImageFormat)) {
-            if (strcmp(ImageFormat->valuestring, "PNG") == 0) {
-                p_State->Settings.System.ImageFormat = IMAGE_FORMAT_PNG;
-            } else if (strcmp(ImageFormat->valuestring, "RAW") == 0) {
-                p_State->Settings.System.ImageFormat = IMAGE_FORMAT_RAW;
-            } else if (strcmp(ImageFormat->valuestring, "JPEG") == 0) {
-                p_State->Settings.System.ImageFormat = IMAGE_FORMAT_JPEG;
-            } else if (strcmp(ImageFormat->valuestring, "BITMAP") == 0 || strcmp(ImageFormat->valuestring, "BMP") == 0) {
-                p_State->Settings.System.ImageFormat = IMAGE_FORMAT_BITMAP;
-            } else {
-                p_State->Settings.System.ImageFormat = IMAGE_FORMAT_JPEG;  /* Default to JPEG */
-            }
-        } else {
-            p_State->Settings.System.ImageFormat = IMAGE_FORMAT_JPEG;  /* Default to JPEG */
-        }
-
-        cJSON *JpegQuality = cJSON_GetObjectItem(system, "JpegQuality");
-        if (cJSON_IsNumber(JpegQuality)) {
-            p_State->Settings.System.JpegQuality = static_cast<uint8_t>(JpegQuality->valueint);
-            /* Clamp to valid range 1-100 */
-            if (p_State->Settings.System.JpegQuality < 1) {
-                p_State->Settings.System.JpegQuality = 1;
-            } else if (p_State->Settings.System.JpegQuality > 100) {
-                p_State->Settings.System.JpegQuality = 100;
-            }
-        } else {
-            p_State->Settings.System.JpegQuality = 80;  /* Default to 80 */
-        }
     } else {
         SettingsManager_InitDefaultSystem(&p_State->Settings);
     }
@@ -498,6 +462,44 @@ static void SettingsManager_LoadCalibration(Settings_Manager_State_t *p_State, c
     }
 }
 
+/** @brief          Load the image settings from the JSON object and apply them to the Settings Manager state. If a setting is missing or invalid, the default value is used.
+ *  @param p_State  The Settings Manager state structure to update with the loaded settings
+ *  @param p_JSON   The cJSON object representing the root of the settings JSON document
+ */
+static void SettingsManager_LoadImage(Settings_Manager_State_t *p_State, const cJSON *p_JSON)
+{
+    cJSON *image = NULL;
+
+    image = cJSON_GetObjectItem(p_JSON, "image");
+    if (image != NULL) {
+        cJSON *jpeg_quality = cJSON_GetObjectItem(image, "jpeg-quality");
+        if (cJSON_IsNumber(jpeg_quality)) {
+            p_State->Settings.Image.JpegQuality = static_cast<uint8_t>(jpeg_quality->valuedouble);
+        } else {
+            p_State->Settings.Image.JpegQuality = SETTINGS_IMAGE_DEFAULT_JPEG_QUALITY;
+        }
+
+        cJSON *format = cJSON_GetObjectItem(image, "format");
+        if (cJSON_IsString(format)) {
+            if (strcmp(format->valuestring, "JPEG") == 0) {
+                p_State->Settings.Image.Format = IMAGE_FORMAT_JPEG;
+            } else if (strcmp(format->valuestring, "RAW") == 0) {
+                p_State->Settings.Image.Format = IMAGE_FORMAT_RAW;
+            } else if (strcmp(format->valuestring, "PNG") == 0) {
+                p_State->Settings.Image.Format = IMAGE_FORMAT_PNG;
+            } else if (strcmp(format->valuestring, "BITMAP") == 0 || strcmp(format->valuestring, "BMP") == 0) {
+                p_State->Settings.Image.Format = IMAGE_FORMAT_BITMAP;
+            } else {
+                p_State->Settings.Image.Format = SETTINGS_IMAGE_DEFAULT_FORMAT;
+            }
+        } else {
+            p_State->Settings.Image.Format = SETTINGS_IMAGE_DEFAULT_FORMAT;
+        }
+    } else {
+        SettingsManager_InitDefaultImage(&p_State->Settings);
+    }
+}
+
 esp_err_t SettingsManager_LoadFromJSON(Settings_Manager_State_t *p_State, const char *p_FilePath)
 {
     FILE *File = NULL;
@@ -630,6 +632,9 @@ esp_err_t SettingsManager_LoadFromJSON(Settings_Manager_State_t *p_State, const 
 
     /* Extract Calibration settings */
     SettingsManager_LoadCalibration(p_State, JSON);
+
+    /* Extract Image settings */
+    SettingsManager_LoadImage(p_State, JSON);
 
 SettingsManager_Load_JSON_Exit:
     cJSON_Delete(JSON);

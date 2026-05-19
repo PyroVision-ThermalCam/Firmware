@@ -22,7 +22,6 @@
  */
 
 #include <esp_log.h>
-#include <esp_timer.h>
 
 #include <string>
 #include <cstring>
@@ -170,6 +169,7 @@ static void Task_VisaServer(void *p_Args)
     Addr.sin_family = AF_INET;
     Addr.sin_port = htons(_VISA_Server_State.Port);
 
+    _VISA_Server_State.IsRunning = true;
     _VISA_Server_State.ListenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
     if (_VISA_Server_State.ListenSocket < 0) {
         ESP_LOGE(TAG, "Unable to create socket: 0x%X!", errno);
@@ -324,9 +324,7 @@ esp_err_t VISAServer_Start(void)
 
     xSemaphoreTake(_VISA_Server_State.Mutex, portMAX_DELAY);
 
-    _VISA_Server_State.IsRunning = true;
-
-    Error = xTaskCreate(Task_VisaServer, "visa_server", 4096, NULL, 5, &_VISA_Server_State.ServerTask);
+    Error = xTaskCreateWithCaps(Task_VisaServer, "visa_server", 4096, NULL, 5, &_VISA_Server_State.ServerTask, MALLOC_CAP_SPIRAM);
     if (Error != pdPASS) {
         ESP_LOGE(TAG, "Failed to create server task!");
 

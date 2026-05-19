@@ -43,10 +43,9 @@
 /** @} */
 
 /** @brief          Initialize the image encoder.
- *  @param Quality  JPEG quality (1-100)
  *  @return         ESP_OK on success
  */
-esp_err_t ImageEncoder_Init(uint8_t Quality);
+esp_err_t ImageEncoder_Init(void);
 
 /** @brief Deinitialize the image encoder.
  */
@@ -61,6 +60,7 @@ void ImageEncoder_Deinit(void);
  *  @param p_Frame      Pointer to frame data; Buffer must not be NULL
  *  @param Format       Output image format
  *  @param p_Encoded    Pointer to store encoded image data
+ *  @param JpegQuality  JPEG quality (1-100); only used if Format is IMAGE_FORMAT_JPEG
  *  @return             ESP_OK on success
  *                      IMAGE_ENCODER_ERR_INVALID_ARG if p_Frame, p_Frame->Buffer, or p_Encoded is NULL
  *                      IMAGE_ENCODER_ERR_NOT_INITIALIZED if the encoder has not been initialized
@@ -69,7 +69,8 @@ void ImageEncoder_Deinit(void);
  */
 esp_err_t ImageEncoder_Encode(const ImageEncoder_Raw_t *p_Frame,
                               ImageEncoder_Format_t Format,
-                              ImageEncoder_EncodedImage_t *p_Encoded);
+                              ImageEncoder_EncodedImage_t *p_Encoded,
+                              uint8_t JpegQuality);
 
 /** @brief              Free encoded image data.
  *  @param p_Encoded    Pointer to encoded image structure

@@ -100,7 +100,7 @@ static i2c_master_bus_config_t _Devices_Manager_Touch_I2CM_Config = {
 #endif
 
 /** @brief SPI3 host device handle used by the Devices Manager (shared by LCD, touch, SD card). */
-static const spi_host_device_t _Devices_Manager_Periph_SPI = SPI3_HOST;
+static const spi_host_device_t _Devices_Manager_Periph_SPI = SPI2_HOST;
 
 /** @brief Default configuration for the SPI3 bus (shared by LCD, Touch, SD card).
  */

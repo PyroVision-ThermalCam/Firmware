@@ -38,6 +38,8 @@
  *  @param Rotation     Clockwise rotation applied before encoding (JPEG_ROTATE_0D … JPEG_ROTATE_270D)
  *  @param p_Output     Pointer to store encoded JPEG data pointer
  *  @param p_Size       Pointer to store encoded data size
+ *  @param Subsampling  Chroma subsampling mode (JPEG_SUBSAMPLE_GRAY, JPEG_SUBSAMPLE_444, JPEG_SUBSAMPLE_422, JPEG_SUBSAMPLE_420)
+ *                      Default is JPEG_SUBSAMPLE_444 (no subsampling, best quality but largest size)
  *  @return             ESP_OK on success
  *                      ESP_ERR_INVALID_ARG if parameters are invalid
  *                      ESP_ERR_NO_MEM if memory allocation fails
@@ -45,6 +47,6 @@
  */
 esp_err_t JPEGEncoder_Encode(const uint8_t *p_RGB, uint16_t Width, uint16_t Height,
                              uint8_t Quality, jpeg_rotate_t Rotation,
-                             uint8_t **p_Output, size_t *p_Size);
+                             uint8_t **p_Output, size_t *p_Size, jpeg_subsampling_t Subsampling = JPEG_SUBSAMPLE_444);
 
 #endif /* JPEG_ENCODER_H_ */

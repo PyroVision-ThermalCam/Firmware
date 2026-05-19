@@ -22,12 +22,10 @@
  */
 
 #include <esp_log.h>
-#include <esp_timer.h>
-
-#include <cJSON.h>
 
 #include "http_handler.h"
 #include "../http_server.h"
+#include "../Manager/Settings/settingsManager.h"
 
 extern HTTP_Server_State_t _HTTP_Server_State;
 
@@ -38,6 +36,7 @@ esp_err_t HTTP_Handler_Image(httpd_req_t *p_Request)
     esp_err_t Error;
     ImageEncoder_EncodedImage_t Encoded;
     ImageEncoder_Format_t Format = IMAGE_FORMAT_JPEG;
+    Settings_Image_t ImageSettings;
 
     _HTTP_Server_State.RequestCount++;
 
@@ -56,7 +55,8 @@ esp_err_t HTTP_Handler_Image(httpd_req_t *p_Request)
         return HTTP_Server_SendError(p_Request, 503, "No valid frame available");
     }
 
-    Error = ImageEncoder_Encode(_HTTP_Server_State.RawFrame, Format, &Encoded);
+    SettingsManager_GetImage(&ImageSettings);
+    Error = ImageEncoder_Encode(_HTTP_Server_State.RawFrame, Format, &Encoded, ImageSettings.JpegQuality);
 
     xSemaphoreGive(_HTTP_Server_State.RawFrame->Mutex);
 

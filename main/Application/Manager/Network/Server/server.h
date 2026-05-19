@@ -37,14 +37,7 @@ static inline esp_err_t Server_Init(void)
 {
     esp_err_t Error;
     Settings_HTTP_Server_t Config;
-    Settings_System_t SystemConfig;
     Network_HTTP_Server_Config_t ServerConfig;
-
-    SettingsManager_GetSystem(&SystemConfig);
-    Error = ImageEncoder_Init(SystemConfig.JpegQuality);
-    if (Error != ESP_OK) {
-        return Error;
-    }
 
     SettingsManager_GetHTTPServer(&Config);
     __builtin_memcpy(ServerConfig.API_Key, Config.APIKey, sizeof(ServerConfig.API_Key));

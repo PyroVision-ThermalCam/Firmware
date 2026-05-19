@@ -22,9 +22,9 @@
  */
 
 #include <esp_log.h>
-#include <esp_task_wdt.h>
 #include <esp_mac.h>
 #include <esp_efuse.h>
+#include <esp_task_wdt.h>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -33,9 +33,6 @@
 
 #include <cstring>
 #include <time.h>
-#include <sys/stat.h>
-#include <errno.h>
-#include <string.h>
 
 #include "guiTask.h"
 #include "guiControl.h"
@@ -1479,13 +1476,16 @@ void Task_GUI(void *p_Parameters)
             if (_GUITaskState.UVC_Stream.ImageBuffer != NULL) {
                 uint8_t *p_FirstFrameData = NULL;
                 size_t FirstFrameSize = 0;
+                Settings_Image_t ImageSettings;
+
+                SettingsManager_GetImage(&ImageSettings);
 
                 __builtin_memset(_GUITaskState.UVC_Stream.ImageBuffer, 0x00, GUI_IMAGE_CANVAS_WIDTH * GUI_IMAGE_CANVAS_HEIGHT * 3);
 
                 if (JPEGEncoder_Encode(_GUITaskState.UVC_Stream.ImageBuffer,
                                        GUI_IMAGE_CANVAS_WIDTH,
                                        GUI_IMAGE_CANVAS_HEIGHT,
-                                       80,
+                                       ImageSettings.JpegQuality,
                                        JPEG_ROTATE_0D,
                                        &p_FirstFrameData,
                                        &FirstFrameSize) == ESP_OK) {
@@ -1607,7 +1607,7 @@ void Task_GUI(void *p_Parameters)
 
         esp_task_wdt_reset();
 
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(5));
     }
 
     _GUITaskState.TaskHandle = NULL;

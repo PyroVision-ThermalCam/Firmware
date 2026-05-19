@@ -21,7 +21,6 @@
  * Errors and commissions should be reported to DanielKampert@kampis-elektroecke.de
  */
 
-#include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -32,8 +31,8 @@
 
 #include "cameraSobel.h"
 
-/* Maximum supported frame width.  Matches FRAMESIZE_HVGA (480). */
-#define SOBEL_MAX_WIDTH         480
+/* Maximum supported frame width.  Matches FRAMESIZE_HD (1280). */
+#define SOBEL_MAX_WIDTH         1280
 
 /* Number of valid inner pixels per row (1-pixel border excluded on each side). */
 #define SOBEL_INNER_W           (SOBEL_MAX_WIDTH - 2)
@@ -46,13 +45,13 @@
  * 4 int16 values per instruction and would stall on PSRAM latency.
  *
  * Memory budget (all in internal DRAM):
- *   _Gray : 3 x 480 x 2 = 2 880 bytes
- *   _Dx   : 3 x 478 x 2 = 2 868 bytes   (horizontal difference  dx[x] = g[x+1]-g[x-1])
- *   _Sx   : 3 x 478 x 2 = 2 868 bytes   (horizontal smoothed    sx[x] = g[x-1]+2g[x]+g[x+1])
- *   _Gx   :     478 x 2 =   956 bytes   (Sobel X gradient for one output row)
- *   _Gy   :     478 x 2 =   956 bytes   (Sobel Y gradient for one output row)
- *                        --------
- *                        10 528 bytes total
+ *   _Gray : 3 x 1280 x 2 = 7 680 bytes
+ *   _Dx   : 3 x 1278 x 2 = 7 668 bytes   (horizontal difference  dx[x] = g[x+1]-g[x-1])
+ *   _Sx   : 3 x 1278 x 2 = 7 668 bytes   (horizontal smoothed    sx[x] = g[x-1]+2g[x]+g[x+1])
+ *   _Gx   :     1278 x 2 = 2 556 bytes   (Sobel X gradient for one output row)
+ *   _Gy   :     1278 x 2 = 2 556 bytes   (Sobel Y gradient for one output row)
+ *                          --------
+ *                          28 128 bytes total
  */
 DRAM_ATTR static int16_t _Gray[3][SOBEL_MAX_WIDTH];
 DRAM_ATTR static int16_t _Dx[3][SOBEL_INNER_W];

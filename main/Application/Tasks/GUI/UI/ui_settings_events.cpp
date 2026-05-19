@@ -334,37 +334,37 @@ void on_Memory_ClearNVS_Callback(lv_event_t *e){
 
 void on_Image_Format_Dropdown_Callback(lv_event_t *e)
 {
-    Settings_System_t SystemSettings;
+    Settings_Image_t ImageSettings;
 
-    SettingsManager_GetSystem(&SystemSettings);
+    SettingsManager_GetImage(&ImageSettings);
 
-    SystemSettings.ImageFormat = static_cast<ImageEncoder_Format_t>(lv_dropdown_get_selected(static_cast<lv_obj_t *>
+    ImageSettings.Format = static_cast<ImageEncoder_Format_t>(lv_dropdown_get_selected(static_cast<lv_obj_t *>
                                                                                                (lv_event_get_target(e))));
-    SettingsManager_UpdateSystem(&SystemSettings, NULL);
+    SettingsManager_UpdateImage(&ImageSettings, NULL);
 
-    if (SystemSettings.ImageFormat == IMAGE_FORMAT_JPEG) {
+    if (ImageSettings.Format == IMAGE_FORMAT_JPEG) {
         lv_obj_remove_flag(jpeg_quality_row, LV_OBJ_FLAG_HIDDEN);
     } else {
         lv_obj_add_flag(jpeg_quality_row, LV_OBJ_FLAG_HIDDEN);
     }
 
-    ESP_LOGD(TAG, "Image format changed to: 0x%X", SystemSettings.ImageFormat);
+    ESP_LOGD(TAG, "Image format changed to: 0x%X", ImageSettings.Format);
 }
 
 void on_Image_JpegQuality_Slider_Callback(lv_event_t *e)
 {
     int Value;
-    Settings_System_t SystemSettings;
+    Settings_Image_t ImageSettings;
     lv_obj_t *Slider = static_cast<lv_obj_t *>(lv_event_get_target(e));
     Slider_Widgets_t *widgets = static_cast<Slider_Widgets_t *>(lv_obj_get_user_data(Slider));
 
-    SettingsManager_GetSystem(&SystemSettings);
+    SettingsManager_GetImage(&ImageSettings);
 
     Value = static_cast<int>(lv_slider_get_value(Slider));
     lv_label_set_text_fmt(widgets->Label, "%d", Value);
 
-    SystemSettings.JpegQuality = static_cast<uint8_t>(Value);
-    SettingsManager_UpdateSystem(&SystemSettings, NULL);
+    ImageSettings.JpegQuality = static_cast<uint8_t>(Value);
+    SettingsManager_UpdateImage(&ImageSettings, NULL);
 }
 
 void on_Memory_ClearStorage_Callback(lv_event_t *e)

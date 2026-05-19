@@ -27,6 +27,8 @@
 #include <esp_err.h>
 #include <esp_http_server.h>
 
+#include <cJSON.h>
+
 #include "lepton_palette.h"
 #include "../../../SNTP/sntp.h"
 #include "../../../../ImageEncoder/imageEncoder.h"

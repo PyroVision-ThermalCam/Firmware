@@ -23,14 +23,9 @@
 
 #include <esp_log.h>
 #include <esp_timer.h>
-#include <esp_system.h>
-#include <esp_wifi.h>
-#include <esp_heap_caps.h>
 #include <esp_http_server.h>
 
-#include <cJSON.h>
 #include <cstring>
-#include <strings.h>
 
 #include "http_server.h"
 #include "Private/http_handler.h"

@@ -274,7 +274,7 @@ esp_err_t USBManager_Init(void)
         return USB_ERR_QUEUE_CREATE;
     }
 
-    Error = xTaskCreate(USB_Monitoring_Task, "USBMonTask", 4096, NULL, 5, &_USBManagerState.MonitoringTask);
+    Error = xTaskCreateWithCaps(USB_Monitoring_Task, "USBMonTask", 4096, NULL, 5, &_USBManagerState.MonitoringTask, MALLOC_CAP_SPIRAM);
     if (Error != pdPASS) {
         ESP_LOGE(TAG, "Failed to create USB monitoring task: 0x%X!", Error);
 

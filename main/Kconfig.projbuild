@@ -299,7 +299,7 @@ menu "PyroVision"
 
             config SPI_TRANSFER_SIZE
                 int "Max. transfer size in bytes"
-                default 4096
+                default 8192
 
             menu "Touch"
                 choice
@@ -342,7 +342,7 @@ menu "PyroVision"
             menu "SD-Card"
                 choice
                     prompt "SD-Card SPI Bus"
-                    default SD_CARD_SPI3_HOST
+                    default SD_CARD_SPI2_HOST
                     help
                         Select the SPI Bus the SD-Card is attached to.
 
@@ -374,7 +374,7 @@ menu "PyroVision"
             menu "LCD"
                 choice
                     prompt "Display Bus"
-                    default LCD_SPI3_HOST
+                    default LCD_SPI2_HOST
                     help
                         Select the SPI Bus the Display is attached to.
 
@@ -386,7 +386,7 @@ menu "PyroVision"
 
                 config LCD_CLOCK
                     int "SPI clock"
-                    default 200000000
+                    default 400000000
 
                 config LCD_CS
                     int "Chip Select GPIO"
@@ -536,7 +536,7 @@ menu "PyroVision"
 
             config GUI_TASK_PRIO
                 int "Task prio"
-                default 2
+                default 8
 
             config GUI_TASK_CORE
                 int "Task core"

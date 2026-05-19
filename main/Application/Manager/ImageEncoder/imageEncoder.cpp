@@ -46,23 +46,12 @@ static ImageEncoder_State_t _ImageEncoderState;
 
 static const char *TAG = "Image-Encoder";
 
-esp_err_t ImageEncoder_Init(uint8_t Quality)
+esp_err_t ImageEncoder_Init(void)
 {
     if (_ImageEncoderState.IsInitialized) {
         ESP_LOGW(TAG, "Already initialized");
 
         return ESP_OK;
-    }
-
-    ESP_LOGD(TAG, "Initializing image encoder, quality=%d", Quality);
-
-    _ImageEncoderState.JpegQuality = Quality;
-    if (_ImageEncoderState.JpegQuality < 1) {
-        _ImageEncoderState.JpegQuality = 1;
-    }
-
-    if (_ImageEncoderState.JpegQuality > 100) {
-        _ImageEncoderState.JpegQuality = 100;
     }
 
     _ImageEncoderState.IsInitialized = true;
@@ -83,7 +72,8 @@ void ImageEncoder_Deinit(void)
 
 esp_err_t ImageEncoder_Encode(const ImageEncoder_Raw_t *p_Frame,
                               ImageEncoder_Format_t Format,
-                              ImageEncoder_EncodedImage_t *p_Encoded)
+                              ImageEncoder_EncodedImage_t *p_Encoded,
+                              uint8_t JpegQuality)
 {
     esp_err_t Error;
     size_t EncodedSize;
@@ -100,11 +90,24 @@ esp_err_t ImageEncoder_Encode(const ImageEncoder_Raw_t *p_Frame,
     uint16_t EncodeWidth = p_Frame->Width;
     uint16_t EncodeHeight = p_Frame->Height;
 
+    ESP_LOGI(TAG, "Encoding image: Format=%d, Quality=%d, Dimensions=%ux%u", Format, JpegQuality, EncodeWidth, EncodeHeight);
+
     /* Dispatch to appropriate encoder based on format.
      * Always use the pre-rendered RGB888 display buffer directly — no palette re-application. */
     switch (Format) {
         case IMAGE_FORMAT_JPEG: {
 #ifdef CONFIG_IMAGE_ENCODER_JPEG
+            _ImageEncoderState.JpegQuality = JpegQuality;
+            if (_ImageEncoderState.JpegQuality < 1) {
+                _ImageEncoderState.JpegQuality = 1;
+            }
+
+            if (_ImageEncoderState.JpegQuality > 100) {
+                _ImageEncoderState.JpegQuality = 100;
+            }
+
+            ESP_LOGD(TAG, "Initializing image encoder, quality=%d", JpegQuality);
+
             Error = JPEGEncoder_Encode(p_Frame->Buffer, EncodeWidth, EncodeHeight,
                                        _ImageEncoderState.JpegQuality, JPEG_ROTATE_0D,
                                        &p_EncodedData, &EncodedSize);

@@ -25,9 +25,6 @@
 #include <esp_mac.h>
 #include <esp_efuse.h>
 
-#include <nvs_flash.h>
-#include <nvs.h>
-
 #include <string.h>
 
 #include "settingsLoader.h"
@@ -121,10 +118,16 @@ void SettingsManager_InitDefaultSystem(Settings_t *p_Settings)
     }
 
     p_Settings->System.SDCard_AutoMount = true;
-    p_Settings->System.ImageFormat = IMAGE_FORMAT_JPEG;
-    p_Settings->System.JpegQuality = 80;
     strncpy(p_Settings->System.Timezone, SETTINGS_SYSTEM_DEFAULT_TIMEZONE, sizeof(p_Settings->System.Timezone));
     strncpy(p_Settings->System.NTPServer, SETTINGS_SYSTEM_DEFAULT_NTP_SERVER, sizeof(p_Settings->System.NTPServer));
+}
+
+void SettingsManager_InitDefaultImage(Settings_t *p_Settings)
+{
+    ESP_LOGW(TAG, "Loading default Image settings");
+
+    p_Settings->Image.Format = SETTINGS_IMAGE_DEFAULT_FORMAT;
+    p_Settings->Image.JpegQuality = SETTINGS_IMAGE_DEFAULT_JPEG_QUALITY;
 }
 
 void SettingsManager_InitDefaultLepton(Settings_t *p_Settings)
@@ -197,6 +200,7 @@ void SettingsManager_LoadFromDefaults(Settings_Manager_State_t *p_State)
     SettingsManager_InitDefaultProvisioning(&p_State->Settings);
     SettingsManager_InitDefaultWiFi(&p_State->Settings);
     SettingsManager_InitDefaultSystem(&p_State->Settings);
+    SettingsManager_InitDefaultImage(&p_State->Settings);
     SettingsManager_InitDefaultLepton(&p_State->Settings);
     SettingsManager_InitDefaultHTTPServer(&p_State->Settings);
     SettingsManager_InitDefaultVISAServer(&p_State->Settings);

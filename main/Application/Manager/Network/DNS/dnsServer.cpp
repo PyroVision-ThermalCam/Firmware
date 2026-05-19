@@ -188,7 +188,7 @@ esp_err_t DNS_Server_Start(void)
         return ESP_FAIL;
     }
 
-    if (xTaskCreatePinnedToCore(DNS_Server_Task, "DNS_Server", 4096, NULL, 3, &_DNS_Server_State.Task, 1) != pdPASS) {
+    if (xTaskCreatePinnedToCoreWithCaps(DNS_Server_Task, "DNS_Server", 4096, NULL, 3, &_DNS_Server_State.Task, 1, MALLOC_CAP_SPIRAM) != pdPASS) {
         ESP_LOGE(TAG, "Failed to create DNS server task!");
 
         close(_DNS_Server_State.Socket);

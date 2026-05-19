@@ -24,8 +24,6 @@
 #include <esp_log.h>
 #include <esp_timer.h>
 
-#include <cJSON.h>
-
 #include "http_handler.h"
 #include "../http_server.h"
 #include "../../../../Devices/devicesManager.h"

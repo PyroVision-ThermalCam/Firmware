@@ -23,8 +23,6 @@
 
 #include <esp_log.h>
 
-#include <cJSON.h>
-
 #include "http_handler.h"
 #include "../http_server.h"
 #include "../Manager/Settings/settingsManager.h"
@@ -96,26 +94,9 @@ esp_err_t HTTP_Handler_Settings(httpd_req_t *p_Request)
         if ((Item != NULL) && cJSON_IsNumber(Item)) {
             Index = Item->valueint;
 
-            ESP_LOGI(TAG, "Switching camera view: Inde -> %u", Index);
+            ESP_LOGI(TAG, "Switching camera view: Index -> %u", Index);
 
             esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_SWITCH_CAMERA, &Index, sizeof(int), pdMS_TO_TICKS(100));
-        }
-    }
-
-    Group = cJSON_GetObjectItem(JSON, "system");
-    if (Group != NULL) {
-        Settings_System_t SysSettings;
-
-        SettingsManager_GetSystem(&SysSettings);
-
-        Item = cJSON_GetObjectItem(Group, "image_format");
-        if ((Item != NULL) && cJSON_IsNumber(Item)) {
-            SysSettings.ImageFormat = static_cast<ImageEncoder_Format_t>(Item->valueint);
-            Changed.ID = SETTINGS_ID_IMAGE_FORMAT;
-            Changed.Value = static_cast<uint32_t>(SysSettings.ImageFormat);
-            SettingsManager_UpdateSystem(&SysSettings, &Changed);
-
-            ESP_LOGD(TAG, "Settings: system.image_format -> %d", static_cast<int>(SysSettings.ImageFormat));
         }
     }
 

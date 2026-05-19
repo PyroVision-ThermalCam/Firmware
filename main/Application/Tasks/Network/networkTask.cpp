@@ -45,7 +45,6 @@
 #define NETWORK_TASK_OPEN_WIFI_REQUEST          BIT5
 #define NETWORK_TASK_PROV_TIMEOUT               BIT6
 #define NETWORK_TASK_SNTP_TIME_SYNCED           BIT8
-#define NETWORK_TASK_SETTINGS_CHANGED           BIT7
 
 /** @brief Internal runtime state of the network task.
  *         Holds FreeRTOS primitives, WiFi connection status, network state machine,
@@ -210,11 +209,6 @@ static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base
 
             break;
         }
-        case SETTINGS_EVENT_SYSTEM_CHANGED: {
-            xEventGroupSetBits(_NetworkTaskState.EventGroup, NETWORK_TASK_SETTINGS_CHANGED);
-
-            break;
-        }
         default: {
             ESP_LOGW(TAG, "Unhandled devices task event ID: 0x%X", ID);
 
@@ -367,17 +361,6 @@ static void Task_Network(void *p_Parameters)
             xEventGroupClearBits(_NetworkTaskState.EventGroup, NETWORK_TASK_SNTP_TIME_SYNCED);
         }
 
-        if (EventBits & NETWORK_TASK_SETTINGS_CHANGED) {
-            Settings_System_t SystemSettings;
-
-            SettingsManager_GetSystem(&SystemSettings);
-            ImageEncoder_SetQuality(SystemSettings.JpegQuality);
-
-            ESP_LOGD(TAG, "System settings applied - JPEG quality: 0x%X", SystemSettings.JpegQuality);
-
-            xEventGroupClearBits(_NetworkTaskState.EventGroup, NETWORK_TASK_SETTINGS_CHANGED);
-        }
-
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 
@@ -435,7 +418,6 @@ esp_err_t Network_Task_Init(App_Context_t *p_AppContext)
     esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_APP_STARTED, on_GUI_Task_Event_Handler, NULL);
     esp_event_handler_register(SNTP_EVENTS, SNTP_EVENT_SNTP_SYNCED, on_SNTP_Event_Handler, NULL);
     esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_WIFI_CHANGED, on_Settings_Event_Handler, NULL);
-    esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_SYSTEM_CHANGED, on_Settings_Event_Handler, NULL);
 
     _NetworkTaskState.State = NETWORK_STATE_IDLE;
     _NetworkTaskState.IsInitialized = true;
@@ -461,7 +443,6 @@ void Network_Task_Deinit(void)
     esp_event_handler_unregister(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler);
     esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_APP_STARTED, on_GUI_Task_Event_Handler);
     esp_event_handler_unregister(SETTINGS_EVENTS, SETTINGS_EVENT_WIFI_CHANGED, on_Settings_Event_Handler);
-    esp_event_handler_unregister(SETTINGS_EVENTS, SETTINGS_EVENT_SYSTEM_CHANGED, on_Settings_Event_Handler);
 
     if (_NetworkTaskState.EventGroup != NULL) {
         vEventGroupDelete(_NetworkTaskState.EventGroup);

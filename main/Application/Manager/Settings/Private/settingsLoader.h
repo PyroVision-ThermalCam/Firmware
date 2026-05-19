@@ -75,6 +75,9 @@
 #define SETTINGS_DEFAULT_CALIBRATION_ROOM_TEMP  20
 #define SETTINGS_DEFAULT_CALIBRATION_INTERVAL   30
 
+#define SETTINGS_IMAGE_DEFAULT_FORMAT           IMAGE_FORMAT_JPEG
+#define SETTINGS_IMAGE_DEFAULT_JPEG_QUALITY     80
+
 /** @brief Settings Manager state.
  */
 typedef struct {
@@ -157,5 +160,10 @@ void SettingsManager_InitDefaultUSB(Settings_t *p_Settings);
  *  @param p_Settings   Pointer to settings structure
  */
 void SettingsManager_InitDefaultCalibration(Settings_t *p_Settings);
+
+/** @brief              Initialize Image settings with factory defaults.
+ *  @param p_Settings   Pointer to settings structure
+ */
+void SettingsManager_InitDefaultImage(Settings_t *p_Settings);
 
 #endif /* SETTINGS_LOADER_H_ */

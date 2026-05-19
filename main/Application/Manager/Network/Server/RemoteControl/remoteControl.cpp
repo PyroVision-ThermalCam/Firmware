@@ -349,18 +349,18 @@ esp_err_t RemoteControl_SetFlashState(bool Enabled)
 esp_err_t RemoteControl_GetImageFormat(ImageEncoder_Format_t *p_Format)
 {
     esp_err_t Error;
-    Settings_System_t System;
+    Settings_Image_t ImageSettings;
 
     if (p_Format == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    Error = SettingsManager_GetSystem(&System);
+    Error = SettingsManager_GetImage(&ImageSettings);
     if (Error != ESP_OK) {
         return Error;
     }
 
-    *p_Format = System.ImageFormat;
+    *p_Format = ImageSettings.Format;
 
     return ESP_OK;
 }
@@ -368,7 +368,7 @@ esp_err_t RemoteControl_GetImageFormat(ImageEncoder_Format_t *p_Format)
 esp_err_t RemoteControl_SetImageFormat(ImageEncoder_Format_t Format)
 {
     esp_err_t Error;
-    Settings_System_t System;
+    Settings_Image_t ImageSettings;
     SettingsManager_ChangeNotification_t Changed;
 
     if ((Format != IMAGE_FORMAT_PNG) &&
@@ -377,18 +377,18 @@ esp_err_t RemoteControl_SetImageFormat(ImageEncoder_Format_t Format)
         return ESP_ERR_INVALID_ARG;
     }
 
-    Error = SettingsManager_GetSystem(&System);
+    Error = SettingsManager_GetImage(&ImageSettings);
     if (Error != ESP_OK) {
         return Error;
     }
 
     Changed.ID = SETTINGS_ID_IMAGE_FORMAT;
     Changed.Value = Format;
-    System.ImageFormat = static_cast<ImageEncoder_Format_t>(Format);
+    ImageSettings.Format = static_cast<ImageEncoder_Format_t>(Format);
 
-    ESP_LOGI(TAG, "Set image format to: 0x%X", System.ImageFormat);
+    ESP_LOGI(TAG, "Set image format to: 0x%X", ImageSettings.Format);
 
-    return SettingsManager_UpdateSystem(&System, &Changed);
+    return SettingsManager_UpdateImage(&ImageSettings, &Changed);
 }
 
 esp_err_t RemoteControl_SetStatusLED(Remote_LED_Color_t Color, uint8_t Brightness)

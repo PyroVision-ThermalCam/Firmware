@@ -235,6 +235,21 @@ esp_err_t SettingsManager_GetCalibration(Settings_Calibration_t *p_Settings);
 esp_err_t SettingsManager_UpdateCalibration(Settings_Calibration_t *p_Settings,
                                             SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
 
+/** @brief              Get the Image settings from the Settings Manager RAM.
+ *  @param p_Settings   Pointer to Image settings structure to populate
+ *  @return             ESP_OK on success, ESP_ERR_* on failure
+*/
+esp_err_t SettingsManager_GetImage(Settings_Image_t *p_Settings);
+
+/** @brief                  Update Image settings in the Settings Manager RAM.
+ *                          This function triggers the SETTINGS_EVENT_IMAGE_CHANGED event.
+ *  @param p_Settings       Pointer to Image settings structure
+ *  @param p_ChangedSetting Optional pointer to structure to receive changed setting ID and value for event data (can be NULL if not needed)
+ *  @return                 ESP_OK on success, ESP_ERR_* on failure
+ */
+esp_err_t SettingsManager_UpdateImage(Settings_Image_t *p_Settings,
+                                      SettingsManager_ChangeNotification_t *p_ChangedSetting = NULL);
+
 /** @brief  Reset all settings to factory defaults.
  *          Erases NVS partition and reloads defaults.
  *  @return ESP_OK on success

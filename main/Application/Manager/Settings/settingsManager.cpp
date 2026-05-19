@@ -22,16 +22,11 @@
  */
 
 #include <esp_log.h>
-#include <esp_mac.h>
-#include <esp_efuse.h>
-#include <esp_littlefs.h>
 
 #include <nvs_flash.h>
 #include <nvs.h>
 
 #include <string.h>
-#include <sys/stat.h>
-#include <cJSON.h>
 
 #include "settingsManager.h"
 #include "../AppDiag/appDiag.h"
@@ -502,6 +497,19 @@ esp_err_t SettingsManager_UpdateCalibration(Settings_Calibration_t *p_Settings,
     return SettingsManager_Update(p_Settings, &_SettingsManagerState.Settings.Calibration,
                                   sizeof(Settings_Calibration_t),
                                   SETTINGS_EVENT_CALIBRATION_CHANGED, p_ChangedSetting);
+}
+
+esp_err_t SettingsManager_GetImage(Settings_Image_t *p_Settings)
+{
+    return SettingsManager_Get(p_Settings, &_SettingsManagerState.Settings.Image, sizeof(Settings_Image_t));
+}
+
+esp_err_t SettingsManager_UpdateImage(Settings_Image_t *p_Settings,
+                                      SettingsManager_ChangeNotification_t *p_ChangedSetting)
+{
+    return SettingsManager_Update(p_Settings, &_SettingsManagerState.Settings.Image,
+                                  sizeof(Settings_Image_t),
+                                  SETTINGS_EVENT_IMAGE_CHANGED, p_ChangedSetting);
 }
 
 esp_err_t SettingsManager_ResetToDefaults(void)

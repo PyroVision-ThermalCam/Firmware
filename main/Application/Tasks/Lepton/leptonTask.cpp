@@ -32,7 +32,6 @@
 #include <freertos/event_groups.h>
 
 #include <string.h>
-#include <stdbool.h>
 
 #include <sdkconfig.h>
 

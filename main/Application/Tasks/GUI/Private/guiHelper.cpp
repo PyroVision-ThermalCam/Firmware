@@ -22,7 +22,6 @@
  */
 
 #include <esp_log.h>
-#include <driver/i2c.h>
 
 #include "guiHelper.h"
 #include "Application/app_types.h"
@@ -37,7 +36,13 @@
 #error "No SPI host defined for LCD!"
 #endif
 
-/* Partial render buffer: 1/5 of the screen (2 * 320 * 24 * 2 = 30720 bytes) in PSRAM.
+/* Full-screen render buffer (CONFIG_GUI_WIDTH × CONFIG_GUI_HEIGHT × 2 = 153,600 bytes per buffer) in PSRAM.
+ *
+ * With a buffer large enough to hold the entire display, LVGL renders the complete dirty area
+ * (e.g. the 240 × 180 thermal/camera canvas = 86,400 bytes) in a single pass and calls the
+ * flush callback exactly ONCE per invalidated region.  The previous 1/10-screen buffer
+ * (30,720 bytes) forced ~4 partial flush iterations for the canvas, each incurring a full
+ * vTaskDelay(10 ms) stall — ~60 ms total per frame.  One flush reduces that to ~5 ms stall.
  *
  * IMPORTANT: The SPI driver allocates (by default) an internal DMA bounce buffer for EACH queued transaction
  * (chunk_size = CONFIG_SPI_TRANSFER_SIZE = 4096 bytes each). The trans_queue_depth MUST be
@@ -45,8 +50,10 @@
  * because internal DMA RAM is scarce (~28 KB free after USB init). A higher queue depth
  * (e.g. 10 = 8 chunks * 4096 = 32 KB) would exceed free internal DMA RAM and cause
  * ESP_ERR_NO_MEM in spi_device_queue_trans, freezing the display.
+ * Increasing CONFIG_SPI_TRANSFER_SIZE to 8192 is safe (3 × 8192 = 24 KB < 28 KB) and halves
+ * the number of SPI transactions per flush.
  */
-#define GUI_DRAW_BUFFER_SIZE                (2 * CONFIG_GUI_WIDTH * CONFIG_GUI_HEIGHT * sizeof(uint16_t) / 10)
+#define GUI_DRAW_BUFFER_SIZE                (CONFIG_GUI_WIDTH * CONFIG_GUI_HEIGHT * sizeof(uint16_t))
 
 /** @brief          LCD color transfer done callback (called from ISR context after DMA transfer completes).
  *  @param PanelIO  Panel IO handle
@@ -126,7 +133,7 @@ static const esp_lcd_panel_io_i2c_config_t _GUI_Touch_IO_Config = {
         .disable_control_phase = 1,
     },
     .scl_speed_hz = CONFIG_TOUCH_CLOCK,
-    .transaction_timeout_ms = 200,
+    .transaction_timeout_ms = 100,
 };
 
 static esp_lcd_touch_io_gt911_config_t _GUI_Touch_GT911_Config = {

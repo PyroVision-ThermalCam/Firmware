@@ -24,7 +24,6 @@
 #include <esp_log.h>
 
 #include <sys/time.h>
-#include <cJSON.h>
 
 #include "http_handler.h"
 #include "../Manager/Settings/settingsManager.h"

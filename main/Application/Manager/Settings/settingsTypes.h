@@ -105,6 +105,8 @@ enum {
                                                      Data contains SettingsManager_ChangeNotification_t. */
     SETTINGS_EVENT_CALIBRATION_CHANGED,         /**< Calibration settings changed.
                                                      Data contains SettingsManager_ChangeNotification_t. */
+    SETTINGS_EVENT_IMAGE_CHANGED,               /**< Image settings changed.
+                                                     Data contains SettingsManager_ChangeNotification_t. */
     SETTINGS_EVENT_REQUEST_GET,                 /**< Request to get current settings. */
     SETTINGS_EVENT_REQUEST_SAVE,                /**< Request to save settings to NVS. */
     SETTINGS_EVENT_REQUEST_RESET,               /**< Request to reset settings to factory defaults. */
@@ -248,10 +250,13 @@ typedef struct {
     char Timezone[32];                          /**< Timezone string (e.g., "CET-1CEST,M3.5.0,M10.5.0/3"). */
     char NTPServer[32];                         /**< NTP server address. */
     char DeviceName[32];                        /**< Device name. */
-    ImageEncoder_Format_t ImageFormat;          /**< Image format for captures. */
-    uint8_t JpegQuality;                        /**< JPEG compression quality (1-100). */
-    uint8_t Reserved[98];                       /**< Reserved for future use. */
+    uint8_t Reserved[103];                       /**< Reserved for future use. */
 } __attribute__((packed)) Settings_System_t;
+
+typedef struct {
+    ImageEncoder_Format_t Format;               /**< Image format for captures. */
+    uint8_t JpegQuality;                        /**< JPEG compression quality (1-100). */
+} __attribute__((packed)) Settings_Image_t;
 
 /** @brief  LED flash settings.
  *          NOTE: This structure is covered by the settings version number because it is stored in the NVS.
@@ -298,6 +303,7 @@ typedef struct {
     Settings_LED_Flash_t LEDFlash;              /**< LED flash settings. */
     Settings_USB_t USB;                         /**< USB settings. */
     Settings_Calibration_t Calibration;         /**< Calibration settings. */
+    Settings_Image_t Image;                     /**< Image settings. */
 } Settings_t;
 
 #endif /* SETTINGS_TYPES_H_ */

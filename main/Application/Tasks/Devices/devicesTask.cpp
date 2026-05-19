@@ -22,17 +22,14 @@
  */
 
 #include <esp_log.h>
-#include <esp_timer.h>
 #include <esp_event.h>
 #include <esp_task_wdt.h>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <freertos/queue.h>
 #include <freertos/event_groups.h>
 
 #include <string.h>
-#include <stdbool.h>
 
 #include "devicesTask.h"
 #include "Application/app_types.h"
@@ -682,8 +679,8 @@ esp_err_t Devices_Task_Start(App_Context_t *p_AppContext)
 
     ESP_LOGD(TAG, "Starting Devices Task");
 
-    Error = xTaskCreatePinnedToCore(Task_Devices, "Task_Devices", CONFIG_DEVICES_TASK_STACKSIZE, p_AppContext,
-                                    CONFIG_DEVICES_TASK_PRIO, &_DevicesTaskState.TaskHandle, CONFIG_DEVICES_TASK_CORE);
+    Error = xTaskCreatePinnedToCoreWithCaps(Task_Devices, "Task_Devices", CONFIG_DEVICES_TASK_STACKSIZE, p_AppContext,
+                                    CONFIG_DEVICES_TASK_PRIO, &_DevicesTaskState.TaskHandle, CONFIG_DEVICES_TASK_CORE, MALLOC_CAP_SPIRAM);
     if (Error != pdPASS) {
         ESP_LOGE(TAG, "Failed to create Devices Task: 0x%X!", Error);
         APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_DEVICES, ESP_ERR_NO_MEM);

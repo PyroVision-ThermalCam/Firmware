@@ -31,7 +31,7 @@ static const char *TAG = "JPEG-Encoder";
 
 esp_err_t JPEGEncoder_Encode(const uint8_t *p_RGB, uint16_t Width, uint16_t Height,
                              uint8_t Quality, jpeg_rotate_t Rotation,
-                             uint8_t **p_Output, size_t *p_Size)
+                             uint8_t **p_Output, size_t *p_Size, jpeg_subsampling_t Subsampling)
 {
     int Size;
     jpeg_error_t Error;
@@ -40,7 +40,7 @@ esp_err_t JPEGEncoder_Encode(const uint8_t *p_RGB, uint16_t Width, uint16_t Heig
         .width = Width,
         .height = Height,
         .src_type = JPEG_PIXEL_FORMAT_RGB888,
-        .subsampling = JPEG_SUBSAMPLE_420,
+        .subsampling = Subsampling,
         .quality = Quality,
         .rotate = Rotation,
         .task_enable = false,
