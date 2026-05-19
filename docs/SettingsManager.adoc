@@ -1,0 +1,816 @@
+= PyroVision Settings Manager Documentation
+Daniel Kampert <DanielKampert@kampis-elektroecke.de>
+v1.0, 2026-01-14
+:toc: left
+:toclevels: 3
+:sectnums:
+:source-highlighter: coderay
+
+== Overview
+
+The Settings Manager is a central component for persistent management of application settings in the PyroVision firmware. It provides thread-safe access to various settings categories and uses ESP32 NVS (Non-Volatile Storage) for permanent storage.
+
+=== Key Features
+
+* *Thread-safe Operations*: All accesses are protected by a mutex
+* *Persistent Storage*: Settings are stored in NVS flash memory
+* *Event-based Architecture*: Notification of changes via ESP Event System
+* *Categorized Settings*: Modular structure for different subsystems
+* *Factory Defaults*: Support for default settings from JSON or hardcoded
+* *Versioning*: Support for future migrations
+
+== Architecture
+
+=== Component Structure
+
+[source]
+----
+main/Application/Manager/Settings/
+├── settingsManager.h        # Public API
+├── settingsManager.cpp       # Implementation
+├── settingsTypes.h          # Data types and Events
+└── Private/
+    ├── settingsLoader.h     # Internal loader interface
+    ├── settingsJSONLoader.cpp   # JSON Factory Defaults Loader
+    └── settingsDefaultLoader.cpp # Hardcoded Defaults
+----
+
+=== Internal State Management
+
+The manager maintains its state in the `SettingsManager_State_t` structure:
+
+[source,cpp]
+----
+typedef struct {
+    bool isInitialized;           // Initialization status
+    bool PendingChanges;          // Unsaved changes
+    nvs_handle_t NVS_Handle;      // NVS Handle
+    Settings_t Settings;      // Current settings in RAM
+    SemaphoreHandle_t Mutex;      // Thread safety
+} SettingsManager_State_t;
+----
+
+=== NVS Storage Layout
+
+* *Namespace*: `"pyrovision"`
+* *Blob Key*: `"settings"` - Contains the complete `Settings_t` structure
+* *Version Key*: Reserved for future migrations
+* *Config valid Flag*: `"config_valid"` - Indicates a valid configuration in the NVS
+
+== Data Structures
+
+=== Settings Categories
+
+The settings are divided into the following categories:
+
+==== 1. Lepton Camera Settings (`Settings_Lepton_t`)
+
+[source,cpp]
+----
+typedef enum {
+    ROI_TYPE_SPOTMETER,    // Spotmeter ROI
+    ROI_TYPE_SCENE,        // Scene statistics ROI
+    ROI_TYPE_AGC,          // AGC ROI
+    ROI_TYPE_VIDEO_FOCUS,  // Video focus ROI
+} Settings_ROI_Type_t;
+
+typedef struct {
+    Settings_ROI_Type_t Type; // ROI type
+    uint16_t x;               // X coordinate of top-left corner (display pixels)
+    uint16_t y;               // Y coordinate of top-left corner (display pixels)
+    uint16_t w;               // Width of the ROI (display pixels)
+    uint16_t h;               // Height of the ROI (display pixels)
+} Settings_ROI_t;
+
+typedef struct {
+    Settings_ROI_t ROI[4];                       // Camera ROIs
+    Settings_Emissivity_t EmissivityPresets[128]; // Emissivity presets
+    size_t EmissivityPresetsCount;                // Number of presets
+} Settings_Lepton_t;
+----
+
+* *ROIs*: Up to 4 Regions of Interest (Spotmeter, Scene, AGC, Video Focus); configured via `Settings_ROI_t`
+* *Emissivity Presets*: Predefined material emissivities (e.g. Concrete: 0.92, Skin: 0.98)
+
+==== 2. WiFi Settings (`Settings_WiFi_t`)
+
+[source,cpp]
+----
+typedef struct {
+    char SSID[33];              // WiFi SSID (max 32 characters + \0)
+    char Password[65];          // WiFi password (max 64 characters + \0)
+    bool AutoConnect;           // Automatic connection
+    uint8_t MaxRetries;         // Maximum connection attempts
+    uint16_t RetryInterval;     // Wait time between attempts (ms)
+} Settings_WiFi_t;
+----
+
+==== 3. Provisioning Settings (`Settings_Provisioning_t`)
+
+[source,cpp]
+----
+typedef struct {
+    char DeviceName[32];        // Device name for provisioning
+    char PoP[32];               // Proof of Possession
+    uint32_t Timeout;           // Provisioning timeout (seconds)
+} Settings_Provisioning_t;
+----
+
+==== 4. Display Settings (`Settings_Display_t`)
+
+[source,cpp]
+----
+typedef struct {
+    uint8_t Brightness;         // Brightness (0-100%)
+    uint16_t ScreenTimeout;     // Screen timeout (seconds, 0=off)
+} Settings_Display_t;
+----
+
+==== 5. HTTP Server Settings (`Settings_HTTP_Server_t`)
+
+[source,cpp]
+----
+typedef struct {
+    uint16_t Port;              // HTTP Server Port
+    uint16_t WSPingIntervalSec; // WebSocket ping interval (seconds)
+    uint8_t MaxClients;         // Max. simultaneous clients
+} Settings_HTTP_Server_t;
+----
+
+==== 6. VISA Server Settings (`Settings_VISA_Server_t`)
+
+[source,cpp]
+----
+typedef struct {
+    uint16_t Port;              // VISA Server Port (default: 5025)
+} Settings_VISA_Server_t;
+----
+
+==== 7. System Settings (`Settings_System_t`)
+
+[source,cpp]
+----
+typedef struct {
+    char DeviceName[32];        // Device name
+    bool SDCard_AutoMount;      // Automatic SD card mounting
+    bool Bluetooth_Enabled;     // Bluetooth enabled
+    char Timezone[32];          // Timezone string (POSIX format)
+    uint8_t Reserved[100];      // Reserved for future extensions
+} Settings_System_t;
+----
+
+=== Event System
+
+==== Event Base
+
+[source,cpp]
+----
+ESP_EVENT_DECLARE_BASE(SETTINGS_EVENTS);
+----
+
+==== Event IDs
+
+[cols="2,3,2"]
+|===
+|Event |Description |Data
+
+|`SETTINGS_EVENT_LOADED`
+|Settings loaded from NVS
+|`Settings_t`
+
+|`SETTINGS_EVENT_SAVED`
+|Settings saved to NVS
+|NULL
+
+|`SETTINGS_EVENT_LEPTON_CHANGED`
+|Lepton settings changed
+|`Settings_Manager_Setting_t` or NULL (see note below)
+
+|`SETTINGS_EVENT_WIFI_CHANGED`
+|WiFi settings changed
+|`Settings_WiFi_t`
+
+|`SETTINGS_EVENT_PROVISIONING_CHANGED`
+|Provisioning settings changed
+|`Settings_Provisioning_t`
+
+|`SETTINGS_EVENT_DISPLAY_CHANGED`
+|Display settings changed
+|`Settings_Display_t`
+
+|`SETTINGS_EVENT_HTTP_SERVER_CHANGED`
+|HTTP server settings changed
+|`Settings_HTTP_Server_t`
+
+|`SETTINGS_EVENT_VISA_SERVER_CHANGED`
+|VISA server settings changed
+|`Settings_VISA_Server_t`
+
+|`SETTINGS_EVENT_SYSTEM_CHANGED`
+|System settings changed
+|`Settings_System_t`
+
+|`SETTINGS_EVENT_REQUEST_GET`
+|Request to retrieve current settings
+|NULL
+
+|`SETTINGS_EVENT_REQUEST_SAVE`
+|Request to save settings
+|NULL
+
+|`SETTINGS_EVENT_REQUEST_RESET`
+|Request to reset to factory defaults
+|NULL
+|===
+
+*NOTE*: For `SETTINGS_EVENT_LEPTON_CHANGED` events, the event data may be NULL if the update was called without specifying which particular setting changed (i.e., when `SettingsManager_UpdateLepton()` is called without the optional `p_ChangedSetting` parameter). Event handlers MUST check for NULL before accessing event data.
+
+== API Reference
+
+=== Initialization and Lifecycle
+
+==== `SettingsManager_Init()`
+
+[source,cpp]
+----
+esp_err_t SettingsManager_Init(void);
+----
+
+*Description*: Initializes the Settings Manager and loads all settings from NVS.
+
+*Process*:
+
+1. Creates a mutex for thread safety
+2. Opens the NVS namespace `"pyrovision"`
+3. Attempts to load settings from NVS
+4. If no settings exist:
+   * Loads JSON factory defaults from `data/default_settings.json`
+   * If JSON not available: Uses hardcoded defaults
+   * Saves the defaults to NVS
+5. Posts `SETTINGS_EVENT_LOADED` event
+
+*Return Value*:
+
+* `ESP_OK` on success
+* `ESP_ERR_NO_MEM` if mutex could not be created
+* Other `ESP_ERR_*` on NVS errors
+
+*Example*:
+
+[source,cpp]
+----
+if (SettingsManager_Init() == ESP_OK) {
+    ESP_LOGI(TAG, "Settings Manager successfully initialized");
+}
+----
+
+==== `SettingsManager_Deinit()`
+
+[source,cpp]
+----
+esp_err_t SettingsManager_Deinit(void);
+----
+
+*Description*: Deinitializes the Settings Manager and releases resources.
+
+*Process*:
+
+1. Closes the NVS handle
+2. Deletes the mutex
+3. Resets initialization status
+
+*Return Value*: `ESP_OK`
+
+=== Loading and Saving Settings
+
+==== `SettingsManager_Load()`
+
+[source,cpp]
+----
+esp_err_t SettingsManager_Load(Settings_t *p_Settings);
+----
+
+*Description*: Loads all settings from NVS into RAM and the provided structure. *Warning*: Overwrites unsaved RAM changes!
+
+*Parameters*:
+
+* `p_Settings`: Pointer to settings structure to be populated
+
+*Return Value*:
+
+* `ESP_OK` on success
+* `ESP_ERR_INVALID_STATE` if manager is not initialized
+* `ESP_ERR_INVALID_ARG` if `p_Settings` is NULL
+* `ESP_ERR_NVS_NOT_FOUND` if no settings exist in NVS
+* `ESP_ERR_INVALID_SIZE` on size mismatch (e.g., after firmware update)
+
+==== `SettingsManager_Save()`
+
+[source,cpp]
+----
+esp_err_t SettingsManager_Save(void);
+----
+
+*Description*: Saves all RAM settings persistently to NVS.
+
+*Process*:
+
+1. Writes complete `Settings_t` structure as blob to NVS
+2. Commits the changes
+3. Posts `SETTINGS_EVENT_SAVED` event
+
+*Return Value*:
+
+* `ESP_OK` on success
+* `ESP_ERR_INVALID_STATE` if manager is not initialized
+* Other `ESP_ERR_*` on NVS errors
+
+*Important*: Changes via `Update*()` functions are only made in RAM. `Save()` must be called explicitly!
+
+=== Get/Update Functions
+
+For each settings category, there exists a pair of `Get` and `Update` functions:
+
+==== Pattern: Get Function
+
+[source,cpp]
+----
+esp_err_t SettingsManager_Get<Category>(App_Settings_<Category>_t* p_Settings);
+----
+
+*Description*: Reads the current settings from RAM (thread-safe).
+
+*Parameters*: Pointer to the structure to be populated
+
+*Return Value*:
+
+* `ESP_OK` on success
+* `ESP_ERR_INVALID_ARG` on NULL pointer
+
+*Example*:
+
+[source,cpp]
+----
+Settings_WiFi_t wifi_settings;
+if (SettingsManager_GetWiFi(&wifi_settings) == ESP_OK) {
+    ESP_LOGI(TAG, "WiFi SSID: %s", wifi_settings.SSID);
+}
+----
+
+==== Pattern: Update Function
+
+[source,cpp]
+----
+esp_err_t SettingsManager_Update<Category>(App_Settings_<Category>_t* p_Settings);
+----
+
+*Description*: Updates settings in RAM (not persistent!) and posts a change event.
+
+*Parameters*: Pointer to the new settings structure
+
+*Return Value*:
+
+* `ESP_OK` on success
+* `ESP_ERR_INVALID_STATE` if manager is not initialized
+* `ESP_ERR_INVALID_ARG` on NULL pointer
+
+*Process*:
+
+1. Copies new values to RAM structure (thread-safe)
+2. Posts corresponding `SETTINGS_EVENT_*_CHANGED` event with the new data
+
+*Example*:
+
+[source,cpp]
+----
+Settings_Display_t display_settings;
+SettingsManager_GetDisplay(&display_settings);
+
+display_settings.Brightness = 90;
+display_settings.ScreenTimeout = 120;
+
+SettingsManager_UpdateDisplay(&display_settings);
+SettingsManager_Save();  // Make persistent!
+----
+
+==== Available Get/Update Pairs
+
+* `SettingsManager_GetLepton()` / `SettingsManager_UpdateLepton()`
+* `SettingsManager_GetWiFi()` / `SettingsManager_UpdateWiFi()`
+* `SettingsManager_GetProvisioning()` / `SettingsManager_UpdateProvisioning()`
+* `SettingsManager_GetDisplay()` / `SettingsManager_UpdateDisplay()`
+* `SettingsManager_GetHTTPServer()` / `SettingsManager_UpdateHTTPServer()`
+* `SettingsManager_GetVISAServer()` / `SettingsManager_UpdateVISAServer()`
+* `SettingsManager_GetSystem()` / `SettingsManager_UpdateSystem()`
+
+=== Factory Reset
+
+==== `SettingsManager_ResetToDefaults()`
+
+[source,cpp]
+----
+esp_err_t SettingsManager_ResetToDefaults(void);
+----
+
+*Description*: Resets all settings to factory defaults and restarts the device.
+
+*Process*:
+
+1. Deletes the `"settings"` key from NVS
+2. Resets `"config_valid"` flag (allows reloading JSON defaults)
+3. Executes `esp_restart()`
+
+*Return Value*:
+
+* `ESP_OK` on success (never reached due to restart)
+* `ESP_ERR_INVALID_STATE` if manager is not initialized
+* Other `ESP_ERR_*` on NVS errors
+
+*Warning*: This function does not return as a restart is performed!
+
+== Usage
+
+=== Basic Workflow
+
+==== 1. Initialization at Startup
+
+[source,cpp]
+----
+#include "settingsManager.h"
+
+void app_main(void)
+{
+    // Initialize Settings Manager
+    ESP_ERROR_CHECK(SettingsManager_Init());
+    
+    // Further initializations...
+}
+----
+
+==== 2. Reading Settings
+
+[source,cpp]
+----
+Settings_System_t system_settings;
+
+if (SettingsManager_GetSystem(&system_settings) == ESP_OK) {
+    ESP_LOGI(TAG, "Device Name: %s", system_settings.DeviceName);
+    ESP_LOGI(TAG, "Timezone: %s", system_settings.Timezone);
+}
+----
+
+==== 3. Changing Settings
+
+[source,cpp]
+----
+Settings_Display_t display;
+
+// Read current settings
+SettingsManager_GetDisplay(&display);
+
+// Change values
+display.Brightness = 75;
+display.ScreenTimeout = 300;
+
+// Update in RAM (triggers event)
+SettingsManager_UpdateDisplay(&display);
+
+// IMPORTANT: Save persistently!
+SettingsManager_Save();
+----
+
+=== Event Handling
+
+==== Registering Event Handlers
+
+[source,cpp]
+----
+#include <esp_event.h>
+#include "settingsTypes.h"
+
+static void settings_event_handler(void* handler_args, esp_event_base_t base,
+                                   int32_t id, void* event_data)
+{
+    switch (id) {
+        case SETTINGS_EVENT_LOADED:
+            ESP_LOGI(TAG, "Settings have been loaded");
+            break;
+            
+        case SETTINGS_EVENT_SAVED:
+            ESP_LOGI(TAG, "Settings have been saved");
+            break;
+            
+        case SETTINGS_EVENT_WIFI_CHANGED:
+            Settings_WiFi_t* wifi = (Settings_WiFi_t*)event_data;
+            ESP_LOGI(TAG, "WiFi settings changed: SSID=%s", wifi->SSID);
+            // Reconfigure WiFi...
+            break;
+            
+        case SETTINGS_EVENT_DISPLAY_CHANGED:
+            Settings_Display_t* display = (Settings_Display_t*)event_data;
+            ESP_LOGI(TAG, "Display Brightness: %d%%", display->Brightness);
+            // Adjust display brightness...
+            break;
+            
+        // More events...
+    }
+}
+
+void init_event_handlers(void)
+{
+    esp_event_handler_register(SETTINGS_EVENTS,
+                               ESP_EVENT_ANY_ID,
+                               settings_event_handler,
+                               NULL);
+}
+----
+
+=== Advanced Patterns
+
+==== Atomic Settings Update with Rollback
+
+[source,cpp]
+----
+esp_err_t update_wifi_with_rollback(const char* ssid, const char* password)
+{
+    Settings_WiFi_t old_settings;
+    Settings_WiFi_t new_settings;
+    
+    // Backup old settings
+    SettingsManager_GetWiFi(&old_settings);
+    
+    // Prepare new settings
+    new_settings = old_settings;
+    strncpy(new_settings.SSID, ssid, sizeof(new_settings.SSID) - 1);
+    strncpy(new_settings.Password, password, sizeof(new_settings.Password) - 1);
+    
+    // Update
+    SettingsManager_UpdateWiFi(&new_settings);
+    SettingsManager_Save();
+    
+    // Test WiFi connection...
+    if (wifi_connect_test() != ESP_OK) {
+        // On error: Rollback
+        SettingsManager_UpdateWiFi(&old_settings);
+        SettingsManager_Save();
+        return ESP_FAIL;
+    }
+    
+    return ESP_OK;
+}
+----
+
+==== Batch Updates
+
+[source,cpp]
+----
+void configure_device_initial(void)
+{
+    Settings_System_t system;
+    Settings_Display_t display;
+    Settings_WiFi_t wifi;
+    
+    // Change multiple settings
+    SettingsManager_GetSystem(&system);
+    strncpy(system.DeviceName, "PyroVision-001", sizeof(system.DeviceName));
+    system.SDCard_AutoMount = true;
+    SettingsManager_UpdateSystem(&system);
+    
+    SettingsManager_GetDisplay(&display);
+    display.Brightness = 80;
+    display.ScreenTimeout = 60;
+    SettingsManager_UpdateDisplay(&display);
+    
+    SettingsManager_GetWiFi(&wifi);
+    wifi.AutoConnect = true;
+    wifi.MaxRetries = 5;
+    SettingsManager_UpdateWiFi(&wifi);
+    
+    // Save ONCE for all changes
+    SettingsManager_Save();
+}
+----
+
+== Factory Defaults System
+
+=== Hierarchy of Default Sources
+
+1. *JSON Config* (`data/default_settings.json`)
+   * Loaded on first boot
+   * Flag `"config_valid"` prevents reloading of the configuration into the Flash memory
+   * Flexible and easy to customize without recompilation
+   
+2. *Hardcoded Defaults* (in `settingsDefaultLoader.cpp`)
+   * Fallback if JSON is not available
+   * Guaranteed base configuration
+   * Defined in code
+
+=== JSON Format
+
+[source,json]
+----
+{
+    "lepton": {
+        "emissivity": [
+            {
+                "name": "Concrete",
+                "value": 0.92
+            },
+            {
+                "name": "Human Skin",
+                "value": 0.98
+            }
+        ],
+        "roi": {
+            "spotmeter": {
+                "x": 60,
+                "y": 60,
+                "width": 40,
+                "height": 40
+            }
+        }
+    },
+    "wifi": {
+        "ssid": "",
+        "password": "",
+        "maxRetries": 5,
+        "retryInterval": 2000,
+        "autoConnect": true
+    },
+    "display": {
+        "brightness": 80,
+        "timeout": 60
+    }
+}
+----
+
+=== Customizing Defaults
+
+==== Option 1: Modify JSON
+
+1. Edit `data/default_settings.json`
+2. Flash firmware
+3. Perform factory reset or manually reset `config_valid` flag
+
+==== Option 2: Change Hardcoded Defaults
+
+Functions in `settingsDefaultLoader.cpp`:
+
+* `SettingsManager_InitDefaultLepton()`
+* `SettingsManager_InitDefaultWiFi()`
+* `SettingsManager_InitDefaultDisplay()`
+* etc.
+
+== Best Practices
+
+=== DO's
+
+* ✓ Always call `SettingsManager_Save()` after updates if persistence is desired
+* ✓ Register event handlers for dynamic response to setting changes
+* ✓ Use Get/Update functions for category-specific access
+* ✓ Configure factory defaults in JSON for easy customization
+* ✓ Perform error handling on all API calls
+
+=== DON'Ts
+
+* ✗ Do not directly access internal `_State` structure
+* ✗ Do not access settings without mutex (API already uses mutex)
+* ✗ Do not forget to save after updates
+* ✗ Do not use `ResetToDefaults()` in production code without user confirmation
+* ✗ Do not save too frequently (consider flash wear)
+
+=== Performance Tips
+
+* *Batch Updates*: Make multiple changes, then save once
+* *Event-based*: Use events instead of polling
+* *Category-specific*: Only load/update relevant settings category
+
+== Troubleshooting
+
+=== Common Problems
+
+==== Settings are not saved
+
+*Symptom*: Changes are lost after restart
+
+*Cause*: `SettingsManager_Save()` was not called
+
+*Solution*:
+[source,cpp]
+----
+SettingsManager_UpdateWiFi(&wifi);
+SettingsManager_Save();  // <-- Don't forget!
+----
+
+==== ESP_ERR_INVALID_SIZE on loading
+
+*Symptom*: Settings cannot be loaded after firmware update
+
+*Cause*: Structure size has changed
+
+*Solution*: Perform factory reset or implement migration
+
+==== Defaults are not loaded
+
+*Symptom*: JSON defaults are ignored
+
+*Cause*: `config_valid` flag is set
+
+*Solution*:
+[source,cpp]
+----
+// Manually reset flag
+nvs_handle_t handle;
+nvs_open("pyrovision", NVS_READWRITE, &handle);
+nvs_set_u8(handle, "config_valid", 0);
+nvs_commit(handle);
+nvs_close(handle);
+esp_restart();
+----
+
+==== Events are not received
+
+*Symptom*: Event handler is not called
+
+*Cause*: Handler not registered or wrong event base
+
+*Solution*:
+[source,cpp]
+----
+esp_event_loop_create_default();  // Initialize event loop
+esp_event_handler_register(SETTINGS_EVENTS,  // Correct base!
+                           SETTINGS_EVENT_WIFI_CHANGED,
+                           handler,
+                           NULL);
+----
+
+== Extensions
+
+=== Adding a New Settings Category
+
+1. *Define structure in `settingsTypes.h`*:
+[source,cpp]
+----
+typedef struct {
+    uint16_t NewParameter;
+    char NewString[32];
+} App_Settings_NewCategory_t;
+----
+
+2. *Insert into `Settings_t`*:
+[source,cpp]
+----
+typedef struct {
+    // ... existing categories
+    App_Settings_NewCategory_t NewCategory;
+} Settings_t;
+----
+
+3. *Add event ID* in `settingsTypes.h`:
+[source,cpp]
+----
+enum {
+    // ... existing events
+    SETTINGS_EVENT_NEWCATEGORY_CHANGED,
+};
+----
+
+4. *Implement Get/Update functions* in `settingsManager.cpp`:
+[source,cpp]
+----
+esp_err_t SettingsManager_GetNewCategory(App_Settings_NewCategory_t* p_Settings)
+{
+    if (p_Settings == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    
+    xSemaphoreTake(_State.Mutex, portMAX_DELAY);
+    memcpy(p_Settings, &_State.Settings.NewCategory, sizeof(App_Settings_NewCategory_t));
+    xSemaphoreGive(_State.Mutex);
+    
+    return ESP_OK;
+}
+
+esp_err_t SettingsManager_UpdateNewCategory(App_Settings_NewCategory_t* p_Settings)
+{
+    return SettingsManager_Update(p_Settings,
+                                  &_State.Settings.NewCategory,
+                                  sizeof(App_Settings_NewCategory_t),
+                                  SETTINGS_EVENT_NEWCATEGORY_CHANGED);
+}
+----
+
+5. *Add default initialization*
+
+6. *Extend JSON schema* (optional)
+
+== License
+
+Copyright (C) Daniel Kampert, 2026
+
+This software is licensed under the GNU General Public License v3.0.
+Website: www.kampis-elektroecke.de
+
+== Contact
+
+Please report bugs and suggestions to: DanielKampert@kampis-elektroecke.de

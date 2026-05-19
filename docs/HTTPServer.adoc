@@ -1,0 +1,330 @@
+= PyroVision HTTP Server Documentation
+Daniel Kampert <DanielKampert@kampis-elektroecke.de>
+v1.0, 2026-02-09
+:toc: left
+:toclevels: 3
+:sectnums:
+:source-highlighter: coderay
+
+== Overview
+
+The HTTP Server provides a web-based interface for viewing thermal imagery, configuring the device, and streaming live video via WebSocket. It serves static provisioning pages for WiFi setup and exposes a REST API for configuration and telemetry.
+
+=== Key Features
+
+* *Web Interface*: HTML provisioning and configuration pages
+* *REST API*: JSON-based configuration and telemetry endpoints
+* *WebSocket*: Real-time thermal image streaming
+* *CORS Support*: Cross-origin resource sharing for web apps
+* *Captive Portal*: WiFi provisioning without app
+* *OTA Updates*: Firmware upload via HTTP POST
+
+---
+
+== Architecture
+
+=== Component Structure
+
+[source]
+----
+main/Application/Manager/Network/Server/HTTP/
+├── http_server.h            # Public API
+└── http_server.cpp          # Implementation
+
+main/Application/Manager/Network/Server/WebSocket/
+├── websocket.h              # WebSocket API
+└── websocket.cpp            # WebSocket implementation
+
+main/Application/Manager/Network/Server/ImageEncoder/
+├── imageEncoder.h           # Image encoder
+└── imageEncoder.cpp         # JPEG compression
+----
+
+---
+
+== Public API
+
+=== HTTP_Server_Init()
+
+[source,c]
+----
+esp_err_t HTTP_Server_Init(const Network_HTTP_Server_Config_t *p_Config);
+----
+
+Initializes the HTTP server with configuration.
+
+**Configuration:**
+
+[source,c]
+----
+typedef struct {
+    uint16_t Port;              // Port number (default: 80)
+    uint16_t WSPingIntervalSec; // WebSocket ping interval (default: 30)
+    uint8_t MaxClients;         // Max concurrent clients (default: 5)
+} Network_HTTP_Server_Config_t;
+----
+
+---
+
+=== HTTP_Server_Start()
+
+[source,c]
+----
+esp_err_t HTTP_Server_Start(void);
+----
+
+Starts the HTTP server.
+
+---
+
+=== HTTP_Server_Stop()
+
+[source,c]
+----
+esp_err_t HTTP_Server_Stop(void);
+----
+
+Stops the HTTP server and closes all connections.
+
+---
+
+=== HTTP_Server_SetRawFrame()
+
+[source,c]
+----
+void HTTP_Server_SetRawFrame(Network_ThermalFrame_t *p_Frame);
+----
+
+Updates the thermal frame available for `/api/image` endpoint.
+
+---
+
+== REST API Endpoints
+
+=== GET `/api/image`
+
+Returns the current thermal frame as JPEG image.
+
+**Response:**
+- Content-Type: `image/jpeg`
+- Body: JPEG-compressed thermal image
+
+**Example:**
+[source,bash]
+----
+curl http://192.168.1.100/api/image > thermal.jpg
+----
+
+---
+
+=== GET `/api/telemetry`
+
+Returns telemetry data in JSON format.
+
+**Response:**
+[source,json]
+----
+{
+    "spotmeter": 25.3,
+    "min": 20.1,
+    "max": 30.5,
+    "avg": 25.0,
+    "frame_count": 12345
+}
+----
+
+---
+
+=== POST `/api/time`
+
+Sets the system time.
+
+**Request Body:**
+[source,json]
+----
+{
+    "datetime": "2026-02-09T14:30:00"
+}
+----
+
+**Response:**
+[source,json]
+----
+{
+    "status": "ok"
+}
+----
+
+---
+
+=== POST `/api/update`
+
+Uploads firmware for OTA update.
+
+**Request:**
+- Content-Type: `application/octet-stream`
+- Body: Binary firmware file
+
+**Response:**
+[source,json]
+----
+{
+    "status": "ok",
+    "message": "Update successful, rebooting..."
+}
+----
+
+---
+
+=== OPTIONS `/api/*`
+
+Handles CORS preflight requests.
+
+**Response Headers:**
+[source]
+----
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, OPTIONS
+Access-Control-Allow-Headers: Content-Type
+----
+
+---
+
+== WebSocket API
+
+=== Connection
+
+**Endpoint:** `ws://192.168.1.100/ws`
+
+**Protocol:** Binary frames (JPEG-compressed thermal images)
+
+---
+
+=== Frame Format
+
+Each WebSocket message contains a JPEG-compressed thermal frame:
+
+[source]
+----
+Message Type: Binary
+Frame Rate: ~8-9 Hz
+Size: 5-15 KB per frame
+----
+
+---
+
+=== JavaScript Example
+
+[source,javascript]
+----
+const ws = new WebSocket('ws://192.168.1.100/ws');
+
+ws.binaryType = 'arraybuffer';
+
+ws.onmessage = (event) => {
+    const blob = new Blob([event.data], {type: 'image/jpeg'});
+    const url = URL.createObjectURL(blob);
+    
+    const img = document.getElementById('thermal-image');
+    img.src = url;
+};
+
+ws.onopen = () => {
+    console.log('WebSocket connected');
+};
+
+ws.onerror = (error) => {
+    console.error('WebSocket error:', error);
+};
+
+ws.onclose = () => {
+    console.log('WebSocket closed');
+};
+----
+
+---
+
+== Provisioning Pages
+
+=== GET `/`
+
+Serves the WiFi provisioning page.
+
+**Features:**
+- WiFi SSID scanner
+- Password entry
+- Connection status
+- Access to device configuration
+
+---
+
+=== GET `/logo.png`
+
+Serves the PyroVision logo for provisioning page.
+
+---
+
+=== GET `/api/provision/scan`
+
+Scans for available WiFi networks.
+
+**Response:**
+[source,json]
+----
+{
+    "networks": [
+        {"ssid": "MyWiFi", "rssi": -45, "auth": "WPA2"},
+        {"ssid": "GuestNet", "rssi": -67, "auth": "Open"}
+    ]
+}
+----
+
+---
+
+=== POST `/api/provision`
+
+Submits WiFi credentials.
+
+**Request Body:**
+[source,json]
+----
+{
+    "ssid": "MyWiFi",
+    "password": "MyPassword"
+}
+----
+
+---
+
+== Captive Portal
+
+When in AP mode, the device implements a captive portal that redirects all HTTP requests to the provisioning page.
+
+**Endpoints:**
+- `/generate_204` (Android)
+- `/generate204` (Alternative)
+
+**Behavior:**
+- Redirects to provisioning page (`/`)
+- Allows WiFi configuration without app installation
+
+---
+
+## Performance
+
+* **Max Clients**: 5 (HTTP) + 5 (WebSocket)
+* **Request Latency**: <50 ms (typical)
+* **WebSocket Throughput**: ~80 KB/s per client
+* **Memory Usage**: ~50 KB per active connection
+
+---
+
+== Related Documentation
+
+* link:NetworkTask.adoc[Network Task Documentation]
+* link:NetworkManager.adoc[Network Manager Documentation]
+
+---
+
+**Last Updated**: February 9, 2026 +
+**Maintainer**: Daniel Kampert (DanielKampert@kampis-elektroecke.de)

@@ -1,0 +1,347 @@
+= PyroVision Network Task Documentation
+Daniel Kampert <DanielKampert@kampis-elektroecke.de>
+v1.0, 2026-02-09
+:toc: left
+:toclevels: 3
+:sectnums:
+:source-highlighter: coderay
+
+== Overview
+
+The Network Task manages all network-related operations including WiFi connectivity, HTTP/WebSocket server management, VISA/SCPI server, and network event handling. It acts as the coordination layer between the Network Manager and other system components.
+
+=== Key Features
+
+* *WiFi Connection Management*: Monitors and maintains WiFi connectivity
+* *HTTP/WebSocket Server*: Serves web interface and streams thermal data
+* *VISA/SCPI Server*: Provides instrumentation protocol (port 5025)
+* *Network Event Handling*: Responds to connection state changes
+* *Automatic Reconnection*: Retry logic for lost connections
+* *WebSocket Frame Streaming*: Real-time thermal image distribution
+
+---
+
+== Architecture
+
+=== Component Structure
+
+[source]
+----
+main/Application/Tasks/Network/
+├── networkTask.h            # Public API
+└── networkTask.cpp          # Implementation
+----
+
+=== Task Architecture
+
+* *Task Name*: `"NetworkTask"`
+* *Priority*: Medium (typically `tskIDLE_PRIORITY + 2`)
+* *Stack Size*: 6 KB
+* *Core Affinity*: Typically Core 0 (PRO CPU)
+
+---
+
+== Public API
+
+=== Network_Task_Init()
+
+[source,c]
+----
+esp_err_t Network_Task_Init(App_Context_t *p_AppContext);
+----
+
+Initializes the network task and sets up event handlers.
+
+**Parameters:**
+
+* `p_AppContext` - Pointer to application context (must not be NULL)
+
+**Return Values:**
+
+* `ESP_OK` - Initialization successful
+* `ESP_ERR_INVALID_ARG` - NULL pointer passed
+* `ESP_ERR_NO_MEM` - Memory allocation failed
+* `ESP_ERR_INVALID_STATE` - Already initialized
+
+**Thread Safety:** Not thread-safe. Call once during system initialization.
+
+---
+
+=== Network_Task_Deinit()
+
+[source,c]
+----
+void Network_Task_Deinit(void);
+----
+
+Deinitializes the network task and cleans up resources.
+
+---
+
+=== Network_Task_Start()
+
+[source,c]
+----
+esp_err_t Network_Task_Start(void);
+----
+
+Starts the network task.
+
+**Return Values:**
+
+* `ESP_OK` - Task started successfully
+* `ESP_ERR_INVALID_STATE` - Not initialized or already running
+* `ESP_ERR_NO_MEM` - Task creation failed
+
+---
+
+=== Network_Task_Stop()
+
+[source,c]
+----
+esp_err_t Network_Task_Stop(void);
+----
+
+Stops the network task.
+
+**Return Values:**
+
+* `ESP_OK` - Task stopped
+* `ESP_ERR_INVALID_STATE` - Not running
+
+---
+
+=== Network_Task_isRunning()
+
+[source,c]
+----
+bool Network_Task_isRunning(void);
+----
+
+Checks if the task is running.
+
+**Return Values:**
+
+* `true` - Task is running
+* `false` - Task is stopped
+
+---
+
+== Task Operation
+
+=== Main Event Loop
+
+[source,c]
+----
+while (running) {
+    // 1. Monitor WiFi connection state
+    if (NetworkManager_GetState() == NETWORK_STATE_CONNECTED) {
+        // Ensure servers are running
+        if (!HTTP_Server_isRunning()) {
+            HTTP_Server_Start();
+        }
+        if (!VISA_Server_isRunning()) {
+            VISA_Server_Start();
+        }
+    }
+    
+    // 2. Handle WebSocket frame streaming
+    if (HasWebSocketClients()) {
+        Frame_t Frame;
+        if (xQueueReceive(FrameQueue, &Frame, 0) == pdTRUE) {
+            WebSocket_BroadcastFrame(&Frame);
+        }
+    }
+    
+    // 3. Process network events
+    ProcessNetworkEvents();
+    
+    vTaskDelay(pdMS_TO_TICKS(100));
+}
+----
+
+---
+
+== WebSocket Frame Streaming
+
+=== Frame Distribution
+
+The task receives thermal frames from Lepton Task and distributes them to WebSocket clients:
+
+**Flow:**
+
+[source]
+----
+Lepton Task → Queue → Network Task → WebSocket → Browser Clients
+----
+
+**Frame Format:**
+
+* Binary format: JPEG-compressed thermal image
+* Frame rate: ~8-9 Hz (camera native rate)
+* Size: 5-15 KB per frame (depending on compression)
+
+**Implementation:**
+
+[source,c]
+----
+// Receive frame from Lepton Task
+Frame_t Frame;
+if (xQueueReceive(Network_FrameQueue, &Frame, 0) == pdTRUE) {
+    // Compress to JPEG
+    uint8_t *JpegBuffer;
+    size_t JpegSize;
+    ImageEncoder_EncodeJPEG(&Frame, &JpegBuffer, &JpegSize);
+    
+    // Broadcast to all connected WebSocket clients
+    WebSocket_BroadcastBinary(JpegBuffer, JpegSize);
+    
+    free(JpegBuffer);
+}
+----
+
+---
+
+== Server Management
+
+=== HTTP/WebSocket Server
+
+The task ensures the HTTP server (which handles WebSocket connections) is running when WiFi is connected:
+
+**Startup:**
+
+1. Wait for WiFi connection (NETWORK_STATE_CONNECTED)
+2. Start HTTP server
+3. Register WebSocket upgrade handler
+4. Begin streaming frames
+
+**Shutdown:**
+
+* Gracefully closes all client connections
+* Stops HTTP server
+* Frees resources
+
+=== VISA/SCPI Server
+
+The VISA server runs independently on port 5025:
+
+**Management:**
+
+* Started when WiFi connects
+* Handles concurrent clients (max 5)
+* Provides SCPI command interface
+* Automatic client timeout (30 seconds idle)
+
+---
+
+== Event Handling
+
+=== Network Events
+
+The task listens to Network Manager events:
+
+**Event Types:**
+
+* `NETWORK_EVENT_WIFI_CONNECTED` - WiFi connection established
+* `NETWORK_EVENT_WIFI_DISCONNECTED` - WiFi connection lost
+* `NETWORK_EVENT_IP_ACQUIRED` - IP address obtained
+* `NETWORK_EVENT_AP_STARTED` - Access Point mode active
+
+**Event Handlers:**
+
+[source,c]
+----
+static void on_WiFi_Connected(void *p_Arg, esp_event_base_t EventBase, 
+                              int32_t EventID, void *p_EventData)
+{
+    ESP_LOGI(TAG, "WiFi connected, starting servers...");
+    
+    HTTP_Server_Start(&HTTPConfig);
+    VISA_Server_Start(&VISAConfig);
+    
+    // Notify GUI (update WiFi icon)
+    esp_event_post(GUI_TASK_EVENTS, GUI_EVENT_WIFI_CONNECTED, NULL, 0, 0);
+}
+----
+
+---
+
+== Dependencies
+
+=== Required Managers
+
+* *Network Manager*: WiFi and connection management
+* *Settings Manager*: Server configuration (ports, credentials)
+
+=== Required Tasks
+
+* *Lepton Task*: Provides thermal frames for streaming
+
+=== Server Components
+
+* *HTTP Server*: Web interface and REST API
+* *WebSocket*: Real-time frame streaming
+* *VISA Server*: SCPI instrumentation protocol
+* *DNS Server*: Captive portal for provisioning
+
+---
+
+== Configuration
+
+=== Server Ports
+
+* HTTP: 80 (default)
+* WebSocket: 80 (HTTP upgrade)
+* VISA/SCPI: 5025 (standard)
+
+---
+
+## Performance
+
+=== CPU Usage
+
+* **Typical**: 10-15% (during streaming)
+* **Idle**: <5% (no clients connected)
+* **Peak**: 20% (multiple WebSocket clients)
+
+=== Network Bandwidth
+
+* **Per WebSocket Client**: ~80-120 KB/s
+* **Max Clients**: 5 simultaneous
+* **Total Bandwidth**: ~600 KB/s (all clients)
+
+---
+
+== Troubleshooting
+
+**WebSocket disconnects frequently:**
+
+* Check WiFi signal strength
+* Verify ping interval (30 seconds recommended)
+* Monitor memory usage (may be low)
+
+**VISA server not responding:**
+
+* Verify port 5025 is not blocked
+* Check firewall settings
+* Ensure WiFi is connected
+
+**High CPU usage:**
+
+* Reduce number of WebSocket clients
+* Lower frame compression quality
+* Increase task delay interval
+
+---
+
+== Related Documentation
+
+* link:NetworkManager.adoc[Network Manager Documentation]
+* link:LeptonTask.adoc[Lepton Task Documentation]
+* link:VISAServer.adoc[VISA Server Documentation]
+* link:HTTPServer.adoc[HTTP Server Documentation]
+
+---
+
+**Last Updated**: February 9, 2026 +
+**Maintainer**: Daniel Kampert (DanielKampert@kampis-elektroecke.de)

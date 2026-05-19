@@ -1,0 +1,146 @@
+name: Firmware
+
+on: [push]
+
+jobs:
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - name: ZIP artifact
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zip
+          zip -r ${GITHUB_REF_NAME}.zip .
+            -x "*.git*" \
+            -x "*node_modules*" \
+            -x "*.pio*" \
+            -x "*__pycache__*" \
+            -x "*.vscode*" \
+            -x "*build*" \
+            -x "*.platformio*"
+
+      - name: Release
+        uses: docker://antonyurchenko/git-release:v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANGELOG_FILE: CHANGELOG.md
+        with:
+          args: |
+            ${GITHUB_REF_NAME}.zip
+
+  build:
+    runs-on: ubuntu-22.04
+  
+    strategy:
+      matrix:
+        build_type: [debug, release]
+  
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+          key: ${{ runner.os }}-pio
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y astyle
+
+      - name: Install PlatformIO Core
+        run: |
+          pip install --upgrade platformio
+
+      - name: Format source code
+        run: |
+          pio run -t format
+
+      - name: Get release version
+        run: |
+          # Try to extract version from commit message (format: Major.Minor.Revision-Dev or Major.Minor-Dev)
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          VERSION=$(echo "$COMMIT_MSG" | grep -oP '(?<=^|\s)([0-9]+\.[0-9]+(\.[0-9]+)?(-[a-zA-Z0-9]+)?)(?=\s|$)' | head -n1)
+          
+          # If not found in commit message, try branch name
+          if [ -z "$VERSION" ]; then
+            BRANCH_NAME="${GITHUB_REF_NAME}"
+            echo "No version in commit message, trying branch name: ${BRANCH_NAME}"
+            VERSION=$(echo "$BRANCH_NAME" | grep -oP '([0-9]+\.[0-9]+(\.[0-9]+)?(-[a-zA-Z0-9]+)?)' | head -n1)
+          fi
+          
+          # If still not found, use git describe as fallback
+          if [ -z "$VERSION" ]; then
+            echo "No version in branch name, using git describe"
+            VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "0.0.0-$(git rev-parse --short HEAD)")
+          fi
+          
+          echo "Detected version: ${VERSION}"
+          
+          # Parse version components (handle both Major.Minor and Major.Minor.Revision)
+          if [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)(\.([0-9]+))?(-(.+))? ]]; then
+            MAJOR="${BASH_REMATCH[1]}"
+            MINOR="${BASH_REMATCH[2]}"
+            BUILD="${BASH_REMATCH[4]:-0}"  # Default to 0 if revision not specified
+            SUFFIX="${BASH_REMATCH[6]}"
+            
+            # Reconstruct version string
+            if [ -n "$SUFFIX" ]; then
+              BASE_VERSION="${MAJOR}.${MINOR}.${BUILD}-${SUFFIX}"
+            else
+              BASE_VERSION="${MAJOR}.${MINOR}.${BUILD}"
+            fi
+          else
+            echo "Warning: Could not parse version, using defaults"
+            MAJOR="0"
+            MINOR="0"
+            BUILD="0"
+            BASE_VERSION="0.0.0-unknown"
+          fi
+
+          echo "MAJOR=${MAJOR}" >> ${GITHUB_ENV}
+          echo "MINOR=${MINOR}" >> ${GITHUB_ENV}
+          echo "BUILD=${BUILD}" >> ${GITHUB_ENV}
+          echo "VERSION=${BASE_VERSION}" >> ${GITHUB_ENV}
+
+      - name: Update version numbers
+        shell: bash
+        run: |
+          echo "Using version: ${{ env.VERSION }}"
+          sed -i -E "s/(PYROVISION_VERSION_MAJOR=)[0-9]+/\1${{ env.MAJOR }}/" CMakeLists.txt
+          sed -i -E "s/(PYROVISION_VERSION_MINOR=)[0-9]+/\1${{ env.MINOR }}/" CMakeLists.txt
+          sed -i -E "s/(PYROVISION_VERSION_BUILD=)[0-9]+/\1${{ env.BUILD }}/" CMakeLists.txt
+          sed -i "s/^## \[Unreleased\]/## [${{ env.VERSION }}] - $(date +'%Y-%m-%d')/" CHANGELOG.md
+
+      - name: Build PlatformIO Project
+        run: |
+          pio run -e ${{ matrix.build_type }}
+
+      - name: Prepare upload
+        run: |
+          mkdir -p ${{ matrix.build_type }}
+          cp .pio/build/${{ matrix.build_type }}/bootloader.bin ${{ matrix.build_type }}/bootloader.bin
+          cp .pio/build/${{ matrix.build_type }}/partitions.bin ${{ matrix.build_type }}/partitions.bin
+          cp .pio/build/${{ matrix.build_type }}/ota_data_initial.bin ${{ matrix.build_type }}/ota_data_initial.bin
+          cp .pio/build/${{ matrix.build_type }}/firmware.bin ${{ matrix.build_type }}/firmware.bin
+          cp .pio/build/${{ matrix.build_type }}/firmware.elf ${{ matrix.build_type }}/firmware.elf
+
+      - name: Upload Firmware
+        uses: actions/upload-artifact@v4.3.3
+        with:
+          name: ${{ matrix.build_type }}
+          path: |
+            ${{ matrix.build_type }}
+          if-no-files-found: ignore

@@ -1,0 +1,654 @@
+= PyroVision Lepton Task Documentation
+Daniel Kampert <DanielKampert@kampis-elektroecke.de>
+v1.0, 2026-02-09
+:toc: left
+:toclevels: 3
+:sectnums:
+:source-highlighter: coderay
+
+== Overview
+
+The Lepton Task is responsible for interfacing with the FLIR Lepton thermal camera, acquiring thermal frames, processing temperature data, calculating ROI (Region of Interest) statistics, and distributing frame data to consumers (GUI, Network, etc.). It runs as a high-priority FreeRTOS task to ensure consistent frame acquisition.
+
+=== Key Features
+
+* *Lepton Camera Interface*: SPI communication with FLIR Lepton 3.5
+* *Frame Acquisition*: Continuous capture at camera native rate (~8.6 Hz)
+* *Temperature Calculation*: Conversion from RAW values to Celsius
+* *ROI Processing*: Calculate min/max/average temperatures for multiple ROIs
+* *Frame Distribution*: Queue-based delivery to GUI and Network tasks
+* *Telemetry Generation*: Camera status and temperature statistics
+* *Error Recovery*: Automatic resync on frame corruption
+* *Power Management*: Camera standby and wake-up control
+
+---
+
+== Architecture
+
+=== Component Structure
+
+[source]
+----
+main/Application/Tasks/Lepton/
+├── leptonTask.h             # Public API
+└── leptonTask.cpp           # Implementation
+----
+
+**Driver Integration:**
+
+The task uses the ESP32-Lepton component located in `components/ESP32-Lepton/`.
+
+=== Task Architecture
+
+* *Task Name*: `"LeptonTask"`
+* *Priority*: High (typically `tskIDLE_PRIORITY + 4`)
+* *Stack Size*: 8 KB
+* *Core Affinity*: Typically Core 1 (APP CPU)
+* *Frame Rate*: 8.6 Hz (Lepton 3.5 native)
+
+=== Data Flow
+
+[source]
+----
+┌────────────────┐
+│ Lepton Camera  │ (160x120 RAW 14-bit thermal data)
+└────────┬───────┘
+         │ SPI Transfer
+         ↓
+┌────────────────┐
+│ Lepton Task    │
+│ - Frame Sync   │
+│ - RAW to Temp  │
+│ - ROI Calc     │
+└───────┬────────┘
+        │
+        ├─→ Queue → GUI Task (Display)
+        │
+        ├─→ Queue → Network Task (WebSocket streaming)
+        │
+        └─→ Telemetry → HTTP/VISA Server
+----
+
+---
+
+== Public API
+
+=== Lepton_Task_Init()
+
+[source,c]
+----
+esp_err_t Lepton_Task_Init(void);
+----
+
+Initializes the Lepton camera driver and allocates frame buffers.
+
+**Initialization Steps:**
+
+1. Initialize Lepton SPI communication
+2. Configure camera settings (AGC, ROI, FFC mode)
+3. Allocate frame buffers in PSRAM
+4. Create frame queues for distribution
+5. Verify camera connection and firmware version
+
+**Return Values:**
+
+* `ESP_OK` - Initialization successful
+* `ESP_ERR_NO_MEM` - Memory allocation failed
+* `ESP_FAIL` - Camera communication failed
+* `ESP_ERR_INVALID_STATE` - Already initialized
+
+**Thread Safety:** Not thread-safe. Must be called once during system initialization.
+
+**Example:**
+[source,c]
+----
+esp_err_t Error = Lepton_Task_Init();
+if (Error != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to initialize Lepton: %d", Error);
+    return Error;
+}
+----
+
+---
+
+=== Lepton_Task_Deinit()
+
+[source,c]
+----
+void Lepton_Task_Deinit(void);
+----
+
+Deinitializes the Lepton camera and frees allocated resources.
+
+**Actions:**
+
+* Stops task if running
+* Puts camera in standby mode
+* Frees frame buffers
+* Deletes frame queues
+* Deinitializes SPI interface
+
+**Thread Safety:** Not thread-safe. Call only during shutdown.
+
+---
+
+=== Lepton_Task_Start()
+
+[source,c]
+----
+esp_err_t Lepton_Task_Start(App_Context_t *p_AppContext);
+----
+
+Starts the Lepton acquisition task.
+
+**Parameters:**
+
+* `p_AppContext` - Pointer to application context (must not be NULL)
+
+**Return Values:**
+
+* `ESP_OK` - Task started successfully
+* `ESP_ERR_INVALID_ARG` - NULL pointer passed
+* `ESP_ERR_INVALID_STATE` - Not initialized or already running
+* `ESP_ERR_NO_MEM` - Task creation failed
+
+**Thread Safety:** Thread-safe.
+
+**Example:**
+[source,c]
+----
+App_Context_t AppContext;
+esp_err_t Error = Lepton_Task_Start(&AppContext);
+----
+
+---
+
+=== Lepton_Task_Stop()
+
+[source,c]
+----
+esp_err_t Lepton_Task_Stop(void);
+----
+
+Stops the Lepton task and puts camera in standby mode.
+
+**Return Values:**
+
+* `ESP_OK` - Task stopped successfully
+* `ESP_ERR_INVALID_STATE` - Task not running
+
+**Thread Safety:** Thread-safe. Blocks until task has stopped.
+
+---
+
+=== Lepton_Task_isRunning()
+
+[source,c]
+----
+bool Lepton_Task_isRunning(void);
+----
+
+Checks if the Lepton task is currently active.
+
+**Return Values:**
+
+* `true` - Task is running
+* `false` - Task is not running
+
+**Thread Safety:** Thread-safe.
+
+---
+
+== Frame Processing
+
+=== Frame Acquisition Loop
+
+[source,c]
+----
+while (running) {
+    // 1. Read frame from camera (SPI)
+    Lepton_GetFrame(&RawFrame);
+    
+    // 2. Validate frame sync
+    if (!Lepton_ValidateFrame(&RawFrame)) {
+        Lepton_Resync();
+        continue;
+    }
+    
+    // 3. Convert RAW to temperature (Celsius)
+    Lepton_RawToTemp(&RawFrame, &TempFrame);
+    
+    // 4. Calculate ROI statistics
+    CalculateROI(&TempFrame, &ROIData);
+    
+    // 5. Distribute to consumers
+    SendToGUI(&TempFrame);
+    SendToNetwork(&TempFrame);
+    
+    // 6. Update telemetry
+    UpdateTelemetry(&ROIData);
+}
+----
+
+=== RAW to Temperature Conversion
+
+The Lepton camera outputs 14-bit RAW values that must be converted to temperature:
+
+**Formula:**
+
+[source]
+----
+Temperature (Kelvin) = RAW_Value × 0.01 K
+
+Temperature (Celsius) = (RAW_Value × 0.01) - 273.15
+----
+
+**Considerations:**
+
+* RAW value 0 is invalid (indicates bad pixel or sync error)
+* Lepton 3.5 range: -10°C to +140°C (typical)
+* Accuracy: ±5°C (typical), ±1.5°C (with calibration)
+
+---
+
+== ROI (Region of Interest) Processing
+
+=== ROI Types
+
+The Lepton Task calculates statistics for up to 4 ROIs:
+
+1. **Spotmeter ROI** - User-defined region for temperature measurement
+2. **Scene ROI** - Entire frame or custom scene region
+3. **AGC ROI** - Region used for Automatic Gain Control
+4. **Video Focus ROI** - Region for focus optimization (future)
+
+=== ROI Statistics
+
+For each ROI, the task calculates:
+
+* **Minimum Temperature**: Coldest pixel in ROI
+* **Maximum Temperature**: Hottest pixel in ROI
+* **Average Temperature**: Mean of all pixels in ROI
+* **Pixel Coordinates**: Location of min/max pixels
+
+**Data Structure:**
+
+[source,c]
+----
+typedef struct {
+    float MinTemp;           // Minimum temperature (°C)
+    float MaxTemp;           // Maximum temperature (°C)
+    float AvgTemp;           // Average temperature (°C)
+    uint16_t MinX, MinY;     // Coordinates of coldest pixel
+    uint16_t MaxX, MaxY;     // Coordinates of hottest pixel
+} ROI_Stats_t;
+----
+
+=== ROI Configuration
+
+ROIs are configured via Settings Manager:
+
+[source,c]
+----
+Settings_ROI_t ROI = {
+    .Type = ROI_TYPE_SPOTMETER,
+    .x = 70,          // X position (display pixels)
+    .y = 50,          // Y position (display pixels)
+    .w = 20,          // Width (display pixels)
+    .h = 20           // Height (display pixels)
+};
+esp_event_post(GUI_TASK_EVENTS, GUI_TASK_EVENT_REQUEST_ROI, &ROI, sizeof(Settings_ROI_t), pdMS_TO_TICKS(100));
+----
+
+**Constraints:**
+
+* ROI must be within frame boundaries (0-159 for X, 0-119 for Y on Lepton 3.5)
+* Minimum ROI size: 4x4 pixels
+* ROI coordinates must be even numbers (hardware requirement)
+
+---
+
+== Telemetry
+
+=== Telemetry Structure
+
+The task generates telemetry data for monitoring and remote access:
+
+[source,c]
+----
+typedef struct {
+    float SpotmeterTemp;      // Spotmeter center temperature
+    float MinTemp;            // Scene minimum temperature
+    float MaxTemp;            // Scene maximum temperature
+    float AvgTemp;            // Scene average temperature
+    uint32_t FrameCount;      // Total frames captured
+    uint32_t ErrorCount;      // Frame sync errors
+    uint16_t CameraTemp;      // Camera housing temperature (°C)
+    bool FFC_InProgress;      // Flat Field Correction active
+} Lepton_Telemetry_t;
+----
+
+=== Telemetry Access
+
+Telemetry is accessible via:
+
+* HTTP REST API: `GET /api/telemetry`
+* VISA/SCPI: `MEAS:TEMP?`
+* WebSocket: Real-time streaming
+* GUI: Displayed on main screen
+
+---
+
+== Flat Field Correction (FFC)
+
+=== What is FFC?
+
+Flat Field Correction is a camera calibration process that compensates for sensor non-uniformities. The Lepton camera performs FFC automatically or on-demand.
+
+**FFC Modes:**
+
+1. **Automatic FFC**: Camera decides when to perform FFC (every ~3 minutes or on temperature change)
+2. **Manual FFC**: Triggered by user command
+3. **External Shutter FFC**: Uses external shutter (not implemented)
+
+**FFC Duration**: ~1-2 seconds (camera pauses during FFC)
+
+### FFC Event Handling
+
+The task monitors FFC status:
+
+[source,c]
+----
+if (Lepton_FFC_InProgress()) {
+    ESP_LOGI(TAG, "FFC in progress...");
+    // Notify GUI (display "Calibrating..." message)
+    // Pause frame distribution
+}
+----
+
+---
+
+== Error Handling and Recovery
+
+=== Frame Sync Errors
+
+The Lepton camera transmits frames as SPI packets. Sync errors can occur due to:
+
+* SPI timing issues
+* Electromagnetic interference
+* Camera power fluctuations
+
+**Recovery Strategy:**
+
+1. Detect invalid frame (invalid ID or checksum)
+2. Discard current frame
+3. Perform resynchronization (discard 3 frames)
+4. Resume normal operation
+5. Log error for diagnostics
+
+**Resync Algorithm:**
+
+[source,c]
+----
+static void Lepton_Resync(void)
+{
+    ESP_LOGW(TAG, "Frame sync lost, resyncing...");
+    
+    for (int i = 0; i < 3; i++) {
+        Lepton_ReadPacket(NULL);  // Discard packet
+    }
+    
+    _ErrorCount++;
+}
+----
+
+=== Camera Reboot Detection
+
+If the camera reboots (power loss, overheat protection), the task detects it and reinitializes:
+
+[source,c]
+----
+if (Lepton_DetectReboot()) {
+    ESP_LOGE(TAG, "Camera rebooted, reinitializing...");
+    Lepton_Task_Deinit();
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    Lepton_Task_Init();
+}
+----
+
+---
+
+== Camera Configuration
+
+=== AGC (Automatic Gain Control)
+
+AGC adjusts image contrast for optimal visualization:
+
+**AGC Modes:**
+
+* **Linear** - Direct mapping (no contrast enhancement)
+* **Histogram Equalization (HEQ)** - Adaptive contrast (recommended)
+
+**Configuration:**
+
+[source,c]
+----
+Lepton_SetAGCMode(LEPTON_AGC_HEQ);
+Lepton_SetAGCROI(70, 50, 20, 20);  // ROI for AGC calculation
+----
+
+=== Emissivity Correction
+
+Emissivity affects temperature accuracy for different materials:
+
+[source,c]
+----
+// Set emissivity (0.0 - 1.0, typically 0.95 for most surfaces)
+Lepton_SetEmissivity(0.95f);
+----
+
+**Common Emissivities:**
+
+* Skin: 0.98
+* Concrete: 0.92
+* Aluminum (oxidized): 0.30
+* Water: 0.95
+
+---
+
+== Frame Distribution
+
+=== Frame Queues
+
+Frames are distributed to consumers via FreeRTOS queues:
+
+**GUI Queue:**
+
+* Queue depth: 1 (only latest frame)
+* Overwrite mode: Drop old frames if GUI is slow
+
+**Network Queue:**
+
+* Queue depth: 3 (small buffer for network jitter)
+* Block if full (backpressure to prevent memory exhaustion)
+
+**Implementation:**
+
+[source,c]
+----
+// Send to GUI (non-blocking, drop if full)
+xQueueOverwrite(GUI_FrameQueue, &Frame);
+
+// Send to Network (blocking with timeout)
+xQueueSend(Network_FrameQueue, &Frame, pdMS_TO_TICKS(100));
+----
+
+---
+
+## Dependencies
+
+=== Required Managers
+
+* *Device Manager*: SPI bus initialization for camera
+* *Settings Manager*: ROI configuration, AGC settings, emissivity
+* *Memory Manager*: Frame buffer allocation in PSRAM
+
+=== Required Components
+
+* *ESP32-Lepton*: Lepton camera driver (in `components/`)
+
+---
+
+== Configuration
+
+=== Kconfig Options
+
+* `LEPTON_TASK_PRIORITY` - Task priority
+* `LEPTON_TASK_STACK_SIZE` - Stack size (default: 8192)
+* `LEPTON_TASK_CORE` - CPU core affinity
+* `LEPTON_SPI_HOST` - SPI host (HSPI or VSPI)
+* `LEPTON_SPI_FREQ` - SPI clock frequency (default: 20 MHz)
+
+---
+
+== Performance Characteristics
+
+=== Frame Rate
+
+* **Lepton 3.5 Native Rate**: 8.6 Hz
+* **Typical Achieved Rate**: 8-9 Hz
+* **Frame Jitter**: ±10ms
+
+=== CPU Usage
+
+* **Typical**: 15-20% of one core
+* **During FFC**: Minimal (camera paused)
+* **Peak**: 25% (with complex ROI calculations)
+
+=== Memory Usage
+
+* **Frame Buffer (160x120x2)**: 38.4 KB per frame
+* **Total Buffers (x3)**: ~115 KB (PSRAM)
+* **Stack**: 8 KB
+* **Heap**: ~5 KB (misc allocations)
+
+---
+
+== Troubleshooting
+
+=== Common Issues
+
+**No frames acquired:**
+
+* Check SPI wiring and configuration
+* Verify camera power supply (3.3V, sufficient current)
+* Ensure CS, MOSI, MISO, CLK pins correct
+* Check camera is not in standby mode
+
+**Frame sync errors:**
+
+* Reduce SPI clock frequency (try 16 MHz instead of 20 MHz)
+* Check for electrical noise on SPI bus
+* Verify ground connection
+* Add pull-up resistors to CS line
+
+**Incorrect temperatures:**
+
+* Verify RAW to temperature conversion formula
+* Check emissivity setting
+* Perform FFC (Flat Field Correction)
+* Allow camera to warm up (30 seconds)
+
+**Low frame rate:**
+
+* Check if task priority is sufficient
+* Verify other tasks are not blocking
+* Monitor CPU usage
+* Ensure frame queues are not full
+
+---
+
+== Event Handling
+
+The Lepton Task subscribes to events from other system components to receive configuration updates and requests.
+
+=== Subscribed Events
+
+==== Settings Events (`SETTINGS_EVENTS`)
+
+**`SETTINGS_EVENT_LEPTON_CHANGED`:**
+
+Received when Lepton camera settings have been modified (e.g., emissivity).
+
+* **Event Data**: `Settings_Manager_Setting_t *` or NULL
+* **Handler**: `on_Settings_Event_Handler()`
+* **Behavior**: 
+  - If event data is NULL, indicates a bulk settings update without specific change information
+  - If event data is provided, contains `ID` and `Value` of the specific setting changed
+  - Handler checks `ID` field to determine which setting changed (e.g., `SETTINGS_ID_LEPTON_EMISSIVITY`)
+
+*IMPORTANT*: Event handlers MUST check for NULL event data before dereferencing pointers, as bulk setting updates may not include specific change details.
+
+[source,c]
+----
+static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, 
+                                       int32_t ID, void *p_Data)
+{
+    switch (ID) {
+        case SETTINGS_EVENT_LEPTON_CHANGED: {
+            if (p_Data != NULL) {
+                Settings_Manager_Setting_t *p_Setting = 
+                    (Settings_Manager_Setting_t *)p_Data;
+                
+                if (p_Setting->ID == SETTINGS_ID_LEPTON_EMISSIVITY) {
+                    // Apply emissivity change
+                }
+            } else {
+                // Bulk update, reload all settings
+            }
+            break;
+        }
+    }
+}
+----
+
+==== GUI Events (`GUI_TASK_EVENTS`)
+
+**`GUI_EVENT_REQUEST_ROI`:**
+
+Requests ROI statistics calculation for a specific region.
+
+* **Event Data**: `Settings_ROI_t *` (MUST NOT be NULL)
+* **Response**: Posts `LEPTON_EVENT_ROI_DATA` with calculated statistics
+
+**`GUI_EVENT_REQUEST_PIXEL_TEMPERATURE`:**
+
+Requests temperature at a specific screen position.
+
+* **Event Data**: `App_GUI_Screenposition_t *` (MUST NOT be NULL)
+* **Response**: Posts `LEPTON_EVENT_PIXEL_TEMPERATURE` with temperature value
+
+---
+
+== Future Enhancements
+
+* Multiple colormap support (Iron, Rainbow, Grayscale)
+* Advanced image processing (edge detection, filtering)
+* Temperature trend recording
+* Multi-point temperature tracking
+* Thermal anomaly detection
+* Camera firmware update via OTA
+
+---
+
+== Related Documentation
+
+* link:GUITask.adoc[GUI Task Documentation]
+* link:NetworkTask.adoc[Network Task Documentation]
+* link:DeviceManager.adoc[Device Manager Documentation]
+* link:SettingsManager.adoc[Settings Manager Documentation]
+
+---
+
+**Last Updated**: February 9, 2026 +
+**Maintainer**: Daniel Kampert (DanielKampert@kampis-elektroecke.de)

@@ -1,0 +1,997 @@
+= PyroVision Time Manager Documentation
+Daniel Kampert <DanielKampert@kampis-elektroecke.de>
+v1.0, 2026-01-14
+:toc: left
+:toclevels: 3
+:sectnums:
+:source-highlighter: coderay
+
+== Overview
+
+The Time Manager is a unified time management component for the PyroVision firmware that provides reliable timekeeping through multiple time sources. It automatically manages time synchronization via SNTP (network time) and RTC (Real-Time Clock) backup, ensuring accurate timestamps even without network connectivity.
+
+=== Key Features
+
+* *Dual Time Sources*: Automatic switching between SNTP (network) and RTC (hardware backup)
+* *Automatic Synchronization*: Periodic SNTP sync with configurable intervals
+* *RTC Backup*: Automatic backup of synchronized time to hardware RTC
+* *Network Awareness*: Seamless handling of network connect/disconnect events
+* *Event-based Architecture*: Notification of time synchronization and source changes
+* *Timezone Support*: Configurable timezone with POSIX format
+* *Failover Management*: Graceful fallback to RTC when network unavailable
+* *Status Monitoring*: Comprehensive status information for debugging
+
+---
+
+== Architecture
+
+=== Component Structure
+
+[source]
+----
+main/Application/Manager/Time/
+├── timeManager.h          # Public API
+├── timeManager.cpp        # Implementation
+└── time_types.h          # Event types and definitions
+----
+
+=== Time Source Hierarchy
+
+The Time Manager uses a prioritized hierarchy of time sources:
+
+1. *SNTP (Network Time Protocol)*
+   * Highest priority when network is available
+   * Provides internet-synchronized time (accurate to milliseconds)
+   * Automatically syncs every hour
+   * Requires WiFi/network connection
+
+2. *RTC (Real-Time Clock)*
+   * Hardware backup time source
+   * Used when network is unavailable
+   * Maintains time during power cycles (with battery)
+   * Updated periodically from SNTP (every 5 minutes)
+
+3. *System Time*
+   * Fallback when neither SNTP nor RTC available
+   * Will drift over time without external synchronization
+   * Loses accuracy during deep sleep or reset
+
+=== Internal State Management
+
+The manager maintains its state in the `TimeManager_State_t` structure:
+
+[source,cpp]
+----
+typedef struct {
+    bool IsInitialized;                 // Initialization status
+    bool HasRTC;                        // RTC hardware available
+    bool HasNetwork;                    // Network connected
+    bool TimeSynchronized;              // Time has been synchronized
+    TimeManager_Source_t ActiveSource;  // Current active time source
+    time_t LastSNTPSync;                // Last SNTP sync timestamp
+    time_t LastRTCSync;                 // Last RTC read timestamp
+    time_t LastRTCBackup;              // Last RTC backup timestamp
+    uint32_t SNTPSyncCount;             // SNTP sync counter
+    uint32_t RTCSyncCount;              // RTC read counter
+    esp_timer_handle_t SyncTimer;       // Periodic sync timer
+} TimeManager_State_t;
+----
+
+=== Synchronization Strategy
+
+==== SNTP Synchronization
+
+* *Interval*: Every 3600 seconds (1 hour)
+* *Server*: pool.ntp.org (configurable)
+* *Mode*: Polling mode
+* *Callback*: Notifies on successful sync
+* *Auto-restart*: Restarts on network reconnection
+
+==== RTC Backup
+
+* *Interval*: Every 300 seconds (5 minutes)
+* *Condition*: Only when time is synchronized from SNTP
+* *Purpose*: Preserve accurate time during network outages
+* *Validation*: Checks year >= 2025 before accepting RTC time
+
+---
+
+== Data Structures
+
+=== Time Source Enum
+
+[source,cpp]
+----
+typedef enum {
+    TIME_SOURCE_NONE = 0,       // No time source available
+    TIME_SOURCE_RTC,            // Time from RTC
+    TIME_SOURCE_SNTP,           // Time from SNTP
+    TIME_SOURCE_SYSTEM,         // Time from system (not synchronized)
+} TimeManager_Source_t;
+----
+
+=== Time Synchronization Status
+
+[source,cpp]
+----
+typedef struct {
+    TimeManager_Source_t ActiveSource;  // Currently active time source
+    bool SNTP_Available;                // SNTP available (network connected)
+    bool RTC_Available;                 // RTC available
+    time_t LastSync_SNTP;               // Timestamp of last SNTP sync
+    time_t LastSync_RTC;                // Timestamp of last RTC sync
+    uint32_t SNTP_SyncCount;            // Number of successful SNTP syncs
+    uint32_t RTC_SyncCount;             // Number of RTC reads
+} TimeManager_Status_t;
+----
+
+=== Event System
+
+==== Event Base
+
+[source,cpp]
+----
+ESP_EVENT_DECLARE_BASE(TIME_EVENTS);
+----
+
+==== Event IDs
+
+[cols="2,3,2"]
+|===
+|Event |Description |Data
+
+|`TIME_EVENT_SYNCHRONIZED`
+|Time synchronized from SNTP
+|`struct tm`
+
+|`TIME_EVENT_SOURCE_CHANGED`
+|Time source changed (SNTP/RTC/System)
+|`TimeManager_Source_t`
+|===
+
+---
+
+== API Reference
+
+=== Initialization and Lifecycle
+
+==== `TimeManager_Init()`
+
+[source,cpp]
+----
+esp_err_t TimeManager_Init(void *p_RTC_Handle);
+----
+
+*Description*: Initializes the Time Manager and sets up time sources.
+
+*Process*:
+
+1. Validates and stores RTC handle (if provided)
+2. Attempts to load time from RTC (if available)
+3. Validates RTC time (year >= 2025)
+4. Sets system time from RTC if valid
+5. Sets default timezone (UTC)
+6. Creates periodic synchronization timer
+7. Starts timer with 60-second period
+
+*Parameters*:
+
+* `p_RTC_Handle`: Pointer to RTC device handle (NULL if RTC not available)
+
+*Return Value*:
+
+* `ESP_OK` on success
+* `ESP_ERR_*` on timer creation/start failure
+
+*Example*:
+
+[source,cpp]
+----
+i2c_master_dev_handle_t rtc_handle;
+// ... initialize RTC ...
+
+if (TimeManager_Init(&rtc_handle) == ESP_OK) {
+    ESP_LOGI(TAG, "Time Manager initialized successfully");
+}
+----
+
+==== `TimeManager_Deinit()`
+
+[source,cpp]
+----
+esp_err_t TimeManager_Deinit(void);
+----
+
+*Description*: Deinitializes the Time Manager and releases resources.
+
+*Process*:
+
+1. Stops periodic sync timer
+2. Deletes timer
+3. Stops SNTP if enabled
+4. Resets initialization status
+
+*Return Value*: `ESP_OK`
+
+---
+
+=== Network Event Handlers
+
+==== `TimeManager_OnNetworkConnected()`
+
+[source,cpp]
+----
+esp_err_t TimeManager_OnNetworkConnected(void);
+----
+
+*Description*: Called when network connection is established. Starts SNTP synchronization.
+
+*Process*:
+
+1. Sets network available flag
+2. Initializes SNTP if first connection
+3. Restarts SNTP if already initialized (triggers immediate sync)
+4. Configures SNTP server (pool.ntp.org)
+5. Sets sync notification callback
+
+*Return Value*: `ESP_OK`
+
+*Example*:
+
+[source,cpp]
+----
+static void wifi_event_handler(void* arg, esp_event_base_t event_base,
+                                int32_t event_id, void* event_data)
+{
+    if (event_id == WIFI_EVENT_STA_CONNECTED) {
+        TimeManager_OnNetworkConnected();
+    }
+}
+----
+
+==== `TimeManager_OnNetworkDisconnected()`
+
+[source,cpp]
+----
+esp_err_t TimeManager_OnNetworkDisconnected(void);
+----
+
+*Description*: Called when network connection is lost. Switches to RTC as time source.
+
+*Process*:
+
+1. Clears network available flag
+2. Switches active source to RTC (if available)
+3. Posts `TIME_EVENT_SOURCE_CHANGED` event if source changed
+4. Falls back to system time if no RTC
+
+*Return Value*: `ESP_OK`
+
+---
+
+=== Time Retrieval
+
+==== `TimeManager_GetTime()`
+
+[source,cpp]
+----
+esp_err_t TimeManager_GetTime(struct tm *p_Time, TimeManager_Source_t *p_Source);
+----
+
+*Description*: Gets the current time from the best available source.
+
+*Parameters*:
+
+* `p_Time`: Pointer to store the time structure
+* `p_Source`: Optional pointer to store the time source (can be NULL)
+
+*Return Value*:
+
+* `ESP_OK` on success
+* `ESP_ERR_INVALID_ARG` if `p_Time` is NULL
+
+*Example*:
+
+[source,cpp]
+----
+struct tm timeinfo;
+TimeManager_Source_t source;
+
+if (TimeManager_GetTime(&timeinfo, &source) == ESP_OK) {
+    ESP_LOGI(TAG, "Current time: %04d-%02d-%02d %02d:%02d:%02d (Source: %d)",
+             timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+             timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec, source);
+}
+----
+
+==== `TimeManager_GetTimestamp()`
+
+[source,cpp]
+----
+esp_err_t TimeManager_GetTimestamp(time_t *p_Time, TimeManager_Source_t *p_Source);
+----
+
+*Description*: Gets the current time as UNIX timestamp (seconds since epoch).
+
+*Parameters*:
+
+* `p_Time`: Pointer to store the timestamp
+* `p_Source`: Optional pointer to store the time source (can be NULL)
+
+*Return Value*:
+
+* `ESP_OK` on success
+* `ESP_ERR_INVALID_ARG` if `p_Time` is NULL
+
+*Example*:
+
+[source,cpp]
+----
+time_t timestamp;
+
+if (TimeManager_GetTimestamp(&timestamp, NULL) == ESP_OK) {
+    ESP_LOGI(TAG, "Current timestamp: %ld", timestamp);
+}
+----
+
+==== `TimeManager_GetTimeString()`
+
+[source,cpp]
+----
+esp_err_t TimeManager_GetTimeString(char *p_Buffer, size_t Size, const char *Format);
+----
+
+*Description*: Formats the current time as a string using strftime format.
+
+*Parameters*:
+
+* `p_Buffer`: Buffer to store the formatted time
+* `Size`: Buffer size
+* `Format`: Time format string (strftime format)
+
+*Common Format Specifiers*:
+
+* `%Y` - Year (4 digits)
+* `%m` - Month (01-12)
+* `%d` - Day of month (01-31)
+* `%H` - Hour (00-23)
+* `%M` - Minute (00-59)
+* `%S` - Second (00-59)
+* `%A` - Weekday name (e.g., "Monday")
+* `%B` - Month name (e.g., "January")
+
+*Return Value*:
+
+* `ESP_OK` on success
+* `ESP_ERR_INVALID_ARG` if parameters are NULL or Size is 0
+* `ESP_ERR_NO_MEM` if buffer is too small
+
+*Example*:
+
+[source,cpp]
+----
+char time_str[64];
+
+// ISO 8601 format
+TimeManager_GetTimeString(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S");
+ESP_LOGI(TAG, "Time: %s", time_str);
+
+// Human-readable format
+TimeManager_GetTimeString(time_str, sizeof(time_str), "%A, %B %d, %Y at %I:%M %p");
+ESP_LOGI(TAG, "Time: %s", time_str);
+----
+
+---
+
+=== Status and Control
+
+==== `TimeManager_GetStatus()`
+
+[source,cpp]
+----
+esp_err_t TimeManager_GetStatus(TimeManager_Status_t *p_Status);
+----
+
+*Description*: Gets comprehensive status information about time synchronization.
+
+*Parameters*:
+
+* `p_Status`: Pointer to store the status structure
+
+*Return Value*:
+
+* `ESP_OK` on success
+* `ESP_ERR_INVALID_ARG` if `p_Status` is NULL
+
+*Example*:
+
+[source,cpp]
+----
+TimeManager_Status_t status;
+
+if (TimeManager_GetStatus(&status) == ESP_OK) {
+    ESP_LOGI(TAG, "Active source: %d", status.ActiveSource);
+    ESP_LOGI(TAG, "SNTP available: %s", status.SNTP_Available ? "yes" : "no");
+    ESP_LOGI(TAG, "RTC available: %s", status.RTC_Available ? "yes" : "no");
+    ESP_LOGI(TAG, "SNTP syncs: %lu", status.SNTP_SyncCount);
+    ESP_LOGI(TAG, "Last SNTP sync: %ld", status.LastSync_SNTP);
+}
+----
+
+==== `TimeManager_ForceSync()`
+
+[source,cpp]
+----
+esp_err_t TimeManager_ForceSync(void);
+----
+
+*Description*: Forces immediate SNTP synchronization (if network available).
+
+*Return Value*:
+
+* `ESP_OK` on success
+* `ESP_ERR_INVALID_STATE` if network is not connected
+
+*Example*:
+
+[source,cpp]
+----
+if (TimeManager_ForceSync() == ESP_OK) {
+    ESP_LOGI(TAG, "Forced SNTP sync initiated");
+}
+----
+
+==== `TimeManager_IsTimeSynchronized()`
+
+[source,cpp]
+----
+bool TimeManager_IsTimeSynchronized(void);
+----
+
+*Description*: Checks if time has been synchronized from SNTP or RTC.
+
+*Return Value*: `true` if time is synchronized and reliable, `false` otherwise
+
+*Example*:
+
+[source,cpp]
+----
+if (TimeManager_IsTimeSynchronized()) {
+    // Safe to use timestamps for logging, etc.
+    save_data_with_timestamp();
+} else {
+    ESP_LOGW(TAG, "Time not synchronized, timestamps may be inaccurate");
+}
+----
+
+---
+
+=== Timezone Configuration
+
+==== `TimeManager_SetTimezone()`
+
+[source,cpp]
+----
+esp_err_t TimeManager_SetTimezone(const char *p_Timezone);
+----
+
+*Description*: Sets the timezone for time display.
+
+*Parameters*:
+
+* `p_Timezone`: Timezone string in POSIX format
+
+*POSIX Timezone Format*:
+
+[source]
+----
+std offset [dst [offset] [,start[/time],end[/time]]]
+
+std     - Standard timezone abbreviation (e.g., CET, EST)
+offset  - Hours offset from UTC (e.g., -1, +5)
+dst     - Daylight saving time abbreviation (e.g., CEST, EDT)
+start   - DST start rule (e.g., M3.5.0 = last Sunday in March)
+end     - DST end rule (e.g., M10.5.0 = last Sunday in October)
+----
+
+*Common Timezone Examples*:
+
+[cols="2,3,2"]
+|===
+|Timezone |String |Description
+
+|UTC
+|`UTC-0`
+|Coordinated Universal Time
+
+|CET/CEST
+|`CET-1CEST,M3.5.0,M10.5.0/3`
+|Central European Time
+
+|EST/EDT
+|`EST5EDT,M3.2.0,M11.1.0`
+|US Eastern Time
+
+|PST/PDT
+|`PST8PDT,M3.2.0,M11.1.0`
+|US Pacific Time
+
+|JST
+|`JST-9`
+|Japan Standard Time (no DST)
+
+|AEST/AEDT
+|`AEST-10AEDT,M10.1.0,M4.1.0/3`
+|Australian Eastern Time
+|===
+
+*Return Value*:
+
+* `ESP_OK` on success
+* `ESP_ERR_INVALID_ARG` if `p_Timezone` is NULL
+
+*Example*:
+
+[source,cpp]
+----
+// Set Central European Time
+TimeManager_SetTimezone("CET-1CEST,M3.5.0,M10.5.0/3");
+
+// Now all time functions return local time
+char time_str[64];
+TimeManager_GetTimeString(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S %Z");
+ESP_LOGI(TAG, "Local time: %s", time_str);
+----
+
+---
+
+== Usage
+
+=== Basic Workflow
+
+==== 1. Initialization at Startup
+
+[source,cpp]
+----
+#include "timeManager.h"
+
+void app_main(void)
+{
+    i2c_master_dev_handle_t rtc_handle;
+    
+    // Initialize I2C and RTC first
+    DevicesManager_GetRTCHandle(&rtc_handle);
+    
+    // Initialize Time Manager
+    ESP_ERROR_CHECK(TimeManager_Init(&rtc_handle));
+    
+    // Set desired timezone
+    Settings_System_t system_settings;
+    SettingsManager_GetSystem(&system_settings);
+    TimeManager_SetTimezone(system_settings.Timezone);
+    
+    // Further initializations...
+}
+----
+
+==== 2. Network Event Integration
+
+[source,cpp]
+----
+static void network_event_handler(void* arg, esp_event_base_t event_base,
+                                   int32_t event_id, void* event_data)
+{
+    switch (event_id) {
+        case NETWORK_EVENT_WIFI_CONNECTED:
+            TimeManager_OnNetworkConnected();
+            break;
+            
+        case NETWORK_EVENT_WIFI_DISCONNECTED:
+            TimeManager_OnNetworkDisconnected();
+            break;
+    }
+}
+
+void init_network(void)
+{
+    esp_event_handler_register(NETWORK_EVENTS,
+                               ESP_EVENT_ANY_ID,
+                               network_event_handler,
+                               NULL);
+}
+----
+
+==== 3. Using Time in Application
+
+[source,cpp]
+----
+// Get current time
+struct tm timeinfo;
+if (TimeManager_GetTime(&timeinfo, NULL) == ESP_OK) {
+    char filename[64];
+    snprintf(filename, sizeof(filename), 
+             "capture_%04d%02d%02d_%02d%02d%02d.jpg",
+             timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+             timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+    save_image(filename);
+}
+
+// Check if time is reliable
+if (TimeManager_IsTimeSynchronized()) {
+    // Safe to use for logging
+    log_event_with_timestamp();
+} else {
+    ESP_LOGW(TAG, "Time not synchronized, waiting...");
+}
+----
+
+---
+
+=== Event Handling
+
+==== Registering Event Handlers
+
+[source,cpp]
+----
+#include <esp_event.h>
+#include "time_types.h"
+
+static void time_event_handler(void* handler_args, esp_event_base_t base,
+                                int32_t id, void* event_data)
+{
+    switch (id) {
+        case TIME_EVENT_SYNCHRONIZED: {
+            struct tm *timeinfo = (struct tm*)event_data;
+            ESP_LOGI(TAG, "Time synchronized: %04d-%02d-%02d %02d:%02d:%02d",
+                     timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, 
+                     timeinfo->tm_mday, timeinfo->tm_hour, 
+                     timeinfo->tm_min, timeinfo->tm_sec);
+            
+            // Update RTC display
+            update_clock_display();
+            break;
+        }
+        
+        case TIME_EVENT_SOURCE_CHANGED: {
+            TimeManager_Source_t *source = (TimeManager_Source_t*)event_data;
+            const char *source_name = (*source == TIME_SOURCE_SNTP) ? "SNTP" :
+                                     (*source == TIME_SOURCE_RTC) ? "RTC" : "System";
+            ESP_LOGI(TAG, "Time source changed to: %s", source_name);
+            break;
+        }
+    }
+}
+
+void init_time_events(void)
+{
+    esp_event_handler_register(TIME_EVENTS,
+                               ESP_EVENT_ANY_ID,
+                               time_event_handler,
+                               NULL);
+}
+----
+
+---
+
+=== Advanced Patterns
+
+==== Status Monitoring Task
+
+[source,cpp]
+----
+void time_status_task(void *pvParameters)
+{
+    TimeManager_Status_t status;
+    char time_str[64];
+    
+    while (1) {
+        if (TimeManager_GetStatus(&status) == ESP_OK) {
+            TimeManager_GetTimeString(time_str, sizeof(time_str), 
+                                     "%Y-%m-%d %H:%M:%S");
+            
+            ESP_LOGI(TAG, "=== Time Manager Status ===");
+            ESP_LOGI(TAG, "Current time: %s", time_str);
+            ESP_LOGI(TAG, "Active source: %s",
+                     status.ActiveSource == TIME_SOURCE_SNTP ? "SNTP" :
+                     status.ActiveSource == TIME_SOURCE_RTC ? "RTC" : "System");
+            ESP_LOGI(TAG, "SNTP syncs: %lu (last: %ld sec ago)",
+                     status.SNTP_SyncCount,
+                     status.LastSync_SNTP > 0 ? time(NULL) - status.LastSync_SNTP : 0);
+            ESP_LOGI(TAG, "RTC reads: %lu", status.RTC_SyncCount);
+        }
+        
+        vTaskDelay(pdMS_TO_TICKS(30000)); // Every 30 seconds
+    }
+}
+----
+
+==== Timezone Selection UI
+
+[source,cpp]
+----
+typedef struct {
+    const char *name;
+    const char *posix_tz;
+} Timezone_Entry_t;
+
+const Timezone_Entry_t timezones[] = {
+    {"UTC", "UTC-0"},
+    {"London (UK)", "GMT0BST,M3.5.0/1,M10.5.0"},
+    {"Berlin (Germany)", "CET-1CEST,M3.5.0,M10.5.0/3"},
+    {"New York (US)", "EST5EDT,M3.2.0,M11.1.0"},
+    {"Los Angeles (US)", "PST8PDT,M3.2.0,M11.1.0"},
+    {"Tokyo (Japan)", "JST-9"},
+    {"Sydney (Australia)", "AEST-10AEDT,M10.1.0,M4.1.0/3"},
+};
+
+void set_timezone_by_index(size_t index)
+{
+    if (index < sizeof(timezones) / sizeof(timezones[0])) {
+        ESP_LOGI(TAG, "Setting timezone to: %s", timezones[index].name);
+        TimeManager_SetTimezone(timezones[index].posix_tz);
+        
+        // Save to settings
+        Settings_System_t system;
+        SettingsManager_GetSystem(&system);
+        strncpy(system.Timezone, timezones[index].posix_tz, sizeof(system.Timezone) - 1);
+        SettingsManager_UpdateSystem(&system);
+        SettingsManager_Save();
+    }
+}
+----
+
+==== Periodic Time Display
+
+[source,cpp]
+----
+void display_time_task(void *pvParameters)
+{
+    char time_str[64];
+    TimeManager_Source_t source;
+    
+    while (1) {
+        struct tm timeinfo;
+        if (TimeManager_GetTime(&timeinfo, &source) == ESP_OK) {
+            // Format time
+            strftime(time_str, sizeof(time_str), "%H:%M:%S", &timeinfo);
+            
+            // Update display with source indicator
+            const char *source_icon = (source == TIME_SOURCE_SNTP) ? "🌐" :
+                                     (source == TIME_SOURCE_RTC) ? "⏰" : "⚠️";
+            
+            display_text(time_str, source_icon);
+        }
+        
+        vTaskDelay(pdMS_TO_TICKS(1000)); // Update every second
+    }
+}
+----
+
+---
+
+== Configuration
+
+=== Compile-Time Constants
+
+The following constants can be adjusted in `timeManager.cpp`:
+
+[cols="2,1,3"]
+|===
+|Constant |Default |Description
+
+|`TIME_MANAGER_SYNC_INTERVAL_SEC`
+|3600
+|SNTP sync interval (1 hour)
+
+|`TIME_MANAGER_RTC_BACKUP_INTERVAL_SEC`
+|300
+|RTC backup interval (5 minutes)
+
+|`TIME_MANAGER_VALID_YEAR_MIN`
+|2025
+|Minimum valid year for RTC validation
+|===
+
+=== SNTP Server Configuration
+
+By default, the Time Manager uses `pool.ntp.org`. To use a custom NTP server:
+
+[source,cpp]
+----
+// In timeManager.cpp, modify:
+esp_sntp_setservername(0, "time.google.com");  // Google NTP
+// or
+esp_sntp_setservername(0, "time.nist.gov");    // NIST NTP
+// or
+esp_sntp_setservername(0, "192.168.1.1");      // Local NTP server
+----
+
+---
+
+== Best Practices
+
+=== DO's
+
+* ✓ Always initialize Time Manager after Device Manager (requires RTC handle)
+* ✓ Call `TimeManager_OnNetworkConnected()` when WiFi connects
+* ✓ Call `TimeManager_OnNetworkDisconnected()` when WiFi disconnects
+* ✓ Check `TimeManager_IsTimeSynchronized()` before using time for critical operations
+* ✓ Set timezone according to user settings
+* ✓ Register event handlers to monitor time sync status
+* ✓ Use RTC with battery backup for best reliability
+
+=== DON'Ts
+
+* ✗ Don't assume time is accurate immediately after boot
+* ✗ Don't use system time for security-critical operations without sync check
+* ✗ Don't manually set system time (use Time Manager functions)
+* ✗ Don't forget to handle network events
+* ✗ Don't rely on time accuracy without RTC during extended offline periods
+
+=== Performance Tips
+
+* *Battery Backup*: Use RTC with battery for uninterrupted timekeeping
+* *Fast Boot*: RTC provides immediate valid time on startup
+* *Network Sync*: SNTP provides high accuracy when online
+* *Periodic Backup*: RTC backup ensures time survives network outages
+
+---
+
+== Troubleshooting
+
+=== Common Problems
+
+==== Time not synchronized after boot
+
+*Symptom*: `TimeManager_IsTimeSynchronized()` returns `false`
+
+*Possible Causes*:
+* Network not connected yet
+* RTC not available or has invalid time
+* System just booted and SNTP hasn't synced yet
+
+*Solution*:
+[source,cpp]
+----
+// Wait for time sync or proceed with degraded functionality
+int retries = 0;
+while (!TimeManager_IsTimeSynchronized() && retries < 30) {
+    ESP_LOGI(TAG, "Waiting for time sync... (%d/30)", retries + 1);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    retries++;
+}
+
+if (TimeManager_IsTimeSynchronized()) {
+    ESP_LOGI(TAG, "Time synchronized!");
+} else {
+    ESP_LOGW(TAG, "Proceeding without time sync");
+}
+----
+
+==== SNTP sync fails
+
+*Symptom*: Time source stays on RTC/System, SNTP_SyncCount doesn't increase
+
+*Possible Causes*:
+* Network connection issues
+* Firewall blocking NTP traffic (port 123 UDP)
+* DNS resolution failure for pool.ntp.org
+* Incorrect NTP server address
+
+*Solution*:
+[source,cpp]
+----
+// Check network connectivity
+ESP_LOGI(TAG, "Testing network...");
+// Try force sync
+TimeManager_ForceSync();
+
+// Check status
+TimeManager_Status_t status;
+TimeManager_GetStatus(&status);
+ESP_LOGI(TAG, "Network available: %s", status.SNTP_Available ? "yes" : "no");
+ESP_LOGI(TAG, "SNTP syncs: %lu", status.SNTP_SyncCount);
+----
+
+==== RTC time invalid after battery replacement
+
+*Symptom*: RTC year shows < 2025, time not loaded from RTC
+
+*Cause*: RTC was reset or battery was dead
+
+*Solution*:
+[source,cpp]
+----
+// RTC will be automatically updated once SNTP syncs
+// Wait for network and SNTP sync, or manually set RTC:
+struct tm manual_time = {
+    .tm_year = 2026 - 1900,  // Years since 1900
+    .tm_mon = 0,             // January (0-11)
+    .tm_mday = 14,           // 14th
+    .tm_hour = 12,
+    .tm_min = 0,
+    .tm_sec = 0,
+};
+RTC_SetTime(&manual_time);
+----
+
+==== Timezone not working correctly
+
+*Symptom*: Displayed time is wrong by several hours
+
+*Cause*: Incorrect timezone string or DST rules
+
+*Solution*:
+[source,cpp]
+----
+// Verify timezone string format
+const char *tz = "CET-1CEST,M3.5.0,M10.5.0/3";  // Correct format
+TimeManager_SetTimezone(tz);
+
+// Test with known date/time
+struct tm test_time;
+TimeManager_GetTime(&test_time, NULL);
+char time_str[64];
+strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S %Z", &test_time);
+ESP_LOGI(TAG, "Current time: %s", time_str);
+----
+
+==== Time drifts during long offline periods
+
+*Symptom*: Time becomes increasingly inaccurate without network
+
+*Cause*: System clock drift, no RTC, or RTC crystal inaccuracy
+
+*Solution*:
+
+* Install RTC module with accurate crystal oscillator
+* Use RTC with temperature compensation (DS3231)
+* Ensure RTC has backup battery
+* Implement periodic RTC calibration when online
+
+---
+
+== Technical Details
+
+=== SNTP Operation
+
+The Time Manager uses ESP-IDF's built-in SNTP client:
+
+* *Protocol*: SNTPv4 (Simple Network Time Protocol)
+* *Transport*: UDP port 123
+* *Mode*: Client polling mode
+* *Callback*: Async notification on successful sync
+* *Retry*: Automatic retry on failure
+
+=== RTC Integration
+
+Compatible with I2C RTC modules:
+
+* DS1307, DS3231, PCF8523, etc.
+* Requires I2C master device handle
+* Uses standard `struct tm` format
+* Validates year before accepting RTC time
+
+=== Timezone Implementation
+
+Uses POSIX TZ environment variable:
+
+* Configured via `setenv("TZ", ...)` and `tzset()`
+* Supports DST (Daylight Saving Time) transitions
+* Automatic DST adjustment based on rules
+* Affects all time functions (`localtime()`, `strftime()`, etc.)
+
+---
+
+== License
+
+Copyright (C) Daniel Kampert, 2026
+
+This software is licensed under the GNU General Public License v3.0.  
+Website: www.kampis-elektroecke.de
+
+---
+
+== Contact
+
+Please report bugs and suggestions to: DanielKampert@kampis-elektroecke.de

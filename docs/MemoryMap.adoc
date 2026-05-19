@@ -1,0 +1,612 @@
+= PyroVision Firmware – Memory Map
+Daniel Kampert <DanielKampert@kampis-elektroecke.de>
+:doctype: article
+:toc: left
+:toclevels: 3
+:icons: font
+:source-highlighter: rouge
+:revdate: 2026-04-19
+
+== Overview
+
+This document provides a complete inventory of all heap allocations, task stacks, and
+DMA-relevant memory regions in the PyroVision firmware.
+
+The ESP32-S3 memory architecture distinguishes three relevant regions:
+
+[cols="1,2,2,2"]
+|===
+| Region | Address Range | Size | DMA-capable?
+
+| Internal SRAM (DMA)
+| `0x3FC88000` – `0x3FD00000`
+| ~480 KB
+| *YES* (`esp_ptr_dma_capable()` == true)
+
+| General Internal SRAM
+| `0x3FC80000` – `0x3FD20000`
+| ~640 KB total
+| Partially
+
+| PSRAM (external OPI)
+| `0x3C000000` – `0x3FFFFFFF`
+| 8 MB (device: 8 MB fitted)
+| *NO* → SPI driver allocates internal bounce buffers
+
+|===
+
+WARNING: The SPI master driver allocates an internal DMA bounce buffer for *every*
+queued transaction when the source buffer is in PSRAM. With `CONFIG_SPI_TRANSFER_SIZE=4096`,
+each bounce buffer is 4,096 bytes. The number of simultaneous bounce buffers equals
+`trans_queue_depth`. See <<spi_dma_constraint>>.
+
+---
+
+== Static / Permanent Allocations
+
+These are allocated once at module initialization and released only on `Deinit()`.
+
+=== GUI Task (`guiTask.cpp` / `guiHelper.cpp`)
+
+[cols="3,1,1,2"]
+|===
+| Buffer | Size (Bytes) | Heap | Source
+
+| LVGL Draw Buffer 1 +
+  `(2 × 320 × 240 × 2) / 10` → 1/10 of full RGB565 frame
+| 30,720
+| PSRAM
+| `guiHelper.cpp` – `GUI_DRAW_BUFFER_SIZE`
+
+| LVGL Draw Buffer 2 (second partial buffer for DMA ping-pong)
+| 30,720
+| PSRAM
+| `guiHelper.cpp` – `GUI_DRAW_BUFFER_SIZE`
+
+| Thermal Canvas Buffer +
+  Scaled 240×180 RGB565 image for LVGL display widget
+| 86,400
+| PSRAM
+| `guiTask.cpp:1138` – `240 * 180 * 2`
+
+| Gradient Canvas Buffer +
+  Temperature scale palette strip (20×180 RGB565)
+| 7,200
+| PSRAM
+| `guiTask.cpp:1139` – `20 * 180 * 2`
+
+| Network RGB Buffer +
+  240×180 RGB888 image for HTTP/WebSocket streaming
+| 129,600
+| PSRAM
+| `guiTask.cpp:1140` – `240 * 180 * 3`
+
+|===
+
+*GUI Task PSRAM subtotal (permanent): 284,640 bytes (≈ 278 KB)*
+
+=== Lepton Task (`leptonTask.cpp`)
+
+[cols="3,1,1,2"]
+|===
+| Buffer | Size (Bytes) | Heap | Source
+
+| RGB Buffer[0] +
+  Ping-pong buffer A for 160×120 RGB888 Lepton frames
+| 57,600
+| PSRAM
+| `leptonTask.cpp:676` – `160 * 120 * 3`
+
+| RGB Buffer[1] +
+  Ping-pong buffer B for 160×120 RGB888 Lepton frames
+| 57,600
+| PSRAM
+| `leptonTask.cpp:677` – `160 * 120 * 3`
+
+|===
+
+*Lepton Task PSRAM subtotal (permanent): 115,200 bytes (≈ 113 KB)*
+
+=== USB UVC Module (`usbUVC.cpp`)
+
+Only allocated when UVC is enabled via `USBUVC_Init()`.
+
+[cols="3,1,1,2"]
+|===
+| Buffer | Size (Bytes) | Heap | Source
+
+| UVC Frame Buffer[0] +
+  Ping-pong MJPEG output buffer A (`UVC_MAX_FRAME_SIZE = 160×120×3`)
+| 57,600
+| PSRAM
+| `usbUVC.cpp:190` – `UVC_MAX_FRAME_SIZE`
+
+| UVC Frame Buffer[1] +
+  Ping-pong MJPEG output buffer B
+| 57,600
+| PSRAM
+| `usbUVC.cpp:190` – `UVC_MAX_FRAME_SIZE`
+
+|===
+
+*UVC PSRAM subtotal (when enabled): 115,200 bytes (≈ 112 KB)*
+
+=== PSRAM Grand Total
+
+[cols="2,1"]
+|===
+| Condition | Total PSRAM (permanent)
+
+| Normal operation (GUI + Lepton, no UVC)
+| 457,440 bytes ≈ *446 KB*
+
+| With UVC enabled
+| 572,640 bytes ≈ *559 KB*
+
+|===
+
+---
+
+== Dynamic / Temporary Allocations
+
+These are allocated on-demand and freed after use.
+
+[cols="3,2,1,2"]
+|===
+| Allocation | Max Size | Heap | Source
+
+| Settings JSON loader +
+  Reads `settings_default.json` into PSRAM for `cJSON` parsing.
+  Freed after parsing completes.
+| `FileSize + 1` bytes +
+  (settings_default.json ≈ 2–5 KB)
+| PSRAM
+| `settingsJSONLoader.cpp:445`
+
+| HTTP request body buffer +
+  Allocates the full POST/PUT body for REST handlers.
+  Freed after handler returns.
+| `content_len + 1` bytes +
+  (vary, typically < 4 KB)
+| PSRAM
+| `http_server.cpp:153`
+
+| HTTP response scratch buffer +
+  Used for JSON response construction.
+  Freed after send.
+| 1,024 bytes
+| PSRAM
+| `http_server.cpp:394`
+
+| Provisioning scan buffer +
+  Wi-Fi AP list from `esp_wifi_scan_get_results()`.
+  Internal heap (no PSRAM flag).
+| `sizeof(wifi_ap_record_t) × AP_count` +
+  ≈ `88 × N` bytes
+| Internal
+| `provisionHandlers.cpp:176`
+
+| Provisioning JSON response buffer +
+  Serialized scan results for browser.
+  Freed after HTTP send.
+| `ContentLen + 1` bytes
+| PSRAM
+| `provisionHandlers.cpp:222`
+
+| WebSocket inbound frame payload +
+  One allocation per received WS message.
+  Freed after processing.
+| `Frame.len + 1` bytes +
+  (typically < 512 bytes)
+| PSRAM
+| `websocket.cpp:437`
+
+| VISA binary data buffer +
+  Scratch for binary SCPI responses.
+  Freed after send.
+| 1,024 bytes
+| PSRAM
+| `visaCommands.cpp:301`
+
+| Image encoder RGB buffer +
+  Full-frame RGB888 intermediate for PNG/JPEG encoding.
+  Freed after encode.
+| `Width × Height × 3` bytes +
+  (240×180×3 = 129,600 bytes)
+| PSRAM
+| `imageEncoder.cpp:119`
+
+| JPEG encoder output buffer +
+  MJPEG output for snapshot endpoint.
+  Freed after HTTP send.
+| `Width × Height × 3` bytes +
+  (worst-case = source size, typically 10×smaller)
+| PSRAM
+| `jpegEncoder.cpp:70`
+
+| PNG encoder output buffer +
+  PNG encoded snapshot.
+  Freed after HTTP send.
+| varies (png_size, typically < 50 KB)
+| PSRAM
+| `pngEncoder.cpp:58`
+
+|===
+
+---
+
+[[spi_dma_constraint]]
+== SPI DMA Bounce Buffers (Critical Constraint)
+
+PSRAM is *not* in the DMA-capable address range (`SOC_DMA_LOW=0x3FC88000` –
+`SOC_DMA_HIGH=0x3FD00000`). The SPI master driver (`spi_master.c:setup_priv_desc`)
+therefore allocates an internal DMA bounce buffer for **every** queued LCD transaction
+when the source buffer is in PSRAM.
+
+[source,c]
+----
+// spi_master.c – setup_priv_desc()
+if (!esp_ptr_dma_capable(send_ptr) || tx_unaligned) {
+    uint32_t *temp = heap_caps_aligned_alloc(alignment, tx_byte_len, MALLOC_CAP_DMA);
+    // tx_byte_len = min(transfer, CONFIG_SPI_TRANSFER_SIZE) = 4,096 bytes
+}
+----
+
+[cols="2,1"]
+|===
+| Parameter | Value
+
+| `CONFIG_SPI_TRANSFER_SIZE`
+| 4,096 bytes
+
+| LCD SPI `trans_queue_depth`
+| 3 (set in `guiHelper.cpp`)
+
+| Max simultaneous bounce buffers
+| 3
+
+| Peak internal DMA RAM consumed (LCD)
+| `3 × 4,096 = 12,288 bytes`
+
+|===
+
+WARNING: Before this was fixed, `trans_queue_depth=10` caused up to `8 × 4,096 = 32,768 bytes`
+of simultaneous bounce buffer allocations. After UVC init, only ~28 KB DMA RAM was free
+→ allocation failure → `ESP_ERR_NO_MEM` from `spi_device_queue_trans` → display freeze.
+*Do not increase `trans_queue_depth` above 6* (= 24,576 bytes, leaves margin with UVC active).
+
+---
+
+== WiFi DMA Buffers (Internal RAM)
+
+WiFi TX and RX static buffers are allocated from DMA-capable internal SRAM at driver
+initialisation and remain allocated until the WiFi driver is stopped.
+
+[cols="3,1,1"]
+|===
+| Buffer | Size (Bytes) | Source
+
+| WiFi static RX buffers +
+  `CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=4` × 1,600 bytes
+| 6,400
+| `sdkconfig` – `ESP_WIFI_STATIC_RX_BUFFER_NUM`
+
+| WiFi static TX buffers +
+  `CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=8` × 1,600 bytes
+| 12,800
+| `sdkconfig` – `ESP_WIFI_STATIC_TX_BUFFER_NUM`
+
+|===
+
+*WiFi DMA subtotal (static): 19,200 bytes (≈ 19 KB)*
+
+NOTE: Previously `STATIC_RX=10` and `STATIC_TX=16`, consuming 41,600 bytes (≈ 41 KB).
+Reduction saves **22,400 bytes (≈ 22 KB)** of DMA-capable internal RAM.
+
+Dynamic RX buffers (`CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=16`) and management
+short buffers (`CONFIG_ESP_WIFI_MGMT_SBUF_NUM=10`) are allocated from PSRAM when
+`CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y` is set.
+
+---
+
+== IRAM Optimisation Settings
+
+The following `sdkconfig` flags control whether performance-critical (but non-ISR)
+code is placed in IRAM. Since `CONFIG_SPIRAM_FETCH_INSTRUCTIONS=y` is active, all
+code *not* in IRAM is fetched from PSRAM via the instruction cache (XIP), so the
+performance penalty of disabling IRAM opt is minimal.
+
+[cols="2,1,2"]
+|===
+| Config Key | Value | Effect
+
+| `CONFIG_ESP_WIFI_IRAM_OPT`
+| disabled
+| WiFi TX path code → PSRAM XIP; frees ≈ 20 KB IRAM→DRAM
+
+| `CONFIG_ESP_WIFI_RX_IRAM_OPT`
+| disabled
+| WiFi RX path code → PSRAM XIP; frees ≈ 15 KB IRAM→DRAM
+
+| `CONFIG_LV_ATTRIBUTE_FAST_MEM_USE_IRAM`
+| disabled
+| LVGL fast-render functions → PSRAM XIP; frees ≈ 10 KB IRAM→DRAM
+
+|===
+
+WARNING: Do *not* re-enable these options without first verifying that
+`CONFIG_SPIRAM_FETCH_INSTRUCTIONS=y` is still active. Disabling SPIRAM XIP while
+these opts are also disabled would move WiFi/LVGL code to flash, requiring flash
+cache access from interrupt context which is unsafe.
+
+---
+
+== FreeRTOS Task Stacks (Internal RAM)
+
+All task stacks are allocated from internal SRAM by the FreeRTOS heap.
+
+[cols="2,1,1,1,1"]
+|===
+| Task Name | Stack (Bytes) | Priority | Core | Source
+
+| `Task_GUI`
+| 16,384
+| 2
+| Core 0
+| `guiTask.cpp`, `CONFIG_GUI_TASK_STACKSIZE`
+
+| `Task_Network`
+| 6,144
+| 16
+| Core 1
+| `networkTask.cpp`, `CONFIG_NETWORK_TASK_STACKSIZE`
+
+| `Task_Lepton`
+| 8,192
+| 16
+| Core 1
+| `leptonTask.cpp`, `CONFIG_LEPTON_TASK_STACKSIZE`
+
+| `Task_Camera`
+| 8,192
+| 12
+| Core 1
+| `cameraTask.cpp`, `CONFIG_CAMERA_TASK_STACKSIZE`
+
+| `Task_Devices`
+| 4,096
+| 16
+| Core 1
+| `devicesTask.cpp`, `CONFIG_DEVICES_TASK_STACKSIZE`
+
+| `Task_ImgSave`
+| 8,192
+| 1 (GUI−1)
+| Core 1
+| `guiTask.cpp:1177`
+
+| `USBMonTask`
+| 4,096
+| 5
+| Any
+| `usbManager.cpp:269`
+
+| `DNS_Server`
+| 4,096
+| 3
+| Core 1
+| `dnsServer.cpp:194`
+
+| `WS_Broadcast`
+| 4,096
+| 5
+| Core 1
+| `websocket.cpp:828`
+
+| `visa_server`
+| 4,096
+| 5
+| Any
+| `visaServer.cpp:326`
+
+| `UVC0` (`video_task`, when UVC active)
+| 4,096
+| 5
+| Core 1
+| `tinyusb_uvc.c` – hardcoded
+
+| TinyUSB `tud_task` (component)
+| see `CONFIG_TINYUSB_TASK_STACK_SIZE`
+| 5
+| Core 1
+| `tinyusb.c`
+
+|===
+
+*Task stack subtotal (without TinyUSB): 71,680 bytes (≈ 70 KB)*
+
+---
+
+== FreeRTOS Objects (Internal RAM)
+
+Each object below occupies a small amount of internal SRAM for its control block.
+Approximate per-object overhead: `SemaphoreHandle_t` ≈ 88 bytes,
+`QueueHandle_t` ≈ 76 bytes + item storage, `EventGroupHandle_t` ≈ 52 bytes.
+
+[cols="2,1,1,2"]
+|===
+| Object | Type | Count | Source
+
+| `SettingsManager` mutex
+| Mutex
+| 1
+| `settingsManager.cpp:125`
+
+| `SPI[n]` mutex (per bus, max 2)
+| Mutex
+| 2
+| `spi.cpp:66`
+
+| `I2C` mutex
+| Mutex
+| 1
+| `i2c.cpp:51`
+
+| `VISA Server` mutex
+| Mutex
+| 1
+| `visaServer.cpp:260`
+
+| `WebSocket` clients mutex
+| Mutex
+| 1
+| `websocket.cpp:548`
+
+| `RemoteControl` mutex
+| Mutex
+| 1
+| `remoteControl.cpp:265`
+
+| `UVC` buffer mutex
+| Mutex
+| 1
+| `usbUVC.cpp:180`
+
+| `GUI` network frame mutex
+| Mutex
+| 1
+| `guiTask.cpp:1237`
+
+| `Lepton` buffer mutex
+| Mutex
+| 1
+| `leptonTask.cpp:657`
+
+| `USB_Manager` command queue (8 items × `sizeof(USB_Manager_Cmd_t)`)
+| Queue
+| 1
+| `usbManager.cpp:259`
+
+| `App_Context` Lepton frame queue (1 item × `sizeof(App_Lepton_Frame_t)`)
+| Queue
+| 1
+| `main.cpp:46`
+
+| `GUI` image save queue (1 item × `sizeof(App_Lepton_Frame_t)`)
+| Queue
+| 1
+| `guiTask.cpp:1166`
+
+| `Lepton` raw frame queue (1 item × `sizeof(Lepton_FrameBuffer_t)`)
+| Queue
+| 1
+| `leptonTask.cpp:700`
+
+| `WebSocket` frame-ready queue (1 item × `sizeof(uint8_t)`)
+| Queue
+| 1
+| `websocket.cpp:556`
+
+| `Network Task` event group
+| EventGroup
+| 1
+| `networkTask.cpp:450`
+
+| `Network Manager` event group
+| EventGroup
+| 1
+| `networkManager.cpp:308`
+
+| `Lepton Task` event group
+| EventGroup
+| 1
+| `leptonTask.cpp:649`
+
+| `Devices Task` event group
+| EventGroup
+| 1
+| `devicesTask.cpp:138`
+
+| `Camera Task` event group
+| EventGroup
+| 1
+| `cameraTask.cpp:90`
+
+| `GUI Helper` event group
+| EventGroup
+| 1
+| `guiHelper.cpp:291`
+
+|===
+
+---
+
+== Static Data (BSS / Data Segment)
+
+[cols="3,1,2"]
+|===
+| Object | Size | Source
+
+| VISA error queue `int[10]`
+| 40 bytes
+| `visaCommands.cpp:43` – `CONFIG_NETWORK_VISA_ERROR_QUEUE_LLENGTH=10`
+
+| USB LangID string `char[2]`
+| 2 bytes
+| `usbManager.cpp:76`
+
+|===
+
+---
+
+== Memory Budget Summary
+
+[cols="2,1,1"]
+|===
+| Category | Bytes | Notes
+
+| PSRAM – permanent allocations (no UVC)
+| 399,840
+| ≈ 391 KB
+
+| PSRAM – additional when UVC active
+| 115,200
+| ≈ 112 KB
+
+| PSRAM – peak dynamic (snapshot encode)
+| ~130,000
+| RGB + JPEG/PNG buffers, temporary
+
+| Internal RAM – task stacks
+| ~80,000
+| Including TinyUSB task
+
+| Internal DMA RAM – LCD bounce buffers (peak)
+| 12,288
+| 3 × 4,096 bytes
+
+| Internal RAM – FreeRTOS objects
+| ~3,000
+| Approx.
+
+|===
+
+*Available PSRAM*: 8 MB total.
+*Available internal SRAM*: ~400 KB total (shared with ESP-IDF system stacks, Wi-Fi, TCP/IP).
+
+---
+
+== Memory Documentation Rules
+
+When adding or modifying memory allocations:
+
+. **Always document** new `heap_caps_malloc` / `malloc` calls in this file, in the
+  appropriate section, within the **same commit/session** as the code change.
+. **Recalculate** the section subtotal and the summary table when a size changes.
+. **Mark conditional allocations** (e.g. UVC, SD card) clearly with a note.
+. **Specify the heap type**: PSRAM, Internal, DMA-capable internal.
+. **For task stacks**: add a row to the task stack table; update the subtotal.
+. **For temporary allocations**: note the maximum possible size and when it is freed.
+. **DMA bounce buffer budget**: verify that `trans_queue_depth × CONFIG_SPI_TRANSFER_SIZE`
+  still fits within the available DMA RAM *after* adding any new permanent internal
+  allocations. Current safe headroom: ~16 KB after UVC init.

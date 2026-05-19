@@ -1,0 +1,500 @@
+/*
+ * networkTask.cpp
+ *
+ *  Copyright (C) Daniel Kampert, 2026
+ *  Website: www.kampis-elektroecke.de
+ *  File info: Network task implementation.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ *
+ * Errors and commissions should be reported to DanielKampert@kampis-elektroecke.de
+ */
+
+#include <esp_log.h>
+#include <esp_event.h>
+#include <esp_task_wdt.h>
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <freertos/event_groups.h>
+#include <string.h>
+
+#include "managers.h"
+#include "networkTask.h"
+#include "Application/Tasks/GUI/guiTask.h"
+#include "Application/Manager/Network/Server/RemoteControl/remoteControl.h"
+#include "Application/Manager/ImageEncoder/imageEncoder.h"
+
+#define NETWORK_TASK_STOP_REQUEST               BIT0
+#define NETWORK_TASK_BROADCAST_FRAME            BIT1
+#define NETWORK_TASK_PROV_SUCCESS               BIT2
+#define NETWORK_TASK_WIFI_CONNECTED             BIT3
+#define NETWORK_TASK_WIFI_DISCONNECTED          BIT4
+#define NETWORK_TASK_WIFI_DATA_CHANGE           BIT9
+#define NETWORK_TASK_OPEN_WIFI_REQUEST          BIT5
+#define NETWORK_TASK_PROV_TIMEOUT               BIT6
+#define NETWORK_TASK_SNTP_TIME_SYNCED           BIT8
+
+/** @brief Internal runtime state of the network task.
+ *         Holds FreeRTOS primitives, WiFi connection status, network state machine,
+ *         and the latest Lepton ROI result used to build the thermal stream payload.
+ */
+typedef struct {
+    bool IsInitialized;                 /**< true after Network_Task_Init() has completed successfully. */
+    bool IsConnected;                   /**< true while a WiFi station connection is active. */
+    bool IsRunning;                     /**< true while the FreeRTOS task is executing. */
+    bool ApplicationStarted;            /**< true once the GUI task has signalled APP_STARTED. */
+    TaskHandle_t TaskHandle;            /**< FreeRTOS task handle; NULL before Network_Task_Start(). */
+    EventGroupHandle_t EventGroup;      /**< Event group used for intra-task synchronisation. */
+    uint32_t StartTime;                 /**< Tick count recorded when the last connection attempt began. */
+    Network_State_t State;              /**< Current network state-machine state. */
+    App_Lepton_ROI_Result_t ROIResult;  /**< Latest Lepton ROI result forwarded to connected WebSocket clients. */
+} Network_Task_State_t;
+
+static Network_Task_State_t _NetworkTaskState;
+
+static const char *TAG = "Network-Task";
+
+/** @brief                  GUI task event handler.
+ *  @param p_HandlerArgs    Handler argument
+ *  @param Base             Event base
+ *  @param ID               Event ID
+ *  @param p_Data           Event-specific data
+ */
+static void on_GUI_Task_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+{
+    ESP_LOGD(TAG, "GUI task event received: ID=%d", ID);
+
+    switch (ID) {
+        case GUI_TASK_EVENT_APP_STARTED: {
+            ESP_LOGD(TAG, "Application started event received");
+
+            _NetworkTaskState.ApplicationStarted = true;
+
+            break;
+        }
+        default: {
+            ESP_LOGW(TAG, "Unhandled GUI task event ID: 0x%X", ID);
+
+            break;
+        }
+    }
+}
+
+/** @brief                  Event handler for the SNTP events to receive updates when SNTP events are triggered (e.g., time synchronization, timezone changes).
+ *  @param p_HandlerArgs    Handler argument
+ *  @param Base             Event base
+ *  @param ID               Event ID
+ *  @param p_Data           Event-specific data
+ */
+static void on_SNTP_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+{
+    switch (ID) {
+        case SNTP_EVENT_SNTP_SYNCED: {
+            ESP_LOGD(TAG, "SNTP time synchronized");
+
+            xEventGroupSetBits(_NetworkTaskState.EventGroup, NETWORK_TASK_SNTP_TIME_SYNCED);
+
+            break;
+        }
+        default: {
+            ESP_LOGW(TAG, "Unhandled SNTP event ID: 0x%X", ID);
+
+            break;
+        }
+    }
+}
+
+/** @brief                  Network event handler.
+ *  @param p_HandlerArgs    Handler argument
+ *  @param Base             Event base
+ *  @param ID               Event ID
+ *  @param p_Data           Event-specific data
+ */
+static void on_Network_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+{
+    switch (ID) {
+        case NETWORK_EVENT_WIFI_CONNECTED: {
+            ESP_LOGD(TAG, "WiFi connected");
+
+            break;
+        }
+        case NETWORK_EVENT_WIFI_DISCONNECTED: {
+            ESP_LOGD(TAG, "WiFi disconnected");
+
+            _NetworkTaskState.State = NETWORK_STATE_DISCONNECTED;
+            _NetworkTaskState.IsConnected = false;
+
+            xEventGroupSetBits(_NetworkTaskState.EventGroup, NETWORK_TASK_WIFI_DISCONNECTED);
+
+            break;
+        }
+        case NETWORK_EVENT_WIFI_GOT_IP: {
+            _NetworkTaskState.State = NETWORK_STATE_CONNECTED;
+            _NetworkTaskState.IsConnected = true;
+
+            xEventGroupSetBits(_NetworkTaskState.EventGroup, NETWORK_TASK_WIFI_CONNECTED);
+
+            break;
+        }
+        case NETWORK_EVENT_PROV_SUCCESS: {
+            ESP_LOGI(TAG, "Provisioning success - scheduling WiFi restart");
+
+            xEventGroupSetBits(_NetworkTaskState.EventGroup, NETWORK_TASK_PROV_SUCCESS);
+
+            break;
+        }
+        case NETWORK_EVENT_PROV_FAILED: {
+            ESP_LOGE(TAG, "Provisioning failed!");
+            APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_NETWORK, ESP_FAIL);
+
+            break;
+        }
+        case NETWORK_EVENT_PROV_TIMEOUT: {
+            ESP_LOGW(TAG, "Provisioning timeout - scheduling stop");
+
+            xEventGroupSetBits(_NetworkTaskState.EventGroup, NETWORK_TASK_PROV_TIMEOUT);
+
+            break;
+        }
+        case NETWORK_EVENT_OPEN_WIFI_REQUEST: {
+            ESP_LOGD(TAG, "Open WiFi request received");
+
+            xEventGroupSetBits(_NetworkTaskState.EventGroup, NETWORK_TASK_OPEN_WIFI_REQUEST);
+
+            break;
+        }
+        default: {
+            ESP_LOGW(TAG, "Unhandled network task event ID: 0x%X", ID);
+
+            break;
+        }
+    }
+}
+
+/** @brief                  Settings event handler.
+ *  @param p_HandlerArgs    Handler argument
+ *  @param Base             Event base
+ *  @param ID               Event ID
+ *  @param p_Data           Event-specific data
+ */
+static void on_Settings_Event_Handler(void *p_HandlerArgs, esp_event_base_t Base, int32_t ID, void *p_Data)
+{
+    switch (ID) {
+        case SETTINGS_EVENT_WIFI_CHANGED: {
+            SettingsManager_ChangeNotification_t Changed;
+
+            if (p_Data == NULL) {
+                break;
+            }
+
+            __builtin_memcpy(&Changed, p_Data, sizeof(SettingsManager_ChangeNotification_t));
+
+            if (Changed.ID == SETTINGS_ID_WIFI_SSID) {
+                ESP_LOGD(TAG, "WiFi settings changed, ID: 0x%X", Changed.ID);
+
+                xEventGroupSetBits(_NetworkTaskState.EventGroup, NETWORK_TASK_WIFI_DATA_CHANGE);
+            }
+
+            break;
+        }
+        default: {
+            ESP_LOGW(TAG, "Unhandled devices task event ID: 0x%X", ID);
+
+            break;
+        }
+    }
+}
+
+/** @brief              Network task main loop.
+ *  @param p_Parameters Task parameters
+ */
+static void Task_Network(void *p_Parameters)
+{
+    Settings_WiFi_t WiFiSettings;
+
+    esp_task_wdt_add(NULL);
+
+    ESP_LOGD(TAG, "Network task started on core %d", xPortGetCoreID());
+
+    while (_NetworkTaskState.ApplicationStarted == false) {
+        esp_task_wdt_reset();
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+
+    SettingsManager_GetWiFi(&WiFiSettings);
+
+    ESP_LOGD(TAG, "Autoconnect is %s", (WiFiSettings.AutoConnect) ? "enabled" : "disabled");
+
+    /* If autoconnect is disabled, wait for explicit WiFi open request in main loop */
+    bool WaitingForWiFiRequest = (WiFiSettings.AutoConnect == false);
+
+    if (WaitingForWiFiRequest == false) {
+        SettingsManager_GetWiFi(&WiFiSettings);
+
+        if (strlen(WiFiSettings.SSID) == 0) {
+            ESP_LOGW(TAG, "No credentials found, starting provisioning");
+
+            Provisioning_Start();
+
+            _NetworkTaskState.State = NETWORK_STATE_PROVISIONING;
+        } else {
+            ESP_LOGD(TAG, "Credentials found, connecting to WiFi");
+
+            NetworkManager_StartSTA();
+        }
+    } else {
+        ESP_LOGD(TAG, "Waiting for WiFi open request...");
+        _NetworkTaskState.State = NETWORK_STATE_IDLE;
+    }
+
+    while (_NetworkTaskState.IsRunning) {
+        EventBits_t EventBits;
+
+        esp_task_wdt_reset();
+
+        EventBits = xEventGroupGetBits(_NetworkTaskState.EventGroup);
+        if (EventBits & NETWORK_TASK_STOP_REQUEST) {
+            ESP_LOGD(TAG, "Stop request received");
+
+            _NetworkTaskState.IsRunning = false;
+
+            xEventGroupClearBits(_NetworkTaskState.EventGroup, NETWORK_TASK_STOP_REQUEST);
+
+            break;
+        }
+
+        if (EventBits & NETWORK_TASK_WIFI_CONNECTED) {
+            TimeManager_OnNetworkConnected();
+
+            if (NetworkManager_StartServer() == ESP_OK) {
+                esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_SERVER_STARTED, NULL, 0, pdMS_TO_TICKS(100));
+            } else {
+                ESP_LOGE(TAG, "Failed to start HTTP/WebSocket server");
+                APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_NETWORK, ESP_FAIL);
+
+                esp_event_post(NETWORK_EVENTS, NETWORK_EVENT_SERVER_ERROR, NULL, 0, pdMS_TO_TICKS(100));
+            }
+
+            xEventGroupClearBits(_NetworkTaskState.EventGroup, NETWORK_TASK_WIFI_CONNECTED);
+        }
+
+        if (EventBits & NETWORK_TASK_WIFI_DISCONNECTED) {
+            ESP_LOGD(TAG, "Handling WiFi disconnection");
+
+            SettingsManager_GetWiFi(&WiFiSettings);
+
+            TimeManager_OnNetworkDisconnected();
+
+            if ((Provisioning_IsActive() == false) && (strlen(WiFiSettings.SSID) == 0)) {
+                Provisioning_Start();
+            }
+
+            xEventGroupClearBits(_NetworkTaskState.EventGroup, NETWORK_TASK_WIFI_DISCONNECTED);
+        }
+
+        if (EventBits & NETWORK_TASK_PROV_SUCCESS) {
+        }
+
+        if (EventBits & NETWORK_TASK_PROV_TIMEOUT) {
+            ESP_LOGD(TAG, "Handling provisioning timeout");
+
+            esp_task_wdt_delete(NULL);
+
+            Provisioning_Stop();
+
+            esp_task_wdt_add(NULL);
+            esp_task_wdt_reset();
+
+            xEventGroupClearBits(_NetworkTaskState.EventGroup, NETWORK_TASK_PROV_TIMEOUT);
+        }
+
+        if (EventBits & NETWORK_TASK_OPEN_WIFI_REQUEST) {
+            ESP_LOGD(TAG, "Handling WiFi open request");
+
+            if (WaitingForWiFiRequest) {
+                SettingsManager_GetWiFi(&WiFiSettings);
+
+                if ((Provisioning_isProvisioned() == false) && (strlen(WiFiSettings.SSID) == 0)) {
+                    ESP_LOGW(TAG, "No credentials found, starting provisioning");
+
+                    Provisioning_Start();
+
+                    _NetworkTaskState.State = NETWORK_STATE_PROVISIONING;
+                } else {
+                    NetworkManager_StartSTA();
+                }
+
+                WaitingForWiFiRequest = false;
+            }
+
+            xEventGroupClearBits(_NetworkTaskState.EventGroup, NETWORK_TASK_OPEN_WIFI_REQUEST);
+        } else if (EventBits & NETWORK_TASK_WIFI_DATA_CHANGE) {
+            ESP_LOGD(TAG, "Handling WiFi data change");
+
+            SettingsManager_GetWiFi(&WiFiSettings);
+
+            if (_NetworkTaskState.IsConnected) {
+                NetworkManager_Stop();
+                NetworkManager_StartSTA();
+            } else if ((Provisioning_IsActive()) && (strlen(WiFiSettings.SSID) > 0)) {
+                ESP_LOGI(TAG, "Credentials set during provisioning - triggering restart");
+
+                xEventGroupSetBits(_NetworkTaskState.EventGroup, NETWORK_TASK_PROV_SUCCESS);
+            }
+
+            xEventGroupClearBits(_NetworkTaskState.EventGroup, NETWORK_TASK_WIFI_DATA_CHANGE);
+        }
+
+        if (EventBits & NETWORK_TASK_SNTP_TIME_SYNCED) {
+            xEventGroupClearBits(_NetworkTaskState.EventGroup, NETWORK_TASK_SNTP_TIME_SYNCED);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+
+    ESP_LOGD(TAG, "Network task shutting down");
+    Provisioning_Stop();
+    NetworkManager_Stop();
+
+    _NetworkTaskState.TaskHandle = NULL;
+
+    esp_task_wdt_delete(NULL);
+    vTaskDelete(NULL);
+}
+
+esp_err_t Network_Task_Init(App_Context_t *p_AppContext)
+{
+    esp_err_t Error;
+
+    if (p_AppContext == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    } else if (_NetworkTaskState.IsInitialized) {
+        ESP_LOGW(TAG, "Already initialized");
+
+        return ESP_OK;
+    }
+
+    ESP_LOGD(TAG, "Initializing network task");
+
+    _NetworkTaskState.EventGroup = xEventGroupCreate();
+    if (_NetworkTaskState.EventGroup == NULL) {
+        ESP_LOGE(TAG, "Failed to create event group!");
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_NETWORK, ESP_ERR_NO_MEM);
+
+        return ESP_ERR_NO_MEM;
+    }
+
+
+    Error = NetworkManager_Init();
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to init WiFi manager: 0x%x!", Error);
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_NETWORK, Error);
+
+        vEventGroupDelete(_NetworkTaskState.EventGroup);
+
+        return Error;
+    }
+
+    Error = Provisioning_Init();
+    if (Error != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to init provisioning: 0x%x!", Error);
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_NETWORK, Error);
+        /* Continue anyway, provisioning is optional */
+    }
+
+    esp_event_handler_register(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler, NULL);
+    esp_event_handler_register(GUI_TASK_EVENTS, GUI_TASK_EVENT_APP_STARTED, on_GUI_Task_Event_Handler, NULL);
+    esp_event_handler_register(SNTP_EVENTS, SNTP_EVENT_SNTP_SYNCED, on_SNTP_Event_Handler, NULL);
+    esp_event_handler_register(SETTINGS_EVENTS, SETTINGS_EVENT_WIFI_CHANGED, on_Settings_Event_Handler, NULL);
+
+    _NetworkTaskState.State = NETWORK_STATE_IDLE;
+    _NetworkTaskState.IsInitialized = true;
+
+    ESP_LOGD(TAG, "Network Task initialized");
+
+    return ESP_OK;
+}
+
+void Network_Task_Deinit(void)
+{
+    if (_NetworkTaskState.IsInitialized == false) {
+        return;
+    }
+
+    ESP_LOGD(TAG, "Deinitializing Network Task");
+
+    Network_Task_Stop();
+    Provisioning_Deinit();
+    NetworkManager_Deinit();
+
+    esp_event_handler_unregister(SNTP_EVENTS, SNTP_EVENT_SNTP_SYNCED, on_SNTP_Event_Handler);
+    esp_event_handler_unregister(NETWORK_EVENTS, ESP_EVENT_ANY_ID, on_Network_Event_Handler);
+    esp_event_handler_unregister(GUI_TASK_EVENTS, GUI_TASK_EVENT_APP_STARTED, on_GUI_Task_Event_Handler);
+    esp_event_handler_unregister(SETTINGS_EVENTS, SETTINGS_EVENT_WIFI_CHANGED, on_Settings_Event_Handler);
+
+    if (_NetworkTaskState.EventGroup != NULL) {
+        vEventGroupDelete(_NetworkTaskState.EventGroup);
+        _NetworkTaskState.EventGroup = NULL;
+    }
+
+    _NetworkTaskState.IsInitialized = false;
+}
+
+esp_err_t Network_Task_Start(void)
+{
+    BaseType_t Error;
+
+    if (_NetworkTaskState.IsInitialized == false) {
+        return ESP_ERR_INVALID_STATE;
+    } else if (_NetworkTaskState.IsRunning) {
+        ESP_LOGW(TAG, "Task already Running");
+        return ESP_OK;
+    }
+
+    _NetworkTaskState.IsRunning = true;
+
+    ESP_LOGD(TAG, "Starting Network Task");
+
+    Error = xTaskCreatePinnedToCore(Task_Network, "Task_Network", CONFIG_NETWORK_TASK_STACKSIZE, NULL,
+                                    CONFIG_NETWORK_TASK_PRIO, &_NetworkTaskState.TaskHandle, CONFIG_NETWORK_TASK_CORE);
+    if (Error != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create Network Task: 0x%X!", Error);
+        APP_DIAG_RECORD(APP_DIAG_SOURCE_TASK_NETWORK, ESP_ERR_NO_MEM);
+
+        return ESP_ERR_NO_MEM;
+    }
+
+    _NetworkTaskState.StartTime = xTaskGetTickCount() / configTICK_RATE_HZ;
+
+    return ESP_OK;
+}
+
+esp_err_t Network_Task_Stop(void)
+{
+    if (_NetworkTaskState.IsRunning == false) {
+        return ESP_OK;
+    }
+
+    ESP_LOGD(TAG, "Stopping Network Task");
+
+    xEventGroupSetBits(_NetworkTaskState.EventGroup, NETWORK_TASK_STOP_REQUEST);
+
+    return ESP_OK;
+}
+
+bool Network_Task_IsRunning(void)
+{
+    return _NetworkTaskState.IsRunning;
+}

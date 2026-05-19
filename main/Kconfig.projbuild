@@ -1,0 +1,546 @@
+menu "PyroVision"
+    menu "Device"
+        config DEVICE_MANUFACTURER
+            string "Device manufacturer"
+            default "PyroVision"
+
+        config DEVICE_NAME
+            string "Device name"
+            default "ThermalCam"
+    endmenu
+
+    menu "USB"
+        config USB_VID
+            hex "USB Vendor ID"
+            default 0x1234
+
+        config USB_PID
+            hex "USB Product ID"
+            default 0x5678
+    endmenu
+
+    menu "Settings"
+        config SETTINGS_NAMESPACE
+            string "Settings namespace for the NVS"
+            default "PyroVision"
+    endmenu
+
+    menu "Battery"
+        choice
+            prompt "ADC Unit"
+            default BATTERY_ADC_1
+            help
+                Select the used ADC unit.
+
+            config BATTERY_ADC_1
+                bool "ADC 1"
+            config BATTERY_ADC_2
+                bool "ADC 2"
+        endchoice
+
+        config BATTERY_ADC_CHANNEL
+            int "ADC channel used for battery measurement"
+            range 0 9
+            default 2
+
+        choice
+            prompt "ADC Attenuation"
+            default BATTERY_ADC_ATT_12
+            help
+                Select the used ADC attenuation.
+
+            config BATTERY_ADC_ATT_0
+                bool "0 dB ADC attenuation"
+            config BATTERY_ADC_ATT_2_5
+                bool "2.5 dB ADC attenuation"
+            config BATTERY_ADC_ATT_6
+                bool "6 dB ADC attenuation"
+            config BATTERY_ADC_ATT_12
+                bool "12 dB ADC attenuation"
+        endchoice
+
+        config BATTERY_ADC_MIN_MV
+            int "Minimal battery voltage in Millivolt"
+            default 3000
+
+        config BATTERY_ADC_MAX_MV
+            int "Maximal battery voltage in Millivolt"
+            default 4200
+
+        config BATTERY_ADC_R1
+            int "Value of the R1 resistor of the voltage divider"
+            default 2200
+
+        config BATTERY_ADC_R2
+            int "Value of the R2 resistor of the voltage divider"
+            default 2200
+
+        config BATTERY_ADC_SAMPLES
+            int "Number of ADC samples to average"
+            range 1 64
+            default 16
+            help
+                Number of ADC samples to take and average for battery voltage measurement.
+                Higher values give more accurate readings but take longer.
+
+        config BATTERY_ADC_SAMPLE_DELAY_MS
+            int "Delay between ADC samples in milliseconds"
+            range 0 100
+            default 10
+            help
+                Delay between consecutive ADC samples in milliseconds.
+                A small delay can improve accuracy by allowing the ADC to settle.
+
+        config BATTERY_ADC_EMA_ALPHA
+            int "Exponential moving average alpha (0-100)"
+            range 0 100
+            default 20
+            help
+                Exponential moving average alpha factor (0-100, representing 0.0-1.0).
+                Lower values give more smoothing but slower response to changes.
+                20 represents 0.2 (20% new value, 80% old value).
+
+        config BATTERY_ADC_OUTLIER_THRESHOLD
+            int "Maximum deviation from median in millivolts"
+            range 50 500
+            default 200
+            help
+                Maximum allowed deviation from the median value in mV.
+                Samples exceeding this threshold are considered outliers and excluded.
+    endmenu
+
+    menu "Network"
+        menu "Websocket"
+            config NETWORK_WEBSOCKET_CLIENTS
+                int "Maximum number of WebSocket clients"
+                default 4
+        endmenu
+
+        menu "Task"
+            config NETWORK_TASK_STACKSIZE
+                int "Stack size"
+                default 6144
+
+            config NETWORK_TASK_PRIO
+                int "Task prio"
+                default 16
+
+            config NETWORK_TASK_CORE
+                int "Task core"
+                default 1
+        endmenu
+
+        menu "VISA"
+            config NETWORK_VISA_ERROR_QUEUE_LLENGTH
+                int "Length of the error queue"
+                default 10
+
+            config NETWORK_VISA_MAX_CLIENTS
+                int "Maximum number of clients"
+                default 2
+        endmenu
+    endmenu
+
+    menu "Image Encoding"
+        choice
+            prompt "Default Image Format"
+            default IMAGE_FORMAT_JPEG
+            help
+                Select the default image format for thermal frame encoding.
+                This can be changed at runtime through the settings.
+
+            config IMAGE_FORMAT_JPEG
+                bool "JPEG"
+                help
+                    Lossy JPEG compression. Smallest file size, fastest encoding.
+                    Recommended for most use cases.
+
+            config IMAGE_FORMAT_PNG
+                bool "PNG (Not implemented)"
+                help
+                    Lossless PNG compression. Larger file size than JPEG.
+                    Currently not implemented - will fall back to RAW format.
+
+            config IMAGE_FORMAT_BITMAP
+                bool "Bitmap (BMP)"
+                help
+                    Uncompressed 24-bit RGB bitmap. Largest file size.
+                    Compatible with most image viewers.
+
+            config IMAGE_FORMAT_RAW
+                bool "RAW RGB"
+                help
+                    Raw RGB888 pixel data without headers or compression.
+                    Largest file size, requires custom parsing.
+        endchoice
+
+        config IMAGE_JPEG_QUALITY
+            int "JPEG Quality (1-100)"
+            range 1 100
+            default 80
+            depends on IMAGE_FORMAT_JPEG
+            help
+                JPEG compression quality (1-100).
+                Higher values produce better quality but larger files.
+                Recommended range: 70-90
+                - 70: Good quality, small file size
+                - 80: High quality (default)
+                - 90: Very high quality, larger files
+
+        menu "Encoders"
+            config IMAGE_ENCODER_JPEG
+                bool "Enable JPEG encoder"
+                default y
+                help
+                    Include the JPEG encoder. Disable to save flash space if JPEG output is not needed.
+
+            config IMAGE_ENCODER_PNG
+                bool "Enable PNG encoder"
+                default y
+                help
+                    Include the PNG encoder. Disable to save flash space if PNG output is not needed.
+
+            config IMAGE_ENCODER_BITMAP
+                bool "Enable Bitmap encoder"
+                default y
+                help
+                    Include the Bitmap (BMP) encoder. Disable to save flash space if BMP output is not needed.
+
+            config IMAGE_ENCODER_RAW
+                bool "Enable RAW encoder"
+                default y
+                help
+                    Include the RAW RGB encoder. Disable to save flash space if raw output is not needed.
+        endmenu
+    endmenu
+
+    menu "Lepton"
+        menu "Task"
+            config LEPTON_TASK_STACKSIZE
+                int "Stack size"
+                default 16384
+
+            config LEPTON_TASK_PRIO
+                int "Task prio"
+                default 12
+
+            config LEPTON_TASK_CORE
+                int "Task core"
+                default 1
+        endmenu
+    endmenu
+
+    menu "Devices"
+        config DEVICES_TASK_BATTERY_POLL_INTERVAL_S
+            int "Battery polling interval for the devices tasks in seconds"
+            default 10
+
+        config DEVICES_TASK_TEMPERATURE_POLL_INTERVAL_S
+            int "Temperature polling interval for the devices tasks in seconds"
+            default 30
+
+        menu "I2C"
+            choice
+                prompt "Peripheral I2C Bus"
+                default DEVICES_I2C_I2C1_HOST
+                help
+                    Select the I2C Bus for the peripheral components.
+
+                config DEVICES_I2C_I2C0_HOST
+                    bool "I2C0_HOST"
+                config DEVICES_I2C_I2C1_HOST
+                    bool "I2C1_HOST"
+            endchoice
+
+            config DEVICES_I2C_SCL
+                int "SCL pin number"
+                range 0 48
+                default 9
+
+            config DEVICES_I2C_SDA
+                int "SDA pin number"
+                range 0 48
+                default 10
+
+            config EXPANDER_INT_GPIO
+                int "Port Expander INT# GPIO number"
+                range 0 48
+                default 1
+                help
+                    GPIO number connected to the INT# pin of the PCAL6416AHF port expander.
+                    The INT# output is active-low and open-drain.
+                    A falling edge triggers interrupt handling in the Devices Manager.
+
+            config DISPLAYBOARD_EXPANDER_INT_GPIO
+                int "Displayboard Port Expander INT# GPIO number"
+                range 0 48
+                default 2
+                help
+                    GPIO number connected to the INT# pin of the displayboard PCAL6416AHF.
+                    The INT# output is active-low and open-drain.
+                    Reading the Input Port register clears the interrupt.
+        endmenu
+
+        menu "SPI"
+            config SPI_SCLK
+                int "SCLK GPIO number"
+                range 0 48
+                default 40
+
+            config SPI_MOSI
+                int "MOSI GPIO number"
+                range 0 48
+                default 39
+
+            config SPI_MISO
+                int "MISO GPIO number"
+                range 0 48
+                default 41
+
+            config SPI_TRANSFER_SIZE
+                int "Max. transfer size in bytes"
+                default 8192
+
+            menu "Touch"
+                choice
+                    prompt "Touch I2C Bus"
+                    default TOUCH_I2C0_HOST
+                    help
+                        Select the I2C Bus the Touch Controller is attached to.
+
+                    config TOUCH_I2C0_HOST
+                        bool "I2C0_HOST"
+                    config TOUCH_I2C1_HOST
+                        bool "I2C1_HOST"
+                endchoice
+
+                config TOUCH_CLOCK
+                    int "Touch bus clock"
+                    default 400000
+
+                config TOUCH_SDA
+                    int "Touch interrupt GPIO number"
+                    range -1 48
+                    default 10
+
+                config TOUCH_SCL
+                    int "Touch interrupt GPIO number"
+                    range -1 48
+                    default 9
+
+                config TOUCH_IRQ
+                    int "Touch interrupt GPIO number"
+                    range -1 48
+                    default 21
+
+                config TOUCH_RST
+                    int "Touch reset GPIO number"
+                    range -1 48
+                    default 47
+            endmenu
+
+            menu "SD-Card"
+                choice
+                    prompt "SD-Card SPI Bus"
+                    default SD_CARD_SPI2_HOST
+                    help
+                        Select the SPI Bus the SD-Card is attached to.
+
+                    config SD_CARD_SPI2_HOST
+                        bool "SPI2_HOST"
+                    config SD_CARD_SPI3_HOST
+                        bool "SPI3_HOST"
+                endchoice
+
+                config SD_CARD_CLOCK
+                    int "SD-Card SPI clock"
+                    default 2000000
+
+                config SD_CARD_FORMAT_CARD
+                    bool "Format the card if mount failed"
+                    default n
+
+                config SD_CARD_PIN_CS
+                    int "Card select GPIO"
+                    range 0 48
+                    default 38
+
+                config SD_CARD_PIN_CD
+                    int "Card detection GPIO"
+                    range -1 48
+                    default 17
+            endmenu
+
+            menu "LCD"
+                choice
+                    prompt "Display Bus"
+                    default LCD_SPI2_HOST
+                    help
+                        Select the SPI Bus the Display is attached to.
+
+                    config LCD_SPI2_HOST
+                        bool "SPI2_HOST"
+                    config LCD_SPI3_HOST
+                        bool "SPI3_HOST"
+                endchoice
+
+                config LCD_CLOCK
+                    int "SPI clock"
+                    default 400000000
+
+                config LCD_CS
+                    int "Chip Select GPIO"
+                    range 0 48
+                    default 42
+
+                config LCD_DC
+                    int "DC GPIO"
+                    range 0 48
+                    default 46
+
+                config LCD_RST
+                    int "Reset GPIO"
+                    range -1 48
+                    default 3
+            endmenu
+        endmenu
+
+        menu "Task"
+            config DEVICES_TASK_STACKSIZE
+                int "Stack size"
+                default 4096
+
+            config DEVICES_TASK_PRIO
+                int "Task prio"
+                default 16
+
+            config DEVICES_TASK_CORE
+                int "Task core"
+                default 1
+
+            config BATTERY_INTERVAL_MS
+                int "Battery measurement interval (ms)"
+                default 1000
+                help
+                    Interval in milliseconds between battery measurements in the Devices Task.
+
+            config DISTANCE_INTERVAL_MS
+                int "Distance measurement interval (ms)"
+                default 1000
+                help
+                    Interval in milliseconds between distance measurements in the Devices Task.
+
+            config TEMPERATURE_INTERVAL_MS
+                int "Temperature measurement interval (ms)"
+                default 10000
+                help
+                    Interval in milliseconds between temperature readings in the Devices Task.
+        endmenu
+    endmenu
+
+    menu "Camera"
+        config CAMERA_PIN_D0
+            int "D0 GPIO number"
+            range 0 48
+            default 7
+
+        config CAMERA_PIN_D1
+            int "D1 GPIO number"
+            range 0 48
+            default 5
+
+        config CAMERA_PIN_D2
+            int "D2 GPIO number"
+            range 0 48
+            default 4
+
+        config CAMERA_PIN_D3
+            int "D3 GPIO number"
+            range 0 48
+            default 6
+
+        config CAMERA_PIN_D4
+            int "D4 GPIO number"
+            range 0 48
+            default 15
+
+        config CAMERA_PIN_D5
+            int "D5 GPIO number"
+            range 0 48
+            default 16
+
+        config CAMERA_PIN_D6
+            int "D6 GPIO number"
+            range 0 48
+            default 17
+
+        config CAMERA_PIN_D7
+            int "D7 GPIO number"
+            range 0 48
+            default 18
+
+        config CAMERA_PIN_VSYNC
+            int "VSYNC GPIO number"
+            range 0 48
+            default 45
+
+        config CAMERA_PIN_HREF
+            int "HREF GPIO number"
+            range 0 48
+            default 48
+
+        config CAMERA_PIN_PCLK
+            int "PCLK GPIO number"
+            range 0 48
+            default 8
+
+        config CAMERA_XCLK_FREQ
+            int "XCLK frequency in Hz"
+            default 25000000
+            help
+                External clock frequency supplied to the camera sensor.
+                Most OV-series sensors require 20 MHz or 25 MHz.
+
+        menu "Task"
+            config CAMERA_TASK_STACKSIZE
+                int "Stack size"
+                default 8192
+
+            config CAMERA_TASK_PRIO
+                int "Task priority"
+                default 5
+
+            config CAMERA_TASK_CORE
+                int "Task core"
+                default 1
+        endmenu
+    endmenu
+
+    menu "GUI"
+        config GUI_WIDTH
+            int "Screen width"
+            default 320
+
+        config GUI_HEIGHT
+            int "Screen Height"
+            default 240
+
+        config GUI_LVGL_TICK_PERIOD_MS
+            int "LVGL Tick Period"
+            default 2
+
+        menu "Task"
+            config GUI_TASK_STACKSIZE
+                int "Stack size"
+                default 16384
+
+            config GUI_TASK_PRIO
+                int "Task prio"
+                default 8
+
+            config GUI_TASK_CORE
+                int "Task core"
+                default 0
+        endmenu
+    endmenu
+endmenu

@@ -1,0 +1,1213 @@
+= PyroVision Network Manager Documentation
+Daniel Kampert <DanielKampert@kampis-elektroecke.de>
+v1.0, 2026-01-14
+:toc: left
+:toclevels: 3
+:sectnums:
+:source-highlighter: coderay
+
+== Overview
+
+The Network Manager is the central networking component for the PyroVision firmware. It manages WiFi connectivity (both Station and Access Point modes), HTTP/WebSocket servers, VISA/SCPI server, WiFi provisioning, and network events. The Network Manager provides a unified API for all network operations with automatic reconnection, retry logic, and comprehensive state management.
+
+=== Key Features
+
+* *WiFi Management*: Station (STA) and Access Point (AP) modes
+* *Automatic Reconnection*: Configurable retry logic with intelligent backoff
+* *HTTP/WebSocket Server*: Real-time thermal imaging data streaming
+* *VISA/SCPI Server*: Standard instrumentation interface (port 5025)
+* *WiFi Provisioning*: BLE and SoftAP provisioning support
+* *Event-Driven Architecture*: Comprehensive event system for state changes
+* *Network Monitoring*: RSSI, IP info, connection statistics
+* *Credentials Management*: Secure storage in NVS
+* *State Machine*: Well-defined connection states
+
+---
+
+== Architecture
+
+=== Component Structure
+
+[source]
+----
+main/Application/Manager/Network/
+├── networkManager.h          # Public API
+├── networkManager.cpp        # Implementation
+├── networkTypes.h           # Type definitions and events
+├── Server/                  # HTTP/WebSocket server
+│   ├── server.h
+│   └── server.cpp
+├── VISA/                    # VISA/SCPI server
+│   ├── visa.h
+│   └── visa.cpp
+├── SNTP/                    # SNTP time sync (used by Time Manager)
+│   ├── sntp.h
+│   └── sntp.cpp
+└── Provisioning/            # WiFi provisioning
+    ├── provisioning.h
+    └── provisioning.cpp
+----
+
+=== Network State Machine
+
+The Network Manager uses a state machine to track connection status:
+
+[source]
+----
+┌──────────────┐
+│ IDLE         │ ← Initial state, WiFi not started
+└──────┬───────┘
+       │ NetworkManager_StartSTA()
+       ↓
+┌──────────────┐
+│ CONNECTING   │ ← Attempting to connect to AP
+└──┬───────────┘
+   │
+   ├─→ [Success] → CONNECTED
+   │
+   ├─→ [Retry] → CONNECTING (up to MaxRetries)
+   │
+   └─→ [Max retries] → ERROR
+       
+┌──────────────┐
+│ CONNECTED    │ ← Connected, has IP address
+└──┬───────────┘
+   │
+   ├─→ [Disconnect] → DISCONNECTED
+   │
+   └─→ [Lost IP] → CONNECTING (auto-retry)
+       
+┌──────────────┐
+│ DISCONNECTED │ ← WiFi disconnected (network lost, etc.)
+└──────────────┘
+       
+┌──────────────┐
+│ AP_STARTED   │ ← Access Point mode active
+└──────────────┘
+       
+┌──────────────┐
+│ PROVISIONING │ ← Provisioning mode (BLE or SoftAP)
+└──────────────┘
+       
+┌──────────────┐
+│ ERROR        │ ← Max retries exceeded, manual intervention needed
+└──────────────┘
+----
+
+---
+
+== Data Structures
+
+=== Network State Enum
+
+[source,cpp]
+----
+typedef enum {
+    NETWORK_STATE_IDLE = 0,         // WiFi not started
+    NETWORK_STATE_CONNECTING,       // Attempting connection
+    NETWORK_STATE_CONNECTED,        // Connected with IP
+    NETWORK_STATE_DISCONNECTED,     // Disconnected from AP
+    NETWORK_STATE_PROVISIONING,     // Provisioning mode active
+    NETWORK_STATE_AP_STARTED,       // Access Point started
+    NETWORK_STATE_ERROR,            // Error state (max retries)
+} Network_State_t;
+----
+
+=== WiFi Configuration Structures
+
+==== WiFi Credentials
+
+[source,cpp]
+----
+typedef struct {
+    char SSID[33];                  // WiFi SSID (max 32 chars + null)
+    char Password[65];              // WiFi password (max 64 chars + null)
+} Network_WiFi_Credentials_t;
+----
+
+==== Station Mode Configuration
+
+[source,cpp]
+----
+typedef struct {
+    Network_WiFi_Credentials_t Credentials;  // SSID and password
+    uint8_t MaxRetries;                      // Max connection attempts
+    uint16_t RetryInterval;                  // Delay between retries (ms)
+} Network_WiFi_STA_Config_t;
+----
+
+=== Server Configuration
+
+[source,cpp]
+----
+typedef struct {
+    uint16_t HTTP_Port;             // HTTP server port (default 80)
+    uint8_t MaxClients;             // Max simultaneous clients
+    uint16_t WSPingIntervalSec;     // WebSocket ping interval (seconds)
+    bool EnableCORS;                // Enable CORS headers
+    const char *API_Key;            // Optional API key for authentication
+} Network_Server_Config_t;
+----
+
+=== Event System
+
+==== Event Base
+
+[source,cpp]
+----
+ESP_EVENT_DECLARE_BASE(NETWORK_EVENTS);
+----
+
+==== Event Types
+
+[cols="2,3,2"]
+|===
+|Event |Description |Data
+
+|`NETWORK_EVENT_WIFI_CONNECTED`
+|WiFi connected to AP
+|None
+
+|`NETWORK_EVENT_WIFI_DISCONNECTED`
+|WiFi disconnected from AP
+|`wifi_event_sta_disconnected_t`
+
+|`NETWORK_EVENT_WIFI_GOT_IP`
+|IP address obtained via DHCP
+|`Network_IP_Info_t`
+
+|`NETWORK_EVENT_CREDENTIALS_UPDATED`
+|WiFi credentials changed
+|`Network_WiFi_Credentials_t`
+
+|`NETWORK_EVENT_AP_STARTED`
+|Access Point started
+|None
+
+|`NETWORK_EVENT_AP_STOPPED`
+|Access Point stopped
+|None
+
+|`NETWORK_EVENT_AP_STA_CONNECTED`
+|Station connected to our AP
+|`Network_Event_STA_Info_t`
+
+|`NETWORK_EVENT_AP_STA_DISCONNECTED`
+|Station disconnected from our AP
+|`Network_Event_STA_Info_t`
+
+|`NETWORK_EVENT_PROV_STARTED`
+|Provisioning started
+|None
+
+|`NETWORK_EVENT_PROV_STOPPED`
+|Provisioning stopped
+|None
+
+|`NETWORK_EVENT_PROV_CRED_RECV`
+|Provisioning credentials received
+|None
+
+|`NETWORK_EVENT_PROV_SUCCESS`
+|Provisioning successful
+|None
+
+|`NETWORK_EVENT_PROV_FAILED`
+|Provisioning failed
+|None
+
+|`NETWORK_EVENT_SERVER_STARTED`
+|HTTP/WebSocket server started
+|None
+
+|`NETWORK_EVENT_SERVER_STOPPED`
+|HTTP/WebSocket server stopped
+|None
+|===
+
+==== Event Data Structures
+
+[source,cpp]
+----
+/** @brief IP info event data. */
+typedef struct {
+    uint32_t IP;                    // IP address
+    uint32_t Netmask;               // Subnet mask
+    uint32_t Gateway;               // Gateway address
+} Network_IP_Info_t;
+
+/** @brief Station info event data. */
+typedef struct {
+    uint8_t MAC[6];                 // MAC address
+} Network_Event_STA_Info_t;
+----
+
+---
+
+== API Reference
+
+=== Initialization and Lifecycle
+
+==== `NetworkManager_Init()`
+
+[source,cpp]
+----
+esp_err_t NetworkManager_Init(Network_WiFi_STA_Config_t *p_Config);
+----
+
+*Description*: Initializes the Network Manager with WiFi configuration.
+
+*Process*:
+
+1. Initializes TCP/IP stack (`esp_netif_init()`)
+2. Creates FreeRTOS event group for synchronization
+3. Creates WiFi station and AP network interfaces
+4. Initializes WiFi with default configuration
+5. Registers WiFi and IP event handlers
+6. Sets WiFi storage mode to RAM
+
+*Parameters*:
+
+* `p_Config`: Pointer to WiFi station configuration (credentials, retries, interval)
+
+*Return Value*:
+
+* `ESP_OK` on success
+* `ESP_ERR_INVALID_ARG` if `p_Config` is NULL
+* `ESP_ERR_NO_MEM` if event group creation fails
+* `ESP_FAIL` if netif or WiFi initialization fails
+
+*Example*:
+
+[source,cpp]
+----
+Network_WiFi_STA_Config_t wifi_config = {
+    .Credentials = {
+        .SSID = "MyWiFi",
+        .Password = "MyPassword123",
+    },
+    .MaxRetries = 5,
+    .RetryInterval = 5000,  // 5 seconds
+};
+
+if (NetworkManager_Init(&wifi_config) == ESP_OK) {
+    ESP_LOGI(TAG, "Network Manager initialized");
+} else {
+    ESP_LOGE(TAG, "Failed to initialize Network Manager");
+}
+----
+
+==== `NetworkManager_Deinit()`
+
+[source,cpp]
+----
+void NetworkManager_Deinit(void);
+----
+
+*Description*: Deinitializes the Network Manager and releases all resources.
+
+*Process*:
+
+1. Stops WiFi and SNTP
+2. Deinitializes WiFi driver
+3. Destroys network interfaces (STA and AP)
+4. Deletes event group
+5. Resets internal state
+
+*Example*:
+
+[source,cpp]
+----
+void shutdown_network(void)
+{
+    ESP_LOGI(TAG, "Shutting down network...");
+    NetworkManager_Deinit();
+}
+----
+
+---
+
+=== WiFi Connection Management
+
+==== `NetworkManager_StartSTA()`
+
+[source,cpp]
+----
+esp_err_t NetworkManager_StartSTA(void);
+----
+
+*Description*: Starts WiFi in station mode and connects to configured AP.
+
+*Process*:
+
+1. Resets retry counter
+2. Clears event group bits
+3. Configures WiFi with stored credentials
+4. Sets authentication mode (WPA2-PSK minimum)
+5. Enables Protected Management Frames (PMF)
+6. Starts WiFi and initiates connection
+
+*Return Value*:
+
+* `ESP_OK` on success
+* `ESP_ERR_INVALID_STATE` if not initialized
+
+*Authentication*:
+
+* Minimum: WPA2-PSK
+* PMF capable: Yes
+* PMF required: No (for compatibility)
+
+*Example*:
+
+[source,cpp]
+----
+// Start WiFi connection
+if (NetworkManager_StartSTA() == ESP_OK) {
+    ESP_LOGI(TAG, "WiFi STA started, connecting...");
+    
+    // Wait for connection or failure
+    while (NetworkManager_GetState() == NETWORK_STATE_CONNECTING) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    
+    if (NetworkManager_isConnected()) {
+        ESP_LOGI(TAG, "Connected successfully!");
+    } else {
+        ESP_LOGE(TAG, "Connection failed");
+    }
+}
+----
+
+==== `NetworkManager_Stop()`
+
+[source,cpp]
+----
+esp_err_t NetworkManager_Stop(void);
+----
+
+*Description*: Stops WiFi and SNTP, returns to IDLE state.
+
+*Return Value*:
+
+* `ESP_OK` on success
+* `ESP_ERR_INVALID_STATE` if not initialized
+
+*Example*:
+
+[source,cpp]
+----
+// Temporarily disable WiFi to save power
+NetworkManager_Stop();
+ESP_LOGI(TAG, "WiFi stopped");
+
+// Later, restart connection
+NetworkManager_StartSTA();
+----
+
+==== `NetworkManager_ConnectWiFi()`
+
+[source,cpp]
+----
+esp_err_t NetworkManager_ConnectWiFi(const char *p_SSID, const char *p_Password);
+----
+
+*Description*: Connects to WiFi with new credentials (updates configuration).
+
+*Parameters*:
+
+* `p_SSID`: New SSID (NULL to keep current)
+* `p_Password`: New password (NULL to keep current)
+
+*Process*:
+
+1. Updates credentials if provided
+2. Stops current WiFi connection
+3. Restarts with new credentials
+4. Waits up to 30 seconds for connection
+
+*Return Value*:
+
+* `ESP_OK` if connected successfully
+* `ESP_ERR_INVALID_STATE` if not initialized
+* `ESP_FAIL` if connection failed
+* `ESP_ERR_TIMEOUT` if connection timed out (30 seconds)
+
+*Example*:
+
+[source,cpp]
+----
+// Connect to new WiFi network
+esp_err_t ret = NetworkManager_ConnectWiFi("NewNetwork", "NewPassword123");
+
+if (ret == ESP_OK) {
+    ESP_LOGI(TAG, "Connected to new network!");
+} else if (ret == ESP_ERR_TIMEOUT) {
+    ESP_LOGW(TAG, "Connection timeout - check credentials and signal strength");
+} else {
+    ESP_LOGE(TAG, "Connection failed: %d", ret);
+}
+----
+
+==== `NetworkManager_DisconnectWiFi()`
+
+[source,cpp]
+----
+esp_err_t NetworkManager_DisconnectWiFi(void);
+----
+
+*Description*: Disconnects from current WiFi network.
+
+*Return Value*:
+
+* `ESP_OK` on success
+* `ESP_ERR_INVALID_STATE` if not initialized
+
+*Example*:
+
+[source,cpp]
+----
+NetworkManager_DisconnectWiFi();
+ESP_LOGI(TAG, "Disconnected from WiFi");
+----
+
+---
+
+=== Status and Information
+
+==== `NetworkManager_isConnected()`
+
+[source,cpp]
+----
+bool NetworkManager_isConnected(void);
+----
+
+*Description*: Checks if WiFi is connected and has IP address.
+
+*Return Value*:
+
+* `true` if state is `NETWORK_STATE_CONNECTED`
+* `false` otherwise
+
+*Example*:
+
+[source,cpp]
+----
+if (NetworkManager_isConnected()) {
+    // Safe to start servers, sync time, etc.
+    start_http_server();
+} else {
+    ESP_LOGW(TAG, "Not connected to WiFi");
+}
+----
+
+==== `NetworkManager_GetState()`
+
+[source,cpp]
+----
+Network_State_t NetworkManager_GetState(void);
+----
+
+*Description*: Gets the current network connection state.
+
+*Return Value*: Current `Network_State_t` value
+
+*Example*:
+
+[source,cpp]
+----
+Network_State_t state = NetworkManager_GetState();
+
+switch (state) {
+    case NETWORK_STATE_IDLE:
+        ESP_LOGI(TAG, "WiFi not started");
+        break;
+    case NETWORK_STATE_CONNECTING:
+        ESP_LOGI(TAG, "Connecting...");
+        break;
+    case NETWORK_STATE_CONNECTED:
+        ESP_LOGI(TAG, "Connected!");
+        break;
+    case NETWORK_STATE_ERROR:
+        ESP_LOGE(TAG, "Error state - max retries exceeded");
+        break;
+    default:
+        break;
+}
+----
+
+==== `NetworkManager_GetIP()`
+
+[source,cpp]
+----
+esp_err_t NetworkManager_GetIP(esp_netif_ip_info_t *p_IP);
+----
+
+*Description*: Gets current IP, netmask, and gateway information.
+
+*Parameters*:
+
+* `p_IP`: Pointer to store IP information
+
+*Return Value*:
+
+* `ESP_OK` on success
+* `ESP_ERR_INVALID_ARG` if `p_IP` is NULL
+
+*Example*:
+
+[source,cpp]
+----
+esp_netif_ip_info_t ip_info;
+
+if (NetworkManager_GetIP(&ip_info) == ESP_OK) {
+    ESP_LOGI(TAG, "IP: " IPSTR, IP2STR(&ip_info.ip));
+    ESP_LOGI(TAG, "Netmask: " IPSTR, IP2STR(&ip_info.netmask));
+    ESP_LOGI(TAG, "Gateway: " IPSTR, IP2STR(&ip_info.gw));
+}
+----
+
+==== `NetworkManager_GetRSSI()`
+
+[source,cpp]
+----
+int8_t NetworkManager_GetRSSI(void);
+----
+
+*Description*: Gets WiFi signal strength (RSSI) in dBm.
+
+*Return Value*:
+
+* RSSI in dBm (typically -30 to -90)
+* `0` if not connected
+
+*RSSI Interpretation*:
+
+* -30 dBm: Excellent signal
+* -50 dBm: Very good signal
+* -60 dBm: Good signal
+* -70 dBm: Fair signal
+* -80 dBm: Weak signal
+* -90 dBm: Very weak signal
+
+*Example*:
+
+[source,cpp]
+----
+int8_t rssi = NetworkManager_GetRSSI();
+
+if (rssi != 0) {
+    const char *quality;
+    if (rssi >= -50) quality = "Excellent";
+    else if (rssi >= -60) quality = "Very Good";
+    else if (rssi >= -70) quality = "Good";
+    else if (rssi >= -80) quality = "Fair";
+    else quality = "Weak";
+    
+    ESP_LOGI(TAG, "Signal: %d dBm (%s)", rssi, quality);
+}
+----
+
+==== `NetworkManager_GetMAC()`
+
+[source,cpp]
+----
+esp_err_t NetworkManager_GetMAC(uint8_t *p_MAC);
+----
+
+*Description*: Gets the MAC address of the WiFi station interface.
+
+*Parameters*:
+
+* `p_MAC`: Buffer to store MAC address (6 bytes)
+
+*Return Value*:
+
+* `ESP_OK` on success
+* `ESP_ERR_INVALID_ARG` if `p_MAC` is NULL
+
+*Example*:
+
+[source,cpp]
+----
+uint8_t mac[6];
+
+if (NetworkManager_GetMAC(mac) == ESP_OK) {
+    ESP_LOGI(TAG, "MAC: %02X:%02X:%02X:%02X:%02X:%02X",
+             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+----
+
+---
+
+=== Credentials Management
+
+==== `NetworkManager_SetCredentials()`
+
+[source,cpp]
+----
+esp_err_t NetworkManager_SetCredentials(Network_WiFi_Credentials_t *p_Credentials);
+----
+
+*Description*: Updates WiFi credentials without reconnecting.
+
+*Parameters*:
+
+* `p_Credentials`: Pointer to new credentials
+
+*Process*:
+
+1. Updates internal credentials
+2. Posts `NETWORK_EVENT_CREDENTIALS_UPDATED` event
+3. Does NOT reconnect (call `NetworkManager_ConnectWiFi()` to reconnect)
+
+*Return Value*:
+
+* `ESP_OK` on success
+* `ESP_ERR_INVALID_ARG` if `p_Credentials` is NULL
+
+*Example*:
+
+[source,cpp]
+----
+Network_WiFi_Credentials_t creds = {
+    .SSID = "NewNetwork",
+    .Password = "NewPass123",
+};
+
+// Update credentials (saved in RAM)
+NetworkManager_SetCredentials(&creds);
+
+// Save to NVS via Settings Manager
+Settings_WiFi_t wifi_settings;
+SettingsManager_GetWiFi(&wifi_settings);
+memcpy(&wifi_settings.Credentials, &creds, sizeof(creds));
+SettingsManager_UpdateWiFi(&wifi_settings);
+SettingsManager_Save();
+
+// Reconnect with new credentials
+NetworkManager_ConnectWiFi(NULL, NULL);
+----
+
+---
+
+=== Server Management
+
+==== `NetworkManager_StartServer()`
+
+[source,cpp]
+----
+esp_err_t NetworkManager_StartServer(Server_Config_t *p_Config);
+----
+
+*Description*: Starts the HTTP/WebSocket server.
+
+*Parameters*:
+
+* `p_Config`: Pointer to server configuration
+
+*Return Value*:
+
+* `ESP_OK` on success
+* Error code from server initialization
+
+*Example*:
+
+[source,cpp]
+----
+Network_Server_Config_t server_cfg = {
+    .HTTP_Port = 80,
+    .MaxClients = 4,
+    .WSPingIntervalSec = 30,
+    .EnableCORS = true,
+    .API_Key = NULL,  // No API key
+};
+
+if (NetworkManager_isConnected()) {
+    NetworkManager_StartServer(&server_cfg);
+    ESP_LOGI(TAG, "HTTP/WebSocket server started on port 80");
+}
+----
+
+==== `NetworkManager_GetConnectedStations()`
+
+[source,cpp]
+----
+uint8_t NetworkManager_GetConnectedStations(void);
+----
+
+*Description*: Gets the number of stations connected to our AP (AP mode only).
+
+*Return Value*: Number of connected stations (0 if not in AP mode)
+
+*Example*:
+
+[source,cpp]
+----
+uint8_t num_stations = NetworkManager_GetConnectedStations();
+ESP_LOGI(TAG, "Connected stations: %d", num_stations);
+----
+
+---
+
+== Usage
+
+=== Basic Connection Flow
+
+[source,cpp]
+----
+#include "networkManager.h"
+
+void init_network(void)
+{
+    // Load WiFi settings from Settings Manager
+    Settings_WiFi_t wifi_settings;
+    SettingsManager_GetWiFi(&wifi_settings);
+    
+    // Prepare network configuration
+    Network_WiFi_STA_Config_t network_cfg = {
+        .Credentials = wifi_settings.Credentials,
+        .MaxRetries = 5,
+        .RetryInterval = 5000,
+    };
+    
+    // Initialize Network Manager
+    ESP_ERROR_CHECK(NetworkManager_Init(&network_cfg));
+    
+    // Start WiFi connection
+    ESP_ERROR_CHECK(NetworkManager_StartSTA());
+    
+    ESP_LOGI(TAG, "WiFi connection initiated");
+}
+----
+
+---
+
+=== Event Handling
+
+[source,cpp]
+----
+static void network_event_handler(void* arg, esp_event_base_t base,
+                                   int32_t id, void* event_data)
+{
+    switch (id) {
+        case NETWORK_EVENT_WIFI_CONNECTED:
+            ESP_LOGI(TAG, "WiFi connected to AP");
+            break;
+            
+        case NETWORK_EVENT_WIFI_DISCONNECTED: {
+            wifi_event_sta_disconnected_t *evt = (wifi_event_sta_disconnected_t*)event_data;
+            ESP_LOGW(TAG, "WiFi disconnected, reason: %d", evt->reason);
+            break;
+        }
+        
+        case NETWORK_EVENT_WIFI_GOT_IP: {
+            Network_IP_Info_t *ip_info = (Network_IP_Info_t*)event_data;
+            esp_ip4_addr_t ip = { .addr = ip_info->IP };
+            ESP_LOGI(TAG, "Got IP: " IPSTR, IP2STR(&ip));
+            
+            // Safe to start servers now
+            start_application_servers();
+            
+            // Notify Time Manager
+            TimeManager_OnNetworkConnected();
+            break;
+        }
+        
+        case NETWORK_EVENT_SERVER_STARTED:
+            ESP_LOGI(TAG, "HTTP/WebSocket server started");
+            break;
+            
+        default:
+            break;
+    }
+}
+
+void register_network_events(void)
+{
+    ESP_ERROR_CHECK(esp_event_handler_register(NETWORK_EVENTS,
+                                               ESP_EVENT_ANY_ID,
+                                               network_event_handler,
+                                               NULL));
+}
+----
+
+---
+
+=== Connection Status Monitoring
+
+[source,cpp]
+----
+void network_monitor_task(void *pvParameters)
+{
+    while (1) {
+        if (NetworkManager_isConnected()) {
+            // Get connection details
+            int8_t rssi = NetworkManager_GetRSSI();
+            esp_netif_ip_info_t ip_info;
+            NetworkManager_GetIP(&ip_info);
+            
+            ESP_LOGI(TAG, "=== Network Status ===");
+            ESP_LOGI(TAG, "State: CONNECTED");
+            ESP_LOGI(TAG, "IP: " IPSTR, IP2STR(&ip_info.ip));
+            ESP_LOGI(TAG, "RSSI: %d dBm", rssi);
+            
+            // Check signal quality
+            if (rssi < -80) {
+                ESP_LOGW(TAG, "Weak signal detected!");
+            }
+        } else {
+            Network_State_t state = NetworkManager_GetState();
+            ESP_LOGI(TAG, "Network state: %d (not connected)", state);
+            
+            if (state == NETWORK_STATE_ERROR) {
+                ESP_LOGE(TAG, "Network in error state - manual intervention needed");
+            }
+        }
+        
+        vTaskDelay(pdMS_TO_TICKS(10000));  // Check every 10 seconds
+    }
+}
+----
+
+---
+
+=== Retry Logic Implementation
+
+The Network Manager implements intelligent retry logic:
+
+[source,cpp]
+----
+/*
+ * Retry behavior:
+ * 1. On disconnect, check if retries remain
+ * 2. Wait RetryInterval milliseconds
+ * 3. Attempt reconnection
+ * 4. Repeat up to MaxRetries times
+ * 5. If max retries exceeded, enter ERROR state
+ */
+
+// Example: Configure aggressive retries
+Network_WiFi_STA_Config_t config = {
+    .Credentials = { .SSID = "MyNetwork", .Password = "Pass123" },
+    .MaxRetries = 10,          // Try 10 times
+    .RetryInterval = 3000,     // 3 seconds between attempts
+};
+
+// Total timeout = 10 × 3s = 30 seconds of retry attempts
+----
+
+---
+
+=== HTTP Server Integration
+
+[source,cpp]
+----
+void start_web_interface(void)
+{
+    // Wait for network connection
+    while (!NetworkManager_isConnected()) {
+        ESP_LOGI(TAG, "Waiting for network connection...");
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    
+    // Load server settings
+    Settings_HTTP_Server_t http_settings;
+    SettingsManager_GetHTTPServer(&http_settings);
+    
+    // Configure server
+    Network_Server_Config_t server_cfg = {
+        .HTTP_Port = http_settings.Port,
+        .MaxClients = http_settings.MaxClients,
+        .WSPingIntervalSec = http_settings.WSPingIntervalSec,
+        .EnableCORS = true,
+        .API_Key = NULL,
+    };
+    
+    // Start server
+    esp_err_t ret = NetworkManager_StartServer(&server_cfg);
+    if (ret == ESP_OK) {
+        ESP_LOGI(TAG, "Web interface available at http://" IPSTR,
+                 IP2STR(&current_ip));
+    } else {
+        ESP_LOGE(TAG, "Failed to start server: %d", ret);
+    }
+}
+----
+
+---
+
+== Configuration
+
+=== WiFi Configuration
+
+==== Station Mode Settings
+
+Configure via Settings Manager or directly:
+
+[source,cpp]
+----
+Network_WiFi_STA_Config_t wifi_config = {
+    .Credentials = {
+        .SSID = "YourNetwork",       // Max 32 characters
+        .Password = "YourPassword",  // Max 64 characters (WPA2)
+    },
+    .MaxRetries = 5,                 // 0-255 retries
+    .RetryInterval = 5000,           // Milliseconds between retries
+};
+----
+
+==== Server Settings
+
+[source,cpp]
+----
+Network_Server_Config_t server_config = {
+    .HTTP_Port = 80,                 // HTTP port (80 or 8080 typical)
+    .MaxClients = 4,                 // Max simultaneous clients
+    .WSPingIntervalSec = 30,         // WebSocket keepalive (seconds)
+    .EnableCORS = true,              // Allow cross-origin requests
+    .API_Key = "secret123",          // Optional API key (or NULL)
+};
+----
+
+---
+
+== WiFi Disconnect Reasons
+
+The Network Manager provides detailed disconnect reason logging:
+
+[cols="1,2,3"]
+|===
+|Code |Reason |Description
+
+|1
+|Unspecified
+|Generic disconnect
+
+|2
+|Auth expired
+|Authentication timeout
+
+|4
+|Assoc expired
+|Association timeout
+
+|6
+|Not authed
+|Not authenticated yet
+
+|8
+|Assoc leave
+|Device chose to disconnect
+
+|15
+|4-way handshake timeout
+|WPA handshake failed
+
+|23
+|Beacon timeout
+|Lost connection (AP disappeared)
+
+|201
+|No AP found
+|SSID not found (check spelling, 2.4GHz)
+
+|202
+|Auth failed
+|Wrong password
+
+|205
+|Connection failed
+|Generic connection failure
+|===
+
+---
+
+== Best Practices
+
+=== DO's
+
+* ✓ Initialize Network Manager after NVS and before starting tasks
+* ✓ Register event handlers before starting WiFi
+* ✓ Check `NetworkManager_isConnected()` before starting servers
+* ✓ Handle disconnection gracefully with automatic retry
+* ✓ Monitor RSSI for signal quality issues
+* ✓ Use Settings Manager to persist WiFi credentials
+* ✓ Implement timeout logic for critical network operations
+
+=== DON'Ts
+
+* ✗ Don't call `NetworkManager_StartSTA()` multiple times without stopping
+* ✗ Don't start servers before network is connected
+* ✗ Don't ignore disconnect events (handle gracefully)
+* ✗ Don't hardcode credentials (use Settings Manager)
+* ✗ Don't forget to call `NetworkManager_Deinit()` on shutdown
+* ✗ Don't exceed ESP32 WiFi client limits (typically 4-8)
+
+---
+
+== Troubleshooting
+
+=== Connection Fails Immediately
+
+*Symptom*: `NETWORK_EVENT_WIFI_DISCONNECTED` with reason 201 ("No AP found")
+
+*Possible Causes*:
+
+* SSID typo or incorrect case
+* AP is on 5GHz band (ESP32 only supports 2.4GHz)
+* AP is out of range
+* AP is hidden (ESP32 can connect to hidden SSIDs but requires exact match)
+
+*Solution*:
+
+[source,cpp]
+----
+ESP_LOGI(TAG, "Scanning for networks...");
+wifi_scan_config_t scan_config = { .ssid = NULL };
+ESP_ERROR_CHECK(esp_wifi_scan_start(&scan_config, true));
+
+uint16_t ap_count = 0;
+esp_wifi_scan_get_ap_num(&ap_count);
+wifi_ap_record_t *ap_list = malloc(sizeof(wifi_ap_record_t) * ap_count);
+esp_wifi_scan_get_ap_records(&ap_count, ap_list);
+
+for (int i = 0; i < ap_count; i++) {
+    ESP_LOGI(TAG, "Found: %s (RSSI: %d, Channel: %d)",
+             ap_list[i].ssid, ap_list[i].rssi, ap_list[i].primary);
+}
+free(ap_list);
+----
+
+---
+
+=== Authentication Failures
+
+*Symptom*: Disconnect reason 202 ("Auth failed")
+
+*Cause*: Incorrect password or incompatible encryption
+
+*Solution*:
+
+* Verify password is correct (case-sensitive)
+* Ensure AP uses WPA2-PSK (WPA3 may require additional configuration)
+* Check if AP requires additional settings (e.g., MAC filtering)
+
+---
+
+=== Connection Drops Frequently
+
+*Symptom*: Repeated connect/disconnect cycles
+
+*Possible Causes*:
+
+* Weak signal (RSSI < -80 dBm)
+* Interference from other 2.4GHz devices
+* AP overload (too many clients)
+* Power saving mode issues
+
+*Solution*:
+
+[source,cpp]
+----
+// Disable WiFi power saving for stability
+esp_wifi_set_ps(WIFI_PS_NONE);
+
+// Monitor RSSI
+int8_t rssi = NetworkManager_GetRSSI();
+if (rssi < -75) {
+    ESP_LOGW(TAG, "Signal too weak: %d dBm", rssi);
+    // Consider reconnecting to different AP or warning user
+}
+----
+
+---
+
+=== Server Not Accessible
+
+*Symptom*: Cannot access HTTP server from browser
+
+*Possible Causes*:
+
+* Network not connected
+* Firewall on client device
+* Wrong IP address
+* Server not started
+
+*Solution*:
+
+[source,cpp]
+----
+if (!NetworkManager_isConnected()) {
+    ESP_LOGE(TAG, "Not connected!");
+    return;
+}
+
+esp_netif_ip_info_t ip_info;
+NetworkManager_GetIP(&ip_info);
+ESP_LOGI(TAG, "Server should be at: http://" IPSTR, IP2STR(&ip_info.ip));
+
+// Test with curl or browser:
+// curl http://<IP_ADDRESS>/
+----
+
+---
+
+== Technical Details
+
+=== WiFi Mode
+
+Network Manager supports:
+
+* **Station (STA)**: Client mode, connects to existing AP
+* **Access Point (AP)**: Creates own network (for provisioning)
+* **APSTA**: Both modes simultaneously (not commonly used)
+
+Current implementation focuses on STA mode with AP support for provisioning.
+
+=== Security
+
+* **Minimum Authentication**: WPA2-PSK
+* **PMF (Protected Management Frames)**: Capable (not required for compatibility)
+* **Credentials Storage**: RAM only (use Settings Manager + NVS for persistence)
+
+=== Performance
+
+* **WiFi Standard**: 802.11 b/g/n (2.4GHz only)
+* **Max Throughput**: ~20 Mbps (practical)
+* **Concurrent Clients**: Configurable (typically 4-8)
+* **WebSocket Frame Rate**: ~10-30 fps (depends on resolution and network)
+
+---
+
+== Dependencies
+
+Network Manager depends on:
+
+* ESP-IDF WiFi Driver (`esp_wifi.h`)
+* ESP-IDF TCP/IP Stack (`esp_netif.h`)
+* ESP-IDF Event Loop (`esp_event.h`)
+* FreeRTOS (`freertos/FreeRTOS.h`, `freertos/event_groups.h`)
+* NVS (for credential storage via Settings Manager)
+
+Network Manager provides services to:
+
+* Time Manager (SNTP synchronization)
+* HTTP/WebSocket Server (thermal image streaming)
+* VISA Server (instrument control)
+* Application tasks (network connectivity)
+
+---
+
+== License
+
+Copyright (C) Daniel Kampert, 2026
+
+This software is licensed under the GNU General Public License v3.0.  
+Website: www.kampis-elektroecke.de
+
+---
+
+== Contact
+
+Please report bugs and suggestions to: DanielKampert@kampis-elektroecke.de

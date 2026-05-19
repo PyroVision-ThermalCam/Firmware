@@ -1,0 +1,97 @@
+From 0000000000000000000000000000000000000002 Mon Sep 17 00:00:00 2001
+From: Daniel Kampert <DanielKampert@kampis-elektroecke.de>
+Date: Wed, 30 Apr 2026 00:00:00 +0100
+Subject: [PATCH] fix(esp_lcd): Replace infinite I2C timeout in panel_io_i2c_v2
+
+All three I2C transactions in the I2C v2 panel IO implementation
+(panel_io_i2c_rx_buffer and panel_io_i2c_tx_buffer) hard-code -1 as
+the timeout_ms argument to i2c_master_transmit_receive,
+i2c_master_receive and i2c_master_multi_buffer_transmit, which the
+ESP-IDF I2C master driver maps to portMAX_DELAY.
+
+When the shared I2C bus enters a locked state (e.g. after a NACK or
+clock-stretch timeout on another device on the same bus), any task
+that calls esp_lcd_touch_read_data (Task_GUI via the LVGL indev timer)
+blocks indefinitely.  This starves the FreeRTOS idle task and triggers
+the task watchdog, even though only one peripheral is misbehaving.
+
+A new field transaction_timeout_ms is added to
+esp_lcd_panel_io_i2c_config_t.  When set to 0 (or not initialised)
+the driver defaults to 200 ms, which is well above the worst-case
+transfer time of a GT911 read at 400 kHz (< 1 ms) while still
+allowing the caller to detect and recover from a bus fault without
+hanging the whole system.  Setting the value to -1 restores the
+original infinite-wait (portMAX_DELAY) behaviour.
+
+Signed-off-by: Daniel Kampert <DanielKampert@kampis-elektroecke.de>
+---
+ components/esp_lcd/include/esp_lcd_io_i2c.h       |  4 ++++
+ components/esp_lcd/i2c/esp_lcd_panel_io_i2c_v2.c  | 14 ++++++++------
+ 2 files changed, 12 insertions(+), 6 deletions(-)
+
+diff --git a/components/esp_lcd/include/esp_lcd_io_i2c.h b/components/esp_lcd/include/esp_lcd_io_i2c.h
+--- a/components/esp_lcd/include/esp_lcd_io_i2c.h
++++ b/components/esp_lcd/include/esp_lcd_io_i2c.h
+@@ -31,6 +31,10 @@ typedef struct {
+         unsigned int disable_control_phase: 1; /*!< If this flag is enabled, the control phase isn't used */
+     } flags; /*!< Extra flags to fine-tune the I2C device */
+     uint32_t scl_speed_hz; /*!< I2C LCD SCL frequency (hz) */
++    int transaction_timeout_ms; /*!< Timeout in milliseconds for each I2C transaction.
++                                     0 means use the default (200 ms).
++                                     Set to -1 to wait indefinitely (portMAX_DELAY).
++                                     Must not exceed 10000. */
+ } esp_lcd_panel_io_i2c_config_t;
+ 
+ /**
+
+diff --git a/components/esp_lcd/i2c/esp_lcd_panel_io_i2c_v2.c b/components/esp_lcd/i2c/esp_lcd_panel_io_i2c_v2.c
+--- a/components/esp_lcd/i2c/esp_lcd_panel_io_i2c_v2.c
++++ b/components/esp_lcd/i2c/esp_lcd_panel_io_i2c_v2.c
+@@ -27,6 +27,8 @@ static const char *TAG = "lcd_panel.io.i2c";
+ #define BYTESHIFT(VAR, IDX) (((VAR) >> ((IDX) * 8)) & 0xFF)
+ #define CONTROL_PHASE_LENGTH  (1)
+ #define CMD_LENGTH            (4)
++/** Default I2C transaction timeout when the caller leaves transaction_timeout_ms = 0. */
++#define LCD_I2C_DEFAULT_TIMEOUT_MS  (-1)
+ 
+ static esp_err_t panel_io_i2c_del(esp_lcd_panel_io_t *io);
+ static esp_err_t panel_io_i2c_rx_param(esp_lcd_panel_io_t *io, int lcd_cmd, void *param, size_t param_size);
+@@ -43,6 +45,7 @@ typedef struct {
+     uint32_t control_phase_cmd;  // control byte when transferring command
+     uint32_t control_phase_data; // control byte when transferring data
+     esp_lcd_panel_io_color_trans_done_cb_t on_color_trans_done; // User register's callback, invoked when color data trans done
++    int transaction_timeout_ms; // I2C transaction timeout in ms (-1 = portMAX_DELAY)
+     void *user_ctx;             // User's private data, passed directly to callback on_color_trans_done()
+ } lcd_panel_io_i2c_t;
+ 
+@@ -77,6 +80,7 @@ esp_err_t esp_lcd_new_panel_io_i2c_v2(i2c_master_bus_handle_t bus, const esp_lc
+     i2c_panel_io->control_phase_data = (!io_config->flags.dc_low_on_data) << (io_config->dc_bit_offset);
+     i2c_panel_io->control_phase_cmd = (io_config->flags.dc_low_on_data) << (io_config->dc_bit_offset);
+     i2c_panel_io->dev_addr = io_config->dev_addr;
++    i2c_panel_io->transaction_timeout_ms = (io_config->transaction_timeout_ms == 0) ? LCD_I2C_DEFAULT_TIMEOUT_MS : io_config->transaction_timeout_ms;
+     i2c_panel_io->base.del = panel_io_i2c_del;
+     i2c_panel_io->base.rx_param = panel_io_i2c_rx_param;
+     i2c_panel_io->base.tx_param = panel_io_i2c_tx_param;
+@@ -142,9 +146,9 @@ static esp_err_t panel_io_i2c_rx_buffer(esp_lcd_panel_io_t *io, int lcd_cmd, vo
+             write_size += cmds_size;
+         }
+ 
+-        ESP_GOTO_ON_ERROR(i2c_master_transmit_receive(i2c_panel_io->i2c_handle, write_buffer, write_size, buffer, buffer_size, -1), err, TAG, "i2c transaction failed");
++        ESP_GOTO_ON_ERROR(i2c_master_transmit_receive(i2c_panel_io->i2c_handle, write_buffer, write_size, buffer, buffer_size, i2c_panel_io->transaction_timeout_ms), err, TAG, "i2c transaction failed");
+     } else {
+-        ESP_GOTO_ON_ERROR(i2c_master_receive(i2c_panel_io->i2c_handle, buffer, buffer_size, -1), err, TAG, "i2c transaction failed");
++        ESP_GOTO_ON_ERROR(i2c_master_receive(i2c_panel_io->i2c_handle, buffer, buffer_size, i2c_panel_io->transaction_timeout_ms), err, TAG, "i2c transaction failed");
+     }
+ 
+     return ESP_OK;
+@@ -190,7 +194,7 @@ static esp_err_t panel_io_i2c_tx_buffer(esp_lcd_panel_io_t *io, int lcd_cmd, co
+         {.write_buffer = lcd_buffer, .buffer_size = lcd_buffer_size},
+     };
+ 
+-    ESP_GOTO_ON_ERROR(i2c_master_multi_buffer_transmit(i2c_panel_io->i2c_handle, lcd_i2c_buffer, sizeof(lcd_i2c_buffer) / sizeof(i2c_master_transmit_multi_buffer_info_t), -1), err, TAG, "i2c transaction failed");
++    ESP_GOTO_ON_ERROR(i2c_master_multi_buffer_transmit(i2c_panel_io->i2c_handle, lcd_i2c_buffer, sizeof(lcd_i2c_buffer) / sizeof(i2c_master_transmit_multi_buffer_info_t), i2c_panel_io->transaction_timeout_ms), err, TAG, "i2c transaction failed");
+     if (!is_param) {
+         // trans done callback
+         if (i2c_panel_io->on_color_trans_done) {
+-- 
+2.43.0

@@ -1,0 +1,347 @@
+= PyroVision Firmware Documentation
+Daniel Kampert <DanielKampert@kampis-elektroecke.de>
+v1.0, 2026-02-09
+:toc: left
+:toclevels: 3
+:sectnums:
+:source-highlighter: coderay
+
+== Overview
+
+PyroVision is an advanced ESP32-S3 based thermal imaging camera system featuring a FLIR Lepton 3.5 thermal sensor, touch display interface, WiFi connectivity, and comprehensive remote control capabilities. This documentation provides a complete reference for the firmware architecture, APIs, and usage.
+
+=== Key Features
+
+* *Thermal Imaging*: FLIR Lepton 3.5 (160x120, 14-bit, 8.6 Hz)
+* *Display*: 320x240 ILI9341 TFT with GT911 capacitive touch
+* *WiFi*: Station and Access Point modes with provisioning
+* *Web Interface*: Live thermal streaming via WebSocket
+* *SCPI/VISA*: Standard instrumentation protocol (port 5025)
+* *Storage*: SD card for image capture and logging
+* *USB*: Mass Storage Class for SD card access
+* *RTOS*: FreeRTOS-based multi-tasking architecture
+
+---
+
+== System Architecture
+
+=== High-Level Overview
+
+[source]
+----
+┌─────────────────────────────────────────────────────────┐
+│                     Application Layer                    │
+├────────────┬───────────────┬─────────────┬──────────────┤
+│ GUI Task   │ Lepton Task   │ Network Task│ Devices Task │
+├────────────┴───────────────┴─────────────┴──────────────┤
+│                    Manager Layer                         │
+├──────────┬────────────┬────────────┬───────────┬────────┤
+│ Settings │ Network    │ Device     │ Time      │ Memory │
+│ Manager  │ Manager    │ Manager    │ Manager   │ Manager│
+├──────────┴────────────┴────────────┴───────────┴────────┤
+│                    Hardware Abstraction Layer            │
+├──────────┬────────────┬────────────┬───────────┬────────┤
+│ SPI/I2C  │ Display    │ Camera     │ RTC       │ SD Card│
+├──────────┴────────────┴────────────┴───────────┴────────┤
+│                     ESP-IDF / FreeRTOS                   │
+└─────────────────────────────────────────────────────────┘
+----
+
+== Documentation Index
+
+=== Managers
+
+Managers provide stateful APIs for major subsystems:
+
+* link:SettingsManager.adoc[*Settings Manager*] - Configuration and NVS storage
+* link:NetworkManager.adoc[*Network Manager*] - WiFi, servers, and connectivity
+* link:DeviceManager.adoc[*Device Manager*] - Peripheral initialization (I2C, SPI, display, etc.)
+* link:TimeManager.adoc[*Time Manager*] - RTC and NTP time synchronization
+* link:MemoryManager.adoc[*Memory Manager*] - Heap and PSRAM management
+* link:USBManager.adoc[*USB Manager*] - USB device (MSC) functionality
+
+=== Tasks
+
+FreeRTOS tasks implement the main application logic:
+
+* link:GUITask.adoc[*GUI Task*] - LVGL-based touch interface
+* link:LeptonTask.adoc[*Lepton Task*] - Thermal camera acquisition and processing
+* link:NetworkTask.adoc[*Network Task*] - Network connectivity and streaming
+* link:DevicesTask.adoc[*Devices Task*] - Peripheral monitoring (battery, sensors)
+
+=== Network Servers
+
+Server implementations for remote access:
+
+* link:HTTPServer.adoc[*HTTP Server*] - Web interface and REST API
+* link:VISAServer.adoc[*VISA Server*] - SCPI instrumentation protocol
+
+== Getting Started
+
+=== Building the Firmware
+
+**Prerequisites:**
+
+* PlatformIO (recommended) or ESP-IDF 5.5+
+* Python 3.8+
+* AStyle (for code formatting)
+
+**Build Commands:**
+
+[source,bash]
+----
+# Debug build
+pio run -e debug
+
+# Release build
+pio run -e release
+
+# Upload to device
+pio run -t upload
+
+# Monitor serial output
+pio device monitor
+----
+
+== First Boot
+
+**Initial Configuration:**
+
+1. Device boots into Access Point mode (`PyroVision-XXXXXX`)
+2. Connect to the AP with your phone/computer
+3. Captive portal automatically opens (or navigate to `http://192.168.4.1`)
+4. Scan for WiFi networks and enter credentials
+5. Device connects to your WiFi network
+6. Access web interface at device's IP address
+
+== Configuration
+
+=== Kconfig Options
+
+Key configuration options (via `menuconfig`):
+
+* **WiFi Settings**: Default SSID, password, max retries
+* **Display Settings**: Orientation, backlight, color depth
+* **Lepton Settings**: SPI frequency, AGC mode, emissivity
+* **Task Priorities**: Configure FreeRTOS task priorities
+* **Memory Allocation**: PSRAM usage, heap sizes
+
+=== Settings Structure
+
+Settings are organized hierarchically:
+
+[source]
+----
+Settings_t
+├── WiFi (SSID, password, auto-connect)
+├── Display (brightness, orientation, timeout)
+├── Lepton (ROIs, emissivity presets, AGC)
+├── Network (HTTP port, VISA port, WebSocket config)
+├── System (timezone, hostname, log level)
+└── USB (MSC mode, vendor/product strings)
+----
+
+**Persistent Storage:** All settings stored in NVS (Non-Volatile Storage).
+
+== API Quick Reference
+
+=== Common Patterns
+
+**Manager Initialization:**
+
+[source,c]
+----
+// Standard manager initialization pattern
+esp_err_t Error = ManagerName_Init();
+if (Error != ESP_OK) {
+    ESP_LOGE(TAG, "Init failed: %d", Error);
+    return Error;
+}
+----
+
+**Getting Settings:**
+
+[source,c]
+----
+Settings_WiFi_t WiFiSettings;
+esp_err_t Error = SettingsManager_GetWiFi(&WiFiSettings);
+----
+
+**Updating Settings:**
+
+[source,c]
+----
+Settings_WiFi_t WiFiSettings = {
+    .SSID = "MyNetwork",
+    .Password = "MyPassword",
+    .AutoConnect = true
+};
+SettingsManager_UpdateWiFi(&WiFiSettings);
+SettingsManager_Save();  // Persist to NVS
+----
+
+**Event Subscription:**
+
+[source,c]
+----
+esp_event_handler_register(SETTINGS_EVENTS, 
+                           SETTINGS_EVENT_WIFI_CHANGED,
+                           &on_WiFi_Changed, NULL);
+----
+
+== Development Guidelines
+
+=== Code Style
+
+* **Style**: K&R with 4-space indentation
+* **Line Length**: Maximum 120 characters
+* **Naming**: PascalCase for functions, lowercase/PascalCase for variables
+* **Documentation**: Complete Doxygen comments for all public functions
+* **License**: GNU GPL v3.0 header in all files
+
+**Format Code:**
+
+[source,bash]
+----
+pio run -t format
+----
+
+== Troubleshooting
+
+**Checklist:**
+
+1. Create module in appropriate directory (Manager/Task)
+2. Define public API in header file with complete Doxygen documentation
+3. Implement functionality in `.cpp` file
+4. Add GPL v3 license header to all files
+5. Register events if module posts events
+6. Update relevant AsciiDoc documentation
+7. Add configuration options to Settings if needed
+8. Format code with AStyle
+9. Test thoroughly (debug and release builds)
+
+== Troubleshooting
+
+=== Build Issues
+
+**"WebSocket support not enabled":**
+
+* Enable `CONFIG_HTTPD_WS_SUPPORT` in sdkconfig
+* Ensure both debug and release sdkconfig have WS support
+
+**"Guru Meditation Error":**
+
+* Check stack sizes (increase if needed)
+* Verify all pointers are valid before dereferencing
+* Enable debug build for stack traces
+
+=== Runtime Issues
+
+**WiFi won't connect:**
+
+* Verify SSID and password in settings
+* Check signal strength (RSSI)
+* Ensure router supports 2.4 GHz (ESP32 doesn't support 5 GHz)
+* Check max retry count and retry interval
+
+**Display not updating:**
+
+* Verify LVGL tick handler is running
+* Check SPI bus configuration
+* Ensure display backlight GPIO is correct
+
+**Thermal image frozen:**
+
+* Check Lepton Task is running
+* Verify SPI communication with camera
+* Perform camera FFC (Flat Field Correction)
+
+**WebSocket disconnects frequently:**
+
+* Increase ping interval
+* Check WiFi stability
+* Monitor memory usage (may be low)
+
+== Performance Optimization
+
+=== Memory Management
+
+* **PSRAM Usage**: Allocate large buffers (frame buffers, JSON parsing) in PSRAM
+* **Heap Monitoring**: Use `heap_caps_get_free_size()` to monitor available memory
+* **Stack Sizes**: Tune task stack sizes (too large wastes RAM, too small causes crashes)
+
+=== Frame Rate Optimization
+
+* **Camera**: Lepton 3.5 native rate is 8.6 Hz (cannot be increased)
+* **Display**: Reduce LVGL animation complexity, enable DMA
+* **Network**: Adjust JPEG compression quality vs. size tradeoff
+
+== Hardware Pinout
+
+=== ESP32-S3 Pin Assignment
+
+**Lepton Camera (SPI):**
+
+* CS: GPIO 10
+* MOSI: GPIO 11
+* MISO: GPIO 13
+* CLK: GPIO 12
+
+**Display (SPI):**
+
+* CS: GPIO 15
+* DC: GPIO 21
+* RST: GPIO 48
+* Backlight: GPIO 45
+
+**Touch (I2C):**
+
+* SDA: GPIO 18
+* SCL: GPIO 17
+* INT: GPIO 16
+
+**SD Card (SPI):**
+
+* CS: GPIO 9
+* MOSI: GPIO 35
+* MISO: GPIO 37
+* CLK: GPIO 36
+
+**RTC (I2C):**
+
+* SDA: GPIO 18 (shared with touch)
+* SCL: GPIO 17 (shared with touch)
+
+== License and Copyright
+
+**License:** GNU General Public License v3.0
+
+**Copyright:** © 2026 Daniel Kampert
+
+**Website:** www.kampis-elektroecke.de
+
+**Contact:** DanielKampert@kampis-elektroecke.de
+
+== Contributing
+
+Contributions are welcome! Please:
+
+1. Follow the code style guidelines
+2. Add complete documentation for new APIs
+3. Update AsciiDoc documentation when changing functionality
+4. Test both debug and release builds
+5. Format code with AStyle before committing
+
+== Version History
+
+* **v1.0.0** (2026-02-09) - Initial release
+  - Lepton 3.5 support
+  - Touch GUI with LVGL
+  - WiFi provisioning
+  - HTTP/WebSocket server
+  - VISA/SCPI server
+  - USB MSC support
+  - SD card image storage
+
+**Last Updated**: February 9, 2026 +
+**Maintainer**: Daniel Kampert (DanielKampert@kampis-elektroecke.de)

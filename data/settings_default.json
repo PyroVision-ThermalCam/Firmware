@@ -1,0 +1,99 @@
+{
+    "version" : 1,
+    "led-flash" : {
+        "enabled" : true,
+        "power" : 100
+    },
+    "lepton" : {
+        "emissivity" : [
+            {
+                "name" : "Concrete",
+                "value" : 0.92
+            },
+            {
+                "name" : "Human Skin",
+                "value" : 0.98
+            },
+            {
+                "name" : "Water",
+                "value" : 0.96
+            },
+            {
+                "name" : "Asphalt",
+                "value" : 0.95
+            }
+        ],
+        "roi" : [
+            {
+                "name" : "spotmeter",
+                "x" : 0,
+                "y" : 0,
+                "width" : 40,
+                "height" : 40
+            },
+            {
+                "name" : "scene",
+                "x" : 0,
+                "y" : 0,
+                "width" : 160,
+                "height" : 120
+            },
+            {
+                "name" : "agc",
+                "x" : 0,
+                "y" : 0,
+                "width" : 160,
+                "height" : 120
+            },
+            {
+                "name" : "video-focus",
+                "x" : 1,
+                "y" : 1,
+                "width" : 158,
+                "height" : 118
+            }
+        ]
+    },
+    "wifi" : {
+        "ssid" : "",
+        "password" : "",
+        "maxRetries" : 5,
+        "retryInterval" : 2000,
+        "autoConnect" : true
+    },
+    "provisioning" : {
+        "name" : "PyroVision-PROV",
+        "timeout" : 300
+    },
+    "display" : {
+        "brightness" : 80,
+        "timeout" : 60
+    },
+    "system" : {
+        "timezone" : "CET-1CEST,M3.5.0,M10.5.0/3",
+        "ntp-server" : "pool.ntp.org"
+    },
+    "image" : {
+        "format" : "jpeg",
+        "jpeg-quality" : 100
+    },
+    "http-server" : {
+        "port" : 80,
+        "ws-ping-interval" : 30,
+        "max-clients" : 4,
+        "enable-cors" : true,
+        "api-key" : ""
+    },
+    "visa-server": {
+        "port" : 5025,
+        "timeout" : 5000
+    },
+    "usb": {
+        "msc-enabled" : false,
+        "uvc-enabled" : false
+    },
+    "calibration": {
+        "room-temperature" : 20,
+        "interval" : 30
+    }
+}
